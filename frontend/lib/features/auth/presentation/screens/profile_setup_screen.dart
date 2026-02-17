@@ -1,8 +1,7 @@
-// profile_setup_screen.dart
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../domain/failures/auth_failure.dart'; // Import Sealed Class
 import '../providers/auth_notifier.dart';
 
 class ProfileSetupScreen extends ConsumerStatefulWidget {
@@ -27,12 +26,11 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
   Widget build(BuildContext context) {
     final authAsync = ref.watch(authProvider);
 
-    // Maintain Logic: Listener for Side Effects
     ref.listen(authProvider, (prev, next) {
       next.whenOrNull(
+        // SUCCESS CASE
         data: (state) {
           if (state.successMessage != null && !state.user!.nameRequired) {
-            // Show Success Feedback
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(state.successMessage!),
@@ -43,15 +41,40 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
             context.go('/home');
           }
         },
-        error: (err, _) => ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              err.toString().replaceAll('Exception: ', ''),
-            ), // Clean Error
-            backgroundColor: Colors.redAccent,
-            behavior: SnackBarBehavior.floating,
-          ),
-        ),
+
+        // ERROR CASE: Switch on Domain Exceptions
+        error: (error, _) {
+          String msg = error.toString();
+
+          if (error is AuthFailure) {
+            switch (error) {
+              case InvalidInput(:final errors):
+                // Backend might send: {"first_name": ["Required"]}
+                final fErr = errors['first_name']?.first;
+                final lErr = errors['last_name']?.first;
+                msg = fErr ?? lErr ?? "Please check your input.";
+
+              case Unauthorized(:final message):
+                msg = message; // "Token missing"
+                context.go('/login'); // Force re-login
+                return;
+
+              case ServerError(:final message):
+                msg = message;
+
+              default:
+                msg = "Profile update failed.";
+            }
+          }
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(msg),
+              backgroundColor: Colors.redAccent,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        },
       );
     });
 
@@ -60,7 +83,6 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        // Polished iOS-style back button
         leading: IconButton(
           icon: const Icon(
             Icons.arrow_back_ios_new_rounded,
@@ -76,7 +98,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
           child: Column(
             children: [
               const SizedBox(height: 20),
-              // Branding Icon Hub
+              // Branding Icon
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
@@ -111,7 +133,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
               ),
               const SizedBox(height: 48),
 
-              // Polished First Name Input
+              // First Name Input
               _buildTextField(
                 controller: _firstNameController,
                 label: "First Name",
@@ -120,7 +142,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
               ),
               const SizedBox(height: 20),
 
-              // Polished Last Name Input
+              // Last Name Input
               _buildTextField(
                 controller: _lastNameController,
                 label: "Last Name",
@@ -129,7 +151,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
               ),
               const SizedBox(height: 48),
 
-              // Polished Action Button
+              // Action Button
               SizedBox(
                 width: double.infinity,
                 height: 60,
@@ -170,7 +192,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
     );
   }
 
-  // Reusable polished TextField to match Login style
+  // Helper Widget
   Widget _buildTextField({
     required TextEditingController controller,
     required String label,

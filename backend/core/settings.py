@@ -143,6 +143,7 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.AllowAny',
     ],
+    'EXCEPTION_HANDLER': 'core.common.failures.exception.custom_exception_handler',
 }
 CORS_ALLOW_ALL_ORIGINS = True
 

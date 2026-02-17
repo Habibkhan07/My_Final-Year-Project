@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl_phone_field/intl_phone_field.dart';
+import '../../domain/failures/auth_failure.dart'; // Import Sealed Class
 import '../providers/auth_notifier.dart';
 import '../providers/auth_state.dart';
 
@@ -10,36 +11,60 @@ class LoginScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // 1. Maintain Logic: Watch the AsyncValue
+    // 1. Watch the AsyncValue
     final authAsync = ref.watch(authProvider);
 
-    // 2. Maintain Logic: Listener for Side Effects
+    // 2. Listen for Side Effects (Navigation & Error Handling)
     ref.listen<AsyncValue<AuthState>>(authProvider, (previous, next) {
       next.whenOrNull(
-        // login_screen.dart
+        // SUCCESS CASE
         data: (state) {
           if (state.successMessage != null) {
-            // 1. Show the success bar
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(state.successMessage!),
-                backgroundColor: Colors.green, // This makes it green!
+                backgroundColor: Colors.green,
                 behavior: SnackBarBehavior.floating,
               ),
             );
 
-            // 2. Navigate
             final phone = ref.read(phoneNumberProvider);
             if (phone.isNotEmpty) {
               context.go('/otp/$phone');
             }
           }
         },
-        error: (error, stackTrace) {
+
+        // ERROR CASE: Switch on Domain Exceptions
+        error: (error, _) {
+          String msg = error.toString();
+          Color color = Colors.redAccent;
+
+          if (error is AuthFailure) {
+            switch (error) {
+              case InvalidInput(:final errors):
+                // Extract 'phone' specific error or fallback
+                msg = errors['phone']?.first ?? "Invalid phone number.";
+                color = Colors.orange;
+
+              case UserAlreadyExists(:final message):
+                msg = message;
+
+              case ServerError(:final message):
+                msg = message;
+
+              case Unauthorized(:final message):
+                msg = message;
+
+              default:
+                msg = "Something went wrong. Please try again.";
+            }
+          }
+
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(error.toString()),
-              backgroundColor: Colors.redAccent,
+              content: Text(msg),
+              backgroundColor: color,
               behavior: SnackBarBehavior.floating,
             ),
           );
@@ -60,13 +85,11 @@ class LoginScreen extends ConsumerWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                // Polished Visual: Branding Icon
+                // Branding Icon
                 Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    color: Colors.blue.withValues(
-                      alpha: 0.1,
-                    ), // New High Standard
+                    color: Colors.blue.withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(
@@ -77,7 +100,7 @@ class LoginScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 40),
 
-                // Updated Header Text
+                // Header Text
                 const Text(
                   "Start with your phone no",
                   textAlign: TextAlign.center,
@@ -100,7 +123,7 @@ class LoginScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 48),
 
-                // Polished Input Field
+                // Phone Input Field
                 IntlPhoneField(
                   decoration: InputDecoration(
                     labelText: 'Mobile Number',
@@ -136,7 +159,7 @@ class LoginScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 32),
 
-                // Polished Action Button
+                // Action Button
                 SizedBox(
                   width: double.infinity,
                   height: 60,
@@ -172,7 +195,7 @@ class LoginScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 24),
 
-                // Secondary Polished Note
+                // Terms Note
                 const Text(
                   "By continuing, you agree to our Terms of Service",
                   style: TextStyle(fontSize: 12, color: Colors.black26),

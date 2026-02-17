@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../domain/failures/auth_failure.dart'; // Import Sealed Class
 import '../providers/auth_notifier.dart';
 import '../providers/auth_state.dart';
 
@@ -24,20 +25,43 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // 1. Watch the AsyncValue states
     final authAsync = ref.watch(authProvider);
     final timerAsync = ref.watch(timerProvider);
 
-    // 2. Listen for AsyncError states from the Repository/Django
     ref.listen<AsyncValue<AuthState>>(authProvider, (previous, next) {
       next.whenOrNull(
-        error: (error, _) => ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(error.toString()),
-            backgroundColor: Colors.redAccent,
-            behavior: SnackBarBehavior.floating,
-          ),
-        ),
+        // ERROR HANDLING
+        error: (error, _) {
+          String msg = error.toString();
+
+          if (error is AuthFailure) {
+            switch (error) {
+              case InvalidInput(:final errors):
+                // Backend sends {"otp": ["Invalid OTP"]}
+                msg = errors['otp']?.first ?? "Invalid OTP code.";
+                _otpController.clear(); // Clear for retry
+
+              case ResourcesExpired(:final message):
+                msg = message; // "Session expired"
+                context.go('/login'); // Redirect to login
+                return;
+
+              case ServerError(:final message):
+                msg = message;
+
+              default:
+                msg = "Verification failed.";
+            }
+          }
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(msg),
+              backgroundColor: Colors.redAccent,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        },
       );
     });
 
@@ -47,7 +71,6 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
         backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
-          // Polished iOS-style back button
           icon: const Icon(
             Icons.arrow_back_ios_new_rounded,
             color: Colors.black87,
@@ -62,13 +85,11 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
           child: Column(
             children: [
               const SizedBox(height: 20),
-              // Branding Icon Hub
+              // Branding Icon
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: Colors.blue.withValues(
-                    alpha: 0.1,
-                  ), // Updated precision syntax
+                  color: Colors.blue.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
@@ -89,7 +110,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
               ),
               const SizedBox(height: 12),
 
-              // Dynamic Text showing the phone number
+              // Dynamic Phone Text
               RichText(
                 textAlign: TextAlign.center,
                 text: TextSpan(
@@ -112,7 +133,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
               ),
               const SizedBox(height: 48),
 
-              // Polished 4-Digit Input Field
+              // 4-Digit Input Field
               TextField(
                 controller: _otpController,
                 keyboardType: TextInputType.number,
@@ -125,7 +146,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                   color: Colors.black87,
                 ),
                 decoration: InputDecoration(
-                  counterText: "", // Hides length counter
+                  counterText: "",
                   filled: true,
                   fillColor: Colors.grey.shade50,
                   hintText: "0000",
@@ -146,7 +167,6 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                   ),
                 ),
                 onChanged: (val) {
-                  // Auto-submit when 4 digits are entered
                   if (val.length == 4) {
                     ref
                         .read(authProvider.notifier)
@@ -156,7 +176,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
               ),
               const SizedBox(height: 40),
 
-              // Verification Button
+              // Verify Button
               SizedBox(
                 width: double.infinity,
                 height: 60,
@@ -196,14 +216,11 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
               timerAsync.when(
                 data: (seconds) {
                   if (seconds == null) {
-                    // Timer hit 0: Show the Resend Button
                     return TextButton(
                       onPressed: authAsync.isLoading
                           ? null
                           : () {
-                              ref.invalidate(
-                                timerProvider,
-                              ); // Reset the timer node
+                              ref.invalidate(timerProvider);
                               ref
                                   .read(authProvider.notifier)
                                   .requestOtp(widget.phoneNumber);
@@ -218,7 +235,6 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                       ),
                     );
                   }
-                  // Timer is still counting down
                   return Text(
                     "Resend code in ${seconds}s",
                     style: const TextStyle(

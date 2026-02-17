@@ -2,9 +2,11 @@ import 'dart:io';
 import '../../domain/entities/service_entity.dart';
 import '../../domain/entities/technician_entity.dart';
 import '../../domain/repositories/technician_onboarding_repository.dart';
+import '../../domain/failures/technician_failure.dart'; // Import Sealed Class
 import '../data_sources/technician_onboarding_remote_datasource.dart';
 import '../models/technician_registration_model.dart';
 import '../../domain/entities/skill_selection_entity.dart';
+import '../../../../../core/common/errors/http_failure.dart'; // Import Data Exception
 
 class TechnicianRepositoryImpl implements TechnicianRepository {
   final TechnicianOnboardingRemoteDataSource remoteDataSource;
@@ -13,7 +15,7 @@ class TechnicianRepositoryImpl implements TechnicianRepository {
 
   @override
   Future<List<ServiceEntity>> getOnboardingMetadata() async {
-    try {
+    return _mapFailures(() async {
       final models = await remoteDataSource.getOnboardingMetadata();
       return models
           .map(
@@ -32,23 +34,14 @@ class TechnicianRepositoryImpl implements TechnicianRepository {
             ),
           )
           .toList();
-    } on SocketException {
-      throw "No internet connection. Please check your network.";
-    } catch (e) {
-      throw e.toString(); // Propagates the custom error from data source
-    }
+    });
   }
 
   @override
   Future<String> uploadMedia(File file, String token) async {
-    try {
-      return await remoteDataSource.uploadTemporaryMedia(file, token);
-    } on SocketException {
-      throw "Network error: Failed to upload image.";
-    } catch (e) {
-      // Catches "Media upload failed" or other custom messages
-      throw e.toString();
-    }
+    return _mapFailures(
+      () => remoteDataSource.uploadTemporaryMedia(file, token),
+    );
   }
 
   @override
@@ -64,7 +57,7 @@ class TechnicianRepositoryImpl implements TechnicianRepository {
     required String cnicPictureUuid,
     required List<SkillSelectionEntity> skills,
   }) async {
-    try {
+    return _mapFailures(() async {
       final registrationModel = TechnicianRegistrationModel(
         firstName: firstName,
         lastName: lastName,
@@ -97,16 +90,29 @@ class TechnicianRepositoryImpl implements TechnicianRepository {
         joinedDate: response['joined_date'] ?? DateTime.now().toString(),
         experienceYears: experienceYears,
       );
-    } on SocketException {
-      throw "Connection timed out. Please try again.";
-    } on FormatException catch (e) {
-      print(
-        "MAPPING ERROR: $e",
-      ); // This will tell you exactly which field failed
-      throw "Bad response from server. Please contact support.";
+    });
+  }
+
+  // --- THE MAPPING LOGIC ---
+  Future<T> _mapFailures<T>(Future<T> Function() action) async {
+    try {
+      return await action();
+    } on HttpFailure catch (e) {
+      switch (e.code) {
+        case 'validation_error': // 400
+          throw InvalidOnboardingInput(e.errors);
+
+        case 'not_found': // 404 (Expired UUIDs)
+          throw OnboardingSessionExpired(e.message);
+
+        case 'resource_conflict': // 409 (Duplicate CNIC)
+          throw DuplicateTechnician(e.message);
+
+        default:
+          throw OnboardingServerFailure(e.message);
+      }
     } catch (e) {
-      // This will catch the backend errors like "uuid_error" you defined
-      throw e.toString();
+      throw OnboardingServerFailure(e.toString());
     }
   }
 }

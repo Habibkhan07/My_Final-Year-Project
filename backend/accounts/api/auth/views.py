@@ -4,27 +4,31 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import serializers
 
-# Import the logic and selectors [cite: 77, 260]
+# Import the logic and selectors
 from ...services import auth_service, profile_service
 from .serializers import PhoneLoginInputSerializer, OTPVerifyInputSerializer
 
 class PhoneLoginView(APIView):
-    """Handles the initiation of the OTP flow[cite: 262]."""
+    """Handles the initiation of the OTP flow."""
     def post(self, request):
         serializer = PhoneLoginInputSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True) # Validates HTTP input [cite: 266]
+        serializer.is_valid(raise_exception=True) # Validates HTTP input
         
-        # Delegate to Service [cite: 82, 368]
+        # Delegate to Service
         result, error = auth_service.initiate_phone_login(
             phone=serializer.validated_data['phone']
         )
         
         if error:
-            return Response(error, status=status.HTTP_400_BAD_REQUEST)
+            # OLD: return Response(error, status=status.HTTP_400_BAD_REQUEST)
+            # NEW: Raise exception so Global Handler formats it
+            # We use 'detail' so it appears as a main message, or map to 'phone' field
+            raise serializers.ValidationError({"detail": error})
+
         return Response(result, status=status.HTTP_200_OK)
 
 class VerifyOTPView(APIView):
-    """Handles the verification and authentication logic[cite: 361]."""
+    """Handles the verification and authentication logic."""
 
     class OutputSerializer(serializers.Serializer):
         token = serializers.CharField()
@@ -37,22 +41,28 @@ class VerifyOTPView(APIView):
         serializer.is_valid(raise_exception=True)
 
         try:
-            # Delegate to Service [cite: 268, 370]
+            # Delegate to Service
             result = auth_service.process_otp_verification(
                 phone=serializer.validated_data['phone'],
                 otp_input=serializer.validated_data['otp']
             )
-            response_serializer = self.OutputSerializer(result)
+            # Note: You were creating response_serializer but not using it in the return.
+            # Ideally: data = self.OutputSerializer(result).data
             return Response(result, status=status.HTTP_200_OK)
+
         except ValueError as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            # OLD: return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # NEW: Raise Validation error mapped to the 'otp' field
+            # This allows Flutter to highlight the specific OTP input box
+            raise serializers.ValidationError({"otp": [str(e)]})
 
 class CompleteSignupView(APIView):
-    """Handles updating the user profile once authenticated[cite: 78]."""
+    """Handles updating the user profile once authenticated."""
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        # We pass request.user directly to the service [cite: 84, 269]
+        # We pass request.user directly to the service
         success, message = profile_service.update_user_profile(
             user=request.user,
             first_name=request.data.get('first_name'),
@@ -60,5 +70,9 @@ class CompleteSignupView(APIView):
         )
         
         if not success:
-            return Response({"error": message}, status=status.HTTP_400_BAD_REQUEST)
+            # OLD: return Response({"error": message}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # NEW: Raise exception
+            raise serializers.ValidationError({"detail": message})
+            
         return Response({"message": message}, status=status.HTTP_200_OK)

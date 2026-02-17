@@ -107,10 +107,16 @@ class TechnicianOnboardingTests(APITestCase):
         fake_uuid = str(uuid.uuid4())
         payload = {
             "first_name": "Invalid", "last_name": "UUID", "city": "KHI",
-            "cnic_number": "00000-0000000-0", "experience_years": 1, "bio": "...",
+            "cnic_number": "12345-1234567-1", "experience_years": 1, "bio": "...",
             "profile_picture_uuid": fake_uuid, "cnic_picture_uuid": fake_uuid,
             "skills": []
         }
         response = self.client.post(url, payload, format='json')
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("uuid_error", response.data) #
+        
+        # OLD CHECK: self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        # NEW CHECK: We expect 404 because of raise NotFound(...)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        
+        # Verify the Standard JSON Structure
+        self.assertEqual(response.data['code'], 'not_found')
+        self.assertIn("expired", response.data['message']) # "One or more uploaded files have expired..."

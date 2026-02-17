@@ -1,6 +1,8 @@
-import '../../../../core/common/domain/entities/user_entity.dart';
 import '../../domain/repositories/auth_repository.dart';
+import '../../../../core/common/domain/entities/user_entity.dart';
+import '../../domain/failures/auth_failure.dart'; // Import Sealed Class
 import '../data_sources/auth_remote_data_source.dart';
+import '../../../../core/common/errors/http_failure.dart'; // Import Data Exception
 
 class AuthRepositoryImpl implements AuthRepository {
   final AuthRemoteDataSource remoteDataSource;
@@ -9,30 +11,17 @@ class AuthRepositoryImpl implements AuthRepository {
 
   @override
   Future<String> requestOtp(String phone) async {
-    try {
-      // 1. Guard against obvious local errors before calling the API
-      if (phone.length < 10) {
-        throw 'The phone number is too short. Please check and try again.';
-      }
-
-      return await remoteDataSource.requestOtp(phone);
-    } catch (e) {
-      // 2. Map low-level exceptions to human-readable domain failures
-      throw _handleError(e);
-    }
+    return _guard(() => remoteDataSource.requestOtp(phone));
   }
 
+  // OPTIMIZED (Catches mapping errors too)
   @override
   Future<UserEntity> verifyOtp(String phone, String otp) async {
-    try {
-      final userModel = await remoteDataSource.verifyOtp(phone, otp);
-      return userModel.toEntity();
-    } catch (e) {
-      throw _handleError(e);
-    }
+    return _guard(() async {
+      final model = await remoteDataSource.verifyOtp(phone, otp);
+      return model.toEntity();
+    });
   }
-
-  // Inside AuthRepositoryImpl class
 
   @override
   Future<String> completeSignup(
@@ -40,52 +29,36 @@ class AuthRepositoryImpl implements AuthRepository {
     String lastName,
     String token,
   ) async {
-    try {
-      // 1. Client-Side Guard: Immediate feedback if names are empty
-      if (firstName.trim().isEmpty || lastName.trim().isEmpty) {
-        throw 'First and last names are required.';
-      }
-
-      // 2. Call Data Source: Pass values to the remote API
-      final result = await remoteDataSource.completeSignup(
-        firstName,
-        lastName,
-        token,
-      );
-
-      return result; // Returns the success message (e.g., "Profile updated successfully.")
-    } catch (e) {
-      // 3. Professional Propagation: Maps backend 400/500 errors to human strings
-      throw _handleError(e);
-    }
+    return _guard(
+      () => remoteDataSource.completeSignup(firstName, lastName, token),
+    );
   }
 
-  /// Helper to convert technical errors into user-friendly messages
-  // auth_repository_impl.dart
+  // --- THE MAPPING LOGIC ---
+  Future<T> _guard<T>(Future<T> Function() call) async {
+    try {
+      return await call();
+    } on HttpFailure catch (e) {
+      // Map Backend Codes -> Domain Failures
+      switch (e.code) {
+        case 'resource_conflict': // 409
+          throw UserAlreadyExists(e.message);
 
-  String _handleError(dynamic e) {
-    // If we threw a local string guard (like "Too short"), pass it through
-    if (e is String) return e;
+        case 'not_found': // 404
+          throw ResourcesExpired(e.message);
 
-    final errorString = e.toString();
+        case 'validation_error': // 400
+          throw InvalidInput(e.errors);
 
-    // 1. Handle Network Connectivity
-    if (errorString.contains('SocketException')) {
-      return 'Check your internet connection.';
-    }
+        case 'unauthorized': // 401
+          throw Unauthorized(e.message);
 
-    // 2. Handle Structured Server Errors
-    // We look for the message we formatted in the Data Source: "CODE: MESSAGE"
-    if (errorString.contains(':')) {
-      final parts = errorString.split(':');
-      final code = parts[0].trim();
-      final message = parts[1].trim();
-
-      if (code.contains('400') || code.contains('401')) {
-        return message; // This will now return "Invalid OTP"
+        default:
+          throw ServerError(e.message);
       }
+    } catch (e) {
+      // Catch-all for other errors (SocketException, parsing, etc.)
+      throw ServerError(e.toString());
     }
-
-    return 'Something went wrong. Please try again.';
   }
 }

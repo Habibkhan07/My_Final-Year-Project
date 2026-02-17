@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from ...models import TemporaryMedia, TechnicianProfile, TechnicianSkill
-
+from rest_framework.exceptions import NotFound
 # 1. MEDIA STAGING SERIALIZER
 class MediaUploadSerializer(serializers.ModelSerializer):
     """Validates raw binary uploads and returns a UUID for tracking"""
@@ -71,7 +71,7 @@ class TechnicianFinalizeSerializer(serializers.Serializer):
                     skill['license_file'] = None
                     
         except TemporaryMedia.DoesNotExist:
-            raise serializers.ValidationError({"uuid_error": "One or more image UUIDs are invalid or expired."})            
+            raise NotFound(detail="One or more image UUIDs are invalid or expired.")            
         return internal_data
 
     # --- RESPONSE CONVERSION (Model to JSON) ---
