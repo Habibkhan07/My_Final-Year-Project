@@ -14,7 +14,11 @@ class SkillInputSerializer(serializers.Serializer):
     """Deserializes skill data from JSON"""
     sub_service_id = serializers.IntegerField()
     years_of_experience = serializers.IntegerField(min_value=0)
-    license_media_uuid = serializers.UUIDField(required=False, allow_null=True)
+
+# 2. NEW: Handles the new Category-level uploads
+class CategoryLicenseInputSerializer(serializers.Serializer):
+    service_id = serializers.IntegerField()
+    media_uuid = serializers.UUIDField()
 
 # 3. THE CORE REGISTRATION SERIALIZER
 class TechnicianFinalizeSerializer(serializers.Serializer):
@@ -30,10 +34,12 @@ class TechnicianFinalizeSerializer(serializers.Serializer):
     cnic_number = serializers.CharField(max_length=15)
     experience_years = serializers.IntegerField(min_value=0)
     bio = serializers.CharField()
-    
+    category_licenses = CategoryLicenseInputSerializer(many=True, required=False)
     profile_picture_uuid = serializers.UUIDField()
     cnic_picture_uuid = serializers.UUIDField()
     skills = SkillInputSerializer(many=True)
+
+    
 
     # --- VALIDATION (Business Rules) ---
     def validate_cnic_number(self, value):
@@ -41,6 +47,12 @@ class TechnicianFinalizeSerializer(serializers.Serializer):
         pattern = r'^\d{5}-\d{7}-\d{1}$'
         if not re.match(pattern, value):
             raise serializers.ValidationError("Format must be 00000-0000000-0")
+        return value
+    
+    # ADD THIS NEW VALIDATION
+    def validate_skills(self, value):
+        if not value or len(value) == 0:
+            raise serializers.ValidationError("You must select at least one skill to register as a technician.")
         return value
 
     # --- REQUEST CONVERSION (JSON to Python Objects) ---
@@ -61,14 +73,13 @@ class TechnicianFinalizeSerializer(serializers.Serializer):
             internal_data['cnic_picture_file'] = TemporaryMedia.objects.get(
                 id=internal_data.pop('cnic_picture_uuid')
             ).file
+
+            # THE NEW LOGIC: Map the Category License UUIDs to Files
+            for cat_license in internal_data.get('category_licenses', []):
+                l_uuid = cat_license.pop('media_uuid')
+                cat_license['license_file'] = TemporaryMedia.objects.get(id=l_uuid).file
             
-            # Map license UUIDs within the skills list
-            for skill in internal_data['skills']:
-                l_uuid = skill.pop('license_media_uuid', None)
-                if l_uuid:
-                    skill['license_file'] = TemporaryMedia.objects.get(id=l_uuid).file
-                else:
-                    skill['license_file'] = None
+            
                     
         except TemporaryMedia.DoesNotExist:
             raise NotFound(detail="One or more image UUIDs are invalid or expired.")            

@@ -1,9 +1,10 @@
 from django.db import transaction
-from ..models import TechnicianProfile, TechnicianSkill
+from ..models import TechnicianProfile, TechnicianSkill, TechnicianServiceLicense
 import os
 def finalize_registration(*, user, validated_data):
     # 1. Pop the data as you did before
     skills_data = validated_data.pop('skills')
+    category_licenses_data = validated_data.pop('category_licenses', [])
     profile_file = validated_data.pop('profile_picture_file')
     cnic_file = validated_data.pop('cnic_picture_file')
     
@@ -35,23 +36,28 @@ def finalize_registration(*, user, validated_data):
 
         profile.save()
 
-        # 5. Handle skills and license migration
+        # 4. NEW: Handle Category-Level Licenses
+        for cat_lic in category_licenses_data:
+            new_license = TechnicianServiceLicense(
+                technician=profile,
+                service_id=cat_lic['service_id']
+            )
+            
+            if cat_lic.get('license_file'):
+                clean_name = os.path.basename(cat_lic['license_file'].name)
+                new_license.license_picture.save(
+                    clean_name, 
+                    cat_lic['license_file'], 
+                    save=False
+                )
+            new_license.save()
+
+        # 5. UPDATED: Handle Skills (Clean, no licenses here!)
         for skill in skills_data:
-            new_skill = TechnicianSkill(
+            TechnicianSkill.objects.create(
                 technician=profile,
                 sub_service_id=skill['sub_service_id'],
                 years_of_experience=skill['years_of_experience'],
             )
-            
-            # Explicitly save the license to 'tech_docs/license_picture/'
-            if skill.get('license_file'):
-                clean_name = os.path.basename(skill['license_file'].name)
-                new_skill.license_picture.save(
-                    clean_name, 
-                    skill['license_file'], 
-                    save=False
-                )
-            
-            new_skill.save()
             
     return profile

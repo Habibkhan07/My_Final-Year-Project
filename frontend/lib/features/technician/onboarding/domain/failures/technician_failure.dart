@@ -30,3 +30,20 @@ class OnboardingServerFailure extends TechnicianFailure {
   final String message;
   const OnboardingServerFailure(this.message);
 }
+
+// NEW: Corresponds to 401 (Backend code: "unauthorized")
+class OnboardingUnauthorized extends TechnicianFailure {
+  final String message;
+  const OnboardingUnauthorized(this.message);
+}
+
+class OnboardingNetworkFailure extends TechnicianFailure {
+  final String message;
+  const OnboardingNetworkFailure([this.message = "No internet connection"]);
+}
+
+// NEW SAFEGUARD 2: Bad Data (JSON Parsing failed)
+class OnboardingParsingFailure extends TechnicianFailure {
+  final String message;
+  const OnboardingParsingFailure(this.message);
+}

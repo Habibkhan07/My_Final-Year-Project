@@ -2,6 +2,7 @@ import '../entities/technician_entity.dart';
 import '../repositories/technician_onboarding_repository.dart';
 // IMPORTANT: You must import your new entity here
 import '../entities/skill_selection_entity.dart';
+import '../entities/category_license_entity.dart';
 
 class RegisterTechnicianUseCase {
   final TechnicianRepository repository;
@@ -19,6 +20,8 @@ class RegisterTechnicianUseCase {
     required String bio,
     required int experienceYears,
     required List<SkillSelectionEntity> skills, // Fixed syntax
+    required List<CategoryLicenseEntity>
+    categoryLicenses, // REPLACED MAP WITH ENTITY
   }) {
     return repository.finalizeRegistration(
       token: token,
@@ -32,6 +35,7 @@ class RegisterTechnicianUseCase {
       experienceYears: experienceYears,
       skills:
           skills, // This will error until you update the Repository interface
+      categoryLicenses: categoryLicenses,
     );
   }
 }

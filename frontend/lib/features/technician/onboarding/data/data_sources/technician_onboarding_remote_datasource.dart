@@ -6,6 +6,7 @@ import '../../../../../core/constants.dart';
 import '../../../../../core/common/errors/http_failure.dart'; // Import Data Exception
 import '../models/service_model.dart';
 import '../models/technician_registration_model.dart';
+import 'package:image_picker/image_picker.dart'; // ADD THIS IMPORT
 
 class TechnicianOnboardingRemoteDataSource {
   final String baseUrl = "${AppConstants.baseUrl}/technicians";
@@ -21,17 +22,19 @@ class TechnicianOnboardingRemoteDataSource {
   }
 
   // --- 2. PHASE 1: UPLOAD MEDIA (Multipart) ---
-  Future<String> uploadTemporaryMedia(File file, String token) async {
+  Future<String> uploadTemporaryMedia(XFile file, String token) async {
     final request = http.MultipartRequest(
       'POST',
       Uri.parse('$baseUrl/onboarding/upload-media/'),
     );
 
     request.headers.addAll({'Authorization': 'Token $token'});
+    final bytes = await file.readAsBytes();
     request.files.add(
-      await http.MultipartFile.fromPath(
+      await http.MultipartFile.fromBytes(
         'file',
-        file.path,
+        bytes,
+        filename: file.name, // XFile provides the name securely
         contentType: MediaType('image', 'jpeg'),
       ),
     );

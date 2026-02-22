@@ -9,12 +9,15 @@ class TemporaryMedia(models.Model):
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
 
+
 class Service(models.Model):
     """Top-level category (e.g., AC Service, Plumbing)"""
     name = models.CharField(max_length=100)
     
     def __str__(self):
         return self.name
+    
+
 
 class SubService(models.Model):
     """Specific task (e.g., Gas Refill)"""
@@ -59,8 +62,13 @@ class TechnicianSkill(models.Model):
     sub_service = models.ForeignKey(SubService, on_delete=models.CASCADE)
     
     # Added detail for specialized verification
-    license_picture = models.ImageField(upload_to='tech_docs/license_picture/', null=True, blank=True)
     years_of_experience = models.PositiveIntegerField(default=0)
 
     class Meta:
         unique_together = ('technician', 'sub_service')
+
+# NEW TABLE: Maps a single license to a parent Service (e.g., Plumbing)
+class TechnicianServiceLicense(models.Model):
+    technician = models.ForeignKey(TechnicianProfile, on_delete=models.CASCADE, related_name="service_licenses")
+    service = models.ForeignKey(Service, on_delete=models.CASCADE)
+    license_picture = models.ImageField(upload_to='tech_docs/licenses/')

@@ -9,6 +9,8 @@ class TechnicianRegistrationModel {
   final String bio;
   final String profilePictureUuid;
   final String cnicPictureUuid;
+  // NEW: The normalized licenses array
+  final List<CategoryLicenseInputModel> categoryLicenses;
   final List<SkillInputModel> skills;
 
   TechnicianRegistrationModel({
@@ -20,6 +22,7 @@ class TechnicianRegistrationModel {
     required this.bio,
     required this.profilePictureUuid,
     required this.cnicPictureUuid,
+    required this.categoryLicenses,
     required this.skills,
   });
 
@@ -34,27 +37,38 @@ class TechnicianRegistrationModel {
       'bio': bio,
       'profile_picture_uuid': profilePictureUuid, // The UUID from Phase 1
       'cnic_picture_uuid': cnicPictureUuid, // The UUID from Phase 1
-      'skills': skills.map((x) => x.toJson()).toList(), // Nested serialization
+      'category_licenses': categoryLicenses.map((x) => x.toJson()).toList(),
+      'skills': skills.map((x) => x.toJson()).toList(),
     };
   }
+}
+
+// NEW: Maps perfectly to CategoryLicenseInputSerializer in Django
+class CategoryLicenseInputModel {
+  final int serviceId;
+  final String mediaUuid;
+
+  CategoryLicenseInputModel({required this.serviceId, required this.mediaUuid});
+
+  Map<String, dynamic> toJson() => {
+    'service_id': serviceId,
+    'media_uuid': mediaUuid,
+  };
 }
 
 class SkillInputModel {
   final int subServiceId;
   final int yearsOfExperience;
-  final String? licenseMediaUuid;
 
   SkillInputModel({
     required this.subServiceId,
     required this.yearsOfExperience,
-    this.licenseMediaUuid,
   });
 
   Map<String, dynamic> toJson() {
     return {
-      'sub_service_id': subServiceId, //
-      'years_of_experience': yearsOfExperience, //
-      'license_media_uuid': licenseMediaUuid, // Optional UUID
+      'sub_service_id': subServiceId,
+      'years_of_experience': yearsOfExperience,
     };
   }
 }
