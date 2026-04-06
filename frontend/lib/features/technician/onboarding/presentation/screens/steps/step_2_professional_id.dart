@@ -16,15 +16,16 @@ class Step2ProfessionalId extends ConsumerWidget {
     );
     if (picked != null) {
       ref
-          .read(onboardingNotifierProvider.notifier)
+          .read(onboardingProvider.notifier)
           .uploadDocument(picked, type);
     }
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(onboardingNotifierProvider).value!;
-    final notifier = ref.read(onboardingNotifierProvider.notifier);
+    // FIX: Changed from .value! to .requireValue
+    final state = ref.watch(onboardingProvider).requireValue;
+    final notifier = ref.read(onboardingProvider.notifier);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24.0),

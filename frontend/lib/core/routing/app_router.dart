@@ -2,11 +2,12 @@ import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../features/auth/presentation/providers/auth_notifier.dart';
-//import '../../features/auth/presentation/providers/auth_state.dart'; // IMPORTANT: Added this import
 import '../../features/auth/presentation/screens/login_screen.dart';
 import '../../features/auth/presentation/screens/otp_screen.dart';
 import '../../features/auth/presentation/screens/profile_setup_screen.dart';
 import '../../features/customer/home/presentation/screens/home_screen.dart';
+import '../../features/customer/search/presentation/pages/search_page.dart';
+import '../../features/customer/discovery/presentation/screens/discovery_results_screen.dart';
 import '../../features/technician/onboarding/presentation/screens/onboarding_main_screen.dart';
 import '../../features/technician/onboarding/presentation/screens/registration_success_screen.dart';
 import '../../features/technician/onboarding/domain/entities/technician_entity.dart';
@@ -29,29 +30,47 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/profile-setup',
         builder: (context, state) => const ProfileSetupScreen(),
-      ), // 1. The Main Multi-Step Form
+      ), 
       GoRoute(
         path: '/technician/onboarding',
         builder: (context, state) => const OnboardingMainScreen(),
       ),
 
-      // 2. The Success Screen (Requires passing data)
       GoRoute(
         path: '/technician/success',
         builder: (context, state) {
-          // Recover the entity passed via context.go(..., extra: entity)
           final technician = state.extra as TechnicianEntity?;
-
-          // Safety Fallback: If user refreshes page (losing 'extra'), go home
           if (technician == null) {
             return const HomeScreen();
           }
-
           return RegistrationSuccessScreen(technician: technician);
         },
       ),
 
       GoRoute(path: '/home', builder: (context, state) => const HomeScreen()),
+      GoRoute(path: '/search', builder: (context, state) => const SearchPage()),
+      GoRoute(
+        path: '/discovery',
+        builder: (context, state) {
+          final title = state.uri.queryParameters['title'] ?? 'Discover';
+          final query = state.uri.queryParameters['query'];
+          final serviceId = int.tryParse(state.uri.queryParameters['serviceId'] ?? '');
+          final subServiceId = int.tryParse(state.uri.queryParameters['subServiceId'] ?? '');
+          final promotionId = int.tryParse(state.uri.queryParameters['promotionId'] ?? '');
+          final lat = double.tryParse(state.uri.queryParameters['lat'] ?? '');
+          final lng = double.tryParse(state.uri.queryParameters['lng'] ?? '');
+
+          return DiscoveryResultsScreen(
+            title: title,
+            query: query,
+            serviceId: serviceId,
+            subServiceId: subServiceId,
+            promotionId: promotionId,
+            lat: lat,
+            lng: lng,
+          );
+        },
+      ),
     ],
 
     redirect: (context, state) {
@@ -60,19 +79,16 @@ final routerProvider = Provider<GoRouter>((ref) {
       final isVerifyingOtp = path.startsWith('/otp');
       final isSettingUpProfile = path == '/profile-setup';
 
-      // 1. Not Logged In Logic
       if (user == null) {
         if (isLoggingIn || isVerifyingOtp) return null;
         return '/login';
       }
 
-      // 2. Profile Setup Logic (Based on Django flag)
       if (user.nameRequired) {
         if (isSettingUpProfile) return null;
         return '/profile-setup';
       }
 
-      // 3. Already Logged In Logic
       if (isLoggingIn || isVerifyingOtp || isSettingUpProfile) {
         return '/home';
       }

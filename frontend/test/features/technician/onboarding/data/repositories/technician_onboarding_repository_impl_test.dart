@@ -1,0 +1,129 @@
+import 'dart:io';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
+
+import 'package:frontend/core/common/errors/http_failure.dart';
+import 'package:frontend/core/data/local_sources/onboarding_local_data_source.dart';
+import 'package:frontend/features/technician/onboarding/data/data_sources/technician_onboarding_remote_datasource.dart';
+import 'package:frontend/features/technician/onboarding/data/models/technician_registration_model.dart';
+import 'package:frontend/features/technician/onboarding/data/repositories/technician_onboarding_repository_impl.dart';
+import 'package:frontend/features/technician/onboarding/domain/failures/technician_failure.dart';
+import 'package:frontend/features/technician/onboarding/domain/entities/technician_entity.dart';
+
+class MockRemoteDataSource extends Mock implements TechnicianOnboardingRemoteDataSource {}
+class MockLocalDataSource extends Mock implements OnboardingLocalDataSource {}
+class FakeTechnicianRegistrationModel extends Fake implements TechnicianRegistrationModel {}
+
+void main() {
+  setUpAll(() {
+    registerFallbackValue(FakeTechnicianRegistrationModel());
+  });
+
+  late TechnicianRepositoryImpl repository;
+  late MockRemoteDataSource mockRemoteDataSource;
+  late MockLocalDataSource mockLocalDataSource;
+
+  setUp(() {
+    mockRemoteDataSource = MockRemoteDataSource();
+    mockLocalDataSource = MockLocalDataSource();
+    repository = TechnicianRepositoryImpl(mockRemoteDataSource, mockLocalDataSource);
+  });
+
+  group('TechnicianRepositoryImpl Error Propagation Pipeline', () {
+    const tToken = 'test-token';
+    const tFirstName = 'Ali';
+    const tLastName = 'Raza';
+
+    // Helper to call finalizeRegistration with dummy data
+    Future<TechnicianEntity> callFinalize() => repository.finalizeRegistration(
+          token: tToken,
+          firstName: tFirstName,
+          lastName: tLastName,
+          city: 'LHR',
+          cnicNumber: '12345',
+          experienceYears: 5,
+          bio: 'bio',
+          profilePictureUuid: 'uuid1',
+          cnicPictureUuid: 'uuid2',
+          skills: [],
+          categoryLicenses: [],
+        );
+
+    test('should save boolean to local storage and return Entity on successful finalize', () async {
+      // Arrange
+      final tResponse = {
+        'profile_id': 42,
+        'status': 'PENDING',
+        'joined_date': '2023-01-01',
+      };
+      
+      when(() => mockRemoteDataSource.finalizeRegistration(any(), tToken))
+          .thenAnswer((_) async => tResponse);
+      when(() => mockLocalDataSource.saveOnboardingComplete(true))
+          .thenAnswer((_) async => Future.value());
+
+      // Act
+      final result = await callFinalize();
+
+      // Assert
+      expect(result.profileId, 42);
+      expect(result.status, 'PENDING');
+      expect(result.fullName, '$tFirstName $tLastName');
+      
+      // Strict verification of Side Effect (Tier 2 Local Storage)
+      verify(() => mockLocalDataSource.saveOnboardingComplete(true)).called(1);
+    });
+
+    test('should throw OnboardingUnauthorized on 401', () async {
+      when(() => mockRemoteDataSource.finalizeRegistration(any(), any())).thenThrow(
+        HttpFailure(statusCode: 401, code: 'unauthorized', message: 'Token invalid', errors: {}),
+      );
+
+      expect(() => callFinalize(), throwsA(isA<OnboardingUnauthorized>()));
+    });
+
+    test('should throw InvalidOnboardingInput on 400 validation error', () async {
+      final tErrors = {'cnic': ['Invalid format']};
+      when(() => mockRemoteDataSource.finalizeRegistration(any(), any())).thenThrow(
+        HttpFailure(statusCode: 400, code: 'validation_error', message: 'Bad input', errors: tErrors),
+      );
+
+      expect(
+        () => callFinalize(),
+        throwsA(isA<InvalidOnboardingInput>().having((e) => e.errors, 'errors', tErrors)),
+      );
+    });
+
+    test('should throw OnboardingSessionExpired on 404 (Expired UUIDs)', () async {
+      when(() => mockRemoteDataSource.finalizeRegistration(any(), any())).thenThrow(
+        HttpFailure(statusCode: 404, code: 'not_found', message: 'UUID expired', errors: {}),
+      );
+
+      expect(() => callFinalize(), throwsA(isA<OnboardingSessionExpired>()));
+    });
+
+    test('should throw DuplicateTechnician on 409 resource conflict', () async {
+      when(() => mockRemoteDataSource.finalizeRegistration(any(), any())).thenThrow(
+        HttpFailure(statusCode: 409, code: 'resource_conflict', message: 'CNIC exists', errors: {}),
+      );
+
+      expect(() => callFinalize(), throwsA(isA<DuplicateTechnician>()));
+    });
+
+    test('should throw OnboardingNetworkFailure on SocketException (No Internet)', () async {
+      when(() => mockRemoteDataSource.finalizeRegistration(any(), any())).thenThrow(
+        const SocketException('Failed host lookup'),
+      );
+
+      expect(() => callFinalize(), throwsA(isA<OnboardingNetworkFailure>()));
+    });
+
+    test('should throw OnboardingParsingFailure on FormatException (HTML returned instead of JSON)', () async {
+      when(() => mockRemoteDataSource.finalizeRegistration(any(), any())).thenThrow(
+        const FormatException('Unexpected character'),
+      );
+
+      expect(() => callFinalize(), throwsA(isA<OnboardingParsingFailure>()));
+    });
+  });
+}

@@ -1,15 +1,18 @@
 import 'dart:convert';
-import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import '../../../../../core/constants.dart';
 import '../../../../../core/common/errors/http_failure.dart'; // Import Data Exception
+import '../../../../../core/data/local_sources/auth_local_data_source.dart'; // Import Local Data Source
 import '../models/service_model.dart';
 import '../models/technician_registration_model.dart';
 import 'package:image_picker/image_picker.dart'; // ADD THIS IMPORT
 
 class TechnicianOnboardingRemoteDataSource {
   final String baseUrl = "${AppConstants.baseUrl}/technicians";
+  final AuthLocalDataSource authLocalDataSource;
+
+  TechnicianOnboardingRemoteDataSource(this.authLocalDataSource);
 
   // --- 1. METADATA: GET SERVICES ---
   Future<List<ServiceModel>> getOnboardingMetadata() async {
@@ -23,15 +26,20 @@ class TechnicianOnboardingRemoteDataSource {
 
   // --- 2. PHASE 1: UPLOAD MEDIA (Multipart) ---
   Future<String> uploadTemporaryMedia(XFile file, String token) async {
+    String authToken = token;
+    if (authToken.isEmpty) {
+        authToken = await authLocalDataSource.getToken() ?? '';
+    }
+
     final request = http.MultipartRequest(
       'POST',
       Uri.parse('$baseUrl/onboarding/upload-media/'),
     );
 
-    request.headers.addAll({'Authorization': 'Token $token'});
+    request.headers.addAll({'Authorization': 'Token $authToken'});
     final bytes = await file.readAsBytes();
     request.files.add(
-      await http.MultipartFile.fromBytes(
+      http.MultipartFile.fromBytes(
         'file',
         bytes,
         filename: file.name, // XFile provides the name securely
@@ -53,12 +61,17 @@ class TechnicianOnboardingRemoteDataSource {
     TechnicianRegistrationModel registrationData,
     String token,
   ) async {
+    String authToken = token;
+    if (authToken.isEmpty) {
+        authToken = await authLocalDataSource.getToken() ?? '';
+    }
+
     final response = await http.post(
       Uri.parse('$baseUrl/onboarding/finalize/'),
       // Note: Your Django View is 'RegisterTechnicianView', ensure URL matches urls.py
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Token $token',
+        'Authorization': 'Token $authToken',
       },
       body: jsonEncode(registrationData.toJson()),
     );

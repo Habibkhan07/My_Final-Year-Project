@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../domain/failures/auth_failure.dart'; // Import Sealed Class
+import '../../domain/failures/auth_failure.dart';
 import '../providers/auth_notifier.dart';
 import '../providers/auth_state.dart';
 
@@ -30,20 +30,22 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
 
     ref.listen<AsyncValue<AuthState>>(authProvider, (previous, next) {
       next.whenOrNull(
-        // ERROR HANDLING
         error: (error, _) {
           String msg = error.toString();
 
           if (error is AuthFailure) {
             switch (error) {
-              case InvalidInput(:final errors):
-                // Backend sends {"otp": ["Invalid OTP"]}
-                msg = errors['otp']?.first ?? "Invalid OTP code.";
-                _otpController.clear(); // Clear for retry
+              case InvalidInput(:final errors, :final message):
+                // Field error first; falls back to server's message
+                // (covers both wrong-OTP and SMS-delivery failures on resend)
+                msg = errors['otp']?.first ?? message;
+                _otpController.clear();
 
               case ResourcesExpired(:final message):
-                msg = message; // "Session expired"
-                context.go('/login'); // Redirect to login
+                // Session fully gone — send back to login
+                msg = message;
+                ScaffoldMessenger.of(context).clearSnackBars();
+                context.go('/login');
                 return;
 
               case ServerError(:final message):
@@ -54,13 +56,16 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
             }
           }
 
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(msg),
-              backgroundColor: Colors.redAccent,
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
+          ScaffoldMessenger.of(context)
+            ..clearSnackBars()
+            ..showSnackBar(
+              SnackBar(
+                content: Text(msg),
+                backgroundColor: Colors.redAccent,
+                behavior: SnackBarBehavior.floating,
+                duration: const Duration(seconds: 3),
+              ),
+            );
         },
       );
     });
@@ -71,12 +76,8 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
         backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(
-            Icons.arrow_back_ios_new_rounded,
-            color: Colors.black87,
-          ),
-          onPressed: () =>
-              context.canPop() ? context.pop() : context.go('/login'),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.black87),
+          onPressed: () => context.canPop() ? context.pop() : context.go('/login'),
         ),
       ),
       body: SafeArea(
@@ -85,7 +86,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
           child: Column(
             children: [
               const SizedBox(height: 20),
-              // Branding Icon
+
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
@@ -110,7 +111,6 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
               ),
               const SizedBox(height: 12),
 
-              // Dynamic Phone Text
               RichText(
                 textAlign: TextAlign.center,
                 text: TextSpan(
@@ -120,7 +120,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                     height: 1.4,
                   ),
                   children: [
-                    const TextSpan(text: "Enter the 4-digit code sent to\n"),
+                    const TextSpan(text: "Enter the 6-digit code sent to\n"),
                     TextSpan(
                       text: widget.phoneNumber,
                       style: const TextStyle(
@@ -133,15 +133,15 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
               ),
               const SizedBox(height: 48),
 
-              // 4-Digit Input Field
+              // 6-digit OTP field
               TextField(
                 controller: _otpController,
                 keyboardType: TextInputType.number,
                 textAlign: TextAlign.center,
-                maxLength: 4,
+                maxLength: 6,
                 style: const TextStyle(
-                  fontSize: 32,
-                  letterSpacing: 24,
+                  fontSize: 28,
+                  letterSpacing: 16,
                   fontWeight: FontWeight.bold,
                   color: Colors.black87,
                 ),
@@ -149,10 +149,10 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                   counterText: "",
                   filled: true,
                   fillColor: Colors.grey.shade50,
-                  hintText: "0000",
+                  hintText: "000000",
                   hintStyle: TextStyle(
                     color: Colors.grey.shade200,
-                    letterSpacing: 24,
+                    letterSpacing: 16,
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(16),
@@ -160,30 +160,24 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(16),
-                    borderSide: const BorderSide(
-                      color: Colors.blueAccent,
-                      width: 2,
-                    ),
+                    borderSide: const BorderSide(color: Colors.blueAccent, width: 2),
                   ),
                 ),
                 onChanged: (val) {
-                  if (val.length == 4) {
-                    ref
-                        .read(authProvider.notifier)
-                        .verifyOtp(widget.phoneNumber, val);
+                  // Auto-submit when all 6 digits are entered
+                  if (val.length == 6) {
+                    ref.read(authProvider.notifier).verifyOtp(widget.phoneNumber, val);
                   }
                 },
               ),
               const SizedBox(height: 40),
 
-              // Verify Button
+              // Verify button
               SizedBox(
                 width: double.infinity,
                 height: 60,
                 child: authAsync.isLoading
-                    ? const Center(
-                        child: CircularProgressIndicator(strokeWidth: 3),
-                      )
+                    ? const Center(child: CircularProgressIndicator(strokeWidth: 3))
                     : ElevatedButton(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.blueAccent,
@@ -196,56 +190,57 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                         onPressed: () {
                           ref
                               .read(authProvider.notifier)
-                              .verifyOtp(
-                                widget.phoneNumber,
-                                _otpController.text,
-                              );
+                              .verifyOtp(widget.phoneNumber, _otpController.text);
                         },
                         child: const Text(
                           "Verify & Continue",
-                          style: TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.bold,
-                          ),
+                          style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
                         ),
                       ),
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 24),
 
-              // Timer & Resend Logic
+              // Expiry countdown — purely informational, not a gate on resend
               timerAsync.when(
-                data: (seconds) {
-                  if (seconds == null) {
-                    return TextButton(
-                      onPressed: authAsync.isLoading
-                          ? null
-                          : () {
-                              ref.invalidate(timerProvider);
-                              ref
-                                  .read(authProvider.notifier)
-                                  .requestOtp(widget.phoneNumber);
-                            },
-                      child: const Text(
-                        "Resend Code",
+                data: (seconds) => seconds != null
+                    ? Text(
+                        "Code expires in ${seconds}s",
+                        style: const TextStyle(
+                          color: Colors.black45,
+                          fontWeight: FontWeight.w500,
+                          fontSize: 14,
+                        ),
+                      )
+                    : const Text(
+                        "Code has expired",
                         style: TextStyle(
-                          color: Colors.blueAccent,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
+                          color: Colors.redAccent,
+                          fontWeight: FontWeight.w500,
+                          fontSize: 14,
                         ),
                       ),
-                    );
-                  }
-                  return Text(
-                    "Resend code in ${seconds}s",
-                    style: const TextStyle(
-                      color: Colors.black45,
-                      fontWeight: FontWeight.w500,
-                      fontSize: 15,
-                    ),
-                  );
-                },
                 loading: () => const SizedBox.shrink(),
                 error: (_, _) => const SizedBox.shrink(),
+              ),
+              const SizedBox(height: 4),
+
+              // Resend button — always available, not gated behind the timer
+              TextButton(
+                onPressed: authAsync.isLoading
+                    ? null
+                    : () {
+                        // Restart the expiry countdown and request a fresh OTP
+                        ref.invalidate(timerProvider);
+                        ref.read(authProvider.notifier).requestOtp(widget.phoneNumber);
+                      },
+                child: const Text(
+                  "Resend Code",
+                  style: TextStyle(
+                    color: Colors.blueAccent,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
               ),
             ],
           ),

@@ -14,6 +14,8 @@ class SkillInputSerializer(serializers.Serializer):
     """Deserializes skill data from JSON"""
     sub_service_id = serializers.IntegerField()
     years_of_experience = serializers.IntegerField(min_value=0)
+    base_rate = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
+    max_rate = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
 
 # 2. NEW: Handles the new Category-level uploads
 class CategoryLicenseInputSerializer(serializers.Serializer):

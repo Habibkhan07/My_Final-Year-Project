@@ -3,9 +3,13 @@ import 'package:http/http.dart' as http;
 import '../../../../core/constants.dart';
 import '../../../../core/common/errors/http_failure.dart'; // Import the new exception
 import '../../../../core/common/data/models/user_model.dart';
+import '../../../../core/data/local_sources/auth_local_data_source.dart';
 
 class AuthRemoteDataSource {
   final String baseUrl = "${AppConstants.baseUrl}/accounts";
+  final AuthLocalDataSource localDataSource;
+
+  AuthRemoteDataSource(this.localDataSource);
 
   // --- 1. REQUEST OTP ---
   Future<String> requestOtp(String phone) async {
@@ -43,11 +47,17 @@ class AuthRemoteDataSource {
     String lastName,
     String token,
   ) async {
+    // If token passed is empty, fallback to local storage
+    String authToken = token;
+    if (authToken.isEmpty) {
+        authToken = await localDataSource.getToken() ?? '';
+    }
+
     final response = await http.post(
       Uri.parse('$baseUrl/complete-signup/'),
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Token $token',
+        'Authorization': 'Token $authToken',
       },
       body: jsonEncode({'first_name': firstName, 'last_name': lastName}),
     );

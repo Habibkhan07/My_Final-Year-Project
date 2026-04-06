@@ -1,4 +1,4 @@
-from ..models import Service
+from catalog.models import Service
 
 def get_services_with_subservices():
     """
@@ -11,7 +11,13 @@ def get_services_with_subservices():
             "id": s.id,
             "name": s.name,
             "sub_services": [
-                {"id": sub.id, "name": sub.name, "base_price": str(sub.base_price)} 
+                {
+                    "id": sub.id,
+                    "name": sub.name,
+                    "base_price": str(sub.base_price),
+                    "max_price": str(sub.max_price) if sub.max_price else None,
+                    "icon_name": sub.icon_name,
+                }
                 for sub in s.sub_services.all()
             ]
         } for s in services

@@ -8,8 +8,9 @@ class Step0BasicInfo extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(onboardingNotifierProvider).value!;
-    final notifier = ref.read(onboardingNotifierProvider.notifier);
+    // FIX: Changed from .value! to .requireValue
+    final state = ref.watch(onboardingProvider).requireValue;
+    final notifier = ref.read(onboardingProvider.notifier);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),

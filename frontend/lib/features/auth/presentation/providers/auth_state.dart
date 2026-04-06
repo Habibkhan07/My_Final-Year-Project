@@ -1,16 +1,12 @@
+import 'package:freezed_annotation/freezed_annotation.dart';
 import '../../../../core/common/domain/entities/user_entity.dart';
 
-class AuthState {
-  final String? successMessage;
-  final UserEntity? user;
+part 'auth_state.freezed.dart';
 
-  AuthState({this.successMessage, this.user});
-
-  AuthState copyWith({String? successMessage, UserEntity? user}) {
-    return AuthState(
-      // We explicitly reset successMessage to null if not provided
-      successMessage: successMessage,
-      user: user ?? this.user,
-    );
-  }
+@freezed
+abstract class AuthState with _$AuthState {
+  const factory AuthState({
+    String? successMessage,
+    UserEntity? user,
+  }) = _AuthState;
 }

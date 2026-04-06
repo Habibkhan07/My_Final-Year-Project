@@ -1,45 +1,60 @@
 // lib/features/technician/onboarding/presentation/dependency_injection.dart
 
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 import '../../data/data_sources/technician_onboarding_remote_datasource.dart';
 import '../../data/repositories/technician_onboarding_repository_impl.dart';
 import '../../domain/usecases/get_onboarding_metadata_usecase.dart';
 import '../../domain/usecases/upload_media_usecase.dart';
 import '../../domain/usecases/register_technician_usecase.dart';
+import '../../../../../core/data/local_sources/onboarding_local_data_source.dart';
+import '../../../../auth/presentation/providers/dependency_injection.dart'; // To get authLocalDataSourceProvider
+
+part 'dependency_injection.g.dart';
 
 // --- DATA LAYER PROVIDERS ---
 
-// 1. Provide the Raw Data Source
-final technicianOnboardingRemoteDataSourceProvider =
-    Provider<TechnicianOnboardingRemoteDataSource>((ref) {
-      return TechnicianOnboardingRemoteDataSource();
-    });
+@Riverpod(keepAlive: true)
+SharedPreferences sharedPreferences(Ref ref) {
+  throw UnimplementedError('sharedPreferencesProvider must be overridden in ProviderScope');
+}
 
-// 2. Provide the Repository Implementation
-final technicianRepositoryProvider = Provider<TechnicianRepositoryImpl>((ref) {
-  final dataSource = ref.watch(technicianOnboardingRemoteDataSourceProvider);
-  return TechnicianRepositoryImpl(dataSource);
-});
+@Riverpod(keepAlive: true)
+OnboardingLocalDataSource onboardingLocalDataSource(Ref ref) {
+  final prefs = ref.watch(sharedPreferencesProvider);
+  return OnboardingLocalDataSource(prefs);
+}
+
+@riverpod
+TechnicianOnboardingRemoteDataSource technicianOnboardingRemoteDataSource(Ref ref) {
+  final authLocalDataSource = ref.watch(authLocalDataSourceProvider);
+  return TechnicianOnboardingRemoteDataSource(authLocalDataSource);
+}
+
+@riverpod
+TechnicianRepositoryImpl technicianRepository(Ref ref) {
+  final remoteDataSource = ref.watch(technicianOnboardingRemoteDataSourceProvider);
+  final localDataSource = ref.watch(onboardingLocalDataSourceProvider);
+  return TechnicianRepositoryImpl(remoteDataSource, localDataSource);
+}
 
 // --- DOMAIN LAYER PROVIDERS (Use Cases) ---
 
-// 3. Provide the Metadata Use Case (Step 1: Get Skills/Cities)
-final getOnboardingMetadataUseCaseProvider =
-    Provider<GetOnboardingMetadataUseCase>((ref) {
-      final repository = ref.watch(technicianRepositoryProvider);
-      return GetOnboardingMetadataUseCase(repository);
-    });
+@riverpod
+GetOnboardingMetadataUseCase getOnboardingMetadataUseCase(Ref ref) {
+  final repository = ref.watch(technicianRepositoryProvider);
+  return GetOnboardingMetadataUseCase(repository);
+}
 
-// 4. Provide the Upload Media Use Case (Phase 1: Multipart)
-final uploadMediaUseCaseProvider = Provider<UploadMediaUseCase>((ref) {
+@riverpod
+UploadMediaUseCase uploadMediaUseCase(Ref ref) {
   final repository = ref.watch(technicianRepositoryProvider);
   return UploadMediaUseCase(repository);
-});
+}
 
-// 5. Provide the Finalize Registration Use Case (Phase 2: JSON)
-final registerTechnicianUseCaseProvider = Provider<RegisterTechnicianUseCase>((
-  ref,
-) {
+@riverpod
+RegisterTechnicianUseCase registerTechnicianUseCase(Ref ref) {
   final repository = ref.watch(technicianRepositoryProvider);
   return RegisterTechnicianUseCase(repository);
-});
+}

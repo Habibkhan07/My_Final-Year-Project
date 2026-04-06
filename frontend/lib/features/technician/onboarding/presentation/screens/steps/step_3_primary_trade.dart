@@ -8,8 +8,9 @@ class Step3PrimaryTrade extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(onboardingNotifierProvider).value!;
-    final notifier = ref.read(onboardingNotifierProvider.notifier);
+    // FIX: Changed from .value! to .requireValue
+    final state = ref.watch(onboardingProvider).requireValue;
+    final notifier = ref.read(onboardingProvider.notifier);
 
     return Column(
       children: [
@@ -82,7 +83,7 @@ class Step3PrimaryTrade extends ConsumerWidget {
                         ),
                       ),
                       subtitle: Text(
-                        "Base Price: \$${sub.basePrice}",
+                        "Base Price: Rs. ${sub.basePrice}", // FIX: Changed $ to Rs.
                         style: TextStyle(color: Colors.green.shade700),
                       ),
                       activeColor: Theme.of(context).primaryColor,

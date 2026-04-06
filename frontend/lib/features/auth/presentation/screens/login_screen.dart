@@ -13,6 +13,7 @@ class LoginScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // 1. Watch the AsyncValue
     final authAsync = ref.watch(authProvider);
+    final currentPhone = ref.watch(phoneNumberProvider);
 
     // 2. Listen for Side Effects (Navigation & Error Handling)
     ref.listen<AsyncValue<AuthState>>(authProvider, (previous, next) {
@@ -42,9 +43,10 @@ class LoginScreen extends ConsumerWidget {
 
           if (error is AuthFailure) {
             switch (error) {
-              case InvalidInput(:final errors):
-                // Extract 'phone' specific error or fallback
-                msg = errors['phone']?.first ?? "Invalid phone number.";
+              case InvalidInput(:final errors, :final message):
+                // Field error takes priority; fallback to the server's toast message
+                // (e.g. Twilio SMS failure has no field errors but has a message)
+                msg = errors['phone']?.first ?? message;
                 color = Colors.orange;
 
               case UserAlreadyExists(:final message):
@@ -66,6 +68,7 @@ class LoginScreen extends ConsumerWidget {
               content: Text(msg),
               backgroundColor: color,
               behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 6),
             ),
           );
         },
@@ -113,7 +116,7 @@ class LoginScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 12),
                 const Text(
-                  "We will send a 4-digit verification code\nto your mobile number.",
+                  "We will send a 6-digit verification code\nto your mobile number.",
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 15,
@@ -153,9 +156,8 @@ class LoginScreen extends ConsumerWidget {
                     fontWeight: FontWeight.w600,
                   ),
                   onChanged: (phone) {
-                    ref.read(phoneNumberProvider.notifier).state =
-                        phone.completeNumber;
-                  },
+  ref.read(phoneNumberProvider.notifier).updatePhone(phone.completeNumber);
+},
                 ),
                 const SizedBox(height: 32),
 
@@ -178,9 +180,8 @@ class LoginScreen extends ConsumerWidget {
                             ),
                           ),
                           onPressed: () {
-                            final phone = ref.read(phoneNumberProvider);
-                            if (phone.isNotEmpty) {
-                              ref.read(authProvider.notifier).requestOtp(phone);
+                            if (currentPhone.isNotEmpty) {
+                              ref.read(authProvider.notifier).requestOtp(currentPhone);
                             }
                           },
                           child: const Text(

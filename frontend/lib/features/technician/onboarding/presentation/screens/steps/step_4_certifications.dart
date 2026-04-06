@@ -17,14 +17,15 @@ class Step4Certifications extends ConsumerWidget {
 
     if (picked != null) {
       ref
-          .read(onboardingNotifierProvider.notifier)
+          .read(onboardingProvider.notifier)
           .uploadDocument(picked, 'license', serviceId: serviceId);
     }
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(onboardingNotifierProvider).value!;
+    // FIX: Changed from .value! to .requireValue
+    final state = ref.watch(onboardingProvider).requireValue;
 
     // SMART LOGIC: Only find Parent Services where the user selected at least one sub-service
     final requiredServices = state.services.where((service) {

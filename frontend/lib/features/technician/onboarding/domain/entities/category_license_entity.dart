@@ -1,15 +1,13 @@
-// domain/entities/category_license_entity.dart
-import 'package:equatable/equatable.dart';
+import 'package:freezed_annotation/freezed_annotation.dart';
 
-class CategoryLicenseEntity extends Equatable {
-  final int serviceId;
-  final String mediaUuid;
+part 'category_license_entity.freezed.dart';
 
-  const CategoryLicenseEntity({
-    required this.serviceId,
-    required this.mediaUuid,
-  });
-
-  @override
-  List<Object?> get props => [serviceId, mediaUuid];
+/// [CategoryLicenseEntity] maps a service category to a certification image.
+/// FLOW: Uploaded in Onboarding Step 4
+@freezed
+abstract class CategoryLicenseEntity with _$CategoryLicenseEntity {
+  const factory CategoryLicenseEntity({
+    required int serviceId,
+    required String mediaUuid,
+  }) = _CategoryLicenseEntity;
 }

@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../domain/failures/technician_failure.dart';
 import '../providers/onboarding_notifier.dart';
 import '../providers/onboarding_state.dart';
+
 // 2. Imports for the New 6-Step Widgets
 import 'steps/step_0_basic_info.dart';
 import 'steps/step_1_verification.dart';
@@ -24,7 +25,7 @@ class OnboardingMainScreen extends ConsumerStatefulWidget {
 
 class _OnboardingMainScreenState extends ConsumerState<OnboardingMainScreen> {
   final PageController _pageController = PageController();
-  final int _totalSteps = 6; // Updated to 6 steps
+  final int _totalSteps = 6; 
 
   @override
   void dispose() {
@@ -32,7 +33,6 @@ class _OnboardingMainScreenState extends ConsumerState<OnboardingMainScreen> {
     super.dispose();
   }
 
-  // A single source of truth for translating Domain Failures to UI SnackBars
   void _showErrorSnackBar(Object error) {
     String message = "An unexpected error occurred.";
     VoidCallback? onAction;
@@ -76,20 +76,19 @@ class _OnboardingMainScreenState extends ConsumerState<OnboardingMainScreen> {
     );
   }
 
-  // --- NEW: STEP VALIDATION LOGIC ---
   bool _canAdvance(OnboardingState state) {
     switch (state.currentStep) {
-      case 0: // Basic Info
+      case 0:
         return state.firstName.trim().isNotEmpty &&
             state.lastName.trim().isNotEmpty &&
             state.city.isNotEmpty;
-      case 1: // Verification
+      case 1:
         return state.cnicNumber.length == 15 && state.cnicPictureUuid != null;
-      case 2: // Professional ID
+      case 2:
         return state.bio.trim().isNotEmpty && state.profilePictureUuid != null;
-      case 3: // Primary Trade
+      case 3:
         return state.selectedSkills.isNotEmpty;
-      case 4: // Certifications (Optional)
+      case 4:
         return true;
       default:
         return true;
@@ -98,53 +97,52 @@ class _OnboardingMainScreenState extends ConsumerState<OnboardingMainScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final stateAsync = ref.watch(onboardingNotifierProvider);
+    final stateAsync = ref.watch(onboardingProvider);
 
     // ==========================================
-    // PILLAR 1: FINAL SUBMISSION (Phase 2)
+    // PILLAR 1 & 2: ERRORS & SUBMISSION STATUS
     // ==========================================
-    ref.listen(
-      onboardingNotifierProvider.select(
-        (state) => state.valueOrNull?.submissionStatus,
-      ),
-      (previous, next) {
-        if (next != null && next.hasValue && next.value != null) {
-          context.go('/technician/success', extra: next.value);
-        }
-        if (next != null && next.hasError) {
+    ref.listen<AsyncValue<OnboardingState>>(onboardingProvider, (previous, next) {
+      // A. Catch top-level state errors (e.g. metadata failed to fetch)
+      if (next.hasError && !next.isLoading) {
+        if (previous == null || !previous.hasError) {
           _showErrorSnackBar(next.error!);
         }
-      },
-    );
+      }
 
-    // ==========================================
-    // PILLAR 2: MEDIA UPLOADS & METADATA (Phase 1 & 0)
-    // ==========================================
-    ref.listen(onboardingNotifierProvider, (previous, next) {
-      if (next is AsyncError && previous is! AsyncError) {
-        _showErrorSnackBar(next.error!);
+      // B. Catch Nested Submission Status Changes safely
+      final prevSub = previous?.value?.submissionStatus;
+      final nextSub = next.value?.submissionStatus;
+
+      if (nextSub != null && nextSub != prevSub) {
+        nextSub.whenOrNull(
+          data: (technician) {
+            if (technician != null) {
+              context.go('/technician/success', extra: technician);
+            }
+          },
+          error: (error, stack) => _showErrorSnackBar(error),
+        );
       }
     });
 
     // ==========================================
     // PILLAR 3: PAGE NAVIGATION (UI State)
     // ==========================================
-    ref.listen(
-      onboardingNotifierProvider.select(
-        (state) => state.valueOrNull?.currentStep,
-      ),
-      (previous, nextStep) {
-        if (nextStep != null && _pageController.hasClients) {
-          if (_pageController.page?.round() != nextStep) {
-            _pageController.animateToPage(
-              nextStep,
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeInOut,
-            );
-          }
+    ref.listen<AsyncValue<OnboardingState>>(onboardingProvider, (previous, next) {
+      final prevStep = previous?.value?.currentStep;
+      final nextStep = next.value?.currentStep;
+
+      if (nextStep != null && nextStep != prevStep && _pageController.hasClients) {
+        if (_pageController.page?.round() != nextStep) {
+          _pageController.animateToPage(
+            nextStep,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+          );
         }
-      },
-    );
+      }
+    });
 
     return Scaffold(
       appBar: AppBar(
@@ -155,9 +153,9 @@ class _OnboardingMainScreenState extends ConsumerState<OnboardingMainScreen> {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
-            final step = stateAsync.valueOrNull?.currentStep ?? 0;
+            final step = stateAsync.value?.currentStep ?? 0;
             if (step > 0) {
-              ref.read(onboardingNotifierProvider.notifier).previousStep();
+              ref.read(onboardingProvider.notifier).previousStep();
             } else {
               context.pop();
             }
@@ -178,9 +176,7 @@ class _OnboardingMainScreenState extends ConsumerState<OnboardingMainScreen> {
               ),
               const SizedBox(height: 8),
               ElevatedButton(
-                onPressed: () => ref
-                    .read(onboardingNotifierProvider.notifier)
-                    .fetchMetadata(),
+                onPressed: () => ref.read(onboardingProvider.notifier).fetchMetadata(),
                 child: const Text("Retry"),
               ),
             ],
@@ -189,12 +185,8 @@ class _OnboardingMainScreenState extends ConsumerState<OnboardingMainScreen> {
         data: (state) {
           return Column(
             children: [
-              // 1. BEAUTIFUL ANIMATED PROGRESS BAR
               Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24.0,
-                  vertical: 8.0,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -230,7 +222,6 @@ class _OnboardingMainScreenState extends ConsumerState<OnboardingMainScreen> {
                 ),
               ),
 
-              // 2. THE PAGE VIEW (Controlled by Pillar 3)
               Expanded(
                 child: PageView(
                   controller: _pageController,
@@ -246,7 +237,6 @@ class _OnboardingMainScreenState extends ConsumerState<OnboardingMainScreen> {
                 ),
               ),
 
-              // 3. BOTTOM NAVIGATION BAR
               Container(
                 padding: const EdgeInsets.all(16.0),
                 decoration: BoxDecoration(
@@ -264,54 +254,35 @@ class _OnboardingMainScreenState extends ConsumerState<OnboardingMainScreen> {
                   children: [
                     if (state.currentStep > 0)
                       TextButton(
-                        onPressed: ref
-                            .read(onboardingNotifierProvider.notifier)
-                            .previousStep,
+                        onPressed: () => ref.read(onboardingProvider.notifier).previousStep(),
                         child: const Text("Back"),
                       )
                     else
                       const SizedBox(width: 64),
 
-                    // NEXT BUTTON
-                    // NEXT BUTTON
                     if (state.currentStep < (_totalSteps - 1))
                       ElevatedButton(
-                        // NEW: Disable button if the current step's requirements aren't met
                         onPressed: _canAdvance(state)
-                            ? ref
-                                  .read(onboardingNotifierProvider.notifier)
-                                  .nextStep
+                            ? () => ref.read(onboardingProvider.notifier).nextStep()
                             : null,
                         style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 32,
-                            vertical: 12,
-                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          // Optional: Make the disabled button look more obviously disabled
                           disabledBackgroundColor: Colors.grey.shade300,
                         ),
                         child: const Text("Next"),
                       )
                     else
-                      // SUBMIT BUTTON (Only shows on Step 6)
                       ElevatedButton(
-                        onPressed:
-                            (state.submissionStatus.isLoading ||
-                                state.selectedSkills.isEmpty)
+                        onPressed: (state.submissionStatus.isLoading || state.selectedSkills.isEmpty)
                             ? null
-                            : ref
-                                  .read(onboardingNotifierProvider.notifier)
-                                  .finalize,
+                            : () => ref.read(onboardingProvider.notifier).finalize(),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Theme.of(context).primaryColor,
                           foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 32,
-                            vertical: 12,
-                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
@@ -320,10 +291,7 @@ class _OnboardingMainScreenState extends ConsumerState<OnboardingMainScreen> {
                             ? const SizedBox(
                                 width: 20,
                                 height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
+                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                               )
                             : const Text("Submit Application"),
                       ),

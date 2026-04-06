@@ -29,6 +29,16 @@ SECRET_KEY = env('SECRET_KEY')
 DEBUG = env('DEBUG')
 ALLOWED_HOSTS = env.list('ALLOWED_HOSTS')
 
+# Twilio — live credentials (DEBUG=False / production)
+TWILIO_ACCOUNT_SID = env('TWILIO_ACCOUNT_SID')
+TWILIO_AUTH_TOKEN = env('TWILIO_AUTH_TOKEN')
+TWILIO_FROM_NUMBER = env('TWILIO_FROM_NUMBER')
+
+# Twilio — test credentials (DEBUG=True / development, no real SMS sent)
+TWILIO_TEST_ACCOUNT_SID = env('TWILIO_TEST_ACCOUNT_SID')
+TWILIO_TEST_AUTH_TOKEN = env('TWILIO_TEST_AUTH_TOKEN')
+TWILIO_TEST_FROM_NUMBER = env('TWILIO_TEST_FROM_NUMBER', default='+15005550006')
+
 
 
 
@@ -49,6 +59,10 @@ INSTALLED_APPS = [
     #apps
     'accounts',
     'technicians',
+    'catalog',
+    'marketing',
+    'customers'
+    '',     
 ]
 
 MIDDLEWARE = [
@@ -131,7 +145,8 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')  # collectstatic output for production
 
 
 
@@ -157,7 +172,7 @@ CORS_ALLOW_ALL_ORIGINS = True
 import sys
 
 # Override database for tests to use in-memory SQLite for speed and isolation
-if 'test' in sys.argv or 'test_coverage' in sys.argv:
+if 'test' in sys.argv or 'test_coverage' in sys.argv or 'pytest' in sys.modules:
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
@@ -170,7 +185,5 @@ if 'test' in sys.argv or 'test_coverage' in sys.argv:
         'django.contrib.auth.hashers.MD5PasswordHasher',
     ]
 
-# 4. Add Media Configuration (CRITICAL for Sprint 2)
-STATIC_URL = 'static/'
-MEDIA_URL = '/media/' # URL to access images in browser
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media') # Folder where images are saved
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')

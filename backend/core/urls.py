@@ -22,7 +22,11 @@ from django.conf.urls.static import static # Add this
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/accounts/', include('accounts.api.urls')),
-    path('api/technicians/', include('technicians.api.urls')),]
+    path('api/technicians/', include('technicians.api.urls')),
+    path('api/customers/', include('customers.api.urls')),
+    path('api/catalog/', include('catalog.api.urls')),
+    ]
+
 
 # This allows Django to serve the Profile/CNIC pictures during development
 if settings.DEBUG:

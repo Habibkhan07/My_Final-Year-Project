@@ -6,10 +6,6 @@ import '../../domain/entities/service_entity.dart';
 import '../../domain/entities/category_license_entity.dart';
 part 'onboarding_state.freezed.dart';
 
-// lib/features/technician/onboarding/presentation/providers/onboarding_state.dart
-
-// lib/features/technician/onboarding/presentation/providers/onboarding_state.dart
-
 @freezed
 abstract class OnboardingState with _$OnboardingState {
   const OnboardingState._();
@@ -29,7 +25,7 @@ abstract class OnboardingState with _$OnboardingState {
     @Default([]) List<ServiceEntity> services,
 
     @Default([]) List<SkillSelectionEntity> selectedSkills,
-    @Default([]) List<CategoryLicenseEntity> categoryLicenses, // NEW LIST
+    @Default([]) List<CategoryLicenseEntity> categoryLicenses,
 
     @Default(AsyncValue.data(null))
     AsyncValue<TechnicianEntity?> submissionStatus,

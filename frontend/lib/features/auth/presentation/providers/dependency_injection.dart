@@ -1,45 +1,60 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-
-// ../ moves up to 'presentation'
-// ../../ moves up to 'auth'
-// ../../../ moves up to 'features' (if needed)
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../../data/data_sources/auth_remote_data_source.dart';
+import '../../../../core/data/local_sources/auth_local_data_source.dart';
 import '../../data/repositories/auth_repository_impl.dart';
+import '../../domain/repositories/auth_repository.dart';
 import '../../domain/use_cases/request_otp_use_case.dart';
 import '../../domain/use_cases/verify_otp_use_case.dart';
 import '../../domain/use_cases/complete_signup_use_case.dart';
+import '../../../../features/technician/onboarding/presentation/providers/dependency_injection.dart'; // Source of sharedPreferencesProvider
+
+part 'dependency_injection.g.dart';
+
 // --- DATA LAYER PROVIDERS ---
 
-// 1. Provide the Raw Data Source
-final authRemoteDataSourceProvider = Provider<AuthRemoteDataSource>((ref) {
-  return AuthRemoteDataSource();
-});
+@Riverpod(keepAlive: true)
+FlutterSecureStorage flutterSecureStorage(Ref ref) {
+  return const FlutterSecureStorage();
+}
 
-// 2. Provide the Repository Implementation
-final authRepositoryProvider = Provider<AuthRepositoryImpl>((ref) {
-  final dataSource = ref.watch(authRemoteDataSourceProvider);
-  return AuthRepositoryImpl(dataSource);
-});
+@Riverpod(keepAlive: true)
+AuthLocalDataSource authLocalDataSource(Ref ref) {
+  final secureStorage = ref.watch(flutterSecureStorageProvider);
+  final prefs = ref.watch(sharedPreferencesProvider);
+  return AuthLocalDataSource(secureStorage, prefs);
+}
+
+@riverpod
+AuthRemoteDataSource authRemoteDataSource(Ref ref) {
+  final localDataSource = ref.watch(authLocalDataSourceProvider);
+  return AuthRemoteDataSource(localDataSource);
+}
+
+@riverpod
+AuthRepository authRepository(Ref ref) {
+  final remoteDataSource = ref.watch(authRemoteDataSourceProvider);
+  final localDataSource = ref.watch(authLocalDataSourceProvider);
+  return AuthRepositoryImpl(remoteDataSource, localDataSource);
+}
 
 // --- DOMAIN LAYER PROVIDERS (Use Cases) ---
 
-// 3. Provide the Request OTP Use Case
-final requestOtpUseCaseProvider = Provider<RequestOtpUseCase>((ref) {
+@riverpod
+RequestOtpUseCase requestOtpUseCase(Ref ref) {
   final repository = ref.watch(authRepositoryProvider);
   return RequestOtpUseCase(repository);
-});
+}
 
-// 4. Provide the Verify OTP Use Case
-final verifyOtpUseCaseProvider = Provider<VerifyOtpUseCase>((ref) {
+@riverpod
+VerifyOtpUseCase verifyOtpUseCase(Ref ref) {
   final repository = ref.watch(authRepositoryProvider);
   return VerifyOtpUseCase(repository);
-});
+}
 
-// dependency_injection.dart
-
-// 5. Provide the Complete Signup Use Case
-final completeSignupUseCaseProvider = Provider<CompleteSignupUseCase>((ref) {
+@riverpod
+CompleteSignupUseCase completeSignupUseCase(Ref ref) {
   final repository = ref.watch(authRepositoryProvider);
   return CompleteSignupUseCase(repository);
-});
+}

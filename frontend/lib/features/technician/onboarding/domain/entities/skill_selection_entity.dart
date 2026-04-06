@@ -1,15 +1,15 @@
-// domain/entities/skill_selection_entity.dart
-import 'package:equatable/equatable.dart';
+import 'package:freezed_annotation/freezed_annotation.dart';
 
-class SkillSelectionEntity extends Equatable {
-  final int subServiceId;
-  final int yearsOfExperience;
+part 'skill_selection_entity.freezed.dart';
 
-  const SkillSelectionEntity({
-    required this.subServiceId,
-    required this.yearsOfExperience,
-  });
-
-  @override
-  List<Object?> get props => [subServiceId, yearsOfExperience];
+/// [SkillSelectionEntity] represents the tech's selected skill and its labor rates.
+/// FLOW: Selected in Onboarding Step 5
+@freezed
+abstract class SkillSelectionEntity with _$SkillSelectionEntity {
+  const factory SkillSelectionEntity({
+    required int subServiceId,
+    required int yearsOfExperience,
+    String? baseRate,
+    String? maxRate,
+  }) = _SkillSelectionEntity;
 }

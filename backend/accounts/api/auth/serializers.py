@@ -1,36 +1,37 @@
 import re
 from rest_framework import serializers
 
+# Matches Pakistani mobile numbers in two formats:
+#   Local : 03XXXXXXXXX  (11 digits, starts with 03 + active network prefix 0-6 + 8 digits)
+#   E.164 : +923XXXXXXXXX (same number with country code +92)
+_PK_PHONE_RE = re.compile(r'^(?:0|\+92)(3[0-6]\d{8})$')
+
+
 class PhoneLoginInputSerializer(serializers.Serializer):
     """
-    Renamed from SignupSerializer to match your new View. [cite: 156, 261]
-    Strictly handles phone data integrity.
+    Validates and normalises Pakistani mobile numbers to E.164 (+92XXXXXXXXXX)
+    before passing them downstream to Twilio and the DB.
     """
     phone = serializers.CharField(
-        help_text="Enter mobile number with country code (e.g., +923001234567)"
+        help_text="Pakistani mobile number — local (03001234567) or E.164 (+923001234567)"
     )
 
     def validate_phone(self, value):
-        # 1. Remove accidental whitespace
         phone = value.strip()
 
-        # 2. Regex for digits and leading '+'
-        if not re.match(r'^\+?[\d]+$', phone):
+        match = _PK_PHONE_RE.match(phone)
+        if not match:
             raise serializers.ValidationError(
-                "Phone number contains invalid characters. Use only digits and '+'."
+                "Enter a valid Pakistani mobile number (e.g. 03001234567 or +923001234567)."
             )
 
-        # 3. Standard E.164 length check
-        if len(phone) < 10:
-            raise serializers.ValidationError("Phone number is too short.")
-        if len(phone) > 15:
-            raise serializers.ValidationError("Phone number is too long.")
-
-        return phone
+        # Normalise to E.164 so Twilio always gets a consistent format
+        # match.group(1) is the 9-digit part after the leading 0 or +92
+        return f"+92{match.group(1)}"
 
 class OTPVerifyInputSerializer(serializers.Serializer):
     """
     New Serializer for the second step of Auth. [cite: 211, 363]
     """
     phone = serializers.CharField(required=True)
-    otp = serializers.CharField(required=True, min_length=4, max_length=4)
+    otp = serializers.CharField(required=True, min_length=6, max_length=6)

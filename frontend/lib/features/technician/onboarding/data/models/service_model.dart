@@ -1,59 +1,32 @@
-// feature/technician/onboarding/data/models/service_model.dart
+import 'package:freezed_annotation/freezed_annotation.dart';
 
-class ServiceModel {
-  final int id;
-  final String name;
-  final List<SubServiceModel> subServices;
+part 'service_model.freezed.dart';
+part 'service_model.g.dart';
 
-  ServiceModel({
-    required this.id,
-    required this.name,
-    required this.subServices,
-  });
+/// [ServiceModel] represents the metadata for onboarding.
+/// FEEDS FROM: GET /api/technicians/onboarding/metadata/
+@freezed
+abstract class ServiceModel with _$ServiceModel {
+  const factory ServiceModel({
+    required int id,
+    required String name,
+    @JsonKey(name: 'sub_services') required List<SubServiceModel> subServices,
+  }) = _ServiceModel;
 
-  factory ServiceModel.fromJson(Map<String, dynamic> json) {
-    return ServiceModel(
-      id: json['id'], // Matches Django Service.id
-      name: json['name'], // Matches Django Service.name
-      subServices:
-          (json['sub_services'] as List? ??
-                  []) // Handle null by returning empty list
-              .map((i) => SubServiceModel.fromJson(i))
-              .toList(),
-    );
-  }
-
-  // Used if you ever need to cache this data locally
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'name': name,
-      'sub_services': subServices.map((s) => s.toJson()).toList(),
-    };
-  }
+  factory ServiceModel.fromJson(Map<String, dynamic> json) => _$ServiceModelFromJson(json);
 }
 
-class SubServiceModel {
-  final int id;
-  final String name;
-  final double basePrice;
+/// [SubServiceModel] represents a specific gig/skill metadata.
+/// FEEDS FROM: GET /api/technicians/onboarding/metadata/
+@freezed
+abstract class SubServiceModel with _$SubServiceModel {
+  const factory SubServiceModel({
+    required int id,
+    required String name,
+    @JsonKey(name: 'base_price') required String basePrice,
+    @JsonKey(name: 'max_price') required String? maxPrice,
+    @JsonKey(name: 'icon_name') String? iconName,
+  }) = _SubServiceModel;
 
-  SubServiceModel({
-    required this.id,
-    required this.name,
-    required this.basePrice,
-  });
-
-  factory SubServiceModel.fromJson(Map<String, dynamic> json) {
-    return SubServiceModel(
-      id: json['id'], // Matches Django SubService.id
-      name: json['name'], // Matches Django SubService.name
-      // Ensuring the price is treated as a double even if it comes as a string or int
-      basePrice: double.parse(json['base_price'].toString()), //
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {'id': id, 'name': name, 'base_price': basePrice};
-  }
+  factory SubServiceModel.fromJson(Map<String, dynamic> json) => _$SubServiceModelFromJson(json);
 }

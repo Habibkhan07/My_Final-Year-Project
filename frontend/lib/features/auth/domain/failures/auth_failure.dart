@@ -16,10 +16,12 @@ class ResourcesExpired extends AuthFailure {
 }
 
 // 3. Corresponds to 400 (Backend code: "validation_error")
+// message = top-level toast string (e.g. "Failed to send OTP via SMS: ...")
+// errors  = field-specific hints (e.g. {'otp': ['Invalid OTP.']})
 class InvalidInput extends AuthFailure {
-  final Map<String, dynamic>
-  errors; // Field-specific errors (e.g., {'otp': ['Invalid']})
-  const InvalidInput(this.errors);
+  final String message;
+  final Map<String, dynamic> errors;
+  const InvalidInput(this.message, this.errors);
 }
 
 // 4. Corresponds to 401/403 (Backend code: "unauthorized")

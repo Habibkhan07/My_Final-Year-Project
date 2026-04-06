@@ -1,74 +1,48 @@
-// feature/technician/onboarding/data/models/technician_registration_model.dart
+import 'package:freezed_annotation/freezed_annotation.dart';
 
-class TechnicianRegistrationModel {
-  final String firstName;
-  final String lastName;
-  final String city;
-  final String cnicNumber;
-  final int experienceYears;
-  final String bio;
-  final String profilePictureUuid;
-  final String cnicPictureUuid;
-  // NEW: The normalized licenses array
-  final List<CategoryLicenseInputModel> categoryLicenses;
-  final List<SkillInputModel> skills;
+part 'technician_registration_model.freezed.dart';
+part 'technician_registration_model.g.dart';
 
-  TechnicianRegistrationModel({
-    required this.firstName,
-    required this.lastName,
-    required this.city,
-    required this.cnicNumber,
-    required this.experienceYears,
-    required this.bio,
-    required this.profilePictureUuid,
-    required this.cnicPictureUuid,
-    required this.categoryLicenses,
-    required this.skills,
-  });
+/// [TechnicianRegistrationModel] is the final submission payload.
+/// SENT TO: POST /api/technicians/onboarding/finalize/
+@freezed
+abstract class TechnicianRegistrationModel with _$TechnicianRegistrationModel {
+  const factory TechnicianRegistrationModel({
+    @JsonKey(name: 'first_name') required String firstName,
+    @JsonKey(name: 'last_name') required String lastName,
+    required String city,
+    @JsonKey(name: 'cnic_number') required String cnicNumber,
+    @JsonKey(name: 'experience_years') required int experienceYears,
+    required String bio,
+    @JsonKey(name: 'profile_picture_uuid') required String profilePictureUuid,
+    @JsonKey(name: 'cnic_picture_uuid') required String cnicPictureUuid,
+    @JsonKey(name: 'category_licenses') required List<CategoryLicenseInputModel> categoryLicenses,
+    required List<SkillInputModel> skills,
+  }) = _TechnicianRegistrationModel;
 
-  // Converts the Dart Object into JSON for the API request
-  Map<String, dynamic> toJson() {
-    return {
-      'first_name': firstName, //
-      'last_name': lastName, //
-      'city': city, //
-      'cnic_number': cnicNumber, // Matches your Regex validation
-      'experience_years': experienceYears,
-      'bio': bio,
-      'profile_picture_uuid': profilePictureUuid, // The UUID from Phase 1
-      'cnic_picture_uuid': cnicPictureUuid, // The UUID from Phase 1
-      'category_licenses': categoryLicenses.map((x) => x.toJson()).toList(),
-      'skills': skills.map((x) => x.toJson()).toList(),
-    };
-  }
+  factory TechnicianRegistrationModel.fromJson(Map<String, dynamic> json) => _$TechnicianRegistrationModelFromJson(json);
 }
 
-// NEW: Maps perfectly to CategoryLicenseInputSerializer in Django
-class CategoryLicenseInputModel {
-  final int serviceId;
-  final String mediaUuid;
+/// [CategoryLicenseInputModel] maps to CategoryLicenseInputSerializer in Django.
+@freezed
+abstract class CategoryLicenseInputModel with _$CategoryLicenseInputModel {
+  const factory CategoryLicenseInputModel({
+    @JsonKey(name: 'service_id') required int serviceId,
+    @JsonKey(name: 'media_uuid') required String mediaUuid,
+  }) = _CategoryLicenseInputModel;
 
-  CategoryLicenseInputModel({required this.serviceId, required this.mediaUuid});
-
-  Map<String, dynamic> toJson() => {
-    'service_id': serviceId,
-    'media_uuid': mediaUuid,
-  };
+  factory CategoryLicenseInputModel.fromJson(Map<String, dynamic> json) => _$CategoryLicenseInputModelFromJson(json);
 }
 
-class SkillInputModel {
-  final int subServiceId;
-  final int yearsOfExperience;
+/// [SkillInputModel] represents the technician's selected skills and labor rates.
+@freezed
+abstract class SkillInputModel with _$SkillInputModel {
+  const factory SkillInputModel({
+    @JsonKey(name: 'sub_service_id') required int subServiceId,
+    @JsonKey(name: 'years_of_experience') required int yearsOfExperience,
+    @JsonKey(name: 'base_rate') String? baseRate,
+    @JsonKey(name: 'max_rate') String? maxRate,
+  }) = _SkillInputModel;
 
-  SkillInputModel({
-    required this.subServiceId,
-    required this.yearsOfExperience,
-  });
-
-  Map<String, dynamic> toJson() {
-    return {
-      'sub_service_id': subServiceId,
-      'years_of_experience': yearsOfExperience,
-    };
-  }
+  factory SkillInputModel.fromJson(Map<String, dynamic> json) => _$SkillInputModelFromJson(json);
 }

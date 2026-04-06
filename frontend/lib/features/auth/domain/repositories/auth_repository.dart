@@ -8,4 +8,9 @@ abstract class AuthRepository {
     String lastName,
     String token,
   );
+  
+  // Session Management
+  Future<UserEntity?> getCachedUser();
+  Future<void> logout();
+  Future<void> persistUser(UserEntity user);
 }

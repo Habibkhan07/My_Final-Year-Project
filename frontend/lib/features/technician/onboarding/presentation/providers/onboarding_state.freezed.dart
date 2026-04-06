@@ -15,8 +15,7 @@ T _$identity<T>(T value) => value;
 mixin _$OnboardingState {
 
  int get currentStep; String get firstName; String get lastName; String get city; String get cnicNumber; String get bio; int get experienceYears; String? get profilePictureUuid; String? get cnicPictureUuid;// Storing the metadata fetched from the backend
- List<ServiceEntity> get services; List<SkillSelectionEntity> get selectedSkills; List<CategoryLicenseEntity> get categoryLicenses;// NEW LIST
- AsyncValue<TechnicianEntity?> get submissionStatus;
+ List<ServiceEntity> get services; List<SkillSelectionEntity> get selectedSkills; List<CategoryLicenseEntity> get categoryLicenses; AsyncValue<TechnicianEntity?> get submissionStatus;
 /// Create a copy of OnboardingState
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -255,7 +254,6 @@ class _OnboardingState extends OnboardingState {
   return EqualUnmodifiableListView(_categoryLicenses);
 }
 
-// NEW LIST
 @override@JsonKey() final  AsyncValue<TechnicianEntity?> submissionStatus;
 
 /// Create a copy of OnboardingState

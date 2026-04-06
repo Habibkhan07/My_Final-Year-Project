@@ -6,25 +6,91 @@ part of 'onboarding_notifier.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$onboardingNotifierHash() =>
-    r'b88b3c351e1b9cdbf68e26bfaf903b5cb1152bca';
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// ignore_for_file: type=lint, type=warning
 
-/// See also [OnboardingNotifier].
 @ProviderFor(OnboardingNotifier)
-final onboardingNotifierProvider =
-    AutoDisposeAsyncNotifierProvider<
-      OnboardingNotifier,
-      OnboardingState
-    >.internal(
-      OnboardingNotifier.new,
-      name: r'onboardingNotifierProvider',
-      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-          ? null
-          : _$onboardingNotifierHash,
-      dependencies: null,
-      allTransitiveDependencies: null,
-    );
+final onboardingProvider = OnboardingNotifierProvider._();
 
-typedef _$OnboardingNotifier = AutoDisposeAsyncNotifier<OnboardingState>;
-// ignore_for_file: type=lint
-// ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member, deprecated_member_use_from_same_package
+final class OnboardingNotifierProvider
+    extends $AsyncNotifierProvider<OnboardingNotifier, OnboardingState> {
+  OnboardingNotifierProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'onboardingProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$onboardingNotifierHash();
+
+  @$internal
+  @override
+  OnboardingNotifier create() => OnboardingNotifier();
+}
+
+String _$onboardingNotifierHash() =>
+    r'eb43751d4bace29c54f37e752973b130d8c2ed12';
+
+abstract class _$OnboardingNotifier extends $AsyncNotifier<OnboardingState> {
+  FutureOr<OnboardingState> build();
+  @$mustCallSuper
+  @override
+  void runBuild() {
+    final ref = this.ref as $Ref<AsyncValue<OnboardingState>, OnboardingState>;
+    final element =
+        ref.element
+            as $ClassProviderElement<
+              AnyNotifier<AsyncValue<OnboardingState>, OnboardingState>,
+              AsyncValue<OnboardingState>,
+              Object?,
+              Object?
+            >;
+    element.handleCreate(ref, build);
+  }
+}
+
+@ProviderFor(authenticatedUser)
+final authenticatedUserProvider = AuthenticatedUserProvider._();
+
+final class AuthenticatedUserProvider
+    extends $FunctionalProvider<UserEntity?, UserEntity?, UserEntity?>
+    with $Provider<UserEntity?> {
+  AuthenticatedUserProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'authenticatedUserProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$authenticatedUserHash();
+
+  @$internal
+  @override
+  $ProviderElement<UserEntity?> $createElement($ProviderPointer pointer) =>
+      $ProviderElement(pointer);
+
+  @override
+  UserEntity? create(Ref ref) {
+    return authenticatedUser(ref);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(UserEntity? value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<UserEntity?>(value),
+    );
+  }
+}
+
+String _$authenticatedUserHash() => r'687092532cac8e6cf54a01236717ec6204236cff';

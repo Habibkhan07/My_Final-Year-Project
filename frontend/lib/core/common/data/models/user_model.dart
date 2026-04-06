@@ -1,11 +1,16 @@
 import '../../domain/entities/user_entity.dart';
 
-class UserModel extends UserEntity {
+class UserModel {
+  final String phone;
+  final String? token;
+  final bool isTechnician;
+  final bool nameRequired;
+
   const UserModel({
-    required super.phone,
-    super.token,
-    super.isTechnician,
-    super.nameRequired,
+    required this.phone,
+    this.token,
+    this.isTechnician = false,
+    this.nameRequired = false,
   });
 
   // JSON Map -> Dart Object

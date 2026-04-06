@@ -1,4 +1,8 @@
+import 'package:flutter/foundation.dart';
+
 class AppConstants {
-  // Use localhost because Chrome is running on the same machine as Django
-  static const String baseUrl = "http://192.168.1.10:8000/api";
+  // We added the /api prefix here so the Remote Data Sources don't have to!
+  static const String baseUrl = kIsWeb 
+      ? 'http://127.0.0.1:8000/api' 
+      : 'http://192.168.1.8:8000/api';
 }

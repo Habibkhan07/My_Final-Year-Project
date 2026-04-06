@@ -1,12 +1,15 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, parsers
+from rest_framework.permissions import IsAuthenticated
 from .serializers import MediaUploadSerializer, TechnicianFinalizeSerializer
 from ...services import media_service, registration_service
 from ...selectors import service_selectors
 
 class OnboardingMetadataView(APIView):
     """New: Provides the metadata Flutter needs to build the form."""
+    #permission_classes = [IsAuthenticated]
+    
     def get(self, request):
         data = service_selectors.get_services_with_subservices()
         return Response(data, status=status.HTTP_200_OK)
@@ -14,6 +17,7 @@ class OnboardingMetadataView(APIView):
 class MediaUploadView(APIView):
     """Phase 1: Handles your robust UUID staging."""
     parser_classes = (parsers.MultiPartParser, parsers.FormParser)
+    permission_classes = [IsAuthenticated]
     
     def post(self, request):
         serializer = MediaUploadSerializer(data=request.data)
@@ -23,6 +27,8 @@ class MediaUploadView(APIView):
 
 class RegisterTechnicianView(APIView):
     """Phase 2: Finalizes registration using UUIDs sent back from Flutter."""
+    permission_classes = [IsAuthenticated]
+    
     def post(self, request):
         # The serializer here still uses your robust 'to_internal_value'
         # which converts UUIDs back into actual File objects for the service.

@@ -4,7 +4,9 @@ import '../../domain/entities/technician_entity.dart';
 import '../../domain/repositories/technician_onboarding_repository.dart';
 import '../../domain/failures/technician_failure.dart'; // Import Sealed Class
 import '../data_sources/technician_onboarding_remote_datasource.dart';
+import '../../../../../core/data/local_sources/onboarding_local_data_source.dart';
 import '../models/technician_registration_model.dart';
+import '../models/service_model.dart';
 import '../../domain/entities/skill_selection_entity.dart';
 import '../../domain/entities/category_license_entity.dart';
 import '../../../../../core/common/errors/http_failure.dart'; // Import Data Exception
@@ -12,31 +14,57 @@ import 'package:image_picker/image_picker.dart'; // ADD THIS IMPORT
 
 class TechnicianRepositoryImpl implements TechnicianRepository {
   final TechnicianOnboardingRemoteDataSource remoteDataSource;
+  final OnboardingLocalDataSource localDataSource;
 
-  TechnicianRepositoryImpl(this.remoteDataSource);
+  TechnicianRepositoryImpl(this.remoteDataSource, this.localDataSource);
 
   @override
   Future<List<ServiceEntity>> getOnboardingMetadata() async {
-    return _mapFailures(() async {
+    try {
+      // 1. Try to fetch from RemoteDataSource
       final models = await remoteDataSource.getOnboardingMetadata();
-      return models
-          .map(
-            (model) => ServiceEntity(
-              id: model.id,
-              name: model.name,
-              subServices: model.subServices
-                  .map(
-                    (sub) => SubServiceEntity(
-                      id: sub.id,
-                      name: sub.name,
-                      basePrice: sub.basePrice.toString(),
-                    ),
-                  )
-                  .toList(),
-            ),
-          )
-          .toList();
-    });
+      
+      // 2. If successful, cache the data immediately
+      await localDataSource.saveOnboardingMetadata(models);
+      
+      return _mapModelsToEntities(models);
+    } on SocketException catch (_) {
+      // 3. Network error: fallback to LocalDataSource
+      final cachedModels = await localDataSource.getOnboardingMetadata();
+      if (cachedModels != null && cachedModels.isNotEmpty) {
+        // 4. Return cached data (Fast Offline Load)
+        return _mapModelsToEntities(cachedModels);
+      }
+      // If cache is empty, bubble up the network failure
+      throw const OnboardingNetworkFailure(
+        "No internet connection and no cached data available.",
+      );
+    } catch (e) {
+      // For any other unexpected/Http errors, route through standard _mapFailures
+      return _mapFailures(() => Future.error(e));
+    }
+  }
+  
+  List<ServiceEntity> _mapModelsToEntities(List<ServiceModel> models) {
+    return models
+        .map(
+          (model) => ServiceEntity(
+            id: model.id,
+            name: model.name,
+            subServices: model.subServices
+                .map(
+                  (sub) => SubServiceEntity(
+                    id: sub.id,
+                    name: sub.name,
+                    basePrice: sub.basePrice,
+                    maxPrice: sub.maxPrice,
+                    iconName: sub.iconName,
+                  ),
+                )
+                .toList(),
+          ),
+        )
+        .toList();
   }
 
   @override
@@ -84,6 +112,8 @@ class TechnicianRepositoryImpl implements TechnicianRepository {
               (s) => SkillInputModel(
                 subServiceId: s.subServiceId,
                 yearsOfExperience: s.yearsOfExperience,
+                baseRate: s.baseRate,
+                maxRate: s.maxRate,
               ),
             )
             .toList(),
@@ -93,6 +123,9 @@ class TechnicianRepositoryImpl implements TechnicianRepository {
         registrationModel,
         token,
       );
+
+      // Onboarding complete - update Tier 2 storage
+      await localDataSource.saveOnboardingComplete(true);
 
       return TechnicianEntity(
         profileId: response['profile_id'],
