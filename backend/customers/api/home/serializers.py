@@ -100,8 +100,8 @@ class TopTechnicianSerializer(serializers.ModelSerializer):
         
         # Scenario 2 & 3: Specific Gig (Sub-Service)
         if resolved_subservice:
-            # Scenario 2: Fixed Price Gig (SubService defines the fixed price)
-            if resolved_subservice.base_price == resolved_subservice.max_price:
+            # Scenario 2: Fixed Price Gig — use the explicit flag, not price equality
+            if resolved_subservice.is_fixed_price:
                 return f"Rs. {int(resolved_subservice.base_price)}", "Fixed Price"
             
             # Scenario 3: Variable Job (Labor Rate)
