@@ -61,8 +61,8 @@ INSTALLED_APPS = [
     'technicians',
     'catalog',
     'marketing',
-    'customers'
-    '',     
+    'customers',
+    'django_extensions',
 ]
 
 MIDDLEWARE = [
