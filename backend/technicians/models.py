@@ -1,5 +1,6 @@
 from django.db import models
 from django.conf import settings
+from django.contrib.auth.models import User
 import uuid
 from catalog.models import Service, SubService # Critical: New Import
 
@@ -85,3 +86,41 @@ class TechnicianServicePerformance(models.Model):
 
     def __str__(self):
         return f"{self.technician.user.get_full_name()} - {self.service.name} Performance"
+
+
+class TechnicianSchedule(models.Model):
+    """
+    Defines a technician's working hours for a specific day of the week.
+    A missing record for a given day_of_week means the technician does not work that day.
+    """
+    DAY_CHOICES = [
+        (0, 'Monday'), (1, 'Tuesday'), (2, 'Wednesday'),
+        (3, 'Thursday'), (4, 'Friday'), (5, 'Saturday'), (6, 'Sunday'),
+    ]
+    technician = models.ForeignKey(TechnicianProfile, on_delete=models.CASCADE, related_name='schedule')
+    day_of_week = models.IntegerField(choices=DAY_CHOICES)  # 0=Monday, 6=Sunday (matches Python's date.weekday())
+    start_time = models.TimeField()
+    end_time = models.TimeField()
+    is_working = models.BooleanField(default=True)
+
+    class Meta:
+        unique_together = ('technician', 'day_of_week')
+
+    def __str__(self):
+        return f"{self.technician.user.get_full_name()} - {self.get_day_of_week_display()} ({self.start_time}–{self.end_time})"
+
+
+class Review(models.Model):
+    """Customer review left after a completed job."""
+    technician = models.ForeignKey(TechnicianProfile, on_delete=models.CASCADE, related_name='reviews')
+    reviewer = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='given_reviews')
+    rating = models.PositiveSmallIntegerField()   # 1–5
+    text = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        reviewer_name = self.reviewer.get_full_name() if self.reviewer else "Deleted User"
+        return f"Review by {reviewer_name} for {self.technician.user.get_full_name()} ({self.rating}★)"

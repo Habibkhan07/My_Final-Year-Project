@@ -79,6 +79,11 @@ Valid network prefixes: `030`–`036` only. Landlines and non-PK numbers are rej
 
 **Description**: Verifies the 6-digit OTP against the stored record for that phone number. On success, creates a new user (if first time) or logs in the existing one, and returns an Auth Token with UI routing flags.
 
+**Registration Side-Effects**: For new users, this endpoint automatically initializes:
+1.  `UserProfile` (accounts app) — holds phone and role info.
+2.  `CustomerProfile` (customers app) — required for the booking system.
+3.  **Default Address**: A "Home" address (Lahore, Pakistan) is created immediately so that the booking flow ("Confirm & Lock") works without requiring manual address setup in the prototype.
+
 **URL**: `/api/accounts/verify-otp/`
 **Method**: `POST`
 **Auth**: None

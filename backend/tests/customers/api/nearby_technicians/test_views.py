@@ -47,7 +47,7 @@ class TestTechnicianDiscoveryListView:
     def test_scenario_2_variable_with_equal_prices_is_not_fixed(self):
         """
         Regression: A sub-service with equal base/max prices but is_fixed_price=False
-        must show Labor Rate, not Fixed Price. The old price-equality heuristic was wrong.
+        must show Labor Fee, not Fixed Price. The old price-equality heuristic was wrong.
         """
         sub_service = SubServiceFactory(base_price=1500.00, max_price=1500.00, is_fixed_price=False, name="AC Check")
         tech = TechnicianProfileFactory(is_active=True, is_onboarding_complete=True)
@@ -60,7 +60,7 @@ class TestTechnicianDiscoveryListView:
         tech_data = data['results'][0]
 
         # Must NOT be Fixed Price just because prices happen to match
-        assert tech_data['price_context'] == "Labor Rate"
+        assert tech_data['price_context'] == "Labor Fee"
 
     def test_scenario_3_variable_labor_rate_single(self):
         """Scenario 3: Variable Job (Technician sets a single labor rate)"""
@@ -76,7 +76,7 @@ class TestTechnicianDiscoveryListView:
         tech_data = data['results'][0]
         
         assert tech_data['primary_price'] == "Rs. 1,200"
-        assert tech_data['price_context'] == "Labor Rate"
+        assert tech_data['price_context'] == "Labor Fee"
 
     def test_scenario_3_variable_labor_rate_range(self):
         """Scenario 3: Variable Job (Technician sets a pricing window)"""
@@ -92,7 +92,7 @@ class TestTechnicianDiscoveryListView:
         tech_data = data['results'][0]
         
         assert tech_data['primary_price'] == "Rs. 1,000 - 1,400"
-        assert tech_data['price_context'] == "Labor Rate"
+        assert tech_data['price_context'] == "Labor Fee"
 
     def test_scenario_4_promo_click(self):
         """Scenario 4: Promo Click -> Keep original price, add promo_tag"""
@@ -131,7 +131,7 @@ class TestTechnicianDiscoveryListView:
         tech_data = data['results'][0]
 
         assert tech_data['primary_price'] == "Rs. 1,100"
-        assert tech_data['price_context'] == "Labor Rate"
+        assert tech_data['price_context'] == "Labor Fee"
 
     # --- REGRESSION TESTS: GPS-less filter correctness (Bug Fix) ---
 

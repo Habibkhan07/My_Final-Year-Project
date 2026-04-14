@@ -61,6 +61,15 @@ class TechnicianDiscoveryListView(APIView):
             context=serializer_context
         )
         response = paginator.get_paginated_response(serializer.data)
+        
+        # Inject Resolved Context IDs for "Dumb UI" navigation
+        # This ensures that if a search query (q) matched a specific gig, 
+        # the profile page knows to show "Fixed Price" or "Labor Fee" instead of fallback.
+        if final_service_id:
+            response.data['resolved_service_id'] = final_service_id
+        if final_sub_service_id:
+            response.data['resolved_sub_service_id'] = final_sub_service_id
+            
         if resolved_promo:
             response.data['ui_promo_banner_text'] = resolved_promo.ui_description
         return response

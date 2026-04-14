@@ -24,7 +24,7 @@ Icons are **Flutter assets** (`frontend/assets/icons/*.svg`), NOT backend-served
 ---
 
 ## OTP IN DEVELOPMENT
-`DEBUG=True` → OTP is never sent via Twilio. It prints to the Django terminal instead:
+`DEBUG=True` → OTP is never sent via Twilio. The code is **fixed to 123456** for test stability. It also prints to the Django terminal:
 ```
 ========================================
   [DEV OTP]  Phone : +923001234567
@@ -125,6 +125,7 @@ Enforced via custom DRF exception handler in `exception.py`.
 - Form submissions: `@Default(AsyncValue.data(null))` — do not overwrite form data on load
 - Async mutations: ALWAYS `state = await AsyncValue.guard(() async { ... })` — never manual `try/catch` with `AsyncLoading()`/`AsyncError()`
 - Safe data access: ALWAYS `state.requireValue`, NEVER `state.value!`
+- **Testing Warm-up**: In tests, always `await container.read(myProvider.future)` before mutations to ensure `build()` is complete.
 
 #### Local Storage & Caching (Tiered)
 - **Tier 1 (Secure)**: `flutter_secure_storage` — JWT tokens and sensitive session IDs ONLY
@@ -159,6 +160,13 @@ Enforced via custom DRF exception handler in `exception.py`.
 - **State Layer**: NEVER mount widgets to test Notifiers. Use `ProviderContainer`. Mock Repository, trigger Notifier method, assert exact state transitions (`AsyncLoading` → `AsyncData` or `AsyncError`).
 - **Widget Layer**: Inject hardcoded Freezed models into `StatelessWidget`s. Assert text renders correctly. NEVER mock network calls in widget tests.
 - When a feature is complete, suggest full test suite for approval before writing.
+
+### Cross-Boundary Integration Testing
+- **Mandate**: Validate "The Bridge". Do not re-test business logic (leave that to unit tests).
+- **Option A: Full-GUI E2E**: Flutter `integration_test` against a running local Django server (requires emulator/desktop).
+- **Option B: Headless Notifier-Level (Recommended)**: Standard `flutter test` files in `test/integration/` hitting real Django API. Mocks limited to platform storage only.
+- **Mandatory Warm-up**: `await container.read(myProvider.future)` before any action.
+- **Fixed Dev OTP**: Use `123456` for all integration tests in `DEBUG=True`.
 
 ### Frontend Documentation Rules
 - No useless comments — document the *why* and the *contract*

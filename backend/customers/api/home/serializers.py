@@ -104,7 +104,7 @@ class TopTechnicianSerializer(serializers.ModelSerializer):
             if resolved_subservice.is_fixed_price:
                 return f"Rs. {int(resolved_subservice.base_price)}", "Fixed Price"
             
-            # Scenario 3: Variable Job (Labor Rate)
+            # Scenario 3: Variable Job (Labor Fee)
             # Fetch from prefetch (O(1)) if available, else DB fallback
             prefetched_skill = getattr(obj, 'prefetched_skill', [])
             tech_skill = prefetched_skill[0] if prefetched_skill else obj.technicianskill_set.filter(sub_service=resolved_subservice).first()
@@ -117,13 +117,13 @@ class TopTechnicianSerializer(serializers.ModelSerializer):
                     # Unequal Technician Rate: Show Range
                     # Formatting: 1k - 1.4k or full numbers? 
                     # User requested: "Rs. 1,000 - 1,400"
-                    return f"Rs. {base:,} - {max_r:,}", "Labor Rate"
+                    return f"Rs. {base:,} - {max_r:,}", "Labor Fee"
                 else:
                     # Equal Technician Rate: Show single price
-                    return f"Rs. {base:,}", "Labor Rate"
+                    return f"Rs. {base:,}", "Labor Fee"
             
             # Fallback to SubService platform default if tech hasn't set custom rate
-            return f"Rs. {int(resolved_subservice.base_price):,}", "Labor Rate"
+            return f"Rs. {int(resolved_subservice.base_price):,}", "Labor Fee"
 
         # Scenario 1: Category Click (Service)
         if resolved_service:

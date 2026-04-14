@@ -3,7 +3,7 @@ from django.contrib.auth import get_user_model
 from django.utils import timezone
 from datetime import timedelta
 
-from accounts.models import UserProfile, CustomerProfile, OTPRecord
+from accounts.models import UserProfile, OTPRecord
 
 User = get_user_model()
 
@@ -26,13 +26,6 @@ class UserProfileFactory(factory.django.DjangoModelFactory):
     user = factory.SubFactory(UserFactory)
     phone = factory.LazyAttribute(lambda o: o.user.username)
     is_technician = False
-
-
-class CustomerProfileFactory(factory.django.DjangoModelFactory):
-    class Meta:
-        model = CustomerProfile
-
-    user = factory.SubFactory(UserFactory)
 
 
 class OTPRecordFactory(factory.django.DjangoModelFactory):

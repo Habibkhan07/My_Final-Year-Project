@@ -11,6 +11,7 @@ import '../../features/customer/discovery/presentation/screens/discovery_results
 import '../../features/technician/onboarding/presentation/screens/onboarding_main_screen.dart';
 import '../../features/technician/onboarding/presentation/screens/registration_success_screen.dart';
 import '../../features/technician/onboarding/domain/entities/technician_entity.dart';
+import '../../features/booking/presentation/screens/technician_profile_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   // Accessing the user through the AsyncValue wrapper
@@ -71,6 +72,26 @@ final routerProvider = Provider<GoRouter>((ref) {
           );
         },
       ),
+      GoRoute(
+        path: '/technician-profile/:id',
+        builder: (context, state) {
+          final id = int.tryParse(state.pathParameters['id'] ?? '') ?? 0;
+          final serviceId = int.tryParse(state.uri.queryParameters['serviceId'] ?? '');
+          final subServiceId = int.tryParse(state.uri.queryParameters['subServiceId'] ?? '');
+          final promotionId = int.tryParse(state.uri.queryParameters['promotionId'] ?? '');
+          final lat = double.tryParse(state.uri.queryParameters['lat'] ?? '');
+          final lng = double.tryParse(state.uri.queryParameters['lng'] ?? '');
+
+          return TechnicianProfileScreen(
+            technicianId: id,
+            lat: lat,
+            lng: lng,
+            serviceId: serviceId,
+            subServiceId: subServiceId,
+            promotionId: promotionId,
+          );
+        },
+      ),
     ],
 
     redirect: (context, state) {
@@ -97,3 +118,4 @@ final routerProvider = Provider<GoRouter>((ref) {
     },
   );
 });
+

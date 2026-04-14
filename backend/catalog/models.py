@@ -8,6 +8,10 @@ class Service(models.Model):
     display_order = models.IntegerField(default=0)
     is_active = models.BooleanField(default=True)
     base_inspection_fee = models.DecimalField(max_digits=6, decimal_places=2, default=500.00)
+    # Duration of a standard inspection/job for this service category (minutes).
+    # Used for availability slot generation when no specific sub-service is requested.
+    default_duration_minutes = models.PositiveIntegerField(default=60)
+
     def __str__(self):
         return self.name
     
@@ -32,6 +36,9 @@ class SubService(models.Model):
 
     icon_name = models.CharField(max_length=50, null=True, blank=True)
     card_image_url = models.URLField(null=True, blank=True)  # Lifestyle photo for fixed gig cards on home screen
+    # Estimated job duration for this specific gig (minutes).
+    # Null = inherit from parent Service.default_duration_minutes.
+    estimated_duration_minutes = models.PositiveIntegerField(null=True, blank=True)
 
     def __str__(self):
         return f"{self.service.name} -> {self.name}"

@@ -16,7 +16,8 @@ from rest_framework.test import APIClient
 from rest_framework.authtoken.models import Token
 
 from accounts.models import OTPRecord
-from tests.factories.accounts import UserFactory, UserProfileFactory, CustomerProfileFactory, OTPRecordFactory
+from tests.factories.accounts import UserFactory, UserProfileFactory, OTPRecordFactory
+from tests.factories.customers import CustomerProfileFactory
 
 TWILIO_MOCK = 'accounts.services.twilio_service.send_otp'
 

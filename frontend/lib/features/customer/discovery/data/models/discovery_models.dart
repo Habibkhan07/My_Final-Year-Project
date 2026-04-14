@@ -57,6 +57,8 @@ abstract class DiscoveryResultModel with _$DiscoveryResultModel {
     required String? next,
     required String? previous,
     @JsonKey(name: 'ui_promo_banner_text') required String? uiPromoBannerText,
+    @JsonKey(name: 'resolved_service_id') int? resolvedServiceId,
+    @JsonKey(name: 'resolved_sub_service_id') int? resolvedSubServiceId,
     required List<TechnicianModel> results,
   }) = _DiscoveryResultModel;
 
@@ -70,6 +72,8 @@ abstract class DiscoveryResultModel with _$DiscoveryResultModel {
         next: next,
         previous: previous,
         uiPromoBannerText: uiPromoBannerText,
+        resolvedServiceId: resolvedServiceId,
+        resolvedSubServiceId: resolvedSubServiceId,
         results: results.map((e) => e.toEntity()).toList(),
       );
 }

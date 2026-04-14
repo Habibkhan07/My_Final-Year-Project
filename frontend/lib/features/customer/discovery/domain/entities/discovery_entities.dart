@@ -32,6 +32,8 @@ abstract class DiscoveryResultEntity with _$DiscoveryResultEntity {
     required String? next,
     required String? previous,
     required String? uiPromoBannerText,
+    int? resolvedServiceId,
+    int? resolvedSubServiceId,
     required List<DiscoveryTechnicianEntity> results,
   }) = _DiscoveryResultEntity;
 }

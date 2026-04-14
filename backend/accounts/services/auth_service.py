@@ -2,9 +2,11 @@ import random
 from django.db import transaction
 from django.contrib.auth.models import User
 from django.utils import timezone
+from django.conf import settings
 from rest_framework.authtoken.models import Token
 
-from ..models import UserProfile, CustomerProfile, OTPRecord
+from ..models import UserProfile, OTPRecord
+from customers.models import CustomerProfile, SavedAddress
 from ..selectors import user_selectors
 from . import twilio_service
 
@@ -20,7 +22,10 @@ def initiate_phone_login(*, phone: str):
     Raises:
         ValueError: if SMS delivery fails (Twilio error).
     """
-    code = f"{random.randint(0, 999999):06d}"
+    if settings.DEBUG:
+        code = "123456"
+    else:
+        code = f"{random.randint(0, 999999):06d}"
 
     with transaction.atomic():
         OTPRecord.objects.create(phone=phone, code=code)
@@ -65,7 +70,17 @@ def process_otp_verification(*, phone: str, otp_input: str):
 
         if created:
             UserProfile.objects.create(user=user, phone=phone)
-            CustomerProfile.objects.create(user=user)
+            # Create the REAL customer profile used by the booking system
+            customer = CustomerProfile.objects.create(user=user)
+            
+            # PROTOTYPE HACK: Create a default address so "Confirm & Lock" works immediately
+            SavedAddress.objects.create(
+                customer=customer,
+                label='Home',
+                latitude=31.520400,
+                longitude=74.358700,
+                address_text='Lahore, Pakistan (Default)',
+            )
 
         token, _ = Token.objects.get_or_create(user=user)
         name_required = user_selectors.is_profile_incomplete(user=user)

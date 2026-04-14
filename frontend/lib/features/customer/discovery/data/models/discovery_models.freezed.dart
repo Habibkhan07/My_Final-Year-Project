@@ -322,7 +322,7 @@ as String?,
 /// @nodoc
 mixin _$DiscoveryResultModel {
 
- int get count; String? get next; String? get previous;@JsonKey(name: 'ui_promo_banner_text') String? get uiPromoBannerText; List<TechnicianModel> get results;
+ int get count; String? get next; String? get previous;@JsonKey(name: 'ui_promo_banner_text') String? get uiPromoBannerText;@JsonKey(name: 'resolved_service_id') int? get resolvedServiceId;@JsonKey(name: 'resolved_sub_service_id') int? get resolvedSubServiceId; List<TechnicianModel> get results;
 /// Create a copy of DiscoveryResultModel
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -335,16 +335,16 @@ $DiscoveryResultModelCopyWith<DiscoveryResultModel> get copyWith => _$DiscoveryR
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is DiscoveryResultModel&&(identical(other.count, count) || other.count == count)&&(identical(other.next, next) || other.next == next)&&(identical(other.previous, previous) || other.previous == previous)&&(identical(other.uiPromoBannerText, uiPromoBannerText) || other.uiPromoBannerText == uiPromoBannerText)&&const DeepCollectionEquality().equals(other.results, results));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is DiscoveryResultModel&&(identical(other.count, count) || other.count == count)&&(identical(other.next, next) || other.next == next)&&(identical(other.previous, previous) || other.previous == previous)&&(identical(other.uiPromoBannerText, uiPromoBannerText) || other.uiPromoBannerText == uiPromoBannerText)&&(identical(other.resolvedServiceId, resolvedServiceId) || other.resolvedServiceId == resolvedServiceId)&&(identical(other.resolvedSubServiceId, resolvedSubServiceId) || other.resolvedSubServiceId == resolvedSubServiceId)&&const DeepCollectionEquality().equals(other.results, results));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,count,next,previous,uiPromoBannerText,const DeepCollectionEquality().hash(results));
+int get hashCode => Object.hash(runtimeType,count,next,previous,uiPromoBannerText,resolvedServiceId,resolvedSubServiceId,const DeepCollectionEquality().hash(results));
 
 @override
 String toString() {
-  return 'DiscoveryResultModel(count: $count, next: $next, previous: $previous, uiPromoBannerText: $uiPromoBannerText, results: $results)';
+  return 'DiscoveryResultModel(count: $count, next: $next, previous: $previous, uiPromoBannerText: $uiPromoBannerText, resolvedServiceId: $resolvedServiceId, resolvedSubServiceId: $resolvedSubServiceId, results: $results)';
 }
 
 
@@ -355,7 +355,7 @@ abstract mixin class $DiscoveryResultModelCopyWith<$Res>  {
   factory $DiscoveryResultModelCopyWith(DiscoveryResultModel value, $Res Function(DiscoveryResultModel) _then) = _$DiscoveryResultModelCopyWithImpl;
 @useResult
 $Res call({
- int count, String? next, String? previous,@JsonKey(name: 'ui_promo_banner_text') String? uiPromoBannerText, List<TechnicianModel> results
+ int count, String? next, String? previous,@JsonKey(name: 'ui_promo_banner_text') String? uiPromoBannerText,@JsonKey(name: 'resolved_service_id') int? resolvedServiceId,@JsonKey(name: 'resolved_sub_service_id') int? resolvedSubServiceId, List<TechnicianModel> results
 });
 
 
@@ -372,13 +372,15 @@ class _$DiscoveryResultModelCopyWithImpl<$Res>
 
 /// Create a copy of DiscoveryResultModel
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? count = null,Object? next = freezed,Object? previous = freezed,Object? uiPromoBannerText = freezed,Object? results = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? count = null,Object? next = freezed,Object? previous = freezed,Object? uiPromoBannerText = freezed,Object? resolvedServiceId = freezed,Object? resolvedSubServiceId = freezed,Object? results = null,}) {
   return _then(_self.copyWith(
 count: null == count ? _self.count : count // ignore: cast_nullable_to_non_nullable
 as int,next: freezed == next ? _self.next : next // ignore: cast_nullable_to_non_nullable
 as String?,previous: freezed == previous ? _self.previous : previous // ignore: cast_nullable_to_non_nullable
 as String?,uiPromoBannerText: freezed == uiPromoBannerText ? _self.uiPromoBannerText : uiPromoBannerText // ignore: cast_nullable_to_non_nullable
-as String?,results: null == results ? _self.results : results // ignore: cast_nullable_to_non_nullable
+as String?,resolvedServiceId: freezed == resolvedServiceId ? _self.resolvedServiceId : resolvedServiceId // ignore: cast_nullable_to_non_nullable
+as int?,resolvedSubServiceId: freezed == resolvedSubServiceId ? _self.resolvedSubServiceId : resolvedSubServiceId // ignore: cast_nullable_to_non_nullable
+as int?,results: null == results ? _self.results : results // ignore: cast_nullable_to_non_nullable
 as List<TechnicianModel>,
   ));
 }
@@ -464,10 +466,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int count,  String? next,  String? previous, @JsonKey(name: 'ui_promo_banner_text')  String? uiPromoBannerText,  List<TechnicianModel> results)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int count,  String? next,  String? previous, @JsonKey(name: 'ui_promo_banner_text')  String? uiPromoBannerText, @JsonKey(name: 'resolved_service_id')  int? resolvedServiceId, @JsonKey(name: 'resolved_sub_service_id')  int? resolvedSubServiceId,  List<TechnicianModel> results)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _DiscoveryResultModel() when $default != null:
-return $default(_that.count,_that.next,_that.previous,_that.uiPromoBannerText,_that.results);case _:
+return $default(_that.count,_that.next,_that.previous,_that.uiPromoBannerText,_that.resolvedServiceId,_that.resolvedSubServiceId,_that.results);case _:
   return orElse();
 
 }
@@ -485,10 +487,10 @@ return $default(_that.count,_that.next,_that.previous,_that.uiPromoBannerText,_t
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int count,  String? next,  String? previous, @JsonKey(name: 'ui_promo_banner_text')  String? uiPromoBannerText,  List<TechnicianModel> results)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int count,  String? next,  String? previous, @JsonKey(name: 'ui_promo_banner_text')  String? uiPromoBannerText, @JsonKey(name: 'resolved_service_id')  int? resolvedServiceId, @JsonKey(name: 'resolved_sub_service_id')  int? resolvedSubServiceId,  List<TechnicianModel> results)  $default,) {final _that = this;
 switch (_that) {
 case _DiscoveryResultModel():
-return $default(_that.count,_that.next,_that.previous,_that.uiPromoBannerText,_that.results);case _:
+return $default(_that.count,_that.next,_that.previous,_that.uiPromoBannerText,_that.resolvedServiceId,_that.resolvedSubServiceId,_that.results);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -505,10 +507,10 @@ return $default(_that.count,_that.next,_that.previous,_that.uiPromoBannerText,_t
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int count,  String? next,  String? previous, @JsonKey(name: 'ui_promo_banner_text')  String? uiPromoBannerText,  List<TechnicianModel> results)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int count,  String? next,  String? previous, @JsonKey(name: 'ui_promo_banner_text')  String? uiPromoBannerText, @JsonKey(name: 'resolved_service_id')  int? resolvedServiceId, @JsonKey(name: 'resolved_sub_service_id')  int? resolvedSubServiceId,  List<TechnicianModel> results)?  $default,) {final _that = this;
 switch (_that) {
 case _DiscoveryResultModel() when $default != null:
-return $default(_that.count,_that.next,_that.previous,_that.uiPromoBannerText,_that.results);case _:
+return $default(_that.count,_that.next,_that.previous,_that.uiPromoBannerText,_that.resolvedServiceId,_that.resolvedSubServiceId,_that.results);case _:
   return null;
 
 }
@@ -520,13 +522,15 @@ return $default(_that.count,_that.next,_that.previous,_that.uiPromoBannerText,_t
 @JsonSerializable()
 
 class _DiscoveryResultModel extends DiscoveryResultModel {
-  const _DiscoveryResultModel({required this.count, required this.next, required this.previous, @JsonKey(name: 'ui_promo_banner_text') required this.uiPromoBannerText, required final  List<TechnicianModel> results}): _results = results,super._();
+  const _DiscoveryResultModel({required this.count, required this.next, required this.previous, @JsonKey(name: 'ui_promo_banner_text') required this.uiPromoBannerText, @JsonKey(name: 'resolved_service_id') this.resolvedServiceId, @JsonKey(name: 'resolved_sub_service_id') this.resolvedSubServiceId, required final  List<TechnicianModel> results}): _results = results,super._();
   factory _DiscoveryResultModel.fromJson(Map<String, dynamic> json) => _$DiscoveryResultModelFromJson(json);
 
 @override final  int count;
 @override final  String? next;
 @override final  String? previous;
 @override@JsonKey(name: 'ui_promo_banner_text') final  String? uiPromoBannerText;
+@override@JsonKey(name: 'resolved_service_id') final  int? resolvedServiceId;
+@override@JsonKey(name: 'resolved_sub_service_id') final  int? resolvedSubServiceId;
  final  List<TechnicianModel> _results;
 @override List<TechnicianModel> get results {
   if (_results is EqualUnmodifiableListView) return _results;
@@ -548,16 +552,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _DiscoveryResultModel&&(identical(other.count, count) || other.count == count)&&(identical(other.next, next) || other.next == next)&&(identical(other.previous, previous) || other.previous == previous)&&(identical(other.uiPromoBannerText, uiPromoBannerText) || other.uiPromoBannerText == uiPromoBannerText)&&const DeepCollectionEquality().equals(other._results, _results));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _DiscoveryResultModel&&(identical(other.count, count) || other.count == count)&&(identical(other.next, next) || other.next == next)&&(identical(other.previous, previous) || other.previous == previous)&&(identical(other.uiPromoBannerText, uiPromoBannerText) || other.uiPromoBannerText == uiPromoBannerText)&&(identical(other.resolvedServiceId, resolvedServiceId) || other.resolvedServiceId == resolvedServiceId)&&(identical(other.resolvedSubServiceId, resolvedSubServiceId) || other.resolvedSubServiceId == resolvedSubServiceId)&&const DeepCollectionEquality().equals(other._results, _results));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,count,next,previous,uiPromoBannerText,const DeepCollectionEquality().hash(_results));
+int get hashCode => Object.hash(runtimeType,count,next,previous,uiPromoBannerText,resolvedServiceId,resolvedSubServiceId,const DeepCollectionEquality().hash(_results));
 
 @override
 String toString() {
-  return 'DiscoveryResultModel(count: $count, next: $next, previous: $previous, uiPromoBannerText: $uiPromoBannerText, results: $results)';
+  return 'DiscoveryResultModel(count: $count, next: $next, previous: $previous, uiPromoBannerText: $uiPromoBannerText, resolvedServiceId: $resolvedServiceId, resolvedSubServiceId: $resolvedSubServiceId, results: $results)';
 }
 
 
@@ -568,7 +572,7 @@ abstract mixin class _$DiscoveryResultModelCopyWith<$Res> implements $DiscoveryR
   factory _$DiscoveryResultModelCopyWith(_DiscoveryResultModel value, $Res Function(_DiscoveryResultModel) _then) = __$DiscoveryResultModelCopyWithImpl;
 @override @useResult
 $Res call({
- int count, String? next, String? previous,@JsonKey(name: 'ui_promo_banner_text') String? uiPromoBannerText, List<TechnicianModel> results
+ int count, String? next, String? previous,@JsonKey(name: 'ui_promo_banner_text') String? uiPromoBannerText,@JsonKey(name: 'resolved_service_id') int? resolvedServiceId,@JsonKey(name: 'resolved_sub_service_id') int? resolvedSubServiceId, List<TechnicianModel> results
 });
 
 
@@ -585,13 +589,15 @@ class __$DiscoveryResultModelCopyWithImpl<$Res>
 
 /// Create a copy of DiscoveryResultModel
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? count = null,Object? next = freezed,Object? previous = freezed,Object? uiPromoBannerText = freezed,Object? results = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? count = null,Object? next = freezed,Object? previous = freezed,Object? uiPromoBannerText = freezed,Object? resolvedServiceId = freezed,Object? resolvedSubServiceId = freezed,Object? results = null,}) {
   return _then(_DiscoveryResultModel(
 count: null == count ? _self.count : count // ignore: cast_nullable_to_non_nullable
 as int,next: freezed == next ? _self.next : next // ignore: cast_nullable_to_non_nullable
 as String?,previous: freezed == previous ? _self.previous : previous // ignore: cast_nullable_to_non_nullable
 as String?,uiPromoBannerText: freezed == uiPromoBannerText ? _self.uiPromoBannerText : uiPromoBannerText // ignore: cast_nullable_to_non_nullable
-as String?,results: null == results ? _self._results : results // ignore: cast_nullable_to_non_nullable
+as String?,resolvedServiceId: freezed == resolvedServiceId ? _self.resolvedServiceId : resolvedServiceId // ignore: cast_nullable_to_non_nullable
+as int?,resolvedSubServiceId: freezed == resolvedSubServiceId ? _self.resolvedSubServiceId : resolvedSubServiceId // ignore: cast_nullable_to_non_nullable
+as int?,results: null == results ? _self._results : results // ignore: cast_nullable_to_non_nullable
 as List<TechnicianModel>,
   ));
 }

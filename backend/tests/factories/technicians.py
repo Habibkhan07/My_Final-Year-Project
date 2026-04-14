@@ -1,5 +1,6 @@
+import datetime
 import factory
-from technicians.models import TechnicianProfile, TechnicianSkill, TechnicianServicePerformance
+from technicians.models import TechnicianProfile, TechnicianSkill, TechnicianServicePerformance, TechnicianSchedule, Review
 from tests.factories.accounts import UserFactory
 from tests.factories.catalog import SubServiceFactory, ServiceFactory
 
@@ -48,3 +49,24 @@ class TechnicianServicePerformanceFactory(factory.django.DjangoModelFactory):
     service = factory.SubFactory(ServiceFactory)
     review_count = 0
     rating_average = 0.0
+
+
+class TechnicianScheduleFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = TechnicianSchedule
+
+    technician = factory.SubFactory(TechnicianProfileFactory)
+    day_of_week = 0  # Monday
+    start_time = datetime.time(9, 0)   # 9:00 AM
+    end_time = datetime.time(17, 0)    # 5:00 PM
+    is_working = True
+
+
+class ReviewFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = Review
+
+    technician = factory.SubFactory(TechnicianProfileFactory)
+    reviewer = factory.SubFactory(UserFactory)
+    rating = 5
+    text = factory.Faker('sentence')

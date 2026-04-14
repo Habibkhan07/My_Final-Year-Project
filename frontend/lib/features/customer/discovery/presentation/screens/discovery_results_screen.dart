@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../domain/failures/discovery_failure.dart';
 import '../providers/discovery_notifier.dart';
@@ -158,7 +159,21 @@ class _DiscoveryResultsScreenState extends ConsumerState<DiscoveryResultsScreen>
                   return TechnicianCard(
                     technician: technician,
                     onTap: () {
-                      // TODO: Navigate to Technician Profile Screen
+                      // PRIORITY: 1. Widget Params, 2. Backend-Resolved Params (for searches)
+                      final effectiveServiceId = widget.serviceId ?? result.resolvedServiceId;
+                      final effectiveSubServiceId = widget.subServiceId ?? result.resolvedSubServiceId;
+
+                      final uri = Uri(
+                        path: '/technician-profile/${technician.id}',
+                        queryParameters: {
+                          if (widget.lat != null) 'lat': widget.lat.toString(),
+                          if (widget.lng != null) 'lng': widget.lng.toString(),
+                          if (effectiveServiceId != null) 'serviceId': effectiveServiceId.toString(),
+                          if (effectiveSubServiceId != null) 'subServiceId': effectiveSubServiceId.toString(),
+                          if (widget.promotionId != null) 'promotionId': widget.promotionId.toString(),
+                        },
+                      );
+                      context.push(uri.toString());
                     },
                   );
                 } else {

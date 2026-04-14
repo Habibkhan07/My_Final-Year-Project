@@ -51,6 +51,8 @@ _DiscoveryResultModel _$DiscoveryResultModelFromJson(
   next: json['next'] as String?,
   previous: json['previous'] as String?,
   uiPromoBannerText: json['ui_promo_banner_text'] as String?,
+  resolvedServiceId: (json['resolved_service_id'] as num?)?.toInt(),
+  resolvedSubServiceId: (json['resolved_sub_service_id'] as num?)?.toInt(),
   results: (json['results'] as List<dynamic>)
       .map((e) => TechnicianModel.fromJson(e as Map<String, dynamic>))
       .toList(),
@@ -63,5 +65,7 @@ Map<String, dynamic> _$DiscoveryResultModelToJson(
   'next': instance.next,
   'previous': instance.previous,
   'ui_promo_banner_text': instance.uiPromoBannerText,
+  'resolved_service_id': instance.resolvedServiceId,
+  'resolved_sub_service_id': instance.resolvedSubServiceId,
   'results': instance.results,
 };

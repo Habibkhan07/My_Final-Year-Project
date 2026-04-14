@@ -9,9 +9,11 @@ from django.utils import timezone
 from datetime import timedelta
 from django.contrib.auth import get_user_model
 
-from accounts.models import OTPRecord, UserProfile, CustomerProfile
+from accounts.models import OTPRecord, UserProfile
+from customers.models import CustomerProfile
 from accounts.services import auth_service
-from tests.factories.accounts import UserFactory, UserProfileFactory, CustomerProfileFactory, OTPRecordFactory
+from tests.factories.accounts import UserFactory, UserProfileFactory, OTPRecordFactory
+from tests.factories.customers import CustomerProfileFactory
 
 User = get_user_model()
 

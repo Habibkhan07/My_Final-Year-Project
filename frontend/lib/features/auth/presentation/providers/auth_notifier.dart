@@ -26,11 +26,15 @@ class AuthNotifier extends _$AuthNotifier {
     if (state.isLoading) return; 
 
     state = const AsyncLoading();
-    state = await AsyncValue.guard(() async {
+    try {
       final useCase = ref.read(requestOtpUseCaseProvider);
       final message = await useCase.execute(phone);
-      return AuthState(successMessage: message);
-    });
+      // We MUST preserve the existing user state if it exists
+      final currentUser = state.value?.user;
+      state = AsyncData(AuthState(successMessage: message, user: currentUser));
+    } catch (e, stack) {
+      state = AsyncError(e, stack);
+    }
   }
 
   Future<void> verifyOtp(String phone, String otp) async {

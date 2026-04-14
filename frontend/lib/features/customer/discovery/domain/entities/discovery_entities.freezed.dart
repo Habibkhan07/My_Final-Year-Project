@@ -315,7 +315,7 @@ as String?,
 /// @nodoc
 mixin _$DiscoveryResultEntity {
 
- int get count; String? get next; String? get previous; String? get uiPromoBannerText; List<DiscoveryTechnicianEntity> get results;
+ int get count; String? get next; String? get previous; String? get uiPromoBannerText; int? get resolvedServiceId; int? get resolvedSubServiceId; List<DiscoveryTechnicianEntity> get results;
 /// Create a copy of DiscoveryResultEntity
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -326,16 +326,16 @@ $DiscoveryResultEntityCopyWith<DiscoveryResultEntity> get copyWith => _$Discover
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is DiscoveryResultEntity&&(identical(other.count, count) || other.count == count)&&(identical(other.next, next) || other.next == next)&&(identical(other.previous, previous) || other.previous == previous)&&(identical(other.uiPromoBannerText, uiPromoBannerText) || other.uiPromoBannerText == uiPromoBannerText)&&const DeepCollectionEquality().equals(other.results, results));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is DiscoveryResultEntity&&(identical(other.count, count) || other.count == count)&&(identical(other.next, next) || other.next == next)&&(identical(other.previous, previous) || other.previous == previous)&&(identical(other.uiPromoBannerText, uiPromoBannerText) || other.uiPromoBannerText == uiPromoBannerText)&&(identical(other.resolvedServiceId, resolvedServiceId) || other.resolvedServiceId == resolvedServiceId)&&(identical(other.resolvedSubServiceId, resolvedSubServiceId) || other.resolvedSubServiceId == resolvedSubServiceId)&&const DeepCollectionEquality().equals(other.results, results));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,count,next,previous,uiPromoBannerText,const DeepCollectionEquality().hash(results));
+int get hashCode => Object.hash(runtimeType,count,next,previous,uiPromoBannerText,resolvedServiceId,resolvedSubServiceId,const DeepCollectionEquality().hash(results));
 
 @override
 String toString() {
-  return 'DiscoveryResultEntity(count: $count, next: $next, previous: $previous, uiPromoBannerText: $uiPromoBannerText, results: $results)';
+  return 'DiscoveryResultEntity(count: $count, next: $next, previous: $previous, uiPromoBannerText: $uiPromoBannerText, resolvedServiceId: $resolvedServiceId, resolvedSubServiceId: $resolvedSubServiceId, results: $results)';
 }
 
 
@@ -346,7 +346,7 @@ abstract mixin class $DiscoveryResultEntityCopyWith<$Res>  {
   factory $DiscoveryResultEntityCopyWith(DiscoveryResultEntity value, $Res Function(DiscoveryResultEntity) _then) = _$DiscoveryResultEntityCopyWithImpl;
 @useResult
 $Res call({
- int count, String? next, String? previous, String? uiPromoBannerText, List<DiscoveryTechnicianEntity> results
+ int count, String? next, String? previous, String? uiPromoBannerText, int? resolvedServiceId, int? resolvedSubServiceId, List<DiscoveryTechnicianEntity> results
 });
 
 
@@ -363,13 +363,15 @@ class _$DiscoveryResultEntityCopyWithImpl<$Res>
 
 /// Create a copy of DiscoveryResultEntity
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? count = null,Object? next = freezed,Object? previous = freezed,Object? uiPromoBannerText = freezed,Object? results = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? count = null,Object? next = freezed,Object? previous = freezed,Object? uiPromoBannerText = freezed,Object? resolvedServiceId = freezed,Object? resolvedSubServiceId = freezed,Object? results = null,}) {
   return _then(_self.copyWith(
 count: null == count ? _self.count : count // ignore: cast_nullable_to_non_nullable
 as int,next: freezed == next ? _self.next : next // ignore: cast_nullable_to_non_nullable
 as String?,previous: freezed == previous ? _self.previous : previous // ignore: cast_nullable_to_non_nullable
 as String?,uiPromoBannerText: freezed == uiPromoBannerText ? _self.uiPromoBannerText : uiPromoBannerText // ignore: cast_nullable_to_non_nullable
-as String?,results: null == results ? _self.results : results // ignore: cast_nullable_to_non_nullable
+as String?,resolvedServiceId: freezed == resolvedServiceId ? _self.resolvedServiceId : resolvedServiceId // ignore: cast_nullable_to_non_nullable
+as int?,resolvedSubServiceId: freezed == resolvedSubServiceId ? _self.resolvedSubServiceId : resolvedSubServiceId // ignore: cast_nullable_to_non_nullable
+as int?,results: null == results ? _self.results : results // ignore: cast_nullable_to_non_nullable
 as List<DiscoveryTechnicianEntity>,
   ));
 }
@@ -455,10 +457,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int count,  String? next,  String? previous,  String? uiPromoBannerText,  List<DiscoveryTechnicianEntity> results)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int count,  String? next,  String? previous,  String? uiPromoBannerText,  int? resolvedServiceId,  int? resolvedSubServiceId,  List<DiscoveryTechnicianEntity> results)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _DiscoveryResultEntity() when $default != null:
-return $default(_that.count,_that.next,_that.previous,_that.uiPromoBannerText,_that.results);case _:
+return $default(_that.count,_that.next,_that.previous,_that.uiPromoBannerText,_that.resolvedServiceId,_that.resolvedSubServiceId,_that.results);case _:
   return orElse();
 
 }
@@ -476,10 +478,10 @@ return $default(_that.count,_that.next,_that.previous,_that.uiPromoBannerText,_t
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int count,  String? next,  String? previous,  String? uiPromoBannerText,  List<DiscoveryTechnicianEntity> results)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int count,  String? next,  String? previous,  String? uiPromoBannerText,  int? resolvedServiceId,  int? resolvedSubServiceId,  List<DiscoveryTechnicianEntity> results)  $default,) {final _that = this;
 switch (_that) {
 case _DiscoveryResultEntity():
-return $default(_that.count,_that.next,_that.previous,_that.uiPromoBannerText,_that.results);case _:
+return $default(_that.count,_that.next,_that.previous,_that.uiPromoBannerText,_that.resolvedServiceId,_that.resolvedSubServiceId,_that.results);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -496,10 +498,10 @@ return $default(_that.count,_that.next,_that.previous,_that.uiPromoBannerText,_t
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int count,  String? next,  String? previous,  String? uiPromoBannerText,  List<DiscoveryTechnicianEntity> results)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int count,  String? next,  String? previous,  String? uiPromoBannerText,  int? resolvedServiceId,  int? resolvedSubServiceId,  List<DiscoveryTechnicianEntity> results)?  $default,) {final _that = this;
 switch (_that) {
 case _DiscoveryResultEntity() when $default != null:
-return $default(_that.count,_that.next,_that.previous,_that.uiPromoBannerText,_that.results);case _:
+return $default(_that.count,_that.next,_that.previous,_that.uiPromoBannerText,_that.resolvedServiceId,_that.resolvedSubServiceId,_that.results);case _:
   return null;
 
 }
@@ -511,13 +513,15 @@ return $default(_that.count,_that.next,_that.previous,_that.uiPromoBannerText,_t
 
 
 class _DiscoveryResultEntity implements DiscoveryResultEntity {
-  const _DiscoveryResultEntity({required this.count, required this.next, required this.previous, required this.uiPromoBannerText, required final  List<DiscoveryTechnicianEntity> results}): _results = results;
+  const _DiscoveryResultEntity({required this.count, required this.next, required this.previous, required this.uiPromoBannerText, this.resolvedServiceId, this.resolvedSubServiceId, required final  List<DiscoveryTechnicianEntity> results}): _results = results;
   
 
 @override final  int count;
 @override final  String? next;
 @override final  String? previous;
 @override final  String? uiPromoBannerText;
+@override final  int? resolvedServiceId;
+@override final  int? resolvedSubServiceId;
  final  List<DiscoveryTechnicianEntity> _results;
 @override List<DiscoveryTechnicianEntity> get results {
   if (_results is EqualUnmodifiableListView) return _results;
@@ -536,16 +540,16 @@ _$DiscoveryResultEntityCopyWith<_DiscoveryResultEntity> get copyWith => __$Disco
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _DiscoveryResultEntity&&(identical(other.count, count) || other.count == count)&&(identical(other.next, next) || other.next == next)&&(identical(other.previous, previous) || other.previous == previous)&&(identical(other.uiPromoBannerText, uiPromoBannerText) || other.uiPromoBannerText == uiPromoBannerText)&&const DeepCollectionEquality().equals(other._results, _results));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _DiscoveryResultEntity&&(identical(other.count, count) || other.count == count)&&(identical(other.next, next) || other.next == next)&&(identical(other.previous, previous) || other.previous == previous)&&(identical(other.uiPromoBannerText, uiPromoBannerText) || other.uiPromoBannerText == uiPromoBannerText)&&(identical(other.resolvedServiceId, resolvedServiceId) || other.resolvedServiceId == resolvedServiceId)&&(identical(other.resolvedSubServiceId, resolvedSubServiceId) || other.resolvedSubServiceId == resolvedSubServiceId)&&const DeepCollectionEquality().equals(other._results, _results));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,count,next,previous,uiPromoBannerText,const DeepCollectionEquality().hash(_results));
+int get hashCode => Object.hash(runtimeType,count,next,previous,uiPromoBannerText,resolvedServiceId,resolvedSubServiceId,const DeepCollectionEquality().hash(_results));
 
 @override
 String toString() {
-  return 'DiscoveryResultEntity(count: $count, next: $next, previous: $previous, uiPromoBannerText: $uiPromoBannerText, results: $results)';
+  return 'DiscoveryResultEntity(count: $count, next: $next, previous: $previous, uiPromoBannerText: $uiPromoBannerText, resolvedServiceId: $resolvedServiceId, resolvedSubServiceId: $resolvedSubServiceId, results: $results)';
 }
 
 
@@ -556,7 +560,7 @@ abstract mixin class _$DiscoveryResultEntityCopyWith<$Res> implements $Discovery
   factory _$DiscoveryResultEntityCopyWith(_DiscoveryResultEntity value, $Res Function(_DiscoveryResultEntity) _then) = __$DiscoveryResultEntityCopyWithImpl;
 @override @useResult
 $Res call({
- int count, String? next, String? previous, String? uiPromoBannerText, List<DiscoveryTechnicianEntity> results
+ int count, String? next, String? previous, String? uiPromoBannerText, int? resolvedServiceId, int? resolvedSubServiceId, List<DiscoveryTechnicianEntity> results
 });
 
 
@@ -573,13 +577,15 @@ class __$DiscoveryResultEntityCopyWithImpl<$Res>
 
 /// Create a copy of DiscoveryResultEntity
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? count = null,Object? next = freezed,Object? previous = freezed,Object? uiPromoBannerText = freezed,Object? results = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? count = null,Object? next = freezed,Object? previous = freezed,Object? uiPromoBannerText = freezed,Object? resolvedServiceId = freezed,Object? resolvedSubServiceId = freezed,Object? results = null,}) {
   return _then(_DiscoveryResultEntity(
 count: null == count ? _self.count : count // ignore: cast_nullable_to_non_nullable
 as int,next: freezed == next ? _self.next : next // ignore: cast_nullable_to_non_nullable
 as String?,previous: freezed == previous ? _self.previous : previous // ignore: cast_nullable_to_non_nullable
 as String?,uiPromoBannerText: freezed == uiPromoBannerText ? _self.uiPromoBannerText : uiPromoBannerText // ignore: cast_nullable_to_non_nullable
-as String?,results: null == results ? _self._results : results // ignore: cast_nullable_to_non_nullable
+as String?,resolvedServiceId: freezed == resolvedServiceId ? _self.resolvedServiceId : resolvedServiceId // ignore: cast_nullable_to_non_nullable
+as int?,resolvedSubServiceId: freezed == resolvedSubServiceId ? _self.resolvedSubServiceId : resolvedSubServiceId // ignore: cast_nullable_to_non_nullable
+as int?,results: null == results ? _self._results : results // ignore: cast_nullable_to_non_nullable
 as List<DiscoveryTechnicianEntity>,
   ));
 }

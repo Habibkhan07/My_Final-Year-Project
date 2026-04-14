@@ -62,6 +62,7 @@ INSTALLED_APPS = [
     'catalog',
     'marketing',
     'customers',
+    'bookings',
     'django_extensions',
 ]
 
