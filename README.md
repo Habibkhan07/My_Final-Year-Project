@@ -12,18 +12,24 @@ A hyper-local marketplace connecting customers with home service professionals (
 my_fyp_project/
 ├── backend/          # Django REST Framework API
 │   ├── accounts/     # User auth (OTP-based, unified user model)
+│   ├── bookings/     # Instant booking: job model, InstantBook service, API
 │   ├── catalog/      # Services, SubServices, search
-│   ├── customers/    # Home feed, discovery, nearby technicians
-│   ├── technicians/  # Onboarding, profile, matchmaking
+│   ├── customers/    # Home feed, discovery, nearby technicians, addresses, availability
+│   ├── technicians/  # Onboarding, profile, reviews, schedule, matchmaking
 │   ├── marketing/    # Promotions/banners
 │   ├── tests/        # All pytest test suites (mirrors app structure)
 │   └── core/         # Django settings, URLs, exception handler
-└── frontend/         # Flutter app
-    ├── lib/
-    │   ├── core/     # Routing, constants, shared entities, utilities
-    │   └── features/ # Feature-first: auth, customer, technician
-    ├── assets/icons/ # SVG icons (mapped by icon_name from backend)
-    └── test/         # Widget, notifier, and repository tests
+├── frontend/         # Flutter app
+│   ├── lib/
+│   │   ├── core/     # Routing, constants, shared entities, utilities
+│   │   └── features/
+│   │       ├── auth/        # OTP login, signup, JWT session
+│   │       ├── booking/     # Technician profile, availability, instant booking
+│   │       ├── customer/    # Home feed, discovery results
+│   │       └── technician/  # Onboarding flow
+│   ├── assets/icons/ # SVG icons (mapped by icon_name from backend)
+│   └── test/         # Widget, notifier, and repository tests
+└── ui hint/          # React/Vite UI prototypes used as design reference
 ```
 
 ---
