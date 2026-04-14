@@ -135,3 +135,4 @@ For exact JSON schemas, refer to the feature-specific contracts:
 *   **Service Discovery**: `backend/customers/api/DISCOVERY_API.md`
 *   **Search & Catalog**: `backend/catalog/api/SEARCH_API.md`
 *   **Technician Onboarding**: `backend/technicians/api/ONBOARDING_API.md`
+*   **Bookings (Instant Book)**: `backend/bookings/api/BOOKINGS_API.md`

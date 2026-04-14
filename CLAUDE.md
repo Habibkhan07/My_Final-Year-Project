@@ -161,12 +161,11 @@ Enforced via custom DRF exception handler in `exception.py`.
 - **Widget Layer**: Inject hardcoded Freezed models into `StatelessWidget`s. Assert text renders correctly. NEVER mock network calls in widget tests.
 - When a feature is complete, suggest full test suite for approval before writing.
 
-### Cross-Boundary Integration Testing
-- **Mandate**: Validate "The Bridge". Do not re-test business logic (leave that to unit tests).
-- **Option A: Full-GUI E2E**: Flutter `integration_test` against a running local Django server (requires emulator/desktop).
-- **Option B: Headless Notifier-Level (Recommended)**: Standard `flutter test` files in `test/integration/` hitting real Django API. Mocks limited to platform storage only.
-- **Mandatory Warm-up**: `await container.read(myProvider.future)` before any action.
-- **Fixed Dev OTP**: Use `123456` for all integration tests in `DEBUG=True`.
+### Cross-Boundary Integration Testing — Deferred
+- Integration and E2E tests are not active yet. They will be added once core flows are stable.
+- **Planned Option A**: Flutter `integration_test` against a running local Django server (emulator/desktop).
+- **Planned Option B**: Headless `flutter test` in `test/integration/` hitting real Django API. Mocks limited to platform storage only.
+- When re-enabled: `await container.read(myProvider.future)` before any action, and use OTP `123456` (`DEBUG=True`).
 
 ### Frontend Documentation Rules
 - No useless comments — document the *why* and the *contract*

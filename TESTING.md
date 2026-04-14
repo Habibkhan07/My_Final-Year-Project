@@ -78,57 +78,26 @@ Every failure test, regardless of the app or feature, must assert that the API r
 ## 5. Execution Summary
 *   **Backend**: Run `pytest` from the `backend/` directory.
 *   **Frontend**: Run `flutter test` from the `frontend/` directory.
-*   **E2E Integration**: Run `flutter test integration_test/` with a local Django instance running.
 
-## 6. End-to-End (E2E) & Headless Integration Testing
+---
 
-To validate the "Bridge" and "Dumb UI" contracts, we utilize cross-boundary integration testing to ensure the frontend and backend communicate flawlessly in a real environment.
+## 6. End-to-End (E2E) & Integration Testing — Deferred
 
-### A. Full-GUI E2E (Emulator Based)
-*   **Framework**: Flutter `integration_test` running against a live, local Django test server (`http://localhost:8000`).
-*   **Focus**: User Journeys and Routing Matrix using the **Robot Pattern**.
+Cross-boundary integration and E2E tests are **not yet active**. They will be introduced once core booking flows are stable and a persistent test environment is available.
 
-### B. Headless Notifier-Level Integration (Recommended for Speed/Low RAM)
-For environments where emulators are too heavy or for faster CI feedback, we use **Headless Notifier-Level Integration**. These run as standard `flutter test` files in `test/integration/` but hit the **real** Django API.
+### Planned approach (when re-enabled):
 
-*   **Logic Stack**: State -> UseCase -> Repository -> RemoteDataSource -> Network -> Django -> DB.
-*   **Mocks**: Limited to platform-only storage (`FlutterSecureStorage` and `SharedPreferences`).
-*   **The Warm-up Mandate**: Notifiers are `AsyncNotifier`s. You **MUST** await the initial build before calling methods:
-    ```dart
-    // MUST warm up the provider before triggering mutations
-    await container.read(authProvider.future); 
-    notifier.requestOtp(...);
-    ```
+**Option A — Full-GUI E2E (Emulator Based)**
+*   Framework: Flutter `integration_test` against a live local Django server.
+*   Focus: Full user journeys using the **Robot Pattern** (Page Object Model).
 
-### Data Strategy for All Integration Tests
-*   **Deterministic OTP**: In `DEBUG=True`, the backend code is fixed to `123456` for stable testing.
-*   **Seeds**: Use `seed_test_data.py` to ensure the DB state matches test expectations.
+**Option B — Headless Notifier-Level (Recommended)**
+*   Standard `flutter test` files in `test/integration/` hitting the real Django API.
+*   Mocks limited to platform storage only (`FlutterSecureStorage`, `SharedPreferences`).
+*   Fixed OTP `123456` (works when `DEBUG=True`).
+*   **Warm-up mandate**: always `await container.read(myProvider.future)` before triggering any mutation.
 
-### The "Journey-Based" File Architecture (Flutter)
-Unlike Unit and Widget tests, E2E tests do not follow the 1:1 Mirror Principle because they test cross-boundary user journeys.
-
-`frontend/integration_test/` should mirror the **Core Business Flows**:
-```text
-integration_test/
-├── core/
-│   ├── app_startup_test.dart       # Tests bootstrap, offline cache load, etc.
-│   └── error_pipeline_test.dart    # Tests 4-Layer error pipeline with forced 500s
-├── journeys/
-│   ├── auth/
-│   │   ├── routing_matrix_test.dart  # Tests new_user and is_technician navigation
-│   │   └── session_recovery_test.dart# Tests killing app and reloading active job
-│   ├── catalog/
-│   │   └── dumb_ui_rendering_test.dart # Asserts backend strings render correctly
-│   └── booking/
-│       ├── booking_happy_path_test.dart  # Full flow: browse -> book -> confirm
-│       └── wallet_lockout_test.dart      # Tests Technician blocked from accepting jobs
-└── utils/
-    ├── test_seeds.dart             # Helpers to trigger backend DB seeding
-    └── test_robots.dart            # Page Object Model (Robot Pattern) helpers
+When re-enabled, seeds must be applied first:
+```bash
+python manage.py seed_test_data
 ```
-
-### The Robot Pattern (Page Object Model)
-To keep E2E tests maintainable, we mandate the **Robot Pattern**. All widget interactions must be abstracted into "Robots" inside the `integration_test/utils/` directory.
-
-*   **Bad (Do not use)**: `await tester.tap(find.byKey('login_btn'));` directly in the test.
-*   **Good**: `await loginRobot.enterOtpAndSubmit('123456');`
