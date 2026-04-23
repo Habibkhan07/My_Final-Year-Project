@@ -19,7 +19,7 @@ class MapPickerNotifier extends _$MapPickerNotifier {
   Timer? _debounce;
 
   @override
-  Future<MapPickerState> build() async {
+  FutureOr<MapPickerState> build() async {
     ref.onDispose(() => _debounce?.cancel());
 
     final location =
