@@ -6,6 +6,8 @@ import 'package:frontend/features/booking/domain/entities/booking_entities.dart'
 import 'package:frontend/features/booking/presentation/providers/availability_notifier.dart';
 import 'package:frontend/features/booking/presentation/providers/availability_state.dart';
 import 'package:frontend/features/booking/presentation/widgets/select_time_sheet.dart';
+import 'package:frontend/features/customer/addresses/domain/entities/address_entity.dart';
+import 'package:frontend/features/customer/addresses/presentation/providers/dependency_injection.dart';
 
 class MockAvailabilityNotifier extends AvailabilityNotifier {
   final AsyncValue<AvailabilityState> _mockState;
@@ -51,28 +53,26 @@ void main() {
     recentReviews: [],
   );
 
-  final tSlots = [
-    const AvailabilitySlotEntity(
-      timeString: '9:00 AM',
-      isoStart: '2026-04-07T09:00:00+05:00',
-      isoEnd: '2026-04-07T10:00:00+05:00',
-      period: 'AM',
-    ),
-    const AvailabilitySlotEntity(
-      timeString: '2:00 PM',
-      isoStart: '2026-04-07T14:00:00+05:00',
-      isoEnd: '2026-04-07T15:00:00+05:00',
-      period: 'PM',
-    ),
-  ];
+  const tDefaultAddress = CustomerAddressEntity(
+    id: 1,
+    label: 'Home',
+    streetAddress: '123 Main St',
+    latitude: 31.5204,
+    longitude: 74.3587,
+    isDefault: true,
+    createdAt: '2024-01-01',
+  );
 
   testWidgets('shows loading indicator when state is loading', (tester) async {
     // Because the widget generates `dateString` internally via DateTime.now(), 
     // it's tricky to override the exact Family without faking DateTime.
     // Instead, we just mount the widget and assert its initial default layout 
     // (which triggers a fetch and thus shows loading).
-    await tester.pumpWidget(const ProviderScope(
-      child: MaterialApp(
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        addressesProvider.overrideWith((ref) => Future.value([tDefaultAddress])),
+      ],
+      child: const MaterialApp(
         home: Scaffold(
           body: SelectTimeSheet(technician: tTechnician),
         ),

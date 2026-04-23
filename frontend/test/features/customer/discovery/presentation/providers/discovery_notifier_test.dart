@@ -6,7 +6,8 @@ import 'package:frontend/features/customer/discovery/domain/failures/discovery_f
 import 'package:frontend/features/customer/discovery/domain/usecases/get_nearby_technicians_usecase.dart';
 import 'package:frontend/features/customer/discovery/presentation/providers/dependency_injection.dart';
 import 'package:frontend/features/customer/discovery/presentation/providers/discovery_notifier.dart';
-import 'package:frontend/features/customer/discovery/presentation/providers/discovery_state.dart';
+import 'package:frontend/features/customer/addresses/domain/entities/address_entity.dart';
+import 'package:frontend/features/customer/addresses/presentation/providers/dependency_injection.dart';
 
 class MockGetNearbyTechniciansUseCase extends Mock implements GetNearbyTechniciansUseCase {}
 
@@ -40,11 +41,22 @@ void main() {
     results: [tTechnician],
   );
 
+  const tDefaultAddress = CustomerAddressEntity(
+    id: 1,
+    label: 'Home',
+    streetAddress: '123 Main St',
+    latitude: 31.5204,
+    longitude: 74.3587,
+    isDefault: true,
+    createdAt: '2024-01-01',
+  );
+
   setUp(() {
     mockUseCase = MockGetNearbyTechniciansUseCase();
     container = ProviderContainer(
       overrides: [
         getNearbyTechniciansUseCaseProvider.overrideWithValue(mockUseCase),
+        addressesProvider.overrideWith((ref) => Future.value([tDefaultAddress])),
       ],
     );
     addTearDown(() => container.dispose());
@@ -52,18 +64,18 @@ void main() {
 
   group('DiscoveryNotifier Bulletproof Tests', () {
     test('initial build should fetch technicians and set state to AsyncData', () async {
-      when(() => mockUseCase.call(page: 1)).thenAnswer((_) async => tDiscoveryResult);
+      when(() => mockUseCase.call(page: 1, lat: any(named: 'lat'), lng: any(named: 'lng'), query: any(named: 'query'), serviceId: any(named: 'serviceId'), subServiceId: any(named: 'subServiceId'), promotionId: any(named: 'promotionId'))).thenAnswer((_) async => tDiscoveryResult);
 
       final subscription = container.listen(discoveryProvider(), (_, __) {});
       final state = await container.read(discoveryProvider().future);
 
       expect(state.discoveryResult, tDiscoveryResult);
-      verify(() => mockUseCase.call(page: 1)).called(1);
+      verify(() => mockUseCase.call(page: 1, lat: any(named: 'lat'), lng: any(named: 'lng'), query: any(named: 'query'), serviceId: any(named: 'serviceId'), subServiceId: any(named: 'subServiceId'), promotionId: any(named: 'promotionId'))).called(1);
       subscription.close();
     });
 
     test('refresh should update the state with fresh data', () async {
-      when(() => mockUseCase.call(page: 1)).thenAnswer((_) async => tDiscoveryResult);
+      when(() => mockUseCase.call(page: 1, lat: any(named: 'lat'), lng: any(named: 'lng'), query: any(named: 'query'), serviceId: any(named: 'serviceId'), subServiceId: any(named: 'subServiceId'), promotionId: any(named: 'promotionId'))).thenAnswer((_) async => tDiscoveryResult);
       final subscription = container.listen(discoveryProvider(), (_, __) {});
       await container.read(discoveryProvider().future);
 
@@ -71,7 +83,7 @@ void main() {
 
       final state = container.read(discoveryProvider());
       expect(state.value?.discoveryResult, tDiscoveryResult);
-      verify(() => mockUseCase.call(page: 1)).called(2);
+      verify(() => mockUseCase.call(page: 1, lat: any(named: 'lat'), lng: any(named: 'lng'), query: any(named: 'query'), serviceId: any(named: 'serviceId'), subServiceId: any(named: 'subServiceId'), promotionId: any(named: 'promotionId'))).called(2);
       subscription.close();
     });
 
@@ -84,8 +96,8 @@ void main() {
         results: [tTechnician],
       );
 
-      when(() => mockUseCase.call(page: 1)).thenAnswer((_) async => tDiscoveryResult);
-      when(() => mockUseCase.call(page: 2)).thenAnswer((_) async => tNextResult);
+      when(() => mockUseCase.call(page: 1, lat: any(named: 'lat'), lng: any(named: 'lng'), query: any(named: 'query'), serviceId: any(named: 'serviceId'), subServiceId: any(named: 'subServiceId'), promotionId: any(named: 'promotionId'))).thenAnswer((_) async => tDiscoveryResult);
+      when(() => mockUseCase.call(page: 2, lat: any(named: 'lat'), lng: any(named: 'lng'), query: any(named: 'query'), serviceId: any(named: 'serviceId'), subServiceId: any(named: 'subServiceId'), promotionId: any(named: 'promotionId'))).thenAnswer((_) async => tNextResult);
 
       final subscription = container.listen(discoveryProvider(), (_, __) {});
       await container.read(discoveryProvider().future);
@@ -100,7 +112,7 @@ void main() {
 
     test('should propagate DiscoveryFailure into AsyncError state gracefully', () async {
       const tFailure = DiscoveryNetworkFailure('No Internet');
-      when(() => mockUseCase.call(page: 1)).thenAnswer((_) => Future.error(tFailure));
+      when(() => mockUseCase.call(page: 1, lat: any(named: 'lat'), lng: any(named: 'lng'), query: any(named: 'query'), serviceId: any(named: 'serviceId'), subServiceId: any(named: 'subServiceId'), promotionId: any(named: 'promotionId'))).thenAnswer((_) => Future.error(tFailure));
 
       final subscription = container.listen(discoveryProvider(), (_, __) {});
 
@@ -115,7 +127,7 @@ void main() {
 
     test('refresh should recover from an initial build error seamlessly', () async {
       const tFailure = DiscoveryNetworkFailure('No Internet');
-      when(() => mockUseCase.call(page: 1)).thenAnswer((_) => Future.error(tFailure));
+      when(() => mockUseCase.call(page: 1, lat: any(named: 'lat'), lng: any(named: 'lng'), query: any(named: 'query'), serviceId: any(named: 'serviceId'), subServiceId: any(named: 'subServiceId'), promotionId: any(named: 'promotionId'))).thenAnswer((_) => Future.error(tFailure));
 
       final subscription = container.listen(discoveryProvider(), (_, __) {});
       await Future.delayed(const Duration(milliseconds: 50));
@@ -123,7 +135,7 @@ void main() {
       expect(container.read(discoveryProvider()).hasError, true);
 
       // Now mock a successful refresh
-      when(() => mockUseCase.call(page: 1)).thenAnswer((_) async => tDiscoveryResult);
+      when(() => mockUseCase.call(page: 1, lat: any(named: 'lat'), lng: any(named: 'lng'), query: any(named: 'query'), serviceId: any(named: 'serviceId'), subServiceId: any(named: 'subServiceId'), promotionId: any(named: 'promotionId'))).thenAnswer((_) async => tDiscoveryResult);
 
       await container.read(discoveryProvider().notifier).refresh();
 
@@ -136,7 +148,7 @@ void main() {
 
     test('loadMore should do nothing if state is currently an error (no data to paginate)', () async {
       const tFailure = DiscoveryNetworkFailure('No Internet');
-      when(() => mockUseCase.call(page: 1)).thenAnswer((_) => Future.error(tFailure));
+      when(() => mockUseCase.call(page: 1, lat: any(named: 'lat'), lng: any(named: 'lng'), query: any(named: 'query'), serviceId: any(named: 'serviceId'), subServiceId: any(named: 'subServiceId'), promotionId: any(named: 'promotionId'))).thenAnswer((_) => Future.error(tFailure));
 
       final subscription = container.listen(discoveryProvider(), (_, __) {});
       await Future.delayed(const Duration(milliseconds: 50));
@@ -144,8 +156,8 @@ void main() {
       // State is now error. Calling loadMore shouldn't crash or trigger network call.
       await container.read(discoveryProvider().notifier).loadMore();
 
-      verify(() => mockUseCase.call(page: 1)).called(1); // Only the initial build
-      verifyNever(() => mockUseCase.call(page: 2));
+      verify(() => mockUseCase.call(page: 1, lat: any(named: 'lat'), lng: any(named: 'lng'), query: any(named: 'query'), serviceId: any(named: 'serviceId'), subServiceId: any(named: 'subServiceId'), promotionId: any(named: 'promotionId'))).called(1); // Only the initial build
+      verifyNever(() => mockUseCase.call(page: 2, lat: any(named: 'lat'), lng: any(named: 'lng'), query: any(named: 'query'), serviceId: any(named: 'serviceId'), subServiceId: any(named: 'subServiceId'), promotionId: any(named: 'promotionId')));
 
       subscription.close();
     });
@@ -158,20 +170,20 @@ void main() {
         uiPromoBannerText: null,
         results: [tTechnician],
       );
-      when(() => mockUseCase.call(page: 1)).thenAnswer((_) async => tNoNextResult);
+      when(() => mockUseCase.call(page: 1, lat: any(named: 'lat'), lng: any(named: 'lng'), query: any(named: 'query'), serviceId: any(named: 'serviceId'), subServiceId: any(named: 'subServiceId'), promotionId: any(named: 'promotionId'))).thenAnswer((_) async => tNoNextResult);
       
       final subscription = container.listen(discoveryProvider(), (_, __) {});
       await container.read(discoveryProvider().future);
 
       await container.read(discoveryProvider().notifier).loadMore();
 
-      verifyNever(() => mockUseCase.call(page: 2));
+      verifyNever(() => mockUseCase.call(page: 2, lat: any(named: 'lat'), lng: any(named: 'lng'), query: any(named: 'query'), serviceId: any(named: 'serviceId'), subServiceId: any(named: 'subServiceId'), promotionId: any(named: 'promotionId')));
       subscription.close();
     });
 
     test('loadMore should ignore concurrent calls', () async {
-      when(() => mockUseCase.call(page: 1)).thenAnswer((_) async => tDiscoveryResult);
-      when(() => mockUseCase.call(page: 2)).thenAnswer((_) async {
+      when(() => mockUseCase.call(page: 1, lat: any(named: 'lat'), lng: any(named: 'lng'), query: any(named: 'query'), serviceId: any(named: 'serviceId'), subServiceId: any(named: 'subServiceId'), promotionId: any(named: 'promotionId'))).thenAnswer((_) async => tDiscoveryResult);
+      when(() => mockUseCase.call(page: 2, lat: any(named: 'lat'), lng: any(named: 'lng'), query: any(named: 'query'), serviceId: any(named: 'serviceId'), subServiceId: any(named: 'subServiceId'), promotionId: any(named: 'promotionId'))).thenAnswer((_) async {
         await Future.delayed(const Duration(milliseconds: 50));
         return tDiscoveryResult;
       });
@@ -186,17 +198,17 @@ void main() {
       await p1;
       await p2;
 
-      verify(() => mockUseCase.call(page: 2)).called(1);
+      verify(() => mockUseCase.call(page: 2, lat: any(named: 'lat'), lng: any(named: 'lng'), query: any(named: 'query'), serviceId: any(named: 'serviceId'), subServiceId: any(named: 'subServiceId'), promotionId: any(named: 'promotionId'))).called(1);
       subscription.close();
     });
 
     test('loadMore failure should emit AsyncError but preserve existing data and reset pagination flag', () async {
-      when(() => mockUseCase.call(page: 1)).thenAnswer((_) async => tDiscoveryResult);
+      when(() => mockUseCase.call(page: 1, lat: any(named: 'lat'), lng: any(named: 'lng'), query: any(named: 'query'), serviceId: any(named: 'serviceId'), subServiceId: any(named: 'subServiceId'), promotionId: any(named: 'promotionId'))).thenAnswer((_) async => tDiscoveryResult);
       final subscription = container.listen(discoveryProvider(), (_, __) {});
       await container.read(discoveryProvider().future);
 
       const tFailure = DiscoveryNetworkFailure('No Internet');
-      when(() => mockUseCase.call(page: 2)).thenAnswer((_) => Future.error(tFailure));
+      when(() => mockUseCase.call(page: 2, lat: any(named: 'lat'), lng: any(named: 'lng'), query: any(named: 'query'), serviceId: any(named: 'serviceId'), subServiceId: any(named: 'subServiceId'), promotionId: any(named: 'promotionId'))).thenAnswer((_) => Future.error(tFailure));
 
       await container.read(discoveryProvider().notifier).loadMore();
 

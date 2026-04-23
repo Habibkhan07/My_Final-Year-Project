@@ -5,6 +5,8 @@ import 'package:network_image_mock/network_image_mock.dart';
 import 'package:frontend/features/booking/domain/entities/booking_entities.dart';
 import 'package:frontend/features/booking/presentation/providers/booking_notifier.dart';
 import 'package:frontend/features/booking/presentation/widgets/review_booking_sheet.dart';
+import 'package:frontend/features/customer/addresses/domain/entities/address_entity.dart';
+import 'package:frontend/features/customer/addresses/presentation/providers/dependency_injection.dart';
 
 class MockInstantBookingNotifier extends InstantBookingNotifier {
   final AsyncValue<CreatedBookingEntity?> _mockState;
@@ -48,12 +50,23 @@ void main() {
 
   final tDate = DateTime(2026, 4, 7);
 
+  const tDefaultAddress = CustomerAddressEntity(
+    id: 7,
+    label: 'Home',
+    streetAddress: '123 Main St',
+    latitude: 31.5204,
+    longitude: 74.3587,
+    isDefault: true,
+    createdAt: '2024-01-01',
+  );
+
   Widget createWidgetUnderTest(AsyncValue<CreatedBookingEntity?> state) {
     return ProviderScope(
       overrides: [
         instantBookingProvider.overrideWith(
           () => MockInstantBookingNotifier(state),
         ),
+        addressesProvider.overrideWith((ref) => Future.value([tDefaultAddress])),
       ],
       child: MaterialApp(
         home: Scaffold(
@@ -61,8 +74,6 @@ void main() {
             technician: tTechnician,
             selectedDate: tDate,
             selectedSlot: tSlot,
-            addressId: 7,
-            addressLabel: 'Home (Default Address)',
           ),
         ),
       ),
@@ -72,6 +83,7 @@ void main() {
   testWidgets('renders correct booking summary details', (tester) async {
     await mockNetworkImagesFor(() async {
       await tester.pumpWidget(createWidgetUnderTest(const AsyncData(null)));
+      await tester.pumpAndSettle(); // Allow future providers to resolve
 
       expect(find.text('Review Booking'), findsOneWidget);
       // Assert summary texts
@@ -82,7 +94,7 @@ void main() {
       expect(find.text('Rs. 1,500'), findsOneWidget);
 
       expect(find.text('SERVICE ADDRESS'), findsOneWidget);
-      expect(find.text('Home (Default Address)'), findsOneWidget);
+      expect(find.text('Home - 123 Main St'), findsOneWidget);
 
       // Confirm button
       expect(find.text('Confirm & Lock'), findsOneWidget);
@@ -92,6 +104,7 @@ void main() {
   testWidgets('shows loading indicator when submitting', (tester) async {
     await mockNetworkImagesFor(() async {
       await tester.pumpWidget(createWidgetUnderTest(const AsyncLoading()));
+      await tester.pump();
 
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
       expect(find.text('Confirm & Lock'), findsNothing); // It's hidden by loading indicator

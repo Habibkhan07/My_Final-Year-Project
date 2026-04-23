@@ -203,6 +203,7 @@ Freezed immutable. Holds the full slot list for one date + the customer's curren
 `lib/features/booking/presentation/providers/technician_profile_notifier.dart`
 
 - **Type**: `AsyncNotifier<TechnicianProfileEntity>`, parameterised by `{id, lat?, lng?, serviceId?, subServiceId?, promotionId?}`
+- **Location Aware**: If `lat` and `lng` are not provided explicitly, the notifier automatically watches `defaultAddressProvider.future` and passes the default address coordinates to ensure distance and pricing are dynamically calculated based on the user's active location.
 - **`build()`**: calls `GetTechnicianProfileUseCase`, returns entity on success or enters `AsyncError`
 - **No mutation methods** — profile data is read-only in this flow
 
@@ -241,17 +242,18 @@ Freezed immutable. Holds the full slot list for one date + the customer's curren
 - Modal bottom sheet for date + slot selection.
 - Horizontal date strip (7 days from today); selecting a date watches a new `availabilityProvider` instance.
 - Slots split into Morning (AM) / Afternoon (PM) sections via `_PeriodSection`.
-- Footer "Continue" button enabled only when `state.selectedSlot != null`; on tap, validates that the customer has at least one saved address (from `addressesProvider`) then launches `ReviewBookingSheet`.
+- **Location Guard**: Footer "Continue" button is enabled only when `state.selectedSlot != null`. On tap, it checks `defaultAddressProvider`. If null, it intercepts navigation and pops up the `AddressSelectorSheet`. If valid, it launches `ReviewBookingSheet`.
 
 #### `ReviewBookingSheet`
 `lib/features/booking/presentation/widgets/review_booking_sheet.dart`
 
-- Final confirmation sheet. Receives `TechnicianProfileEntity`, `selectedDate`, `selectedSlot`, `addressId`, `addressLabel` as constructor params — all from the parent sheet.
+- Final confirmation sheet. Receives `TechnicianProfileEntity`, `selectedDate`, and `selectedSlot` as constructor params.
+- Watches `defaultAddressProvider` to dynamically display the active service address. Includes a "Change" button that opens the `AddressSelectorSheet` to switch addresses mid-flow.
 - Listens to `instantBookingProvider` for navigation + error handling:
   - `AsyncData(entity != null)` → close sheet → show "Booking Confirmed!" Snackbar → **(TODO: write `bookingId` to Tier 3)**
   - `AsyncError(BookingSlotUnavailableFailure)` → show Snackbar + close sheet so customer can re-pick
   - `AsyncError(other)` → show `error.message` Snackbar
-- "Confirm & Lock" button calls `instantBookingProvider.notifier.book(...)`, passing `isoStart`/`isoEnd` verbatim and `primaryPriceRaw` as `priceAmount`.
+- "Confirm & Lock" button calls `instantBookingProvider.notifier.book(...)`, passing `isoStart`/`isoEnd` verbatim and `defaultAddress.id`.
 
 #### `ModalBottomSheetLayout`
 `lib/features/booking/presentation/widgets/modal_bottom_sheet_layout.dart`

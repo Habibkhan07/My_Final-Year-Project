@@ -11,6 +11,7 @@ import '../widgets/promo_banner_slider.dart';
 import '../widgets/category_grid.dart';
 import '../widgets/fixed_gig_carousel.dart';
 import '../widgets/technician_carousel.dart';
+import '../widgets/location_required_card.dart';
 import '../../../../customer/addresses/presentation/providers/dependency_injection.dart';
 import '../../../../customer/addresses/presentation/widgets/address_selector_sheet.dart';
 
@@ -71,6 +72,10 @@ class HomeScreen extends ConsumerWidget {
     final feed = state.homeFeed;
     if (feed == null) return const SizedBox.shrink();
 
+    // Check if we have a default address loaded
+    final defaultAddressAsync = ref.watch(defaultAddressProvider);
+    final hasAddress = defaultAddressAsync.value != null;
+
     return Column(
       children: [
         if (isOffline)
@@ -122,7 +127,18 @@ class HomeScreen extends ConsumerWidget {
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
                     child: GestureDetector(
-                      onTap: () => context.push('/search'),
+                      onTap: () {
+                         if (!hasAddress) {
+                          showModalBottomSheet(
+                            context: context,
+                            isScrollControlled: true,
+                            backgroundColor: Colors.transparent,
+                            builder: (_) => const AddressSelectorSheet(),
+                          );
+                          return;
+                        }
+                        context.push('/search');
+                      },
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 16.0),
                         decoration: BoxDecoration(
@@ -156,7 +172,11 @@ class HomeScreen extends ConsumerWidget {
                   FixedGigCarousel(fixedGigs: feed.fixedGigs),
                   const SizedBox(height: 32),
                   
-                  TechnicianCarousel(technicians: feed.topTechnicians),
+                  if (hasAddress)
+                    TechnicianCarousel(technicians: feed.topTechnicians)
+                  else
+                    const LocationRequiredCard(),
+
                   const SizedBox(height: 32),
                 ],
               ),
@@ -166,6 +186,7 @@ class HomeScreen extends ConsumerWidget {
       ],
     );
   }
+
 
   Widget _buildErrorState(BuildContext context, WidgetRef ref, Object error) {
     // Strict Error Propagation Pipeline: Dart 3 Pattern Matching on Sealed Classes

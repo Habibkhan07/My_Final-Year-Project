@@ -1,6 +1,7 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'discovery_state.dart';
 import 'dependency_injection.dart';
+import '../../../../customer/addresses/presentation/providers/dependency_injection.dart';
 
 part 'discovery_notifier.g.dart';
 
@@ -20,14 +21,24 @@ class DiscoveryNotifier extends _$DiscoveryNotifier {
     double? lat,
     double? lng,
   }) async {
+    // Prefer explicit coordinates, fallback to global default address
+    double? effectiveLat = lat;
+    double? effectiveLng = lng;
+
+    if (effectiveLat == null || effectiveLng == null) {
+      final defaultAddress = await ref.watch(defaultAddressProvider.future);
+      effectiveLat = defaultAddress?.latitude;
+      effectiveLng = defaultAddress?.longitude;
+    }
+
     // Initial fetch on build
     final result = await ref.read(getNearbyTechniciansUseCaseProvider).call(
       query: query,
       serviceId: serviceId,
       subServiceId: subServiceId,
       promotionId: promotionId,
-      lat: lat,
-      lng: lng,
+      lat: effectiveLat,
+      lng: effectiveLng,
       page: 1,
     );
 
@@ -37,8 +48,8 @@ class DiscoveryNotifier extends _$DiscoveryNotifier {
       serviceId: serviceId,
       subServiceId: subServiceId,
       promotionId: promotionId,
-      lat: lat,
-      lng: lng,
+      lat: effectiveLat,
+      lng: effectiveLng,
     );
   }
 
@@ -52,13 +63,22 @@ class DiscoveryNotifier extends _$DiscoveryNotifier {
     state = const AsyncLoading();
     
     state = await AsyncValue.guard(() async {
+      double? effectiveLat = lat;
+      double? effectiveLng = lng;
+
+      if (effectiveLat == null || effectiveLng == null) {
+        final defaultAddress = await ref.read(defaultAddressProvider.future);
+        effectiveLat = defaultAddress?.latitude;
+        effectiveLng = defaultAddress?.longitude;
+      }
+
       final result = await ref.read(getNearbyTechniciansUseCaseProvider).call(
         query: query,
         serviceId: serviceId,
         subServiceId: subServiceId,
         promotionId: promotionId,
-        lat: lat,
-        lng: lng,
+        lat: effectiveLat,
+        lng: effectiveLng,
         page: 1,
       );
       
@@ -69,8 +89,8 @@ class DiscoveryNotifier extends _$DiscoveryNotifier {
         serviceId: serviceId,
         subServiceId: subServiceId,
         promotionId: promotionId,
-        lat: lat,
-        lng: lng,
+        lat: effectiveLat,
+        lng: effectiveLng,
       );
     });
   }
@@ -102,8 +122,8 @@ class DiscoveryNotifier extends _$DiscoveryNotifier {
         serviceId: serviceId,
         subServiceId: subServiceId,
         promotionId: promotionId,
-        lat: lat,
-        lng: lng,
+        lat: currentState.lat, // Use the effective coordinates stored in the state
+        lng: currentState.lng,
         page: nextPage,
       );
 
@@ -116,7 +136,7 @@ class DiscoveryNotifier extends _$DiscoveryNotifier {
     } catch (error, stackTrace) {
       // Revert the `isPaginationLoading` flag but wrap the current state 
       // inside an AsyncError to trigger the presentation layer UI error feedback 
-      // while retaining the already loaded list (`copyWithPrevious`).
+      // while retaining the already loaded list.
       state = AsyncError<DiscoveryState>(error, stackTrace).copyWithPrevious(
         AsyncData(currentState.copyWith(isPaginationLoading: false)),
       );

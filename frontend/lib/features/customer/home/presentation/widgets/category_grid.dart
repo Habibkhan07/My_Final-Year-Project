@@ -1,17 +1,24 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import '../../domain/entities/home_feed_entity.dart';
 import '../../../../../core/utils/icon_assets.dart';
+import '../../../../customer/addresses/presentation/providers/dependency_injection.dart';
+import '../../../../customer/addresses/presentation/widgets/address_selector_sheet.dart';
 
-class CategoryGrid extends StatelessWidget {
+class CategoryGrid extends ConsumerWidget {
   final List<CategoryEntity> categories;
 
   const CategoryGrid({super.key, required this.categories});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     if (categories.isEmpty) return const SizedBox.shrink();
+
+    // Check for a valid location before allowing navigation to discovery
+    final defaultAddressAsync = ref.watch(defaultAddressProvider);
+    final hasAddress = defaultAddressAsync.value != null;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -39,6 +46,17 @@ class CategoryGrid extends StatelessWidget {
               return Expanded(
                 child: GestureDetector(
                   onTap: () {
+                    // Location Intercept
+                    if (!hasAddress) {
+                      showModalBottomSheet(
+                        context: context,
+                        isScrollControlled: true,
+                        backgroundColor: Colors.transparent,
+                        builder: (_) => const AddressSelectorSheet(),
+                      );
+                      return;
+                    }
+
                     // Navigate to discovery with category filter
                     context.push(Uri(
                       path: '/discovery',
@@ -89,5 +107,4 @@ class CategoryGrid extends StatelessWidget {
       ),
     );
   }
-
 }

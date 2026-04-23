@@ -73,7 +73,7 @@ final class DiscoveryNotifierProvider
   }
 }
 
-String _$discoveryNotifierHash() => r'e43cb06026ba3d64786cb0562f5266af4a2eb5b5';
+String _$discoveryNotifierHash() => r'd017cd39b0194f5e5739cc72e47a65259aef0e1f';
 
 /// Notifier responsible for managing the state of the Technician Discovery result list.
 ///

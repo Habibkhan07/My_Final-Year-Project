@@ -6,6 +6,8 @@ import 'package:frontend/features/booking/domain/failures/booking_failure.dart';
 import 'package:frontend/features/booking/domain/use_cases/get_technician_profile_use_case.dart';
 import 'package:frontend/features/booking/presentation/providers/dependency_injection.dart';
 import 'package:frontend/features/booking/presentation/providers/technician_profile_notifier.dart';
+import 'package:frontend/features/customer/addresses/domain/entities/address_entity.dart';
+import 'package:frontend/features/customer/addresses/presentation/providers/dependency_injection.dart';
 
 class MockGetTechnicianProfileUseCase extends Mock
     implements GetTechnicianProfileUseCase {}
@@ -17,10 +19,21 @@ void main() {
     mockUseCase = MockGetTechnicianProfileUseCase();
   });
 
+  const tDefaultAddress = CustomerAddressEntity(
+    id: 1,
+    label: 'Home',
+    streetAddress: '123 Main St',
+    latitude: 31.5204,
+    longitude: 74.3587,
+    isDefault: true,
+    createdAt: '2024-01-01',
+  );
+
   ProviderContainer makeProviderContainer(MockGetTechnicianProfileUseCase useCase) {
     final container = ProviderContainer(
       overrides: [
         getTechnicianProfileUseCaseProvider.overrideWithValue(useCase),
+        addressesProvider.overrideWith((ref) => Future.value([tDefaultAddress])),
       ],
     );
     addTearDown(container.dispose);
@@ -37,7 +50,7 @@ void main() {
     reviewCount: 120,
     experienceYears: 5,
     bio: 'bio',
-    distanceKm: null,
+    distanceKm: 2.5,
     bayesianScore: null,
     isActive: true,
     uiRatingText: '4.9',
@@ -79,7 +92,7 @@ void main() {
       sub.read(),
       const AsyncData<TechnicianProfileEntity>(tProfileEntity),
     );
-    verify(() => mockUseCase.call(id: tId)).called(1);
+    verify(() => mockUseCase.call(id: tId, lat: 31.5204, lng: 74.3587)).called(1);
   });
 
   test('build() returns AsyncError on failure', () async {

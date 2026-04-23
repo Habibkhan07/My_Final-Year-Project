@@ -1,6 +1,7 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'home_state.dart';
 import 'dependency_injection.dart';
+import '../../../../customer/addresses/presentation/providers/dependency_injection.dart';
 
 part 'home_notifier.g.dart';
 
@@ -8,13 +9,20 @@ part 'home_notifier.g.dart';
 class HomeNotifier extends _$HomeNotifier {
   @override
   FutureOr<HomeState> build() async {
-    // Fetch the home feed data initially
-    final feed = await ref.read(getHomeFeedUseCaseProvider).call();
+    // Watch the default address so the home feed automatically re-fetches
+    // when the user changes their location.
+    final address = await ref.watch(defaultAddressProvider.future);
+    
+    // Fetch the home feed data with location context
+    final feed = await ref.read(getHomeFeedUseCaseProvider).call(
+      lat: address?.latitude,
+      lng: address?.longitude,
+    );
     
     return HomeState(
       homeFeed: feed,
-      lastLat: null,
-      lastLng: null,
+      lastLat: address?.latitude,
+      lastLng: address?.longitude,
     );
   }
 

@@ -130,7 +130,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(AddressSelectorSheet), findsOneWidget);
-      expect(find.text('Your Addresses'), findsOneWidget);
+      expect(find.text('Select Location'), findsOneWidget);
     });
   });
 }

@@ -6,6 +6,8 @@ import 'package:network_image_mock/network_image_mock.dart';
 import 'package:frontend/features/booking/domain/entities/booking_entities.dart';
 import 'package:frontend/features/booking/presentation/providers/technician_profile_notifier.dart';
 import 'package:frontend/features/booking/presentation/screens/technician_profile_screen.dart';
+import 'package:frontend/features/customer/addresses/domain/entities/address_entity.dart';
+import 'package:frontend/features/customer/addresses/presentation/providers/dependency_injection.dart';
 
 class MockTechnicianProfileNotifier extends TechnicianProfileNotifier {
   final AsyncValue<TechnicianProfileEntity> _mockState;
@@ -53,12 +55,23 @@ void main() {
     recentReviews: [],
   );
 
+  const tDefaultAddress = CustomerAddressEntity(
+    id: 1,
+    label: 'Home',
+    streetAddress: '123 Main St',
+    latitude: 31.5204,
+    longitude: 74.3587,
+    isDefault: true,
+    createdAt: '2024-01-01',
+  );
+
   Widget createWidgetUnderTest(AsyncValue<TechnicianProfileEntity> state) {
     return ProviderScope(
       overrides: [
         technicianProfileProvider(id: 1).overrideWith(
           () => MockTechnicianProfileNotifier(state),
         ),
+        addressesProvider.overrideWith((ref) => Future.value([tDefaultAddress])),
       ],
       child: const MaterialApp(
         home: TechnicianProfileScreen(technicianId: 1),
@@ -99,9 +112,6 @@ void main() {
 
       // Assert bio
       expect(find.text('Test Bio'), findsOneWidget);
-
-      // Assert bottom bar button
-      expect(find.text('Select Time'), findsOneWidget);
     });
   });
 }

@@ -4,22 +4,20 @@ import 'package:intl/intl.dart';
 import '../../domain/entities/booking_entities.dart';
 import '../../domain/failures/booking_failure.dart';
 import '../providers/booking_notifier.dart';
+import '../../../customer/addresses/presentation/providers/dependency_injection.dart';
+import '../../../customer/addresses/presentation/widgets/address_selector_sheet.dart';
 import 'modal_bottom_sheet_layout.dart';
 
 class ReviewBookingSheet extends ConsumerWidget {
   final TechnicianProfileEntity technician;
   final DateTime selectedDate;
   final AvailabilitySlotEntity selectedSlot;
-  final int addressId;
-  final String addressLabel;
 
   const ReviewBookingSheet({
     super.key,
     required this.technician,
     required this.selectedDate,
     required this.selectedSlot,
-    required this.addressId,
-    required this.addressLabel,
   });
 
   @override
@@ -59,6 +57,9 @@ class ReviewBookingSheet extends ConsumerWidget {
     final bookingState = ref.watch(instantBookingProvider);
     final isSubmitting = bookingState.isLoading;
 
+    final defaultAddressAsync = ref.watch(defaultAddressProvider);
+    final defaultAddress = defaultAddressAsync.value;
+
     final formattedDate = DateFormat('EEE d').format(selectedDate);
     final daySuffix = _getDaySuffix(selectedDate.day);
     final displayDate = '$formattedDate$daySuffix';
@@ -92,12 +93,12 @@ class ReviewBookingSheet extends ConsumerWidget {
           Expanded(
             flex: 3,
             child: ElevatedButton(
-              onPressed: isSubmitting
+              onPressed: isSubmitting || defaultAddress == null
                   ? null
                   : () {
                       ref.read(instantBookingProvider.notifier).book(
                             technicianId: technician.id,
-                            addressId: addressId,
+                            addressId: defaultAddress.id,
                             scheduledStart: selectedSlot.isoStart,
                             scheduledEnd: selectedSlot.isoEnd,
                             priceAmount: technician.primaryPriceRaw,
@@ -159,7 +160,20 @@ class ReviewBookingSheet extends ConsumerWidget {
           _SummaryTile(
             icon: Icons.location_on_outlined,
             label: 'Service Address',
-            value: addressLabel,
+            value: defaultAddress != null 
+                ? '${defaultAddress.label} - ${defaultAddress.streetAddress}'
+                : 'Select an address',
+            trailing: TextButton(
+              onPressed: () {
+                showModalBottomSheet(
+                  context: context,
+                  isScrollControlled: true,
+                  backgroundColor: Colors.transparent,
+                  builder: (_) => const AddressSelectorSheet(),
+                );
+              },
+              child: const Text('Change', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
           ),
 
           const SizedBox(height: 32),
@@ -172,11 +186,11 @@ class ReviewBookingSheet extends ConsumerWidget {
               borderRadius: BorderRadius.circular(24),
               color: Colors.grey.shade200,
               image: const DecorationImage(
-                image: NetworkImage(
+                image: const NetworkImage(
                   'https://lh3.googleusercontent.com/aida-public/AB6AXuDM3SxdvWZLgtsL7EvuIZSkCtQ0gdhSR3-xlH3CaDFVfvvgNykLJ0E9JvhpRLHaAb9iIdfH8FbTPhejjMQYuadD46ier0JrcGIX4BiZJWHuYblnWcnfbSEh2fdSYTUBC8e4VQJsXopFwNs8rEBl6pJbGcQsDqJ9obHUGFKWxlAcP37fdY-OkSSM6GEJFkShHZT6OKYjtytH220ImqZVGFdBFKYgfNbuP5pssBec54MOm6CLT19u9AFXO10O3FAN82si1wYy3wEo8Uw',
                 ),
                 fit: BoxFit.cover,
-                colorFilter: ColorFilter.mode(
+                colorFilter: const ColorFilter.mode(
                   Colors.black12,
                   BlendMode.darken,
                 ),
@@ -262,11 +276,13 @@ class _SummaryTile extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
+  final Widget? trailing;
 
   const _SummaryTile({
     required this.icon,
     required this.label,
     required this.value,
+    this.trailing,
   });
 
   @override
@@ -316,10 +332,13 @@ class _SummaryTile extends StatelessWidget {
                     fontWeight: FontWeight.w900,
                     color: Color(0xFF151C24),
                   ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
           ),
+          if (trailing != null) trailing!,
         ],
       ),
     );

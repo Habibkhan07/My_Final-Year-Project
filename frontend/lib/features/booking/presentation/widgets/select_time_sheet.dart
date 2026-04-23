@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../domain/entities/booking_entities.dart';
 import '../providers/availability_notifier.dart';
 import '../../../customer/addresses/presentation/providers/dependency_injection.dart';
+import '../../../customer/addresses/presentation/widgets/address_selector_sheet.dart';
 import 'modal_bottom_sheet_layout.dart';
 import 'review_booking_sheet.dart';
 
@@ -45,7 +46,7 @@ class _SelectTimeSheetState extends ConsumerState<SelectTimeSheet> {
       subServiceId: widget.subServiceId,
     ));
 
-    final addressesAsync = ref.watch(addressesProvider);
+    final defaultAddressAsync = ref.watch(defaultAddressProvider);
 
     return ModalBottomSheetLayout(
       title: 'Select a Time',
@@ -55,12 +56,13 @@ class _SelectTimeSheetState extends ConsumerState<SelectTimeSheet> {
           return ElevatedButton(
             onPressed: isEnabled
                 ? () {
-                    final addresses = addressesAsync.value ?? [];
-                    if (addresses.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('No saved addresses found. Please add one in profile.'),
-                        ),
+                    final defaultAddress = defaultAddressAsync.value;
+                    if (defaultAddress == null) {
+                      showModalBottomSheet(
+                        context: context,
+                        isScrollControlled: true,
+                        backgroundColor: Colors.transparent,
+                        builder: (_) => const AddressSelectorSheet(),
                       );
                       return;
                     }
@@ -74,9 +76,6 @@ class _SelectTimeSheetState extends ConsumerState<SelectTimeSheet> {
                         technician: widget.technician,
                         selectedDate: _selectedDate,
                         selectedSlot: state.selectedSlot!,
-                        // Use the first saved address for now (Prototype Mode)
-                        addressId: addresses.first.id,
-                        addressLabel: addresses.first.label,
                       ),
                     );
                   }
