@@ -481,6 +481,54 @@ final class GetCurrentLocationUseCaseProvider
 String _$getCurrentLocationUseCaseHash() =>
     r'947ad3e6b5673e8a1f826b9bd944458d83996e56';
 
+@ProviderFor(reverseGeocodeUseCase)
+final reverseGeocodeUseCaseProvider = ReverseGeocodeUseCaseProvider._();
+
+final class ReverseGeocodeUseCaseProvider
+    extends
+        $FunctionalProvider<
+          ReverseGeocodeUseCase,
+          ReverseGeocodeUseCase,
+          ReverseGeocodeUseCase
+        >
+    with $Provider<ReverseGeocodeUseCase> {
+  ReverseGeocodeUseCaseProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'reverseGeocodeUseCaseProvider',
+        isAutoDispose: false,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$reverseGeocodeUseCaseHash();
+
+  @$internal
+  @override
+  $ProviderElement<ReverseGeocodeUseCase> $createElement(
+    $ProviderPointer pointer,
+  ) => $ProviderElement(pointer);
+
+  @override
+  ReverseGeocodeUseCase create(Ref ref) {
+    return reverseGeocodeUseCase(ref);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(ReverseGeocodeUseCase value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<ReverseGeocodeUseCase>(value),
+    );
+  }
+}
+
+String _$reverseGeocodeUseCaseHash() =>
+    r'b3c70a5fe21780694acf3e66ae5fc869cf7fa458';
+
 @ProviderFor(addresses)
 final addressesProvider = AddressesProvider._();
 

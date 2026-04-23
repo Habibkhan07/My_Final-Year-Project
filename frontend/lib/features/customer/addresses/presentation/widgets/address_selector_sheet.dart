@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../domain/entities/address_entity.dart';
 import '../providers/dependency_injection.dart';
 
@@ -95,8 +96,7 @@ class AddressSelectorSheet extends ConsumerWidget {
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
             child: ElevatedButton.icon(
-              onPressed: () =>
-                  debugPrint('TODO: Navigate to Map Picker'),
+              onPressed: () => context.push('/addresses/map-picker'),
               icon: const Icon(Icons.add_circle_outline, size: 20),
               label: const Text(
                 'Add New Address',

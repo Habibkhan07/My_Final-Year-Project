@@ -10,6 +10,7 @@ import '../../domain/entities/address_entity.dart';
 import '../../domain/use_cases/delete_address_use_case.dart';
 import '../../domain/use_cases/get_addresses_use_case.dart';
 import '../../domain/use_cases/get_current_location_use_case.dart';
+import '../../domain/use_cases/reverse_geocode_use_case.dart';
 import '../../domain/use_cases/save_address_use_case.dart';
 import '../../../../../features/technician/onboarding/presentation/providers/dependency_injection.dart';
 
@@ -77,6 +78,10 @@ DeleteAddressUseCase deleteAddressUseCase(Ref ref) =>
 @Riverpod(keepAlive: true)
 GetCurrentLocationUseCase getCurrentLocationUseCase(Ref ref) =>
     GetCurrentLocationUseCase(ref.watch(addressRepositoryProvider));
+
+@Riverpod(keepAlive: true)
+ReverseGeocodeUseCase reverseGeocodeUseCase(Ref ref) =>
+    ReverseGeocodeUseCase(ref.watch(addressRepositoryProvider));
 
 // ---------------------------------------------------------------------------
 // Convenience fetch provider — consumed by any screen that needs the list

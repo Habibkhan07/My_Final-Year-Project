@@ -35,4 +35,11 @@ abstract class IAddressRepository {
   /// without any additional lookup.
   /// Throws [AddressLocationPermissionDenied] or [AddressLocationServiceDisabled].
   Future<({double latitude, double longitude, String streetAddress})> getCurrentLocation();
+
+  /// Reverse-geocodes arbitrary [lat]/[lng] coordinates to a human-readable
+  /// street address string. Used by the map picker when the user drags the pin.
+  ///
+  /// Never throws — falls back to `"lat, lng"` on geocoding failure so the
+  /// confirm button is never blocked.
+  Future<String> reverseGeocode(double lat, double lng);
 }

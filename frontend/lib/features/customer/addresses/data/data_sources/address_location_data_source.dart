@@ -41,6 +41,9 @@ class AddressLocationDataSource {
     );
   }
 
+  Future<String> reverseGeocode(double lat, double lng) =>
+      _reverseGeocode(lat, lng);
+
   Future<String> _reverseGeocode(double lat, double lng) async {
     try {
       final placemarks = await placemarkFromCoordinates(lat, lng);

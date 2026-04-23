@@ -92,4 +92,8 @@ class AddressRepositoryImpl implements IAddressRepository {
       throw AddressServerFailure('Location error: ${e.toString()}');
     }
   }
+
+  @override
+  Future<String> reverseGeocode(double lat, double lng) =>
+      locationDataSource.reverseGeocode(lat, lng);
 }

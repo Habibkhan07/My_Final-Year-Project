@@ -12,6 +12,7 @@ import '../../features/technician/onboarding/presentation/screens/onboarding_mai
 import '../../features/technician/onboarding/presentation/screens/registration_success_screen.dart';
 import '../../features/technician/onboarding/domain/entities/technician_entity.dart';
 import '../../features/booking/presentation/screens/technician_profile_screen.dart';
+import '../../features/customer/addresses/presentation/screens/map_picker_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   // Accessing the user through the AsyncValue wrapper
@@ -49,6 +50,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
 
       GoRoute(path: '/home', builder: (context, state) => const HomeScreen()),
+      GoRoute(
+        path: '/addresses/map-picker',
+        builder: (context, state) => const MapPickerScreen(),
+      ),
       GoRoute(path: '/search', builder: (context, state) => const SearchPage()),
       GoRoute(
         path: '/discovery',
