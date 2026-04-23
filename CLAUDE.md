@@ -173,6 +173,7 @@ Enforced via custom DRF exception handler in `exception.py`.
 - **Error contracts**: Every Repository method must document which sealed class exceptions it throws (`/// Throws [MyFailure] if...`)
 - **Visual contracts**: Reusable widgets must document their visual permutations
 - **Intent contracts**: Notifiers must document why specific state mutations occur
+- **Feature doc (mandatory at finalization)**: Every Flutter feature gets a `<FEATURE>_FEATURE.md` inside its feature directory (e.g. `lib/features/customer/addresses/ADDRESSES_FEATURE.md`). Cover: domain entities + fields, sealed failure hierarchy, repository interface contract, use cases, data models, data sources, repository impl flow (offline-first pattern), error propagation pipeline, and DI wiring. Mark incomplete layers as `⏳ pending`. Update the doc when the presentation layer is added.
 
 ---
 
