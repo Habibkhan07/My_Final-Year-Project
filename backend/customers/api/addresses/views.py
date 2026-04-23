@@ -5,7 +5,11 @@ from rest_framework.permissions import IsAuthenticated
 
 from .serializers import CustomerAddressReadSerializer, CustomerAddressWriteSerializer
 from customers.selectors.address_selectors import get_addresses_for_user
-from customers.services.address_service import create_customer_address, delete_customer_address
+from customers.services.address_service import (
+    create_customer_address, 
+    update_customer_address,
+    delete_customer_address
+)
 
 
 class CustomerAddressListCreateView(APIView):
@@ -24,9 +28,19 @@ class CustomerAddressListCreateView(APIView):
         return Response(CustomerAddressReadSerializer(address).data, status=status.HTTP_201_CREATED)
 
 
-class CustomerAddressDeleteView(APIView):
-    # SECURITY: delete_customer_address scopes the lookup to request.user, preventing IDOR
+class CustomerAddressDetailView(APIView):
+    # SECURITY: methods scope the lookup to request.user, preventing IDOR
     permission_classes = [IsAuthenticated]
+
+    def patch(self, request, pk):
+        serializer = CustomerAddressWriteSerializer(data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        address = update_customer_address(
+            user=request.user, 
+            address_id=pk, 
+            data=serializer.validated_data
+        )
+        return Response(CustomerAddressReadSerializer(address).data, status=status.HTTP_200_OK)
 
     def delete(self, request, pk):
         delete_customer_address(user=request.user, address_id=pk)

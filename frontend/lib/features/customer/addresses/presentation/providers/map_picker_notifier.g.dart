@@ -13,7 +13,7 @@ part of 'map_picker_notifier.dart';
 /// build() fetches the device's current GPS position to centre the map.
 /// The full screen shows a loading skeleton until GPS resolves.
 ///
-/// Intentionally uses AsyncNotifier<MapPickerState> so the initial GPS fetch
+/// Intentionally uses `AsyncNotifier<MapPickerState>` so the initial GPS fetch
 /// is handled by the framework — no manual loading state needed in build().
 
 @ProviderFor(MapPickerNotifier)
@@ -24,7 +24,7 @@ final mapPickerProvider = MapPickerNotifierProvider._();
 /// build() fetches the device's current GPS position to centre the map.
 /// The full screen shows a loading skeleton until GPS resolves.
 ///
-/// Intentionally uses AsyncNotifier<MapPickerState> so the initial GPS fetch
+/// Intentionally uses `AsyncNotifier<MapPickerState>` so the initial GPS fetch
 /// is handled by the framework — no manual loading state needed in build().
 final class MapPickerNotifierProvider
     extends $AsyncNotifierProvider<MapPickerNotifier, MapPickerState> {
@@ -33,7 +33,7 @@ final class MapPickerNotifierProvider
   /// build() fetches the device's current GPS position to centre the map.
   /// The full screen shows a loading skeleton until GPS resolves.
   ///
-  /// Intentionally uses AsyncNotifier<MapPickerState> so the initial GPS fetch
+  /// Intentionally uses `AsyncNotifier<MapPickerState>` so the initial GPS fetch
   /// is handled by the framework — no manual loading state needed in build().
   MapPickerNotifierProvider._()
     : super(
@@ -54,14 +54,14 @@ final class MapPickerNotifierProvider
   MapPickerNotifier create() => MapPickerNotifier();
 }
 
-String _$mapPickerNotifierHash() => r'9d476b769c208e3a23a4dd5f9aceedc9ce95bb68';
+String _$mapPickerNotifierHash() => r'7c3362f2861e3050c239e6c7243ce054b68cdf99';
 
 /// Drives the Uber-style map picker screen.
 ///
 /// build() fetches the device's current GPS position to centre the map.
 /// The full screen shows a loading skeleton until GPS resolves.
 ///
-/// Intentionally uses AsyncNotifier<MapPickerState> so the initial GPS fetch
+/// Intentionally uses `AsyncNotifier<MapPickerState>` so the initial GPS fetch
 /// is handled by the framework — no manual loading state needed in build().
 
 abstract class _$MapPickerNotifier extends $AsyncNotifier<MapPickerState> {

@@ -72,8 +72,8 @@ class CreateAddressRequest {
   Map<String, dynamic> toJson() => {
         'label': label,
         'street_address': streetAddress,
-        'latitude': latitude,
-        'longitude': longitude,
+        'latitude': latitude.toStringAsFixed(6),
+        'longitude': longitude.toStringAsFixed(6),
         'is_default': isDefault,
       };
 }

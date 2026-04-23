@@ -8,6 +8,11 @@ Coverage:
     - is_default=False does not disturb existing defaults
     - Raises NotFound if user has no CustomerProfile
 
+  update_customer_address:
+    - Updates fields correctly
+    - is_default=True clears all previous defaults atomically
+    - Raises NotFound for other user's address (IDOR)
+
   delete_customer_address:
     - Deletes the record from DB
     - Raises NotFound for a nonexistent id
@@ -17,7 +22,11 @@ import pytest
 from rest_framework.exceptions import NotFound
 
 from customers.models import CustomerAddress
-from customers.services.address_service import create_customer_address, delete_customer_address
+from customers.services.address_service import (
+    create_customer_address, 
+    update_customer_address,
+    delete_customer_address
+)
 from tests.factories.accounts import UserFactory
 from tests.factories.customers import CustomerProfileFactory, CustomerAddressFactory
 
@@ -73,6 +82,50 @@ class TestCreateCustomerAddress:
         user_without_profile = UserFactory()
         with pytest.raises(NotFound):
             create_customer_address(user=user_without_profile, validated_data=VALID_DATA.copy())
+
+
+class TestUpdateCustomerAddress:
+
+    def test_updates_fields_correctly(self):
+        profile = CustomerProfileFactory()
+        address = CustomerAddressFactory(customer=profile, label='Old Label')
+
+        update_customer_address(
+            user=profile.user,
+            address_id=address.id,
+            data={'label': 'New Label'}
+        )
+
+        address.refresh_from_db()
+        assert address.label == 'New Label'
+
+    def test_setting_default_clears_previous_default(self):
+        profile = CustomerProfileFactory()
+        old_default = CustomerAddressFactory(customer=profile, is_default=True)
+        new_default = CustomerAddressFactory(customer=profile, is_default=False)
+
+        update_customer_address(
+            user=profile.user,
+            address_id=new_default.id,
+            data={'is_default': True}
+        )
+
+        old_default.refresh_from_db()
+        new_default.refresh_from_db()
+        assert old_default.is_default is False
+        assert new_default.is_default is True
+
+    def test_raises_not_found_for_other_users_address(self):
+        other_profile = CustomerProfileFactory()
+        other_address = CustomerAddressFactory(customer=other_profile)
+
+        attacker_profile = CustomerProfileFactory()
+        with pytest.raises(NotFound):
+            update_customer_address(
+                user=attacker_profile.user,
+                address_id=other_address.id,
+                data={'is_default': True}
+            )
 
 
 class TestDeleteCustomerAddress:

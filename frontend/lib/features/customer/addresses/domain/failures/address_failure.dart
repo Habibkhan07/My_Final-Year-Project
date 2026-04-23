@@ -2,6 +2,9 @@
 sealed class AddressFailure implements Exception {
   final String message;
   const AddressFailure(this.message);
+
+  @override
+  String toString() => message;
 }
 
 /// Device has no active internet and the local cache is empty.

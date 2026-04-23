@@ -11,6 +11,7 @@ Manages a customer's saved addresses. Addresses are used as the job location in 
 | :--- | :--- | :--- |
 | List addresses | `GET` | `/api/customers/addresses/` |
 | Save address | `POST` | `/api/customers/addresses/` |
+| Update address | `PATCH` | `/api/customers/addresses/{id}/` |
 | Delete address | `DELETE` | `/api/customers/addresses/{id}/` |
 
 ---
@@ -37,14 +38,14 @@ Freezed immutable. Fed by `GET /api/customers/addresses/` (list items) and `POST
 ### Failures — `AddressFailure` (sealed class)
 `lib/features/customer/addresses/domain/failures/address_failure.dart`
 
-All repository methods throw a subclass of `AddressFailure`. The presentation layer switches exhaustively on these.
+All repository methods throw a subclass of `AddressFailure`. The presentation layer switches exhaustively on these. `toString()` is overridden to return only the `message`.
 
 | Class | Trigger |
 | :--- | :--- |
 | `AddressNetworkFailure` | `SocketException` + local cache empty |
-| `AddressServerFailure` | Non-2xx HTTP response |
+| `AddressServerFailure` | Non-2xx HTTP response (includes field validation details) |
 | `AddressParsingFailure` | `FormatException` on JSON decode |
-| `AddressNotFoundFailure` | 404 on DELETE (IDOR-safe: same response whether missing or owned by another user) |
+| `AddressNotFoundFailure` | 404 on DELETE/PATCH (IDOR-safe: same response whether missing or owned by another user) |
 | `AddressLocationPermissionDenied` | User denied GPS permission |
 | `AddressLocationServiceDisabled` | Device GPS is turned off |
 
@@ -57,6 +58,7 @@ All repository methods throw a subclass of `AddressFailure`. The presentation la
 | :--- | :--- | :--- |
 | `getAddresses()` | `List<CustomerAddressEntity>` | `AddressNetworkFailure`, `AddressServerFailure`, `AddressParsingFailure` |
 | `saveAddress({label, streetAddress, latitude, longitude, isDefault})` | `CustomerAddressEntity` | `AddressNetworkFailure`, `AddressServerFailure`, `AddressParsingFailure` |
+| `updateAddress({id, label, streetAddress, latitude, longitude, isDefault})` | `CustomerAddressEntity` | `AddressNetworkFailure`, `AddressServerFailure`, `AddressParsingFailure`, `AddressNotFoundFailure` |
 | `deleteAddress(int id)` | `void` | `AddressNotFoundFailure`, `AddressNetworkFailure`, `AddressServerFailure` |
 | `getCurrentLocation()` | `({double latitude, double longitude, String streetAddress})` | `AddressLocationPermissionDenied`, `AddressLocationServiceDisabled` |
 | `reverseGeocode(double lat, double lng)` | `String` | never throws — falls back to `"lat, lng"` string on geocoding failure |
@@ -76,6 +78,7 @@ All are thin delegates — they add no logic, they exist to keep the presentatio
 | :--- | :--- |
 | `GetAddressesUseCase` | `repository.getAddresses()` |
 | `SaveAddressUseCase` | `repository.saveAddress(...)` |
+| `UpdateAddressUseCase` | `repository.updateAddress(...)` |
 | `DeleteAddressUseCase` | `repository.deleteAddress(id)` |
 | `GetCurrentLocationUseCase` | `repository.getCurrentLocation()` |
 | `ReverseGeocodeUseCase` | `repository.reverseGeocode(lat, lng)` |
@@ -90,12 +93,11 @@ All are thin delegates — they add no logic, they exist to keep the presentatio
 **`CustomerAddressModel`** — JSON ↔ Dart mapping for list and creation responses.
 - `fromJson()` handles backend snake_case keys (`street_address`, `is_default`, `created_at`).
 - `_parseDouble()` helper safely coerces backend decimal strings or nums to Dart `double` (backend sends coordinates as strings).
-- `toJson()` used by `AddressLocalDataSource` for `SharedPreferences` cache serialization.
 - `toEntity()` produces the clean `CustomerAddressEntity` — the only conversion point.
 
 **`CreateAddressRequest`** — outgoing POST body.
 - `toJson()` maps Dart camelCase back to backend snake_case.
-- Never used for reading; exists only as a typed POST body builder.
+- **Precision Guard**: formats `latitude` and `longitude` to 6 decimal places via `toStringAsFixed(6)` to satisfy backend `DecimalField` constraints.
 
 ---
 
@@ -108,6 +110,7 @@ All are thin delegates — they add no logic, they exist to keep the presentatio
 | :--- | :--- | :--- |
 | `getAddresses()` | `GET /api/customers/addresses/` | Auth token from `flutter_secure_storage` |
 | `saveAddress(CreateAddressRequest)` | `POST /api/customers/addresses/` | Auth token + `Content-Type: application/json` |
+| `updateAddress(int id, Map data)` | `PATCH /api/customers/addresses/{id}/` | Partial update support |
 | `deleteAddress(int id)` | `DELETE /api/customers/addresses/{id}/` | Auth token |
 
 Non-2xx responses are parsed into `HttpFailure(statusCode, code, message, errors)` and re-thrown. The `code` field from the standard error envelope drives failure mapping in the repository.
@@ -124,8 +127,8 @@ Non-2xx responses are parsed into `HttpFailure(statusCode, code, message, errors
 
 - Uses `geolocator` for device GPS (`LocationAccuracy.high`).
 - Uses `geocoding` (`placemarkFromCoordinates`) for reverse geocoding to a street string.
-- `reverseGeocode(lat, lng)` is the public entry-point used by `MapPickerNotifier` after every completed map pan. Internally delegates to `_reverseGeocode`.
-- Reverse geocode failure falls back to raw `"lat, lng"` string — the address is still usable for the booking geofence; display quality degrades gracefully.
+- `reverseGeocode(lat, lng)` is the public entry-point used by `MapPickerNotifier`.
+- **Empty Guard**: If geocoding returns an empty/null assembled address string, it falls back to raw `"lat, lng"` coordinates to ensure `street_address` is never blank.
 - Throws `LocationServiceDisabledException` / `PermissionDeniedException` (geolocator types) — the repository maps these to domain failures.
 
 ---
@@ -135,50 +138,8 @@ Non-2xx responses are parsed into `HttpFailure(statusCode, code, message, errors
 
 The single arbitration point between all three data sources and the domain.
 
-#### `getAddresses()` — Offline-First
-```
-remote.getAddresses()
-  ✓ success → cache locally → return entities
-  ✗ SocketException → getCachedAddresses()
-      ✓ cache hit  → return entities
-      ✗ cache miss → throw AddressNetworkFailure
-  ✗ HttpFailure    → throw AddressServerFailure
-  ✗ FormatException → throw AddressParsingFailure
-```
-
-#### `saveAddress(...)` — Remote only (no cache write — list refresh handles it)
-```
-remote.saveAddress(request)
-  ✓ success         → return entity
-  ✗ SocketException → throw AddressNetworkFailure
-  ✗ HttpFailure     → throw AddressServerFailure
-  ✗ FormatException → throw AddressParsingFailure
-```
-
-#### `deleteAddress(id)`
-```
-remote.deleteAddress(id)
-  ✓ 204 No Content  → void
-  ✗ HttpFailure 404 → throw AddressNotFoundFailure  ← specific mapping
-  ✗ HttpFailure other → throw AddressServerFailure
-  ✗ SocketException → throw AddressNetworkFailure
-```
-
-#### `getCurrentLocation()`
-```
-locationDataSource.getCurrentLocation()
-  ✓ success → return named record (lat, lng, streetAddress)
-  ✗ LocationServiceDisabledException → throw AddressLocationServiceDisabled
-  ✗ PermissionDeniedException       → throw AddressLocationPermissionDenied
-  ✗ other                           → throw AddressServerFailure
-```
-
-#### `reverseGeocode(lat, lng)` — delegates directly, never throws
-```
-locationDataSource.reverseGeocode(lat, lng)
-  ✓ success → return street string
-  ✗ any failure → return "lat, lng" fallback (handled inside data source)
-```
+#### `saveAddress(...)` / `updateAddress(...)` — Error Propagation
+In addition to general HTTP failures, the repository extracts field-specific error messages (e.g., `street_address: This field is required`) and embeds them in the `AddressServerFailure` for direct UI feedback.
 
 ---
 
@@ -196,29 +157,10 @@ Auto-dispose `@riverpod` `FutureProvider`. Calls `GetAddressesUseCase` on every 
 
 Derived `@riverpod` provider that watches `addressesProvider` and returns the single address where `isDefault == true`, or `null`. Consumed by `_LocationHeader` in `HomeScreen`.
 
-#### `MapPickerState` — `@freezed`
-`lib/features/customer/addresses/presentation/providers/map_picker_state.dart`
-
-| Field | Type | Default | Description |
-| :--- | :--- | :--- | :--- |
-| `latitude` | `double` | required | Current map-pin latitude |
-| `longitude` | `double` | required | Current map-pin longitude |
-| `streetAddress` | `String` | required | Reverse-geocoded string for current pin |
-| `isGeocoding` | `bool` | `false` | True while a reverse-geocode is in flight |
-| `selectedLabel` | `String` | `'Home'` | Active label chip value |
-| `saveState` | `AsyncValue<CustomerAddressEntity?>` | `AsyncData(null)` | Tracks the save operation without affecting map state |
-
-#### `MapPickerNotifier` — `AsyncNotifier<MapPickerState>`
+#### `mapPickerProvider` — `AsyncNotifier<MapPickerState>`
 `lib/features/customer/addresses/presentation/providers/map_picker_notifier.dart`
 
-| Method | Behaviour |
-| :--- | :--- |
-| `build()` | Calls `GetCurrentLocationUseCase`; whole screen shows skeleton until GPS resolves. Enters `AsyncError` on permission/service failure. |
-| `onMapPanEnd(lat, lng)` | Immediately updates coords + `isGeocoding=true`; schedules debounced (600 ms) reverse-geocode via `Timer`. On completion sets `streetAddress` + `isGeocoding=false`. |
-| `setLabel(label)` | Synchronous `copyWith` on `selectedLabel`. |
-| `save({isDefault})` | Sets `saveState=AsyncLoading`, calls `SaveAddressUseCase`, sets `saveState=AsyncData(entity)` or `AsyncError`. Map state (coords, label) is preserved on failure. |
-
-The `Timer?` debounce field is cancelled via `ref.onDispose` so no callbacks fire after the notifier is disposed.
+Handles map state and location saving. GPS skeleton shown until `build()` resolves. `save()` invalidates `addressesProvider` on success.
 
 ---
 
@@ -227,78 +169,40 @@ The `Timer?` debounce field is cancelled via `ref.onDispose` so no callbacks fir
 #### `AddressSelectorSheet`
 `lib/features/customer/addresses/presentation/widgets/address_selector_sheet.dart`
 
-Bottom sheet. Watches `addressesProvider`.
-
-**Visual permutations:**
-- `loading` → centred `CircularProgressIndicator`
-- `error` → grey text `'Could not load addresses.'`
-- `data([])` → grey text `'No saved addresses yet.'`
-- `data([...])` → `ListView` of `_AddressTile` widgets (label + streetAddress; default address gets a blue "Default" badge)
-- Footer (all states) → full-width "Add New Address" `ElevatedButton` → `context.push('/addresses/map-picker')`
+Bottom sheet displaying the list of saved addresses.
+- **Visual Logic**:
+  - **Icons**: Home icon for "Home", Work icon for "Office", Location icon for others.
+  - **Highlights**: The default address gets a blue background (`#F0F6FF`) and a solid blue icon/radio button.
+  - **Selection**: Uses a trailing `Radio<bool>` button to indicate the active location.
+- **Interaction**: Tapping any `_AddressTile` (that isn't already default) calls `UpdateAddressUseCase(isDefault: true)`.
+- **Intent**: 
+  - On successful update, it invalidates `addressesProvider` to refresh the Home Screen header.
+  - It then calls `Navigator.pop(context)` to automatically return the user to the Home Screen once their selection is confirmed.
+- **Error**: Shows a `SnackBar` with the server error message if the update fails.
 
 #### `MapPickerScreen`
 `lib/features/customer/addresses/presentation/screens/map_picker_screen.dart`
 
-Uber-style draggable map picker. Uses `flutter_map` (OpenStreetMap tiles — no API key).
-
-**Visual permutations:**
-- `AsyncLoading` (GPS fetch) → `_MapSkeleton` — grey placeholder boxes
-- `AsyncError` (GPS permission/service) → `_ErrorCard` — `Icons.location_off` + error message + Retry button (calls `ref.invalidate(mapPickerProvider)`)
-- `AsyncData(state)` → `_MapBody`:
-  - Full-screen `FlutterMap`; panning fires `onMapPanEnd`
-  - Fixed `Icons.location_pin` at `Alignment.center` (pin never moves)
-  - Back arrow at top-left
-  - `_BottomCard` at bottom:
-    - Address text (or inline `CircularProgressIndicator` when `isGeocoding`)
-    - Animated label chips: Home / Office / Other
-    - `ElevatedButton('Confirm Location')` — calls `save(isDefault: false)`; shows spinner while `saveState=AsyncLoading`; renders error message below button on `saveState=AsyncError`
-
-**Success flow**: `ref.listen` watches `saveState`. On `AsyncData(entity ≠ null)`, invalidates `addressesProvider` (so selector sheet refreshes) then calls `context.pop()`.
-
-**Route**: `/addresses/map-picker` in `app_router.dart`.
-
----
-
-## Error Propagation Pipeline
-
-```
-AddressRemoteDataSource / AddressLocationDataSource
-  throws HttpFailure(code, message) or geolocator exceptions
-      ↓
-AddressRepositoryImpl (_mapFailures pattern)
-  switch on exception type → throws specific AddressFailure subclass
-      ↓
-[Use Case — transparent passthrough]
-      ↓
-MapPickerNotifier
-  build()    → AsyncValue.guard() → AsyncError if GPS fails
-  save()     → AsyncValue.guard() → saveState=AsyncError on failure
-      ↓
-MapPickerScreen
-  when(loading/error/data) → _MapSkeleton / _ErrorCard / _MapBody
-  _BottomCard: saveState error message below Confirm button
-```
+Uber-style map picker.
+- **UI Guard**: The "Confirm Location" button is disabled if `isGeocoding` is true or `saveState` is loading, preventing stale/empty submissions during drags or network flight.
 
 ---
 
 ## Dependency Injection
 `lib/features/customer/addresses/presentation/providers/dependency_injection.dart`
 
-All infrastructure providers are `keepAlive: true`. Feature providers are auto-dispose. Wiring order:
-
+Wiring order:
 ```
 addressHttpClient / addressSecureStorage
     ↓
-addressRemoteDataSource (http client + secure storage)
-addressLocalDataSource  (SharedPreferences — from technician onboarding DI)
-addressLocationDataSource
+addressRemoteDataSource / addressLocalDataSource / addressLocationDataSource
     ↓
-addressRepository (all three data sources)
+addressRepository
     ↓
-getAddressesUseCase / saveAddressUseCase / deleteAddressUseCase
-getCurrentLocationUseCase / reverseGeocodeUseCase
+getAddressesUseCase / saveAddressUseCase / updateAddressUseCase
+deleteAddressUseCase / getCurrentLocationUseCase / reverseGeocodeUseCase
     ↓
-addressesProvider       ← list fetch; consumed by AddressSelectorSheet + MapPickerNotifier
-defaultAddressProvider  ← derived filter; consumed by HomeScreen _LocationHeader
-mapPickerProvider       ← AsyncNotifier; consumed by MapPickerScreen
+addressesProvider       ← list fetch
+defaultAddressProvider  ← derived filter
+mapPickerProvider       ← AsyncNotifier
 ```

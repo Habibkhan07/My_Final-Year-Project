@@ -23,10 +23,15 @@ abstract class IAddressRepository {
     required bool isDefault,
   });
 
-  /// Deletes the address with [id].
-  ///
-  /// Throws [AddressNotFoundFailure] when the id doesn't exist or belongs to
-  /// another user (IDOR: same response shape, caller cannot distinguish).
+  Future<CustomerAddressEntity> updateAddress({
+    required int id,
+    bool? isDefault,
+    String? label,
+    String? streetAddress,
+    double? latitude,
+    double? longitude,
+  });
+
   Future<void> deleteAddress(int id);
 
   /// Uses device GPS + reverse geocoding to resolve the current position.

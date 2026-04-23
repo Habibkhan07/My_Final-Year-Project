@@ -49,12 +49,14 @@ class AddressLocationDataSource {
       final placemarks = await placemarkFromCoordinates(lat, lng);
       if (placemarks.isEmpty) return '$lat, $lng';
       final p = placemarks.first;
-      return [
+      final address = [
         if (p.street != null && p.street!.isNotEmpty) p.street,
         if (p.locality != null && p.locality!.isNotEmpty) p.locality,
         if (p.administrativeArea != null && p.administrativeArea!.isNotEmpty)
           p.administrativeArea,
       ].join(', ');
+
+      return address.isEmpty ? '$lat, $lng' : address;
     } catch (_) {
       // If reverse geocoding fails, fall back to raw coordinates — address is
       // still usable for the booking flow.

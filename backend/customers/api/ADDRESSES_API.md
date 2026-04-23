@@ -57,6 +57,21 @@ Creates a new address for the authenticated user. If `is_default` is `true`, all
 
 ---
 
+## PATCH /api/customers/addresses/<id>/
+
+Updates an existing address. Primarily used to toggle `is_default: true`.
+
+**Request body (partial)**
+```json
+{
+  "is_default": true
+}
+```
+
+**Response 200** — same shape as GET list item.
+
+---
+
 ## DELETE /api/customers/addresses/<id>/
 
 Deletes a saved address owned by the authenticated user.

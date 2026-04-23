@@ -18,6 +18,11 @@ Coverage:
        - 400 missing longitude
        - 400 envelope matches contract (status, code, message, errors)
 
+  PATCH - 401 unauthenticated
+        - 200 update is_default=true clears old default
+        - 404 nonexistent address id
+        - 404 other user's address (IDOR opaque)
+
   DELETE - 401 unauthenticated
          - 204 deletes own address, record gone from DB
          - 404 nonexistent address id
@@ -187,6 +192,43 @@ class TestPostAddress:
         assert set(data.keys()) >= {'status', 'code', 'message', 'errors'}
         assert data['code'] == 'validation_error'
         assert data['status'] == 400
+
+
+class TestUpdateAddress:
+
+    def setup_method(self):
+        self.client = APIClient()
+
+    def test_401_unauthenticated(self):
+        profile = CustomerProfileFactory()
+        address = CustomerAddressFactory(customer=profile)
+        response = self.client.patch(_detail_url(address.id), {'is_default': True}, format='json')
+        assert response.status_code == 401
+
+    def test_200_update_is_default_clears_old_default(self):
+        profile = CustomerProfileFactory()
+        old_default = CustomerAddressFactory(customer=profile, is_default=True)
+        new_default = CustomerAddressFactory(customer=profile, is_default=False)
+        self.client.force_authenticate(user=profile.user)
+
+        response = self.client.patch(_detail_url(new_default.id), {'is_default': True}, format='json')
+        assert response.status_code == 200
+        assert response.json()['is_default'] is True
+
+        old_default.refresh_from_db()
+        assert old_default.is_default is False
+        new_default.refresh_from_db()
+        assert new_default.is_default is True
+
+    def test_404_cannot_update_other_users_address(self):
+        other_profile = CustomerProfileFactory()
+        other_address = CustomerAddressFactory(customer=other_profile)
+
+        attacker_profile = CustomerProfileFactory()
+        self.client.force_authenticate(user=attacker_profile.user)
+
+        response = self.client.patch(_detail_url(other_address.id), {'is_default': True}, format='json')
+        assert response.status_code == 404
 
 
 class TestDeleteAddress:

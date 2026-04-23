@@ -385,6 +385,54 @@ final class SaveAddressUseCaseProvider
 String _$saveAddressUseCaseHash() =>
     r'1f68f60a9d7eb203e1a6e8b5b4e72c41afe53f46';
 
+@ProviderFor(updateAddressUseCase)
+final updateAddressUseCaseProvider = UpdateAddressUseCaseProvider._();
+
+final class UpdateAddressUseCaseProvider
+    extends
+        $FunctionalProvider<
+          UpdateAddressUseCase,
+          UpdateAddressUseCase,
+          UpdateAddressUseCase
+        >
+    with $Provider<UpdateAddressUseCase> {
+  UpdateAddressUseCaseProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'updateAddressUseCaseProvider',
+        isAutoDispose: false,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$updateAddressUseCaseHash();
+
+  @$internal
+  @override
+  $ProviderElement<UpdateAddressUseCase> $createElement(
+    $ProviderPointer pointer,
+  ) => $ProviderElement(pointer);
+
+  @override
+  UpdateAddressUseCase create(Ref ref) {
+    return updateAddressUseCase(ref);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(UpdateAddressUseCase value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<UpdateAddressUseCase>(value),
+    );
+  }
+}
+
+String _$updateAddressUseCaseHash() =>
+    r'7eeefcbf510793d3e2027452477c6f06c98fc502';
+
 @ProviderFor(deleteAddressUseCase)
 final deleteAddressUseCaseProvider = DeleteAddressUseCaseProvider._();
 

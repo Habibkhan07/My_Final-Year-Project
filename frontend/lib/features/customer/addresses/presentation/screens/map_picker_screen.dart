@@ -297,7 +297,7 @@ class _BottomCard extends ConsumerWidget {
             width: double.infinity,
             height: 52,
             child: ElevatedButton(
-              onPressed: isSaving
+              onPressed: (isSaving || state.isGeocoding)
                   ? null
                   : () => ref
                       .read(mapPickerProvider.notifier)

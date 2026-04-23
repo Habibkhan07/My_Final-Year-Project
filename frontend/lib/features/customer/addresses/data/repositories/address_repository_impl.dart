@@ -55,6 +55,48 @@ class AddressRepositoryImpl implements IAddressRepository {
       final model = await remoteDataSource.saveAddress(request);
       return model.toEntity();
     } on HttpFailure catch (e) {
+      // If the backend provided field-specific errors, bubble up the first one
+      // for better UI feedback (e.g. "street_address: This field is required")
+      if (e.errors.isNotEmpty) {
+        final field = e.errors.keys.first;
+        final message = (e.errors[field] as List).first;
+        throw AddressServerFailure('$field: $message');
+      }
+      throw AddressServerFailure(e.message);
+    } on SocketException {
+      throw const AddressNetworkFailure();
+    } on FormatException {
+      throw const AddressParsingFailure();
+    } catch (e) {
+      throw AddressServerFailure('Unexpected error: ${e.toString()}');
+    }
+  }
+
+  @override
+  Future<CustomerAddressEntity> updateAddress({
+    required int id,
+    bool? isDefault,
+    String? label,
+    String? streetAddress,
+    double? latitude,
+    double? longitude,
+  }) async {
+    try {
+      final data = {
+        if (isDefault != null) 'is_default': isDefault,
+        if (label != null) 'label': label,
+        if (streetAddress != null) 'street_address': streetAddress,
+        if (latitude != null) 'latitude': latitude.toStringAsFixed(6),
+        if (longitude != null) 'longitude': longitude.toStringAsFixed(6),
+      };
+      final model = await remoteDataSource.updateAddress(id, data);
+      return model.toEntity();
+    } on HttpFailure catch (e) {
+      if (e.errors.isNotEmpty) {
+        final field = e.errors.keys.first;
+        final message = (e.errors[field] as List).first;
+        throw AddressServerFailure('$field: $message');
+      }
       throw AddressServerFailure(e.message);
     } on SocketException {
       throw const AddressNetworkFailure();

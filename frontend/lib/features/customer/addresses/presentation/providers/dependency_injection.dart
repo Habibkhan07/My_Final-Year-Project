@@ -12,6 +12,7 @@ import '../../domain/use_cases/get_addresses_use_case.dart';
 import '../../domain/use_cases/get_current_location_use_case.dart';
 import '../../domain/use_cases/reverse_geocode_use_case.dart';
 import '../../domain/use_cases/save_address_use_case.dart';
+import '../../domain/use_cases/update_address_use_case.dart';
 import '../../../../../features/technician/onboarding/presentation/providers/dependency_injection.dart';
 
 part 'dependency_injection.g.dart';
@@ -70,6 +71,10 @@ GetAddressesUseCase getAddressesUseCase(Ref ref) =>
 @Riverpod(keepAlive: true)
 SaveAddressUseCase saveAddressUseCase(Ref ref) =>
     SaveAddressUseCase(ref.watch(addressRepositoryProvider));
+
+@Riverpod(keepAlive: true)
+UpdateAddressUseCase updateAddressUseCase(Ref ref) =>
+    UpdateAddressUseCase(ref.watch(addressRepositoryProvider));
 
 @Riverpod(keepAlive: true)
 DeleteAddressUseCase deleteAddressUseCase(Ref ref) =>

@@ -45,6 +45,22 @@ class AddressRemoteDataSource {
         jsonDecode(response.body) as Map<String, dynamic>);
   }
 
+  Future<CustomerAddressModel> updateAddress(
+      int id, Map<String, dynamic> data) async {
+    final token = await secureStorage.read(key: _tokenKey);
+    final response = await client.patch(
+      Uri.parse('$_baseUrl$id/'),
+      headers: {
+        'Authorization': 'Token $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode(data),
+    );
+    _handleResponse(response);
+    return CustomerAddressModel.fromJson(
+        jsonDecode(response.body) as Map<String, dynamic>);
+  }
+
   Future<void> deleteAddress(int id) async {
     final token = await secureStorage.read(key: _tokenKey);
     final response = await client.delete(

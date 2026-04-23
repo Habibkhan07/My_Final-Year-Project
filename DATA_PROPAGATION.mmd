@@ -1,0 +1,67 @@
+%%{ init: {
+  "theme": "base",
+  "themeVariables": {
+    "fontFamily": "Inter, Segoe UI, Helvetica, Arial, sans-serif",
+    "fontSize": "15px",
+    "primaryColor": "#FFFFFF",
+    "primaryTextColor": "#1F2937",
+    "lineColor": "#94A3B8",
+    "clusterBkg": "#F8FAFC",
+    "clusterBorder": "#CBD5E1"
+  },
+  "flowchart": { "curve": "basis", "nodeSpacing": 45, "rankSpacing": 55, "padding": 12 }
+} }%%
+
+flowchart LR
+
+  %% ============== CLIENT ==============
+  subgraph CLIENT["&nbsp;&nbsp;📱&nbsp; Flutter Client&nbsp;&nbsp;"]
+    direction TB
+    UI(["UI Widget"])
+    STATE(["State Notifier"])
+    DOMAIN(["Use Case"])
+    REPO(["Repository"])
+    DS[/"Remote Data Source"/]
+    UI --> STATE --> DOMAIN --> REPO --> DS
+  end
+
+  %% ============== SERVER ==============
+  subgraph SERVER["&nbsp;&nbsp;🖥️&nbsp; Django REST API&nbsp;&nbsp;"]
+    direction TB
+    VIEW[/"API View"/]
+    SER(["Serializer"])
+    SVC(["Service / Selector"])
+    ORM(["Django ORM"])
+    VIEW --> SER --> SVC --> ORM
+  end
+
+  %% ============== DATA STORE ==============
+  DB[("🗄️&nbsp; PostgreSQL")]
+  ORM --> DB
+
+  %% ============== CROSS-BOUNDARY FLOW ==============
+  DS  ===>|"① Request &nbsp;·&nbsp; JSON over HTTPS"| VIEW
+  VIEW ==>|"② Response &nbsp;·&nbsp; JSON 2xx / Error Envelope"| DS
+
+  %% ============== STYLING ==============
+  classDef ui      fill:#DBEAFE,stroke:#2563EB,color:#1E3A8A,stroke-width:1.2px,rx:10,ry:10
+  classDef state   fill:#E0E7FF,stroke:#4F46E5,color:#312E81,stroke-width:1.2px,rx:10,ry:10
+  classDef domain  fill:#EDE9FE,stroke:#7C3AED,color:#4C1D95,stroke-width:1.2px,rx:10,ry:10
+  classDef data    fill:#FFE4E6,stroke:#E11D48,color:#881337,stroke-width:1.2px,rx:10,ry:10
+  classDef boundary fill:#FEF3C7,stroke:#D97706,color:#78350F,stroke-width:1.4px
+  classDef logic   fill:#DCFCE7,stroke:#16A34A,color:#14532D,stroke-width:1.2px,rx:10,ry:10
+  classDef db      fill:#FEF2F2,stroke:#991B1B,color:#7F1D1D,stroke-width:1.6px
+
+  class UI ui
+  class STATE state
+  class DOMAIN domain
+  class REPO,DS data
+  class VIEW boundary
+  class SER,SVC,ORM logic
+  class DB db
+
+  style CLIENT fill:#F8FAFC,stroke:#94A3B8,stroke-width:1.2px,color:#0F172A
+  style SERVER fill:#F8FAFC,stroke:#94A3B8,stroke-width:1.2px,color:#0F172A
+
+  linkStyle 8 stroke:#2563EB,stroke-width:2.4px,color:#1E3A8A
+  linkStyle 9 stroke:#16A34A,stroke-width:2.4px,color:#14532D

@@ -26,6 +26,30 @@ def create_customer_address(*, user: User, validated_data: dict) -> CustomerAddr
         return CustomerAddress.objects.create(customer=profile, **validated_data)
 
 
+def update_customer_address(*, user: User, address_id: int, data: dict) -> CustomerAddress:
+    """
+    Updates a CustomerAddress owned by user.
+    If is_default=True is passed, clears other defaults for this customer.
+    """
+    try:
+        address = CustomerAddress.objects.get(id=address_id, customer__user=user)
+    except CustomerAddress.DoesNotExist:
+        raise NotFound("Address not found.")
+
+    with transaction.atomic():
+        if data.get('is_default'):
+            # Clear existing defaults
+            CustomerAddress.objects.select_for_update().filter(
+                customer=address.customer, is_default=True
+            ).exclude(id=address_id).update(is_default=False)
+
+        for attr, value in data.items():
+            setattr(address, attr, value)
+        
+        address.save()
+        return address
+
+
 def delete_customer_address(*, user: User, address_id: int) -> None:
     """
     Deletes a CustomerAddress owned by user.
