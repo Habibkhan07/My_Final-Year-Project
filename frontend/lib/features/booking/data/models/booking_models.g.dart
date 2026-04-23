@@ -132,21 +132,3 @@ _InstantBookingResponseModel _$InstantBookingResponseModelFromJson(
 Map<String, dynamic> _$InstantBookingResponseModelToJson(
   _InstantBookingResponseModel instance,
 ) => <String, dynamic>{'booking_id': instance.bookingId};
-
-_SavedAddressModel _$SavedAddressModelFromJson(Map<String, dynamic> json) =>
-    _SavedAddressModel(
-      id: (json['id'] as num).toInt(),
-      label: json['label'] as String,
-      addressText: json['address_text'] as String,
-      latitude: json['latitude'] as String,
-      longitude: json['longitude'] as String,
-    );
-
-Map<String, dynamic> _$SavedAddressModelToJson(_SavedAddressModel instance) =>
-    <String, dynamic>{
-      'id': instance.id,
-      'label': instance.label,
-      'address_text': instance.addressText,
-      'latitude': instance.latitude,
-      'longitude': instance.longitude,
-    };

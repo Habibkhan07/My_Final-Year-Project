@@ -28,8 +28,6 @@ abstract class IBookingRemoteDataSource {
   Future<InstantBookingResponseModel> createInstantBooking(
       InstantBookingRequestModel request);
 
-  /// GET /api/customers/addresses/
-  Future<List<SavedAddressModel>> getSavedAddresses();
 }
 
 class BookingRemoteDataSource implements IBookingRemoteDataSource {
@@ -118,26 +116,6 @@ class BookingRemoteDataSource implements IBookingRemoteDataSource {
 
     return InstantBookingResponseModel.fromJson(
         jsonDecode(response.body) as Map<String, dynamic>);
-  }
-
-  @override
-  Future<List<SavedAddressModel>> getSavedAddresses() async {
-    final token = await secureStorage.read(key: _tokenKey);
-    final uri = Uri.parse('${AppConstants.baseUrl}/customers/addresses/');
-
-    final response = await client.get(
-      uri,
-      headers: {
-        'Authorization': 'Token $token',
-      },
-    );
-
-    _handleResponse(response);
-
-    final data = jsonDecode(response.body) as List<dynamic>;
-    return data
-        .map((e) => SavedAddressModel.fromJson(e as Map<String, dynamic>))
-        .toList();
   }
 
   void _handleResponse(http.Response response) {

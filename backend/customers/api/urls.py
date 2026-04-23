@@ -5,7 +5,7 @@ from customers.api.home.views import CustomerHomeFeedAPIView
 from customers.api.nearby_technicians.views import TechnicianDiscoveryListView
 from customers.api.technician_profile.views import TechnicianProfileDetailView
 from customers.api.availability.views import TechnicianAvailabilityView
-from customers.api.addresses.views import SavedAddressListView
+from customers.api.addresses.views import CustomerAddressListCreateView, CustomerAddressDeleteView
 
 urlpatterns = [
     # URL: /api/customers/home/
@@ -20,6 +20,6 @@ urlpatterns = [
     # URL: /api/customers/technicians/<pk>/availability/
     path('technicians/<int:pk>/availability/', TechnicianAvailabilityView.as_view(), name='technician-availability'),
 
-    # URL: /api/customers/addresses/
-    path('addresses/', SavedAddressListView.as_view(), name='customer-address-list'),
+    path('addresses/', CustomerAddressListCreateView.as_view(), name='customer-address-list'),
+    path('addresses/<int:pk>/', CustomerAddressDeleteView.as_view(), name='customer-address-detail'),
 ]

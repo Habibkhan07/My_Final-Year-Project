@@ -4,11 +4,9 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../data/data_sources/booking_remote_data_source.dart';
 import '../../data/repositories/booking_repository_impl.dart';
-import '../../domain/entities/booking_entities.dart';
 import '../../domain/repositories/i_booking_repository.dart';
 import '../../domain/use_cases/create_instant_booking_use_case.dart';
 import '../../domain/use_cases/get_availability_use_case.dart';
-import '../../domain/use_cases/get_saved_addresses_use_case.dart';
 import '../../domain/use_cases/get_technician_profile_use_case.dart';
 
 part 'dependency_injection.g.dart';
@@ -60,15 +58,3 @@ GetAvailabilityUseCase getAvailabilityUseCase(Ref ref) =>
 CreateInstantBookingUseCase createInstantBookingUseCase(Ref ref) =>
     CreateInstantBookingUseCase(ref.watch(bookingRepositoryProvider));
 
-@Riverpod(keepAlive: true)
-GetSavedAddressesUseCase getSavedAddressesUseCase(Ref ref) =>
-    GetSavedAddressesUseCase(ref.watch(bookingRepositoryProvider));
-
-// ---------------------------------------------------------------------------
-// Simple Fetch Providers
-// ---------------------------------------------------------------------------
-
-@riverpod
-Future<List<SavedAddressEntity>> savedAddresses(Ref ref) {
-  return ref.watch(getSavedAddressesUseCaseProvider).call();
-}

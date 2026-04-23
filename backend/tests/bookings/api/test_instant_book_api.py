@@ -24,7 +24,7 @@ from django.urls import reverse
 
 from bookings.models import JobBooking
 from tests.factories.technicians import TechnicianProfileFactory
-from tests.factories.customers import CustomerProfileFactory, SavedAddressFactory
+from tests.factories.customers import CustomerProfileFactory, CustomerAddressFactory
 from tests.factories.bookings import JobBookingFactory
 
 pytestmark = pytest.mark.django_db
@@ -73,7 +73,7 @@ class TestInstantBookView:
     def test_400_missing_technician_id(self):
         profile = CustomerProfileFactory()
         self._auth(profile.user)
-        address = SavedAddressFactory(customer=profile)
+        address = CustomerAddressFactory(customer=profile)
         tech = TechnicianProfileFactory(status='APPROVED', base_latitude=31.5204, base_longitude=74.3587)
         payload = _make_payload(tech, address)
         del payload['technician_id']
@@ -85,7 +85,7 @@ class TestInstantBookView:
     def test_400_missing_address_id(self):
         profile = CustomerProfileFactory()
         self._auth(profile.user)
-        address = SavedAddressFactory(customer=profile)
+        address = CustomerAddressFactory(customer=profile)
         tech = TechnicianProfileFactory(status='APPROVED', base_latitude=31.5204, base_longitude=74.3587)
         payload = _make_payload(tech, address)
         del payload['address_id']
@@ -97,7 +97,7 @@ class TestInstantBookView:
     def test_400_missing_scheduled_start(self):
         profile = CustomerProfileFactory()
         self._auth(profile.user)
-        address = SavedAddressFactory(customer=profile)
+        address = CustomerAddressFactory(customer=profile)
         tech = TechnicianProfileFactory(status='APPROVED', base_latitude=31.5204, base_longitude=74.3587)
         payload = _make_payload(tech, address)
         del payload['scheduled_start']
@@ -109,7 +109,7 @@ class TestInstantBookView:
     def test_400_missing_scheduled_end(self):
         profile = CustomerProfileFactory()
         self._auth(profile.user)
-        address = SavedAddressFactory(customer=profile)
+        address = CustomerAddressFactory(customer=profile)
         tech = TechnicianProfileFactory(status='APPROVED', base_latitude=31.5204, base_longitude=74.3587)
         payload = _make_payload(tech, address)
         del payload['scheduled_end']
@@ -121,7 +121,7 @@ class TestInstantBookView:
     def test_400_missing_price_amount(self):
         profile = CustomerProfileFactory()
         self._auth(profile.user)
-        address = SavedAddressFactory(customer=profile)
+        address = CustomerAddressFactory(customer=profile)
         tech = TechnicianProfileFactory(status='APPROVED', base_latitude=31.5204, base_longitude=74.3587)
         payload = _make_payload(tech, address)
         del payload['price_amount']
@@ -133,7 +133,7 @@ class TestInstantBookView:
     def test_400_malformed_scheduled_start(self):
         profile = CustomerProfileFactory()
         self._auth(profile.user)
-        address = SavedAddressFactory(customer=profile)
+        address = CustomerAddressFactory(customer=profile)
         tech = TechnicianProfileFactory(status='APPROVED', base_latitude=31.5204, base_longitude=74.3587)
         payload = _make_payload(tech, address)
         payload['scheduled_start'] = 'not-a-date'
@@ -145,7 +145,7 @@ class TestInstantBookView:
     def test_400_scheduled_end_before_start(self):
         profile = CustomerProfileFactory()
         self._auth(profile.user)
-        address = SavedAddressFactory(customer=profile)
+        address = CustomerAddressFactory(customer=profile)
         tech = TechnicianProfileFactory(status='APPROVED', base_latitude=31.5204, base_longitude=74.3587)
         payload = _make_payload(tech, address)
         payload['scheduled_end'] = _pkt_iso(9)    # before start (10:00)
@@ -158,7 +158,7 @@ class TestInstantBookView:
     def test_400_scheduled_end_equal_to_start(self):
         profile = CustomerProfileFactory()
         self._auth(profile.user)
-        address = SavedAddressFactory(customer=profile)
+        address = CustomerAddressFactory(customer=profile)
         tech = TechnicianProfileFactory(status='APPROVED', base_latitude=31.5204, base_longitude=74.3587)
         payload = _make_payload(tech, address)
         payload['scheduled_start'] = _pkt_iso(10)
@@ -208,7 +208,7 @@ class TestInstantBookView:
         400 as a non-existent address (IDOR: caller can't distinguish the two).
         """
         other_profile = CustomerProfileFactory()
-        other_address = SavedAddressFactory(customer=other_profile)
+        other_address = CustomerAddressFactory(customer=other_profile)
 
         attacker_profile = CustomerProfileFactory()
         self._auth(attacker_profile.user)
@@ -234,7 +234,7 @@ class TestInstantBookView:
             base_latitude=31.5204, base_longitude=74.3587,   # Lahore
             max_travel_radius_km=10,
         )
-        far_address = SavedAddressFactory(
+        far_address = CustomerAddressFactory(
             customer=profile,
             latitude=24.8607, longitude=67.0011,             # Karachi
         )
@@ -252,7 +252,7 @@ class TestInstantBookView:
     def test_404_nonexistent_technician(self):
         profile = CustomerProfileFactory()
         self._auth(profile.user)
-        address = SavedAddressFactory(customer=profile)
+        address = CustomerAddressFactory(customer=profile)
 
         payload = {
             'technician_id': 999999,
@@ -269,7 +269,7 @@ class TestInstantBookView:
         profile = CustomerProfileFactory()
         self._auth(profile.user)
         tech = TechnicianProfileFactory(status='PENDING')
-        address = SavedAddressFactory(customer=profile)
+        address = CustomerAddressFactory(customer=profile)
 
         response = self.client.post(URL, _make_payload(tech, address), format='json')
         assert response.status_code == 404
@@ -286,7 +286,7 @@ class TestInstantBookView:
             base_latitude=31.5204, base_longitude=74.3587,
             max_travel_radius_km=10,
         )
-        address = SavedAddressFactory(customer=profile, latitude=31.5204, longitude=74.3587)
+        address = CustomerAddressFactory(customer=profile, latitude=31.5204, longitude=74.3587)
 
         # Pre-existing CONFIRMED booking occupies the exact same slot
         JobBookingFactory(
@@ -314,7 +314,7 @@ class TestInstantBookView:
             base_latitude=31.5204, base_longitude=74.3587,
             max_travel_radius_km=10,
         )
-        address = SavedAddressFactory(customer=profile, latitude=31.5204, longitude=74.3587)
+        address = CustomerAddressFactory(customer=profile, latitude=31.5204, longitude=74.3587)
 
         response = self.client.post(URL, _make_payload(tech, address), format='json')
         assert response.status_code == 201
@@ -330,7 +330,7 @@ class TestInstantBookView:
             base_latitude=31.5204, base_longitude=74.3587,
             max_travel_radius_km=10,
         )
-        address = SavedAddressFactory(customer=profile, latitude=31.5204, longitude=74.3587)
+        address = CustomerAddressFactory(customer=profile, latitude=31.5204, longitude=74.3587)
 
         response = self.client.post(URL, _make_payload(tech, address), format='json')
         assert response.status_code == 201
@@ -351,7 +351,7 @@ class TestInstantBookView:
             base_latitude=31.5204, base_longitude=74.3587,
             max_travel_radius_km=10,
         )
-        address = SavedAddressFactory(customer=profile, latitude=31.5204, longitude=74.3587)
+        address = CustomerAddressFactory(customer=profile, latitude=31.5204, longitude=74.3587)
 
         payload = _make_payload(tech, address)
         del payload['price_context']

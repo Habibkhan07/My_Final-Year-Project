@@ -57,8 +57,4 @@ abstract class IBookingRepository {
     String priceContext,
   });
 
-  /// Fetches the authenticated customer's saved addresses.
-  ///
-  /// Throws [BookingFailure] on network or server errors.
-  Future<List<SavedAddressEntity>> getSavedAddresses();
 }

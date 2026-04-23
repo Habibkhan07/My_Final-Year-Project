@@ -58,14 +58,14 @@ def create_instant_booking(
     """
     # --- 1. Ownership check (IDOR-safe) ---
     # Import here to avoid a top-level circular import (customers → bookings → customers)
-    from customers.models import SavedAddress
+    from customers.models import CustomerAddress
 
     try:
-        address = SavedAddress.objects.select_related('customer__user').get(
+        address = CustomerAddress.objects.select_related('customer__user').get(
             id=address_id,
             customer__user=customer_user,
         )
-    except SavedAddress.DoesNotExist:
+    except CustomerAddress.DoesNotExist:
         # Deliberately opaque — caller cannot tell whether the ID doesn't exist
         # or belongs to another user.
         raise InvalidAddressError()

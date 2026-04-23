@@ -20,7 +20,7 @@
 | Field | Type | Required | Description |
 | :--- | :--- | :--- | :--- |
 | `technician_id` | int | **Yes** | Primary key of the `TechnicianProfile` to book. |
-| `address_id` | int | **Yes** | Primary key of the `SavedAddress` for the job location. Must belong to the authenticated user. |
+| `address_id` | int | **Yes** | Primary key of the `CustomerAddress` for the job location. Must belong to the authenticated user. |
 | `scheduled_start` | string (ISO 8601) | **Yes** | Job start time. Must be a timezone-aware datetime (e.g., PKT `+05:00` from the slot's `iso_start` field). |
 | `scheduled_end` | string (ISO 8601) | **Yes** | Job end time. Must be strictly after `scheduled_start`. Pass the slot's `iso_end` field directly. |
 | `price_amount` | string (Decimal) | **Yes** | The agreed price in PKR, as a decimal string (e.g., `"1500.00"`). |
@@ -61,7 +61,7 @@ The service runs these checks in strict order. The first failure short-circuits 
 
 | # | Check | Implementation | Failure Response |
 | :--- | :--- | :--- | :--- |
-| 1 | **Address Ownership** | `SavedAddress.objects.get(id=address_id, customer__user=request.user)` | 400 `validation_error` |
+| 1 | **Address Ownership** | `CustomerAddress.objects.get(id=address_id, customer__user=request.user)` | 400 `validation_error` |
 | 2 | **Technician Status** | `TechnicianProfile.objects.filter(status='APPROVED').get(pk=technician_id)` | 404 `not_found` |
 | 3 | **Geofence** | Haversine distance ≤ `tech.max_travel_radius_km` | 400 `out_of_service_area` |
 | 4 | **Slot Race Lock** | `transaction.atomic()` + `select_for_update()` + overlap query | 409 `slot_unavailable` |

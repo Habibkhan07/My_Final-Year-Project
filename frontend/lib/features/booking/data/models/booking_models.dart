@@ -180,30 +180,3 @@ abstract class InstantBookingResponseModel with _$InstantBookingResponseModel {
   CreatedBookingEntity toEntity() => CreatedBookingEntity(bookingId: bookingId);
 }
 
-// ---------------------------------------------------------------------------
-// Saved Addresses (GET /api/customers/addresses/)
-// ---------------------------------------------------------------------------
-
-@freezed
-abstract class SavedAddressModel with _$SavedAddressModel {
-  const factory SavedAddressModel({
-    required int id,
-    required String label,
-    @JsonKey(name: 'address_text') required String addressText,
-    required String latitude, // String because it's Decimal in DB
-    required String longitude,
-  }) = _SavedAddressModel;
-
-  factory SavedAddressModel.fromJson(Map<String, dynamic> json) =>
-      _$SavedAddressModelFromJson(json);
-
-  const SavedAddressModel._();
-
-  SavedAddressEntity toEntity() => SavedAddressEntity(
-        id: id,
-        label: label,
-        addressText: addressText,
-        latitude: double.parse(latitude),
-        longitude: double.parse(longitude),
-      );
-}

@@ -1,7 +1,15 @@
 from rest_framework import serializers
-from ...models import SavedAddress
+from customers.models import CustomerAddress
 
-class SavedAddressSerializer(serializers.ModelSerializer):
+
+class CustomerAddressReadSerializer(serializers.ModelSerializer):
     class Meta:
-        model = SavedAddress
-        fields = ['id', 'label', 'latitude', 'longitude', 'address_text']
+        model = CustomerAddress
+        fields = ['id', 'label', 'street_address', 'latitude', 'longitude', 'is_default', 'created_at']
+        read_only_fields = fields
+
+
+class CustomerAddressWriteSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CustomerAddress
+        fields = ['label', 'street_address', 'latitude', 'longitude', 'is_default']

@@ -30,7 +30,7 @@ class JobBooking(models.Model):
     customer = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='bookings')
     # String reference avoids circular import (customers ↔ bookings)
     address = models.ForeignKey(
-        'customers.SavedAddress',
+        'customers.CustomerAddress',
         on_delete=models.SET_NULL,
         null=True,
         related_name='bookings',

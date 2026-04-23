@@ -1,26 +1,23 @@
 import factory
-from customers.models import CustomerProfile, SavedAddress
+from customers.models import CustomerProfile, CustomerAddress
 from tests.factories.accounts import UserFactory
 
 
 class CustomerProfileFactory(factory.django.DjangoModelFactory):
-    """
-    Creates a customers.models.CustomerProfile (distinct from accounts.models.CustomerProfile).
-    Owns SavedAddress records via the 'addresses' related name.
-    """
     class Meta:
         model = CustomerProfile
 
     user = factory.SubFactory(UserFactory)
 
 
-class SavedAddressFactory(factory.django.DjangoModelFactory):
+class CustomerAddressFactory(factory.django.DjangoModelFactory):
     class Meta:
-        model = SavedAddress
+        model = CustomerAddress
 
     customer = factory.SubFactory(CustomerProfileFactory)
     label = 'Home'
-    # Default coordinates: Lahore city centre — within any reasonable travel radius
+    street_address = factory.Faker('address')
+    # Default coordinates: Lahore city centre
     latitude = factory.LazyFunction(lambda: 31.5204)
     longitude = factory.LazyFunction(lambda: 74.3587)
-    address_text = factory.Faker('address')
+    is_default = False

@@ -88,14 +88,3 @@ abstract class CreatedBookingEntity with _$CreatedBookingEntity {
   }) = _CreatedBookingEntity;
 }
 
-/// A saved address returned by the customer addresses endpoint.
-@freezed
-abstract class SavedAddressEntity with _$SavedAddressEntity {
-  const factory SavedAddressEntity({
-    required int id,
-    required String label,
-    required String addressText,
-    required double latitude,
-    required double longitude,
-  }) = _SavedAddressEntity;
-}

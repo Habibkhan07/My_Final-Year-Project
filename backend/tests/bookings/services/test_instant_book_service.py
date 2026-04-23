@@ -28,7 +28,7 @@ from bookings.models import JobBooking
 from bookings.exceptions import InvalidAddressError, OutOfServiceAreaError, SlotUnavailableError
 from bookings.services.instant_book_service import create_instant_booking
 from tests.factories.technicians import TechnicianProfileFactory
-from tests.factories.customers import CustomerProfileFactory, SavedAddressFactory
+from tests.factories.customers import CustomerProfileFactory, CustomerAddressFactory
 from tests.factories.bookings import JobBookingFactory
 
 pytestmark = pytest.mark.django_db
@@ -61,7 +61,7 @@ class TestCreateInstantBooking:
     def test_returns_job_booking_instance(self):
         tech = TechnicianProfileFactory(status='APPROVED', base_latitude=31.5204, base_longitude=74.3587, max_travel_radius_km=10)
         profile = CustomerProfileFactory()
-        address = SavedAddressFactory(customer=profile, latitude=31.5204, longitude=74.3587)
+        address = CustomerAddressFactory(customer=profile, latitude=31.5204, longitude=74.3587)
 
         booking = create_instant_booking(customer_user=profile.user, **_make_booking_kwargs(tech, address))
 
@@ -70,7 +70,7 @@ class TestCreateInstantBooking:
     def test_booking_persisted_with_correct_fields(self):
         tech = TechnicianProfileFactory(status='APPROVED', base_latitude=31.5204, base_longitude=74.3587, max_travel_radius_km=10)
         profile = CustomerProfileFactory()
-        address = SavedAddressFactory(customer=profile, latitude=31.5204, longitude=74.3587)
+        address = CustomerAddressFactory(customer=profile, latitude=31.5204, longitude=74.3587)
 
         booking = create_instant_booking(
             customer_user=profile.user,
@@ -93,7 +93,7 @@ class TestCreateInstantBooking:
     def test_booking_exists_in_db(self):
         tech = TechnicianProfileFactory(status='APPROVED', base_latitude=31.5204, base_longitude=74.3587, max_travel_radius_km=10)
         profile = CustomerProfileFactory()
-        address = SavedAddressFactory(customer=profile, latitude=31.5204, longitude=74.3587)
+        address = CustomerAddressFactory(customer=profile, latitude=31.5204, longitude=74.3587)
 
         booking = create_instant_booking(customer_user=profile.user, **_make_booking_kwargs(tech, address))
 
@@ -125,7 +125,7 @@ class TestCreateInstantBooking:
         """
         tech = TechnicianProfileFactory(status='APPROVED', base_latitude=31.5204, base_longitude=74.3587)
         other_profile = CustomerProfileFactory()
-        other_address = SavedAddressFactory(customer=other_profile)
+        other_address = CustomerAddressFactory(customer=other_profile)
 
         attacker_profile = CustomerProfileFactory()
 
@@ -146,7 +146,7 @@ class TestCreateInstantBooking:
 
     def test_nonexistent_technician_raises_does_not_exist(self):
         profile = CustomerProfileFactory()
-        address = SavedAddressFactory(customer=profile)
+        address = CustomerAddressFactory(customer=profile)
 
         with pytest.raises(TechnicianProfile.DoesNotExist):
             create_instant_booking(
@@ -162,7 +162,7 @@ class TestCreateInstantBooking:
     def test_pending_technician_raises_does_not_exist(self):
         tech = TechnicianProfileFactory(status='PENDING')
         profile = CustomerProfileFactory()
-        address = SavedAddressFactory(customer=profile)
+        address = CustomerAddressFactory(customer=profile)
 
         with pytest.raises(TechnicianProfile.DoesNotExist):
             create_instant_booking(customer_user=profile.user, **_make_booking_kwargs(tech, address))
@@ -170,7 +170,7 @@ class TestCreateInstantBooking:
     def test_rejected_technician_raises_does_not_exist(self):
         tech = TechnicianProfileFactory(status='REJECTED')
         profile = CustomerProfileFactory()
-        address = SavedAddressFactory(customer=profile)
+        address = CustomerAddressFactory(customer=profile)
 
         with pytest.raises(TechnicianProfile.DoesNotExist):
             create_instant_booking(customer_user=profile.user, **_make_booking_kwargs(tech, address))
@@ -182,7 +182,7 @@ class TestCreateInstantBooking:
     def test_no_base_location_raises_out_of_service_area(self):
         tech = TechnicianProfileFactory(status='APPROVED', base_latitude=None, base_longitude=None)
         profile = CustomerProfileFactory()
-        address = SavedAddressFactory(customer=profile)
+        address = CustomerAddressFactory(customer=profile)
 
         with pytest.raises(OutOfServiceAreaError):
             create_instant_booking(customer_user=profile.user, **_make_booking_kwargs(tech, address))
@@ -195,7 +195,7 @@ class TestCreateInstantBooking:
             max_travel_radius_km=5,
         )
         profile = CustomerProfileFactory()
-        address = SavedAddressFactory(customer=profile, latitude=31.5204, longitude=74.3587)
+        address = CustomerAddressFactory(customer=profile, latitude=31.5204, longitude=74.3587)
 
         booking = create_instant_booking(customer_user=profile.user, **_make_booking_kwargs(tech, address))
         assert booking.pk is not None
@@ -208,7 +208,7 @@ class TestCreateInstantBooking:
             max_travel_radius_km=10,
         )
         profile = CustomerProfileFactory()
-        address = SavedAddressFactory(
+        address = CustomerAddressFactory(
             customer=profile,
             latitude=24.8607, longitude=67.0011,             # Karachi
         )
@@ -227,7 +227,7 @@ class TestCreateInstantBooking:
             max_travel_radius_km=7,
         )
         profile = CustomerProfileFactory()
-        address = SavedAddressFactory(customer=profile, latitude=24.8607, longitude=67.0011)
+        address = CustomerAddressFactory(customer=profile, latitude=24.8607, longitude=67.0011)
 
         with pytest.raises(OutOfServiceAreaError) as exc_info:
             create_instant_booking(customer_user=profile.user, **_make_booking_kwargs(tech, address))
@@ -241,7 +241,7 @@ class TestCreateInstantBooking:
     def test_confirmed_booking_blocks_overlapping_slot(self):
         tech = TechnicianProfileFactory(status='APPROVED', base_latitude=31.5204, base_longitude=74.3587, max_travel_radius_km=10)
         profile = CustomerProfileFactory()
-        address = SavedAddressFactory(customer=profile, latitude=31.5204, longitude=74.3587)
+        address = CustomerAddressFactory(customer=profile, latitude=31.5204, longitude=74.3587)
 
         # Pre-existing CONFIRMED booking at the same window
         JobBookingFactory(
@@ -257,7 +257,7 @@ class TestCreateInstantBooking:
     def test_pending_booking_blocks_overlapping_slot(self):
         tech = TechnicianProfileFactory(status='APPROVED', base_latitude=31.5204, base_longitude=74.3587, max_travel_radius_km=10)
         profile = CustomerProfileFactory()
-        address = SavedAddressFactory(customer=profile, latitude=31.5204, longitude=74.3587)
+        address = CustomerAddressFactory(customer=profile, latitude=31.5204, longitude=74.3587)
 
         JobBookingFactory(
             technician=tech,
@@ -272,7 +272,7 @@ class TestCreateInstantBooking:
     def test_cancelled_booking_does_not_block_slot(self):
         tech = TechnicianProfileFactory(status='APPROVED', base_latitude=31.5204, base_longitude=74.3587, max_travel_radius_km=10)
         profile = CustomerProfileFactory()
-        address = SavedAddressFactory(customer=profile, latitude=31.5204, longitude=74.3587)
+        address = CustomerAddressFactory(customer=profile, latitude=31.5204, longitude=74.3587)
 
         JobBookingFactory(
             technician=tech,
@@ -292,7 +292,7 @@ class TestCreateInstantBooking:
         """
         tech = TechnicianProfileFactory(status='APPROVED', base_latitude=31.5204, base_longitude=74.3587, max_travel_radius_km=10)
         profile = CustomerProfileFactory()
-        address = SavedAddressFactory(customer=profile, latitude=31.5204, longitude=74.3587)
+        address = CustomerAddressFactory(customer=profile, latitude=31.5204, longitude=74.3587)
 
         JobBookingFactory(
             technician=tech,
@@ -311,7 +311,7 @@ class TestCreateInstantBooking:
         """
         tech = TechnicianProfileFactory(status='APPROVED', base_latitude=31.5204, base_longitude=74.3587, max_travel_radius_km=10)
         profile = CustomerProfileFactory()
-        address = SavedAddressFactory(customer=profile, latitude=31.5204, longitude=74.3587)
+        address = CustomerAddressFactory(customer=profile, latitude=31.5204, longitude=74.3587)
 
         JobBookingFactory(
             technician=tech,
@@ -327,7 +327,7 @@ class TestCreateInstantBooking:
         """Existing booking [9:30–10:30] overlaps our [10:00–11:00]."""
         tech = TechnicianProfileFactory(status='APPROVED', base_latitude=31.5204, base_longitude=74.3587, max_travel_radius_km=10)
         profile = CustomerProfileFactory()
-        address = SavedAddressFactory(customer=profile, latitude=31.5204, longitude=74.3587)
+        address = CustomerAddressFactory(customer=profile, latitude=31.5204, longitude=74.3587)
 
         JobBookingFactory(
             technician=tech,

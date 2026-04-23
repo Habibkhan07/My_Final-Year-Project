@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../domain/entities/booking_entities.dart';
 import '../providers/availability_notifier.dart';
-import '../providers/dependency_injection.dart';
+import '../../../customer/addresses/presentation/providers/dependency_injection.dart';
 import 'modal_bottom_sheet_layout.dart';
 import 'review_booking_sheet.dart';
 
@@ -45,7 +45,7 @@ class _SelectTimeSheetState extends ConsumerState<SelectTimeSheet> {
       subServiceId: widget.subServiceId,
     ));
 
-    final addressesAsync = ref.watch(savedAddressesProvider);
+    final addressesAsync = ref.watch(addressesProvider);
 
     return ModalBottomSheetLayout(
       title: 'Select a Time',

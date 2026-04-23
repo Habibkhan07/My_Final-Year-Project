@@ -98,22 +98,6 @@ class BookingRepositoryImpl implements IBookingRepository {
     }
   }
 
-  @override
-  Future<List<SavedAddressEntity>> getSavedAddresses() async {
-    try {
-      final models = await remoteDataSource.getSavedAddresses();
-      return models.map((m) => m.toEntity()).toList();
-    } on HttpFailure catch (e) {
-      throw _mapFailure(e);
-    } on SocketException {
-      throw const BookingNetworkFailure();
-    } on FormatException {
-      throw const BookingUnexpectedFailure('Parsing error: Invalid JSON format.');
-    } catch (e) {
-      throw BookingUnexpectedFailure(e.toString());
-    }
-  }
-
   /// Maps an [HttpFailure] code from the standard error envelope to the
   /// appropriate typed [BookingFailure].
   ///
