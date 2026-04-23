@@ -11,6 +11,8 @@ import '../widgets/promo_banner_slider.dart';
 import '../widgets/category_grid.dart';
 import '../widgets/fixed_gig_carousel.dart';
 import '../widgets/technician_carousel.dart';
+import '../../../../customer/addresses/presentation/providers/dependency_injection.dart';
+import '../../../../customer/addresses/presentation/widgets/address_selector_sheet.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -82,21 +84,7 @@ class HomeScreen extends ConsumerWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text("Current Location", style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Icon(Icons.location_on, color: Colors.blue.shade700, size: 18),
-                      const SizedBox(width: 4),
-                      const Text("Gulberg III, Lahore", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                      const Icon(Icons.keyboard_arrow_down, size: 18),
-                    ],
-                  ),
-                ],
-              ),
+              const _LocationHeader(),
               Stack(
                 children: [
                   IconButton(
@@ -212,6 +200,78 @@ class HomeScreen extends ConsumerWidget {
                 backgroundColor: Colors.blue.shade700,
                 foregroundColor: Colors.white,
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Location Header — watches defaultAddressProvider and opens AddressSelectorSheet
+// ---------------------------------------------------------------------------
+
+class _LocationHeader extends ConsumerWidget {
+  const _LocationHeader();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final defaultAddressAsync = ref.watch(defaultAddressProvider);
+
+    return InkWell(
+      onTap: () => showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (_) => const AddressSelectorSheet(),
+      ),
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Current Location',
+              style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                Icon(Icons.location_on, color: Colors.blue.shade700, size: 18),
+                const SizedBox(width: 4),
+                defaultAddressAsync.when(
+                  loading: () => const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Color(0xFF0051AE),
+                    ),
+                  ),
+                  error: (_, _) => const Text(
+                    'Location unavailable',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                      color: Color(0xFF727785),
+                    ),
+                  ),
+                  data: (address) => Text(
+                    address?.streetAddress ?? 'Set your location',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                      color: address != null
+                          ? const Color(0xFF151C24)
+                          : Colors.grey.shade500,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 2),
+                const Icon(Icons.keyboard_arrow_down, size: 18),
+              ],
             ),
           ],
         ),

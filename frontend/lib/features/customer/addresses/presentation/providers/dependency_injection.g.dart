@@ -521,3 +521,44 @@ final class AddressesProvider
 }
 
 String _$addressesHash() => r'74c7e313d449369ecaea04cdba211858d97b949c';
+
+@ProviderFor(defaultAddress)
+final defaultAddressProvider = DefaultAddressProvider._();
+
+final class DefaultAddressProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<CustomerAddressEntity?>,
+          CustomerAddressEntity?,
+          FutureOr<CustomerAddressEntity?>
+        >
+    with
+        $FutureModifier<CustomerAddressEntity?>,
+        $FutureProvider<CustomerAddressEntity?> {
+  DefaultAddressProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'defaultAddressProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$defaultAddressHash();
+
+  @$internal
+  @override
+  $FutureProviderElement<CustomerAddressEntity?> $createElement(
+    $ProviderPointer pointer,
+  ) => $FutureProviderElement(pointer);
+
+  @override
+  FutureOr<CustomerAddressEntity?> create(Ref ref) {
+    return defaultAddress(ref);
+  }
+}
+
+String _$defaultAddressHash() => r'91610feded9c88f29d407d840f25dd6ec3b3bb70';

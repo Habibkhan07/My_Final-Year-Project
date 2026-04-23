@@ -85,3 +85,14 @@ GetCurrentLocationUseCase getCurrentLocationUseCase(Ref ref) =>
 @riverpod
 Future<List<CustomerAddressEntity>> addresses(Ref ref) =>
     ref.watch(getAddressesUseCaseProvider).call();
+
+// ---------------------------------------------------------------------------
+// Derived provider — returns the single default address, or null
+// Consumed by the home screen header to display the active location.
+// ---------------------------------------------------------------------------
+
+@riverpod
+Future<CustomerAddressEntity?> defaultAddress(Ref ref) async {
+  final list = await ref.watch(addressesProvider.future);
+  return list.where((a) => a.isDefault).firstOrNull;
+}
