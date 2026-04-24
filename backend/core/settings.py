@@ -39,7 +39,43 @@ TWILIO_TEST_ACCOUNT_SID = env('TWILIO_TEST_ACCOUNT_SID')
 TWILIO_TEST_AUTH_TOKEN = env('TWILIO_TEST_AUTH_TOKEN')
 TWILIO_TEST_FROM_NUMBER = env('TWILIO_TEST_FROM_NUMBER', default='+15005550006')
 
+# --- Firebase (FCM) ---------------------------------------------------------
+# Actual SDK initialization happens lazily in ``core.firebase.init_firebase()``
+# to avoid side effects on every settings import (tests, management commands).
+FIREBASE_CREDENTIALS_PATH = env(
+    'FIREBASE_CREDENTIALS_PATH',
+    default=os.path.join(BASE_DIR, 'firebase_credintials.json'),
+)
 
+# --- Redis / Channels / Celery ---------------------------------------------
+# Channels uses Redis DB 0; Celery broker uses DB 1 — keep them isolated so a
+# queue backlog can never stall WebSocket group fan-out (or vice versa).
+REDIS_HOST = env('REDIS_HOST', default='127.0.0.1')
+REDIS_PORT = env.int('REDIS_PORT', default=6379)
+
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [f"redis://{REDIS_HOST}:{REDIS_PORT}/0"],
+        },
+    },
+}
+
+CELERY_BROKER_URL = env(
+    'CELERY_BROKER_URL', default=f'redis://{REDIS_HOST}:{REDIS_PORT}/1'
+)
+CELERY_RESULT_BACKEND = env(
+    'CELERY_RESULT_BACKEND', default=f'redis://{REDIS_HOST}:{REDIS_PORT}/1'
+)
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'UTC'
+# Transient broker outages must never crash the caller of broadcast_event —
+# dispatch wraps .delay() in its own try/except, but we also disable implicit
+# retries on publish so the web worker returns fast.
+CELERY_TASK_PUBLISH_RETRY = False
 
 
 # Application definition
@@ -51,11 +87,12 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    
+
     'corsheaders',
     # third party apps
     'rest_framework',
     'rest_framework.authtoken',  # 1. ADD THIS for Token support
+    'channels',
     #apps
     'accounts',
     'technicians',
@@ -64,6 +101,10 @@ INSTALLED_APPS = [
     'customers',
     'bookings',
     'django_extensions',
+    # Central Event Dispatch Hub
+    'core.apps.CoreConfig',
+    'fcm_devices.apps.FcmDevicesConfig',
+    'api.apps.ApiConfig',
 ]
 
 MIDDLEWARE = [
@@ -95,6 +136,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'core.wsgi.application'
+ASGI_APPLICATION = 'core.asgi.application'
 
 
 # Database

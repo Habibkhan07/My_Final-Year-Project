@@ -26,6 +26,9 @@ urlpatterns = [
     path('api/customers/', include('customers.api.urls')),
     path('api/catalog/', include('catalog.api.urls')),
     path('api/bookings/', include('bookings.api.urls')),
+    # Central Event Dispatch Hub
+    path('api/events/', include('core.api_urls')),
+    path('api/devices/', include('fcm_devices.urls')),
     ]
 
 
