@@ -45,6 +45,10 @@ class TechnicianProfile(models.Model):
     rating_average = models.DecimalField(max_digits=3, decimal_places=2, default=0.0)
     review_count = models.IntegerField(default=0)
     
+    # NEW: Technician Dashboard state
+    current_wallet_balance = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    is_online = models.BooleanField(default=False)
+    
     def __str__(self):
         return f"{self.user.get_full_name()} - {self.status}"
 

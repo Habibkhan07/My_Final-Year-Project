@@ -4,8 +4,12 @@ from .onboarding.views import (
     RegisterTechnicianView, 
     OnboardingMetadataView
 )
+from .dashboard.views import TechnicianDashboardView
 
 urlpatterns = [
+    # Dashboard
+    path('dashboard/', TechnicianDashboardView.as_view(), name='tech-dashboard'),
+
     # Metadata: Matches Flutter!
     path('onboarding/metadata/', OnboardingMetadataView.as_view(), name='onboarding-metadata'),    
     
