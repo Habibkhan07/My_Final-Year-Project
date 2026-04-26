@@ -162,7 +162,7 @@ ws://<host>/ws/events/?token=<drf_auth_token>
 ## Integration Example (backend caller)
 
 ```python
-from core.services.event_dispatch_service import EventDispatchService
+from realtime.events.services import EventDispatchService
 
 EventDispatchService.broadcast_event(
     user=job.customer,
@@ -181,3 +181,12 @@ This single call atomically:
 Channels down? FCM down? Broker down? Each barrel is wrapped in its
 own `try/except`, so the caller's DB transaction is never rolled back
 by a notification failure.
+
+---
+
+## Backend Implementation Structure
+
+The `realtime` app is organized into two primary sub-modules for traceability:
+
+- **`realtime.events`**: Owns persistence (`EventLog`), the Dispatch/ACK services, and WebSocket transport (`consumers`, `routing`, `ws_auth`).
+- **`realtime.devices`**: Owns FCM device registration (`FCMDevice`) and the Celery background tasks.

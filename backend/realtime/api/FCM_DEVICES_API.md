@@ -87,10 +87,19 @@ the push-notification bootstrap flow and displays nothing.
 **active** device for the recipient user:
 
 ```python
-from fcm_devices.selectors.device_selectors import active_devices_for_user
+from realtime.devices.selectors import active_devices_for_user
 
 devices = active_devices_for_user(user.id)
 ```
 
 When FCM returns `UNREGISTERED` or `INVALID_ARGUMENT` for a token, the
 task flips `is_active=False` automatically — no manual cleanup needed.
+
+---
+
+## Backend Implementation Structure
+
+The `realtime` app is organized into two primary sub-modules for traceability:
+
+- **`realtime.devices`**: Owns FCM device registration (`FCMDevice`) and the Celery background tasks.
+- **`realtime.events`**: Owns persistence (`EventLog`), the Dispatch/ACK services, and WebSocket transport.
