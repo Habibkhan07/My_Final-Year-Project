@@ -79,6 +79,29 @@ never made it.
                             └─► flush pending_acks  → /api/events/ack/
 ```
 
+### Directory Structure
+
+The feature is organized into a modular sub-structure for clean separation of concerns:
+
+```text
+lib/core/realtime/
+├── data/
+│   ├── datasources/       # Http (Remote) and SharedPreferences (Local)
+│   ├── mappers/           # Model → Entity conversion
+│   ├── models/            # DTOs (Freezed/JSON)
+│   └── repositories/      # Repository implementation
+├── domain/
+│   ├── entities/          # Business objects (EventLog, Type, Urgency)
+│   ├── failures/          # Concrete failure classes
+│   └── repositories/      # Interface contracts
+└── presentation/
+    ├── notifiers/         # Riverpod StateNotifiers (SystemEvent, WsConnection, Sync)
+    ├── providers/         # DI and global state providers
+    ├── router/            # EventUrgencyRouter (navigation logic)
+    ├── services/          # FCM Handlers (Isolate-safe)
+    └── state/             # AsyncValue state wrappers
+```
+
 ---
 
 ## 3. Domain Entities
