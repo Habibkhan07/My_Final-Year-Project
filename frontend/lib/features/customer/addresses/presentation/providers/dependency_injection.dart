@@ -4,6 +4,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../data/data_sources/address_local_data_source.dart';
 import '../../data/data_sources/address_location_data_source.dart';
 import '../../data/data_sources/address_remote_data_source.dart';
+import '../../data/data_sources/google_maps_remote_data_source.dart';
 import '../../data/repositories/address_repository_impl.dart';
 import '../../domain/repositories/i_address_repository.dart';
 import '../../domain/entities/address_entity.dart';
@@ -13,6 +14,8 @@ import '../../domain/use_cases/get_current_location_use_case.dart';
 import '../../domain/use_cases/reverse_geocode_use_case.dart';
 import '../../domain/use_cases/save_address_use_case.dart';
 import '../../domain/use_cases/update_address_use_case.dart';
+import '../../domain/use_cases/search_places_use_case.dart';
+import '../../domain/use_cases/get_place_details_use_case.dart';
 import '../../../../../features/technician/onboarding/presentation/providers/dependency_injection.dart';
 
 part 'dependency_injection.g.dart';
@@ -40,6 +43,10 @@ AddressRemoteDataSource addressRemoteDataSource(Ref ref) =>
     );
 
 @Riverpod(keepAlive: true)
+GoogleMapsRemoteDataSource googleMapsRemoteDataSource(Ref ref) =>
+    GoogleMapsRemoteDataSource(ref.watch(addressHttpClientProvider));
+
+@Riverpod(keepAlive: true)
 AddressLocalDataSource addressLocalDataSource(Ref ref) {
   final prefs = ref.watch(sharedPreferencesProvider);
   return AddressLocalDataSource(prefs);
@@ -58,6 +65,7 @@ IAddressRepository addressRepository(Ref ref) => AddressRepositoryImpl(
       ref.watch(addressRemoteDataSourceProvider),
       ref.watch(addressLocalDataSourceProvider),
       ref.watch(addressLocationDataSourceProvider),
+      ref.watch(googleMapsRemoteDataSourceProvider),
     );
 
 // ---------------------------------------------------------------------------
@@ -87,6 +95,14 @@ GetCurrentLocationUseCase getCurrentLocationUseCase(Ref ref) =>
 @Riverpod(keepAlive: true)
 ReverseGeocodeUseCase reverseGeocodeUseCase(Ref ref) =>
     ReverseGeocodeUseCase(ref.watch(addressRepositoryProvider));
+
+@Riverpod(keepAlive: true)
+SearchPlacesUseCase searchPlacesUseCase(Ref ref) =>
+    SearchPlacesUseCase(ref.watch(addressRepositoryProvider));
+
+@Riverpod(keepAlive: true)
+GetPlaceDetailsUseCase getPlaceDetailsUseCase(Ref ref) =>
+    GetPlaceDetailsUseCase(ref.watch(addressRepositoryProvider));
 
 // ---------------------------------------------------------------------------
 // Convenience fetch provider — consumed by any screen that needs the list

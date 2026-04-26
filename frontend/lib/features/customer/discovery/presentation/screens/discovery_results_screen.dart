@@ -8,6 +8,7 @@ import '../widgets/discovery_empty_state.dart';
 import '../widgets/discovery_error_view.dart';
 import '../widgets/discovery_promo_banner.dart';
 import '../widgets/technician_card.dart';
+import '../widgets/technician_card_skeleton.dart';
 
 class DiscoveryResultsScreen extends ConsumerStatefulWidget {
   final String? query;
@@ -92,21 +93,33 @@ class _DiscoveryResultsScreenState extends ConsumerState<DiscoveryResultsScreen>
     final state = ref.watch(_provider);
 
     return Scaffold(
+      backgroundColor: const Color(0xFFF8F9FC),
       appBar: AppBar(
-        title: Text(widget.title),
+        title: Text(
+          widget.title,
+          style: const TextStyle(
+            color: Color(0xFF151C24),
+            fontWeight: FontWeight.w900,
+            fontSize: 18,
+          ),
+        ),
         centerTitle: true,
+        backgroundColor: Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new, color: Color(0xFF151C24), size: 20),
+          onPressed: () => context.pop(),
+        ),
       ),
       body: state.when(
-        // We only want the whole screen to show loading on the initial fetch.
-        // If we have data but are refreshing/paginating, skip this.
         skipLoadingOnReload: true,
         skipLoadingOnRefresh: true,
-        loading: () => const Center(child: CircularProgressIndicator()),
-        
-        // Handling initial build error (no previous data exists)
+        loading: () => ListView.builder(
+          itemCount: 6,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          itemBuilder: (context, index) => const TechnicianCardSkeleton(),
+        ),
         error: (error, stackTrace) {
-          // If we have data, we're likely showing an error from pagination.
-          // The UI will still render the list via the data block below due to AsyncValue behavior.
           if (state.hasValue) {
              return _buildList(state.value!);
           }
@@ -119,7 +132,6 @@ class _DiscoveryResultsScreenState extends ConsumerState<DiscoveryResultsScreen>
           }
           return Center(child: Text('Unexpected Error: $error'));
         },
-        
         data: (data) => _buildList(data),
       ),
     );
@@ -143,56 +155,57 @@ class _DiscoveryResultsScreenState extends ConsumerState<DiscoveryResultsScreen>
 
     return RefreshIndicator(
       onRefresh: () => ref.read(_provider.notifier).refresh(),
-      child: Column(
-        children: [
-          // Dumb UI: Render Promo Banner if it exists
-          if (result.uiPromoBannerText != null)
-            DiscoveryPromoBanner(promoText: result.uiPromoBannerText!),
-            
-          Expanded(
-            child: ListView.builder(
-              controller: _scrollController,
-              itemCount: technicians.length + (data.isPaginationLoading ? 1 : 0),
-              itemBuilder: (context, index) {
-                if (index < technicians.length) {
-                  final technician = technicians[index];
-                  return TechnicianCard(
-                    technician: technician,
-                    onTap: () {
-                      // PRIORITY: 1. Widget Params, 2. Backend-Resolved Params (for searches)
-                      final effectiveServiceId = widget.serviceId ?? result.resolvedServiceId;
-                      final effectiveSubServiceId = widget.subServiceId ?? result.resolvedSubServiceId;
+      color: const Color(0xFF0051AE),
+      child: ListView.builder(
+        controller: _scrollController,
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        itemCount: technicians.length + (data.isPaginationLoading ? 1 : 0) + (result.uiPromoBannerText != null ? 1 : 0),
+        itemBuilder: (context, index) {
+          // If promo banner exists, it occupies index 0
+          if (result.uiPromoBannerText != null && index == 0) {
+            return DiscoveryPromoBanner(promoText: result.uiPromoBannerText!);
+          }
 
-                      final uri = Uri(
-                        path: '/technician-profile/${technician.id}',
-                        queryParameters: {
-                          if (widget.lat != null) 'lat': widget.lat.toString(),
-                          if (widget.lng != null) 'lng': widget.lng.toString(),
-                          if (effectiveServiceId != null) 'serviceId': effectiveServiceId.toString(),
-                          if (effectiveSubServiceId != null) 'subServiceId': effectiveSubServiceId.toString(),
-                          if (widget.promotionId != null) 'promotionId': widget.promotionId.toString(),
-                        },
-                      );
-                      context.push(uri.toString());
-                    },
-                  );
-                } else {
-                  // The pagination loading indicator at the bottom
-                  return const Padding(
-                    padding: EdgeInsets.all(16.0),
-                    child: Center(
-                      child: SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                    ),
-                  );
-                }
+          // Adjust index if promo banner is shown
+          final technicianIndex = result.uiPromoBannerText != null ? index - 1 : index;
+
+          if (technicianIndex < technicians.length) {
+            final technician = technicians[technicianIndex];
+            return TechnicianCard(
+              technician: technician,
+              onTap: () {
+                final effectiveServiceId = widget.serviceId ?? result.resolvedServiceId;
+                final effectiveSubServiceId = widget.subServiceId ?? result.resolvedSubServiceId;
+
+                final uri = Uri(
+                  path: '/technician-profile/${technician.id}',
+                  queryParameters: {
+                    if (widget.lat != null) 'lat': widget.lat.toString(),
+                    if (widget.lng != null) 'lng': widget.lng.toString(),
+                    if (effectiveServiceId != null) 'serviceId': effectiveServiceId.toString(),
+                    if (effectiveSubServiceId != null) 'subServiceId': effectiveSubServiceId.toString(),
+                    if (widget.promotionId != null) 'promotionId': widget.promotionId.toString(),
+                  },
+                );
+                context.push(uri.toString());
               },
-            ),
-          ),
-        ],
+            );
+          } else {
+            return const Padding(
+              padding: EdgeInsets.symmetric(vertical: 24),
+              child: Center(
+                child: SizedBox(
+                  width: 28,
+                  height: 28,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 3,
+                    color: Color(0xFF0051AE),
+                  ),
+                ),
+              ),
+            );
+          }
+        },
       ),
     );
   }

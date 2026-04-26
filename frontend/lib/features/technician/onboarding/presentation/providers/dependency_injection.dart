@@ -4,11 +4,11 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../data/data_sources/technician_onboarding_remote_datasource.dart';
+import '../../data/data_sources/onboarding_local_data_source.dart';
 import '../../data/repositories/technician_onboarding_repository_impl.dart';
 import '../../domain/usecases/get_onboarding_metadata_usecase.dart';
 import '../../domain/usecases/upload_media_usecase.dart';
 import '../../domain/usecases/register_technician_usecase.dart';
-import '../../../../../core/data/local_sources/onboarding_local_data_source.dart';
 import '../../../../auth/presentation/providers/dependency_injection.dart'; // To get authLocalDataSourceProvider
 
 part 'dependency_injection.g.dart';

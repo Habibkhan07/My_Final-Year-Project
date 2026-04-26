@@ -8,6 +8,7 @@ import 'package:frontend/features/customer/discovery/presentation/providers/disc
 import 'package:frontend/features/customer/discovery/presentation/providers/discovery_state.dart';
 import 'package:frontend/features/customer/discovery/presentation/screens/discovery_results_screen.dart';
 import 'package:frontend/features/customer/discovery/presentation/widgets/technician_card.dart';
+import 'package:frontend/features/customer/discovery/presentation/widgets/technician_card_skeleton.dart';
 import 'package:frontend/features/customer/discovery/presentation/widgets/discovery_error_view.dart';
 import 'package:frontend/features/customer/discovery/presentation/widgets/discovery_empty_state.dart';
 import 'package:frontend/features/customer/discovery/presentation/widgets/discovery_promo_banner.dart';
@@ -104,10 +105,10 @@ void main() {
   }
 
   group('DiscoveryResultsScreen Tests', () {
-    testWidgets('should show loading indicator on initial fetch', (tester) async {
+    testWidgets('should show skeleton on initial fetch', (tester) async {
       await tester.pumpWidget(createWidgetUnderTest(state: const AsyncLoading()));
 
-      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.byType(TechnicianCardSkeleton), findsWidgets);
     });
 
     testWidgets('should show DiscoveryErrorView on initial failure', (tester) async {
@@ -152,9 +153,8 @@ void main() {
 
       expect(find.byType(TechnicianCard), findsOneWidget); // Data is preserved
       
-      // We should have 2 loaders, one in the card (maybe for image) and one at the bottom. 
-      // Searching by parent padding to find the bottom loader.
-      expect(find.descendant(of: find.byType(Padding), matching: find.byType(CircularProgressIndicator)), findsWidgets);
+      // Bottom loader check
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
     });
   });
 }

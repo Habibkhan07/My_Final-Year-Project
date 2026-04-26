@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import '../../../../../core/constants.dart';
 import '../../../../../core/common/errors/http_failure.dart'; // Import Data Exception
-import '../../../../../core/data/local_sources/auth_local_data_source.dart'; // Import Local Data Source
+import '../../../../auth/data/data_sources/auth_local_data_source.dart'; // Import Local Data Source
 import '../models/service_model.dart';
 import '../models/technician_registration_model.dart';
 import 'package:image_picker/image_picker.dart'; // ADD THIS IMPORT

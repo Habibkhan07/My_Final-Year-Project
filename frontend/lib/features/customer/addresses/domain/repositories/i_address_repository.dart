@@ -1,4 +1,5 @@
 import '../entities/address_entity.dart';
+import '../entities/place_search_entity.dart';
 
 /// Contract for all customer address operations.
 ///
@@ -47,4 +48,10 @@ abstract class IAddressRepository {
   /// Never throws — falls back to `"lat, lng"` on geocoding failure so the
   /// confirm button is never blocked.
   Future<String> reverseGeocode(double lat, double lng);
+
+  /// Searches for places using Google Places Autocomplete API.
+  Future<List<PlaceSearchEntity>> searchPlaces(String query, String sessionToken);
+
+  /// Retrieves detailed information (Lat/Lng, formatted address) for a specific place.
+  Future<({double latitude, double longitude, String streetAddress})> getPlaceDetails(String placeId, String sessionToken);
 }

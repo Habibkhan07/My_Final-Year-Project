@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../../features/technician/onboarding/data/models/service_model.dart';
+import '../models/service_model.dart';
 
 class OnboardingLocalDataSource {
   final SharedPreferences _sharedPreferences;

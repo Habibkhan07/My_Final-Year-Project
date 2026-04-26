@@ -146,6 +146,55 @@ final class AddressRemoteDataSourceProvider
 String _$addressRemoteDataSourceHash() =>
     r'34bacb6b4c45d6cdf9dc5e82c40db65717fdc29c';
 
+@ProviderFor(googleMapsRemoteDataSource)
+final googleMapsRemoteDataSourceProvider =
+    GoogleMapsRemoteDataSourceProvider._();
+
+final class GoogleMapsRemoteDataSourceProvider
+    extends
+        $FunctionalProvider<
+          GoogleMapsRemoteDataSource,
+          GoogleMapsRemoteDataSource,
+          GoogleMapsRemoteDataSource
+        >
+    with $Provider<GoogleMapsRemoteDataSource> {
+  GoogleMapsRemoteDataSourceProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'googleMapsRemoteDataSourceProvider',
+        isAutoDispose: false,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$googleMapsRemoteDataSourceHash();
+
+  @$internal
+  @override
+  $ProviderElement<GoogleMapsRemoteDataSource> $createElement(
+    $ProviderPointer pointer,
+  ) => $ProviderElement(pointer);
+
+  @override
+  GoogleMapsRemoteDataSource create(Ref ref) {
+    return googleMapsRemoteDataSource(ref);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(GoogleMapsRemoteDataSource value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<GoogleMapsRemoteDataSource>(value),
+    );
+  }
+}
+
+String _$googleMapsRemoteDataSourceHash() =>
+    r'd3264956bddbbc30062a04a5d6a1feeb7b9dc1e4';
+
 @ProviderFor(addressLocalDataSource)
 final addressLocalDataSourceProvider = AddressLocalDataSourceProvider._();
 
@@ -287,7 +336,7 @@ final class AddressRepositoryProvider
   }
 }
 
-String _$addressRepositoryHash() => r'a117bae1ff1935cd40267042d2dec8106849aba7';
+String _$addressRepositoryHash() => r'e5334c53e8cdbc274a002ee76dd5d000b991722f';
 
 @ProviderFor(getAddressesUseCase)
 final getAddressesUseCaseProvider = GetAddressesUseCaseProvider._();
@@ -576,6 +625,102 @@ final class ReverseGeocodeUseCaseProvider
 
 String _$reverseGeocodeUseCaseHash() =>
     r'b3c70a5fe21780694acf3e66ae5fc869cf7fa458';
+
+@ProviderFor(searchPlacesUseCase)
+final searchPlacesUseCaseProvider = SearchPlacesUseCaseProvider._();
+
+final class SearchPlacesUseCaseProvider
+    extends
+        $FunctionalProvider<
+          SearchPlacesUseCase,
+          SearchPlacesUseCase,
+          SearchPlacesUseCase
+        >
+    with $Provider<SearchPlacesUseCase> {
+  SearchPlacesUseCaseProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'searchPlacesUseCaseProvider',
+        isAutoDispose: false,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$searchPlacesUseCaseHash();
+
+  @$internal
+  @override
+  $ProviderElement<SearchPlacesUseCase> $createElement(
+    $ProviderPointer pointer,
+  ) => $ProviderElement(pointer);
+
+  @override
+  SearchPlacesUseCase create(Ref ref) {
+    return searchPlacesUseCase(ref);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(SearchPlacesUseCase value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<SearchPlacesUseCase>(value),
+    );
+  }
+}
+
+String _$searchPlacesUseCaseHash() =>
+    r'e3d1a80d624e953d834116cf91b9753623c1696e';
+
+@ProviderFor(getPlaceDetailsUseCase)
+final getPlaceDetailsUseCaseProvider = GetPlaceDetailsUseCaseProvider._();
+
+final class GetPlaceDetailsUseCaseProvider
+    extends
+        $FunctionalProvider<
+          GetPlaceDetailsUseCase,
+          GetPlaceDetailsUseCase,
+          GetPlaceDetailsUseCase
+        >
+    with $Provider<GetPlaceDetailsUseCase> {
+  GetPlaceDetailsUseCaseProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'getPlaceDetailsUseCaseProvider',
+        isAutoDispose: false,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$getPlaceDetailsUseCaseHash();
+
+  @$internal
+  @override
+  $ProviderElement<GetPlaceDetailsUseCase> $createElement(
+    $ProviderPointer pointer,
+  ) => $ProviderElement(pointer);
+
+  @override
+  GetPlaceDetailsUseCase create(Ref ref) {
+    return getPlaceDetailsUseCase(ref);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(GetPlaceDetailsUseCase value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<GetPlaceDetailsUseCase>(value),
+    );
+  }
+}
+
+String _$getPlaceDetailsUseCaseHash() =>
+    r'c7fe56cdb39f97a26f6011c1c6dd4613cdc633de';
 
 @ProviderFor(addresses)
 final addressesProvider = AddressesProvider._();

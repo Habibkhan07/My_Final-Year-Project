@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 import '../../../../core/constants.dart';
 import '../../../../core/common/errors/http_failure.dart'; // Import the new exception
 import '../../../../core/common/data/models/user_model.dart';
-import '../../../../core/data/local_sources/auth_local_data_source.dart';
+import 'auth_local_data_source.dart';
 
 class AuthRemoteDataSource {
   final String baseUrl = "${AppConstants.baseUrl}/accounts";

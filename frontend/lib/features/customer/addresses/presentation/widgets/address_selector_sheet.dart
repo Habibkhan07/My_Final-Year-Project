@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../domain/entities/address_entity.dart';
 import '../providers/dependency_injection.dart';
+import 'package:frontend/features/booking/presentation/widgets/modal_bottom_sheet_layout.dart';
 
 class AddressSelectorSheet extends ConsumerWidget {
   const AddressSelectorSheet({super.key});
@@ -11,82 +12,53 @@ class AddressSelectorSheet extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final addressesAsync = ref.watch(addressesProvider);
 
-    return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-      ),
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom,
+    return ModalBottomSheetLayout(
+      title: 'Select Location',
+      footer: ElevatedButton(
+        onPressed: () => context.push('/addresses/map-picker'),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFF0051AE),
+          foregroundColor: Colors.white,
+          minimumSize: const Size(double.infinity, 56),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          elevation: 8,
+          shadowColor: const Color(0xFF0051AE).withOpacity(0.4),
+        ),
+        child: const Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.add_location_alt_outlined, size: 20),
+            SizedBox(width: 12),
+            Text(
+              'Add New Address',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
       ),
       child: Column(
-        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Drag handle
-          const SizedBox(height: 12),
-          Container(
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: const Color(0xFFDDE3EF),
-              borderRadius: BorderRadius.circular(2),
+          const Text(
+            'SAVED ADDRESSES',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1,
+              color: Color(0xFF424753),
             ),
           ),
-
-          // Header
-          Padding(
-            padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Select Location',
-                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                              fontWeight: FontWeight.w800,
-                              color: const Color(0xFF151C24),
-                              letterSpacing: -0.5,
-                            ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Where should we send the technician?',
-                        style: TextStyle(
-                          color: Colors.grey.shade600,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                IconButton(
-                  onPressed: () => Navigator.pop(context),
-                  icon: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.close, size: 20),
-                  ),
-                ),
-              ],
+          const SizedBox(height: 16),
+          addressesAsync.when(
+            loading: () => const Padding(
+              padding: EdgeInsets.symmetric(vertical: 48),
+              child: Center(child: CircularProgressIndicator(color: Color(0xFF0051AE))),
             ),
-          ),
-
-          const Divider(height: 1, color: Color(0xFFF0F3F9)),
-
-          // Address list
-          Flexible(
-            child: addressesAsync.when(
-              loading: () => const Padding(
-                padding: EdgeInsets.symmetric(vertical: 48),
-                child: Center(child: CircularProgressIndicator()),
-              ),
-              error: (e, _) => Padding(
-                padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
+            error: (e, _) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 24),
+              child: Center(
                 child: Column(
                   children: [
                     Icon(Icons.error_outline, size: 48, color: Colors.red.shade200),
@@ -98,60 +70,57 @@ class AddressSelectorSheet extends ConsumerWidget {
                   ],
                 ),
               ),
-              data: (addresses) {
-                if (addresses.isEmpty) {
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
-                    child: Column(
-                      children: [
-                        Icon(Icons.map_outlined, size: 48, color: Colors.grey.shade300),
-                        const SizedBox(height: 12),
-                        const Text(
-                          'No saved addresses yet.',
-                          style: TextStyle(color: Color(0xFF727785)),
+            ),
+            data: (addresses) {
+              if (addresses.isEmpty) {
+                return Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const SizedBox(height: 24),
+                      Container(
+                        padding: const EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0051AE).withOpacity(0.05),
+                          shape: BoxShape.circle,
                         ),
-                      ],
-                    ),
-                  );
-                }
-                return ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: addresses.length,
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  itemBuilder: (context, index) =>
-                      _AddressTile(address: addresses[index]),
-                );
-              },
-            ),
-          ),
-
-          // Footer — Add New Address
-          Padding(
-            padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
-            child: ElevatedButton(
-              onPressed: () => context.push('/addresses/map-picker'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF0051AE),
-                foregroundColor: Colors.white,
-                minimumSize: const Size(double.infinity, 56),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                elevation: 0,
-              ),
-              child: const Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.add_location_alt_outlined, size: 20),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Add New Address',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        child: Icon(
+                          Icons.location_off_outlined,
+                          size: 48,
+                          color: const Color(0xFF0051AE).withOpacity(0.3),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      const Text(
+                        'No saved addresses',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                          color: Color(0xFF151C24),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Add a location to quickly book services.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Color(0xFF727785), fontSize: 13),
+                      ),
+                      const SizedBox(height: 24),
+                    ],
                   ),
-                ],
-              ),
-            ),
+                );
+              }
+              return ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: addresses.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 12),
+                itemBuilder: (context, index) =>
+                    _AddressTile(address: addresses[index]),
+              );
+            },
           ),
+          const SizedBox(height: 16),
         ],
       ),
     );
@@ -172,19 +141,25 @@ class _AddressTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      decoration: BoxDecoration(
-        color: address.isDefault ? const Color(0xFFF0F6FF) : Colors.transparent,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: address.isDefault ? const Color(0xFFDDE8FB) : Colors.transparent,
-          width: 1,
+    return Dismissible(
+      key: ValueKey(address.id),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 24),
+        decoration: BoxDecoration(
+          color: Colors.red.shade400,
+          borderRadius: BorderRadius.circular(20),
         ),
+        child: const Icon(Icons.delete_outline, color: Colors.white),
       ),
-      child: ListTile(
+      onDismissed: (_) {
+        ref.read(deleteAddressUseCaseProvider).call(address.id);
+        ref.invalidate(addressesProvider);
+      },
+      child: InkWell(
         onTap: address.isDefault
-            ? null 
+            ? null
             : () async {
                 try {
                   await ref.read(updateAddressUseCaseProvider).call(
@@ -196,58 +171,112 @@ class _AddressTile extends ConsumerWidget {
                 } catch (e) {
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(e.toString())),
+                      SnackBar(
+                        content: Text(e.toString()),
+                        behavior: SnackBarBehavior.floating,
+                        backgroundColor: Colors.red,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
                     );
                   }
                 }
               },
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        leading: Container(
-          width: 44,
-          height: 44,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: address.isDefault ? const Color(0xFF0051AE) : const Color(0xFFF0F3F9),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(
-            _getIcon(address.label),
-            size: 22,
-            color: address.isDefault ? Colors.white : const Color(0xFF727785),
-          ),
-        ),
-        title: Text(
-          address.label,
-          style: TextStyle(
-            fontWeight: FontWeight.w700,
-            fontSize: 16,
-            color: const Color(0xFF151C24),
-          ),
-        ),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 4),
-          child: Text(
-            address.streetAddress,
-            style: TextStyle(
-              fontSize: 13,
-              color: Colors.grey.shade600,
-              height: 1.3,
+            color: const Color(0xFF0051AE).withOpacity(address.isDefault ? 0.08 : 0.04),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: address.isDefault 
+                  ? const Color(0xFF0051AE).withOpacity(0.2) 
+                  : Colors.transparent,
+              width: 1.5,
             ),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
           ),
-        ),
-        trailing: Radio<bool>(
-          value: true,
-          groupValue: address.isDefault,
-          activeColor: const Color(0xFF0051AE),
-          onChanged: address.isDefault ? null : (_) {
-            // Re-trigger the same logic as onTap for accessibility
-            ref.read(updateAddressUseCaseProvider).call(
-              id: address.id,
-              isDefault: true,
-            ).then((_) => ref.invalidate(addressesProvider));
-          },
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.02),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Icon(
+                  _getIcon(address.label),
+                  color: const Color(0xFF0051AE),
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          address.label.toUpperCase(),
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 1,
+                            color: Color(0xFF424753),
+                          ),
+                        ),
+                        if (address.isDefault) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF0051AE),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: const Text(
+                              'DEFAULT',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 8,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      address.streetAddress,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w900,
+                        color: Color(0xFF151C24),
+                        height: 1.3,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              if (address.isDefault)
+                const Icon(
+                  Icons.check_circle_rounded,
+                  color: Color(0xFF0051AE),
+                  size: 24,
+                ),
+            ],
+          ),
         ),
       ),
     );

@@ -56,6 +56,18 @@ class MapPickerNotifier extends _$MapPickerNotifier {
     });
   }
 
+  void updateLocation(double lat, double lng, String address) {
+    final current = state.value;
+    if (current == null) return;
+    
+    state = AsyncData(current.copyWith(
+      latitude: lat,
+      longitude: lng,
+      streetAddress: address,
+      isGeocoding: false,
+    ));
+  }
+
   void setLabel(String label) {
     final current = state.requireValue;
     state = AsyncData(current.copyWith(selectedLabel: label));

@@ -4,7 +4,7 @@ import '../../domain/entities/technician_entity.dart';
 import '../../domain/repositories/technician_onboarding_repository.dart';
 import '../../domain/failures/technician_failure.dart'; // Import Sealed Class
 import '../data_sources/technician_onboarding_remote_datasource.dart';
-import '../../../../../core/data/local_sources/onboarding_local_data_source.dart';
+import '../data_sources/onboarding_local_data_source.dart';
 import '../models/technician_registration_model.dart';
 import '../models/service_model.dart';
 import '../../domain/entities/skill_selection_entity.dart';

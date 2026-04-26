@@ -64,7 +64,7 @@ final class TechnicianProfileNotifierProvider
 }
 
 String _$technicianProfileNotifierHash() =>
-    r'be95e303af4508842a0b3773385ac709e08cdab9';
+    r'8d1306d415bdb30bdd0984d1f4a6b0d1aecdcf56';
 
 final class TechnicianProfileNotifierFamily extends $Family
     with

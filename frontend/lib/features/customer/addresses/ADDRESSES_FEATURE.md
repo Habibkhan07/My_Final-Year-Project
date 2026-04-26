@@ -62,6 +62,8 @@ All repository methods throw a subclass of `AddressFailure`. The presentation la
 | `deleteAddress(int id)` | `void` | `AddressNotFoundFailure`, `AddressNetworkFailure`, `AddressServerFailure` |
 | `getCurrentLocation()` | `({double latitude, double longitude, String streetAddress})` | `AddressLocationPermissionDenied`, `AddressLocationServiceDisabled` |
 | `reverseGeocode(double lat, double lng)` | `String` | never throws — falls back to `"lat, lng"` string on geocoding failure |
+| `searchPlaces(String query, String sessionToken)` | `List<PlaceSearchEntity>` | `AddressNetworkFailure`, `AddressServerFailure` |
+| `getPlaceDetails(String placeId, String sessionToken)` | `({double latitude, double longitude, String streetAddress})` | `AddressNetworkFailure`, `AddressServerFailure` |
 
 `getCurrentLocation()` returns a named record so the save-address form can pre-fill all three GPS fields in a single call.
 
@@ -162,6 +164,11 @@ Derived `@riverpod` provider that watches `addressesProvider` and returns the si
 
 Handles map state and location saving. GPS skeleton shown until `build()` resolves. `save()` invalidates `addressesProvider` on success.
 
+#### `locationSearchProvider`
+`lib/features/customer/addresses/presentation/providers/location_search_notifier.dart`
+
+Handles the Google Places API search functionality. Manages a debounce timer, session tokens, and the list of `PlaceSearchEntity` results. Consumed by `_SearchOverlay` inside `MapPickerScreen`.
+
 ---
 
 ### Widgets
@@ -185,6 +192,7 @@ Bottom sheet displaying the list of saved addresses.
 
 Uber-style map picker.
 - **UI Guard**: The "Confirm Location" button is disabled if `isGeocoding` is true or `saveState` is loading, preventing stale/empty submissions during drags or network flight.
+- **_SearchOverlay**: Top overlay containing a `TextField` for searching locations. Displays a dropdown of autocomplete results. Selecting a result fetches details and moves the map camera.
 
 ---
 

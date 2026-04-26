@@ -2,7 +2,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../../data/data_sources/auth_remote_data_source.dart';
-import '../../../../core/data/local_sources/auth_local_data_source.dart';
+import '../../data/data_sources/auth_local_data_source.dart';
 import '../../data/repositories/auth_repository_impl.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../../domain/use_cases/request_otp_use_case.dart';

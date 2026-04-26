@@ -4,7 +4,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:frontend/core/common/data/models/user_model.dart';
 import 'package:frontend/core/common/domain/entities/user_entity.dart';
 import 'package:frontend/core/common/errors/http_failure.dart';
-import 'package:frontend/core/data/local_sources/auth_local_data_source.dart';
+import 'package:frontend/features/auth/data/data_sources/auth_local_data_source.dart';
 import 'package:frontend/features/auth/data/data_sources/auth_remote_data_source.dart';
 import 'package:frontend/features/auth/data/repositories/auth_repository_impl.dart';
 import 'package:frontend/features/auth/domain/failures/auth_failure.dart';

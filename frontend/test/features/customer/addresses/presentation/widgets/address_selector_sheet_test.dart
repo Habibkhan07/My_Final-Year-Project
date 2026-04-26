@@ -77,18 +77,19 @@ void main() {
       expect(find.text('Could not load addresses.'), findsOneWidget);
     });
 
-    testWidgets('renders a tile for each address with radio button',
+    testWidgets('renders a tile for each address with correct state',
         (tester) async {
       await tester.pumpWidget(
         createWidgetUnderTest((_) async => [tDefault, tNonDefault]),
       );
       await tester.pump();
 
-      expect(find.text('Home'), findsOneWidget);
-      expect(find.text('Office'), findsOneWidget);
+      // Labels are now uppercase in the polished design
+      expect(find.text('HOME'), findsOneWidget);
+      expect(find.text('OFFICE'), findsOneWidget);
       
-      // Should find two Radio widgets
-      expect(find.byType(Radio<bool>), findsNWidgets(2));
+      // Default address has a check circle
+      expect(find.byIcon(Icons.check_circle_rounded), findsOneWidget);
       
       // Verify icon types (Home icon for Home label)
       expect(find.byIcon(Icons.home_rounded), findsOneWidget);
@@ -107,14 +108,14 @@ void main() {
       );
       await tester.pump();
 
-      // Tap the "Office" tile
-      await tester.tap(find.text('Office'));
+      // Tap the "OFFICE" tile (using text containment or case insensitive if possible, 
+      // but here we know it's uppercase)
+      await tester.tap(find.text('OFFICE'));
       await tester.pumpAndSettle();
 
       verify(() => mockUpdateUseCase.call(id: 2, isDefault: true)).called(1);
       
-      // Verify sheet is dismissed (Home is no longer visible from the sheet context)
-      // Note: In this test setup, MaterialApp's Navigator is what gets popped.
+      // Verify sheet is dismissed
       expect(find.byType(AddressSelectorSheet), findsNothing);
     });
 
@@ -125,8 +126,8 @@ void main() {
       );
       await tester.pump();
 
-      // Tap the "Home" tile (already default)
-      await tester.tap(find.text('Home'));
+      // Tap the "HOME" tile (already default)
+      await tester.tap(find.text('HOME'));
       await tester.pump();
 
       verifyNever(() => mockUpdateUseCase.call(

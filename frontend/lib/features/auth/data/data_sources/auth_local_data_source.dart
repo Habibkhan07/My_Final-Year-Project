@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../common/domain/entities/user_entity.dart';
+import '../../../../core/common/domain/entities/user_entity.dart';
 
 class AuthLocalDataSource {
   final FlutterSecureStorage _secureStorage;

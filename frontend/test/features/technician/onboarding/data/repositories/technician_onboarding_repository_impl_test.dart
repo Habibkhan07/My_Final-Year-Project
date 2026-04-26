@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
 import 'package:frontend/core/common/errors/http_failure.dart';
-import 'package:frontend/core/data/local_sources/onboarding_local_data_source.dart';
+import 'package:frontend/features/technician/onboarding/data/data_sources/onboarding_local_data_source.dart';
 import 'package:frontend/features/technician/onboarding/data/data_sources/technician_onboarding_remote_datasource.dart';
 import 'package:frontend/features/technician/onboarding/data/models/technician_registration_model.dart';
 import 'package:frontend/features/technician/onboarding/data/repositories/technician_onboarding_repository_impl.dart';
