@@ -13,7 +13,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from realtime import tasks
+from realtime.devices import tasks
 from realtime.models import FCMDevice
 from tests.factories.accounts import UserFactory
 from tests.factories.fcm_devices import FCMDeviceFactory

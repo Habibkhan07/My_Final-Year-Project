@@ -1,16 +1,15 @@
-"""
-Realtime API URL routes — Events and Devices.
-"""
 from __future__ import annotations
 
 from django.urls import path
 
-from realtime.api.views import (
+from realtime.events.api.views import (
     EventAckView,
     EventSyncView,
+    UnacknowledgedCriticalView,
+)
+from realtime.devices.api.views import (
     RegisterDeviceView,
     UnregisterDeviceView,
-    UnacknowledgedCriticalView,
 )
 
 app_name = "realtime"

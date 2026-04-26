@@ -12,7 +12,7 @@ from unittest.mock import patch
 import pytest
 
 from realtime.models import EventLog
-from realtime.services.event_dispatch_service import EventDispatchService
+from realtime.events.services import EventDispatchService
 from tests.factories.accounts import UserFactory
 
 

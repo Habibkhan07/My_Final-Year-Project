@@ -6,7 +6,7 @@ from datetime import timedelta
 import pytest
 from django.utils import timezone
 
-from realtime.selectors.event_selectors import (
+from realtime.events.selectors import (
     MAX_SYNC_LIMIT,
     list_events_since,
     list_unacknowledged_critical,

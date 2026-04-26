@@ -157,6 +157,6 @@ class EventDispatchService:
     def _queue_fcm(user_id: int, envelope: dict[str, Any]) -> None:
         # Imported lazily — avoids a module-load-time Celery dependency in
         # code paths (e.g. selectors) that never dispatch events.
-        from realtime.tasks import send_fcm_notification
+        from realtime.devices.tasks import send_fcm_notification
 
         send_fcm_notification.delay(user_id, envelope)

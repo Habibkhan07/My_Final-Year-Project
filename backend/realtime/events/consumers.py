@@ -16,7 +16,7 @@ import logging
 
 from channels.generic.websocket import AsyncWebsocketConsumer
 
-from realtime.ws_auth import get_user_from_scope
+from realtime.events.ws_auth import get_user_from_scope
 
 logger = logging.getLogger(__name__)
 

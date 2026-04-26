@@ -82,8 +82,8 @@ def send_fcm_notification(self, user_id: int, payload_dict: dict[str, Any]) -> N
 
     from realtime.constants.event_types import get_event_meta
     from realtime.firebase import init_firebase
-    from realtime.models import FCMDevice
-    from realtime.selectors import active_devices_for_user
+    from realtime.models.devices import FCMDevice
+    from realtime.devices.selectors import active_devices_for_user
 
     init_firebase()
 
@@ -126,7 +126,7 @@ def send_fcm_notification(self, user_id: int, payload_dict: dict[str, Any]) -> N
 
 def _reap_dead_tokens(devices, responses) -> None:
     """Flip ``is_active=False`` for any token FCM declared dead."""
-    from realtime.models import FCMDevice
+    from realtime.models.devices import FCMDevice
 
     dead_ids: list[int] = []
     for device, result in zip(devices, responses):

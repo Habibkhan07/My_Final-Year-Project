@@ -1,6 +1,3 @@
-"""
-Realtime API Views — Event Recovery and Device Registration.
-"""
 from __future__ import annotations
 
 from datetime import datetime
@@ -12,18 +9,16 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from realtime.selectors import (
+from realtime.events.selectors import (
     MAX_SYNC_LIMIT,
     list_events_since,
     list_unacknowledged_critical,
 )
-from realtime.api.serializers import (
-    DeviceRegistrationSerializer,
-    DeviceUnregisterSerializer,
+from realtime.events.api.serializers import (
     EventAckSerializer,
     EventLogSerializer,
 )
-from realtime.services import DeviceService, EventAckService
+from realtime.events.services import EventAckService
 
 
 def _parse_since(raw: str | None) -> datetime:
@@ -48,7 +43,6 @@ def _parse_limit(raw: str | None) -> int | None:
 
 
 class EventSyncView(APIView):
-    """Replay events the client missed while disconnected."""
     permission_classes = (IsAuthenticated,)
 
     def get(self, request):
@@ -70,7 +64,6 @@ class EventSyncView(APIView):
 
 
 class EventAckView(APIView):
-    """Idempotently mark a batch of events as acknowledged."""
     permission_classes = (IsAuthenticated,)
 
     def post(self, request):
@@ -84,39 +77,9 @@ class EventAckView(APIView):
 
 
 class UnacknowledgedCriticalView(APIView):
-    """Cold-start inbox: critical events the user never acted on."""
     permission_classes = (IsAuthenticated,)
 
     def get(self, request):
         events = list_unacknowledged_critical(user=request.user)
         data = EventLogSerializer(events, many=True).data
         return Response({"results": data, "count": len(data)})
-
-
-class RegisterDeviceView(APIView):
-    """Register or refresh an FCM device token."""
-    permission_classes = (IsAuthenticated,)
-
-    def post(self, request):
-        serializer = DeviceRegistrationSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        DeviceService.register_device(
-            user=request.user,
-            device_token=serializer.validated_data["device_token"],
-            device_type=serializer.validated_data["device_type"],
-        )
-        return Response(status=status.HTTP_204_NO_CONTENT)
-
-
-class UnregisterDeviceView(APIView):
-    """Deactivate an FCM device token."""
-    permission_classes = (IsAuthenticated,)
-
-    def post(self, request):
-        serializer = DeviceUnregisterSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        DeviceService.unregister_device(
-            user=request.user,
-            device_token=serializer.validated_data["device_token"],
-        )
-        return Response(status=status.HTTP_204_NO_CONTENT)
