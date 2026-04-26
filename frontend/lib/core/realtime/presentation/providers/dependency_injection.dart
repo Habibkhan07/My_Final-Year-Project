@@ -12,7 +12,7 @@ import '../services/fcm_handler.dart';
 // main() entrypoint overrides it with the async-loaded instance. Reusing
 // the same provider guarantees we're looking at the same SharedPreferences
 // instance the FCM background isolate writes into.
-import '../../../features/technician/onboarding/presentation/providers/dependency_injection.dart';
+import '../../../../features/technician/onboarding/presentation/providers/dependency_injection.dart';
 
 part 'dependency_injection.g.dart';
 

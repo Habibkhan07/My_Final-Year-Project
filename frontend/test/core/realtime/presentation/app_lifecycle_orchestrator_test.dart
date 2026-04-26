@@ -1,10 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:frontend/core/data/datasources/event_local_data_source.dart';
-import 'package:frontend/core/presentation/app_lifecycle_orchestrator.dart';
-import 'package:frontend/core/presentation/notifiers/event_sync_notifier.dart';
-import 'package:frontend/core/presentation/notifiers/system_event_notifier.dart';
-import 'package:frontend/core/presentation/notifiers/ws_connection_notifier.dart';
-import 'package:frontend/core/presentation/services/fcm_handler.dart';
+import 'package:frontend/core/realtime/data/datasources/event_local_data_source.dart';
+import 'package:frontend/core/realtime/presentation/app_lifecycle_orchestrator.dart';
+import 'package:frontend/core/realtime/presentation/notifiers/event_sync_notifier.dart';
+import 'package:frontend/core/realtime/presentation/notifiers/system_event_notifier.dart';
+import 'package:frontend/core/realtime/presentation/notifiers/ws_connection_notifier.dart';
+import 'package:frontend/core/realtime/presentation/services/fcm_handler.dart';
 import 'package:mocktail/mocktail.dart';
 
 class _MockEventLocalDataSource extends Mock

@@ -5,7 +5,7 @@ import 'package:fake_async/fake_async.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:frontend/core/common/errors/http_failure.dart';
-import 'package:frontend/core/data/datasources/event_remote_data_source.dart';
+import 'package:frontend/core/realtime/data/datasources/event_remote_data_source.dart';
 import 'package:http/http.dart' as http;
 import 'package:mocktail/mocktail.dart';
 

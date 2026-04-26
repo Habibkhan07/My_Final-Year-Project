@@ -1,12 +1,12 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:frontend/core/data/datasources/event_local_data_source.dart';
-import 'package:frontend/core/data/repositories/event_repository.dart';
-import 'package:frontend/core/domain/entities/system_event_entity.dart';
-import 'package:frontend/core/presentation/notifiers/event_sync_notifier.dart';
-import 'package:frontend/core/presentation/notifiers/system_event_notifier.dart';
-import 'package:frontend/core/presentation/providers/dependency_injection.dart';
-import 'package:frontend/core/presentation/services/fcm_handler.dart';
+import 'package:frontend/core/realtime/data/datasources/event_local_data_source.dart';
+import 'package:frontend/core/realtime/data/repositories/event_repository.dart';
+import 'package:frontend/core/realtime/domain/entities/system_event_entity.dart';
+import 'package:frontend/core/realtime/presentation/notifiers/event_sync_notifier.dart';
+import 'package:frontend/core/realtime/presentation/notifiers/system_event_notifier.dart';
+import 'package:frontend/core/realtime/presentation/providers/dependency_injection.dart';
+import 'package:frontend/core/realtime/presentation/services/fcm_handler.dart';
 import 'package:mocktail/mocktail.dart';
 
 class _MockSystemEventNotifier extends Mock implements SystemEventNotifier {}

@@ -3,11 +3,11 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:frontend/core/common/errors/http_failure.dart';
-import 'package:frontend/core/data/datasources/event_local_data_source.dart';
-import 'package:frontend/core/data/datasources/event_remote_data_source.dart';
-import 'package:frontend/core/data/models/system_event_model.dart';
-import 'package:frontend/core/data/repositories/event_repository.dart';
-import 'package:frontend/core/domain/failures/event_failures.dart';
+import 'package:frontend/core/realtime/data/datasources/event_local_data_source.dart';
+import 'package:frontend/core/realtime/data/datasources/event_remote_data_source.dart';
+import 'package:frontend/core/realtime/data/models/system_event_model.dart';
+import 'package:frontend/core/realtime/data/repositories/event_repository.dart';
+import 'package:frontend/core/realtime/domain/failures/event_failures.dart';
 import 'package:mocktail/mocktail.dart';
 
 class _MockRemote extends Mock implements EventRemoteDataSource {}

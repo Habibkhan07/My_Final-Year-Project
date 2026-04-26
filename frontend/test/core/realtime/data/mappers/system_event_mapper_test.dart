@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:frontend/core/data/mappers/system_event_mapper.dart';
-import 'package:frontend/core/data/models/system_event_model.dart';
-import 'package:frontend/core/domain/entities/system_event_type.dart';
-import 'package:frontend/core/domain/entities/target_role.dart';
+import 'package:frontend/core/realtime/data/mappers/system_event_mapper.dart';
+import 'package:frontend/core/realtime/data/models/system_event_model.dart';
+import 'package:frontend/core/realtime/domain/entities/system_event_type.dart';
+import 'package:frontend/core/realtime/domain/entities/target_role.dart';
 
 void main() {
   group('SystemEventMapper', () {

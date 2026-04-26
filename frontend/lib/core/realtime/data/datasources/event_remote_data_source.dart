@@ -4,8 +4,8 @@ import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 
-import '../../common/errors/http_failure.dart';
-import '../../../core/constants.dart';
+import '../../../common/errors/http_failure.dart';
+import '../../../../core/constants.dart';
 import '../models/system_event_model.dart';
 
 /// Remote calls for the event sync + FCM device-registration endpoints.

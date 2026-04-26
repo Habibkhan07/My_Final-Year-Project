@@ -6,7 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
-import '../../constants.dart';
+import '../../../constants.dart';
 import '../../data/mappers/system_event_mapper.dart';
 import '../../data/models/system_event_model.dart';
 import '../state/connection_state.dart';

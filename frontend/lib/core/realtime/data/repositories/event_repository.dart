@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:developer';
 import 'dart:io';
 
-import '../../common/errors/http_failure.dart';
+import '../../../common/errors/http_failure.dart';
 import '../../domain/entities/system_event_entity.dart';
 import '../../domain/failures/event_failures.dart';
 import '../datasources/event_local_data_source.dart';

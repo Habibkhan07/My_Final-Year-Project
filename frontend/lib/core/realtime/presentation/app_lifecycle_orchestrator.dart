@@ -12,7 +12,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 // callback inversion (see `EventSyncNotifier.onUnauthorized` for the pattern).
 // Do NOT add a second import like this — extend the orchestrator instead.
 // ───────────────────────────────────────────────────────────────────────────
-import '../../features/auth/presentation/providers/auth_notifier.dart';
+import '../../../features/auth/presentation/providers/auth_notifier.dart';
 import '../data/datasources/event_local_data_source.dart';
 import '../domain/entities/system_event_entity.dart';
 import '../domain/entities/target_role.dart';

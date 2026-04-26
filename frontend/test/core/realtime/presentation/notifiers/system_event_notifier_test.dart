@@ -1,10 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:frontend/core/data/datasources/event_local_data_source.dart';
-import 'package:frontend/core/domain/entities/system_event_entity.dart';
-import 'package:frontend/core/presentation/notifiers/system_event_notifier.dart';
-import 'package:frontend/core/presentation/providers/dependency_injection.dart';
-import 'package:frontend/core/presentation/state/system_event_state.dart';
+import 'package:frontend/core/realtime/data/datasources/event_local_data_source.dart';
+import 'package:frontend/core/realtime/domain/entities/system_event_entity.dart';
+import 'package:frontend/core/realtime/presentation/notifiers/system_event_notifier.dart';
+import 'package:frontend/core/realtime/presentation/providers/dependency_injection.dart';
+import 'package:frontend/core/realtime/presentation/state/system_event_state.dart';
 import 'package:mocktail/mocktail.dart';
 
 class _MockLocal extends Mock implements EventLocalDataSource {}

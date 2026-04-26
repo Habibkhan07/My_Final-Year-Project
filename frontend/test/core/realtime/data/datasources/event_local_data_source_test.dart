@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:frontend/core/data/datasources/event_local_data_source.dart';
-import 'package:frontend/core/data/models/system_event_model.dart';
+import 'package:frontend/core/realtime/data/datasources/event_local_data_source.dart';
+import 'package:frontend/core/realtime/data/models/system_event_model.dart';
 
 void main() {
   late EventLocalDataSource dataSource;
