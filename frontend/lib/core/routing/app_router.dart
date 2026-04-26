@@ -13,6 +13,7 @@ import '../../features/technician/onboarding/presentation/screens/registration_s
 import '../../features/technician/onboarding/domain/entities/technician_entity.dart';
 import '../../features/booking/presentation/screens/technician_profile_screen.dart';
 import '../../features/customer/addresses/presentation/screens/map_picker_screen.dart';
+import '../../features/technician/dashboard/presentation/screens/technician_dashboard_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   // Accessing the user through the AsyncValue wrapper
@@ -50,6 +51,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
 
       GoRoute(path: '/home', builder: (context, state) => const HomeScreen()),
+      // DEBUG: direct route — replace builder with a redirect guard once the
+      // "technician approved" check endpoint is wired up.
+      GoRoute(
+        path: '/technician/dashboard',
+        builder: (context, state) => const TechnicianDashboardScreen(),
+      ),
       GoRoute(
         path: '/addresses/map-picker',
         builder: (context, state) => const MapPickerScreen(),
