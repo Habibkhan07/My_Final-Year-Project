@@ -12,7 +12,7 @@ from typing import Optional
 
 from django.db.models import QuerySet
 
-from core.models import EventLog
+from realtime.models import EventLog
 
 #: Hard ceiling on sync-endpoint page size. Prevents a misbehaving client
 #: from dragging a huge backlog down in one request.

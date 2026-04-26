@@ -1,9 +1,5 @@
 """
-Event recovery endpoints — thin views.
-
-    GET  /api/events/sync/?since=<ISO-8601>[&limit=N]   → replay missed events
-    POST /api/events/ack/                               → mark critical events ACK'd
-    GET  /api/events/unacknowledged/                    → cold-start critical inbox
+Realtime API Views — Event Recovery and Device Registration.
 """
 from __future__ import annotations
 
@@ -16,16 +12,18 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from core.selectors.event_selectors import (
+from realtime.selectors import (
     MAX_SYNC_LIMIT,
     list_events_since,
     list_unacknowledged_critical,
 )
-from core.serializers.event_serializers import (
+from realtime.api.serializers import (
+    DeviceRegistrationSerializer,
+    DeviceUnregisterSerializer,
     EventAckSerializer,
     EventLogSerializer,
 )
-from core.services.event_ack_service import EventAckService
+from realtime.services import DeviceService, EventAckService
 
 
 def _parse_since(raw: str | None) -> datetime:
@@ -54,9 +52,6 @@ class EventSyncView(APIView):
     permission_classes = (IsAuthenticated,)
 
     def get(self, request):
-        # SECURITY: queryset is scoped to ``user=request.user`` in the
-        # selector — a caller cannot read another user's events by spoofing
-        # a ``user_id`` query parameter (there is none).
         since = _parse_since(request.query_params.get("since"))
         limit = _parse_limit(request.query_params.get("limit"))
 
@@ -79,8 +74,6 @@ class EventAckView(APIView):
     permission_classes = (IsAuthenticated,)
 
     def post(self, request):
-        # SECURITY: ACK update is filtered by ``user=request.user`` — IDs
-        # owned by other users are silently ignored, never acknowledged.
         serializer = EventAckSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         EventAckService.acknowledge_events(
@@ -95,7 +88,35 @@ class UnacknowledgedCriticalView(APIView):
     permission_classes = (IsAuthenticated,)
 
     def get(self, request):
-        # SECURITY: manager method pins the queryset to request.user.
         events = list_unacknowledged_critical(user=request.user)
         data = EventLogSerializer(events, many=True).data
         return Response({"results": data, "count": len(data)})
+
+
+class RegisterDeviceView(APIView):
+    """Register or refresh an FCM device token."""
+    permission_classes = (IsAuthenticated,)
+
+    def post(self, request):
+        serializer = DeviceRegistrationSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        DeviceService.register_device(
+            user=request.user,
+            device_token=serializer.validated_data["device_token"],
+            device_type=serializer.validated_data["device_type"],
+        )
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class UnregisterDeviceView(APIView):
+    """Deactivate an FCM device token."""
+    permission_classes = (IsAuthenticated,)
+
+    def post(self, request):
+        serializer = DeviceUnregisterSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        DeviceService.unregister_device(
+            user=request.user,
+            device_token=serializer.validated_data["device_token"],
+        )
+        return Response(status=status.HTTP_204_NO_CONTENT)

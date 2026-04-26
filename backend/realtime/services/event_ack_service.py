@@ -12,7 +12,7 @@ from typing import Sequence
 from django.db import transaction
 from django.utils import timezone
 
-from core.models import EventLog
+from realtime.models import EventLog
 
 
 class EventAckService:

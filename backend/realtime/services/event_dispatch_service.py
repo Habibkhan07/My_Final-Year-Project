@@ -21,8 +21,8 @@ from typing import Any, Iterable
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 
-from core.constants.event_types import get_event_meta
-from core.models import EventLog
+from realtime.constants.event_types import get_event_meta
+from realtime.models import EventLog
 
 logger = logging.getLogger(__name__)
 
@@ -157,6 +157,6 @@ class EventDispatchService:
     def _queue_fcm(user_id: int, envelope: dict[str, Any]) -> None:
         # Imported lazily — avoids a module-load-time Celery dependency in
         # code paths (e.g. selectors) that never dispatch events.
-        from core.tasks import send_fcm_notification
+        from realtime.tasks import send_fcm_notification
 
         send_fcm_notification.delay(user_id, envelope)

@@ -103,8 +103,7 @@ INSTALLED_APPS = [
     'django_extensions',
     # Central Event Dispatch Hub
     'core.apps.CoreConfig',
-    'fcm_devices.apps.FcmDevicesConfig',
-    'api.apps.ApiConfig',
+    'realtime.apps.RealtimeConfig',
 ]
 
 MIDDLEWARE = [
