@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import factory
 
-from core.models import EventLog
+from realtime.models import EventLog
 from tests.factories.accounts import UserFactory
 
 

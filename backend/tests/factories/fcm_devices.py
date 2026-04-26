@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import factory
 
-from fcm_devices.models import FCMDevice
+from realtime.models import FCMDevice
 from tests.factories.accounts import UserFactory
 
 
