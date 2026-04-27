@@ -14,7 +14,7 @@ def get_technician_dashboard(technician: TechnicianProfile, request=None) -> dic
     today_jobs = JobBooking.objects.filter(
         technician=technician,
         scheduled_start__date=today
-    ).select_related('customer', 'address').order_by('scheduled_start')
+    ).select_related('customer', 'customer__userprofile', 'address').order_by('scheduled_start')
     
     # 1. Metrics: Aggregated from today's COMPLETED jobs only
     completed_jobs = today_jobs.filter(status=JobBooking.STATUS_COMPLETED)
@@ -54,6 +54,7 @@ def get_technician_dashboard(technician: TechnicianProfile, request=None) -> dic
             "service_title": up_next.price_context,
             "scheduled_time": format_time(up_next.scheduled_start),
             "customer_name": customer_name,
+            "customer_phone": getattr(getattr(up_next.customer, 'userprofile', None), 'phone', None) or None,
             "address_text": up_next.address.street_address if up_next.address else "",
             "lat": float(up_next.address.latitude) if up_next.address and up_next.address.latitude else 0.0,
             "lng": float(up_next.address.longitude) if up_next.address and up_next.address.longitude else 0.0,

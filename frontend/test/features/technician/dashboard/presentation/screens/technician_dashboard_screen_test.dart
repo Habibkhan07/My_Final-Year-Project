@@ -6,11 +6,15 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:network_image_mock/network_image_mock.dart';
 import 'package:shimmer/shimmer.dart';
 
+import 'package:frontend/features/auth/presentation/providers/auth_notifier.dart';
 import 'package:frontend/features/technician/dashboard/domain/entities/technician_dashboard_entity.dart';
 import 'package:frontend/features/technician/dashboard/domain/failures/technician_dashboard_failure.dart';
 import 'package:frontend/features/technician/dashboard/presentation/notifiers/technician_dashboard_notifier.dart';
+import 'package:frontend/features/technician/dashboard/presentation/providers/current_position_provider.dart';
 import 'package:frontend/features/technician/dashboard/presentation/screens/technician_dashboard_screen.dart';
 import 'package:frontend/features/technician/dashboard/presentation/state/technician_dashboard_state.dart';
+
+import '../../_helpers/test_overrides.dart';
 
 // ---------------------------------------------------------------------------
 // Mock notifier — overrides build() to return a fixed state so widget tests
@@ -53,6 +57,7 @@ TechnicianDashboardEntity _entity({
               serviceTitle: 'AC Deep Wash',
               scheduledTime: DateTime.now().add(const Duration(hours: 1)),
               customerName: 'Ali R.',
+              customerPhone: '+923001234567',
               addressText: '14 Street, Gulberg III',
               lat: 31.5204,
               lng: 74.3587,
@@ -90,11 +95,15 @@ TechnicianDashboardState _state({
 // ---------------------------------------------------------------------------
 
 Widget buildScreen(AsyncValue<TechnicianDashboardState> mockState) {
+  // Manual ProviderScope here (rather than dashboardScope) so we can stack
+  // technicianDashboardProvider on top of auth + currentPosition overrides.
   return ProviderScope(
     overrides: [
       technicianDashboardProvider.overrideWith(
         () => MockTechnicianDashboardNotifier(mockState),
       ),
+      authProvider.overrideWith(() => FakeAuthNotifier(fakeUser)),
+      currentPositionProvider.overrideWith(() => FakeCurrentPosition(null)),
     ],
     child: const MaterialApp(home: TechnicianDashboardScreen()),
   );
@@ -114,7 +123,7 @@ void main() {
 
         expect(find.byType(Shimmer), findsOneWidget);
         expect(find.text('AC Deep Wash'), findsNothing);
-        expect(find.text('Online'), findsNothing);
+        expect(find.text('ONLINE'), findsNothing);
       });
     });
 
@@ -197,34 +206,47 @@ void main() {
 
     // -----------------------------------------------------------------------
     group('AsyncData — header', () {
-      testWidgets('renders "Online" toggle when isOnline is true', (tester) async {
+      testWidgets('renders ONLINE toggle when isOnline is true', (tester) async {
         await mockNetworkImagesFor(() async {
           await tester.pumpWidget(buildScreen(AsyncData(_state(isOnline: true))));
           await tester.pump();
 
-          expect(find.text('Online'), findsOneWidget);
+          expect(find.text('ONLINE'), findsOneWidget);
         });
       });
 
-      testWidgets('renders "Offline" toggle when isOnline is false', (tester) async {
+      testWidgets('renders OFFLINE toggle when isOnline is false', (tester) async {
         await mockNetworkImagesFor(() async {
           await tester.pumpWidget(
             buildScreen(AsyncData(_state(isOnline: false))),
           );
           await tester.pump();
 
-          expect(find.text('Offline'), findsOneWidget);
+          expect(find.text('OFFLINE'), findsOneWidget);
         });
       });
 
-      testWidgets('renders wallet balance in header badge', (tester) async {
+      testWidgets('renders wallet balance with "Wallet:" label', (tester) async {
         await mockNetworkImagesFor(() async {
           await tester.pumpWidget(
             buildScreen(AsyncData(_state(walletBalance: 1500))),
           );
           await tester.pump();
 
-          expect(find.text('Rs. 1500'), findsOneWidget);
+          expect(find.text('Wallet: Rs. 1500'), findsOneWidget);
+        });
+      });
+
+      testWidgets('renders greeting with technician firstName from auth cache',
+          (tester) async {
+        await mockNetworkImagesFor(() async {
+          await tester.pumpWidget(buildScreen(AsyncData(_state())));
+          // Two pumps: one to resolve the dashboard provider, one to resolve
+          // the auth provider's async build() before the greeting renders.
+          await tester.pump();
+          await tester.pump();
+
+          expect(find.text('Hi, Ali'), findsOneWidget);
         });
       });
     });

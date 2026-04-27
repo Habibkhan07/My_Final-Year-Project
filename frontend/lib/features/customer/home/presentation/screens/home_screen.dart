@@ -59,11 +59,25 @@ class HomeScreen extends ConsumerWidget {
           BottomNavigationBarItem(icon: Icon(Icons.person), label: "Profile"),
         ],
       ),
-      // Preserved Sprint 2 Routing Flow
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => context.push('/technician/onboarding'),
-        backgroundColor: Colors.blue.shade700,
-        child: const Icon(Icons.handyman, color: Colors.white),
+      // DEBUG: temporary FABs for sprint routing — remove once nav is wired
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          FloatingActionButton.extended(
+            heroTag: 'debug_dashboard',
+            onPressed: () => context.go('/technician/dashboard'),
+            backgroundColor: Colors.green.shade700,
+            icon: const Icon(Icons.dashboard, color: Colors.white),
+            label: const Text('Tech Dashboard', style: TextStyle(color: Colors.white)),
+          ),
+          const SizedBox(height: 8),
+          FloatingActionButton(
+            heroTag: 'debug_onboarding',
+            onPressed: () => context.push('/technician/onboarding'),
+            backgroundColor: Colors.blue.shade700,
+            child: const Icon(Icons.handyman, color: Colors.white),
+          ),
+        ],
       ),
     );
   }

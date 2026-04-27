@@ -5,6 +5,7 @@ import '../../data/data_sources/technician_dashboard_local_data_source.dart';
 import '../../data/data_sources/technician_dashboard_remote_data_source.dart';
 import '../../data/repositories/technician_dashboard_repository_impl.dart';
 import '../../domain/repositories/technician_dashboard_repository.dart';
+import '../../../../auth/presentation/providers/dependency_injection.dart';
 // SharedPreferences is exposed by the onboarding feature's DI and overridden
 // in main() with the async-loaded instance. Reusing the same provider keeps
 // every feature pointed at the same backing store, which is what FCM/event
@@ -29,6 +30,7 @@ ITechnicianDashboardRemoteDataSource technicianDashboardRemoteDataSource(
 ) {
   return TechnicianDashboardRemoteDataSource(
     client: ref.watch(technicianDashboardHttpClientProvider),
+    authLocalDataSource: ref.watch(authLocalDataSourceProvider),
   );
 }
 

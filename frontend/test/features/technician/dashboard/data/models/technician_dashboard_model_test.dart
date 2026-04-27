@@ -9,6 +9,7 @@ void main() {
     jobId: 1,
     serviceTitle: 'AC Repair',
     customerName: 'Hamayon Khan',
+    customerPhone: '+923001234567',
     scheduledTime: tScheduledTime,
     addressText: 'Street 1, Islamabad',
     lat: 33.6844,
@@ -44,6 +45,7 @@ void main() {
       'job_id': 1,
       'service_title': 'AC Repair',
       'customer_name': 'Hamayon Khan',
+      'customer_phone': '+923001234567',
       'scheduled_time': tScheduledTime.toIso8601String(),
       'address_text': 'Street 1, Islamabad',
       'lat': 33.6844,
@@ -68,13 +70,24 @@ void main() {
       final result = TechnicianDashboardModel.fromJson(tDashboardJson);
       expect(result.walletBalance, 1200.0);
       expect(result.upNextJob?.serviceTitle, 'AC Repair');
+      expect(result.upNextJob?.customerPhone, '+923001234567');
       expect(result.laterTodayJobs.length, 1);
+    });
+
+    test('should parse null customer_phone for legacy users', () {
+      final json = Map<String, dynamic>.from(tDashboardJson);
+      json['up_next_job'] = {
+        ...Map<String, dynamic>.from(tDashboardJson['up_next_job'] as Map),
+        'customer_phone': null,
+      };
+      final result = TechnicianDashboardModel.fromJson(json);
+      expect(result.upNextJob?.customerPhone, isNull);
     });
 
     test('should handle null up_next_job', () {
       final json = Map<String, dynamic>.from(tDashboardJson);
       json['up_next_job'] = null;
-      
+
       final result = TechnicianDashboardModel.fromJson(json);
       expect(result.upNextJob, isNull);
     });

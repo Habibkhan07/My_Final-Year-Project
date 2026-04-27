@@ -14,7 +14,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$UpNextJobEntity {
 
- int get jobId; String get serviceTitle; DateTime get scheduledTime; String get customerName; String get addressText; double get lat; double get lng;
+ int get jobId; String get serviceTitle; DateTime get scheduledTime; String get customerName; String? get customerPhone; String get addressText; double get lat; double get lng;
 /// Create a copy of UpNextJobEntity
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -25,16 +25,16 @@ $UpNextJobEntityCopyWith<UpNextJobEntity> get copyWith => _$UpNextJobEntityCopyW
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UpNextJobEntity&&(identical(other.jobId, jobId) || other.jobId == jobId)&&(identical(other.serviceTitle, serviceTitle) || other.serviceTitle == serviceTitle)&&(identical(other.scheduledTime, scheduledTime) || other.scheduledTime == scheduledTime)&&(identical(other.customerName, customerName) || other.customerName == customerName)&&(identical(other.addressText, addressText) || other.addressText == addressText)&&(identical(other.lat, lat) || other.lat == lat)&&(identical(other.lng, lng) || other.lng == lng));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UpNextJobEntity&&(identical(other.jobId, jobId) || other.jobId == jobId)&&(identical(other.serviceTitle, serviceTitle) || other.serviceTitle == serviceTitle)&&(identical(other.scheduledTime, scheduledTime) || other.scheduledTime == scheduledTime)&&(identical(other.customerName, customerName) || other.customerName == customerName)&&(identical(other.customerPhone, customerPhone) || other.customerPhone == customerPhone)&&(identical(other.addressText, addressText) || other.addressText == addressText)&&(identical(other.lat, lat) || other.lat == lat)&&(identical(other.lng, lng) || other.lng == lng));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,jobId,serviceTitle,scheduledTime,customerName,addressText,lat,lng);
+int get hashCode => Object.hash(runtimeType,jobId,serviceTitle,scheduledTime,customerName,customerPhone,addressText,lat,lng);
 
 @override
 String toString() {
-  return 'UpNextJobEntity(jobId: $jobId, serviceTitle: $serviceTitle, scheduledTime: $scheduledTime, customerName: $customerName, addressText: $addressText, lat: $lat, lng: $lng)';
+  return 'UpNextJobEntity(jobId: $jobId, serviceTitle: $serviceTitle, scheduledTime: $scheduledTime, customerName: $customerName, customerPhone: $customerPhone, addressText: $addressText, lat: $lat, lng: $lng)';
 }
 
 
@@ -45,7 +45,7 @@ abstract mixin class $UpNextJobEntityCopyWith<$Res>  {
   factory $UpNextJobEntityCopyWith(UpNextJobEntity value, $Res Function(UpNextJobEntity) _then) = _$UpNextJobEntityCopyWithImpl;
 @useResult
 $Res call({
- int jobId, String serviceTitle, DateTime scheduledTime, String customerName, String addressText, double lat, double lng
+ int jobId, String serviceTitle, DateTime scheduledTime, String customerName, String? customerPhone, String addressText, double lat, double lng
 });
 
 
@@ -62,13 +62,14 @@ class _$UpNextJobEntityCopyWithImpl<$Res>
 
 /// Create a copy of UpNextJobEntity
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? jobId = null,Object? serviceTitle = null,Object? scheduledTime = null,Object? customerName = null,Object? addressText = null,Object? lat = null,Object? lng = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? jobId = null,Object? serviceTitle = null,Object? scheduledTime = null,Object? customerName = null,Object? customerPhone = freezed,Object? addressText = null,Object? lat = null,Object? lng = null,}) {
   return _then(_self.copyWith(
 jobId: null == jobId ? _self.jobId : jobId // ignore: cast_nullable_to_non_nullable
 as int,serviceTitle: null == serviceTitle ? _self.serviceTitle : serviceTitle // ignore: cast_nullable_to_non_nullable
 as String,scheduledTime: null == scheduledTime ? _self.scheduledTime : scheduledTime // ignore: cast_nullable_to_non_nullable
 as DateTime,customerName: null == customerName ? _self.customerName : customerName // ignore: cast_nullable_to_non_nullable
-as String,addressText: null == addressText ? _self.addressText : addressText // ignore: cast_nullable_to_non_nullable
+as String,customerPhone: freezed == customerPhone ? _self.customerPhone : customerPhone // ignore: cast_nullable_to_non_nullable
+as String?,addressText: null == addressText ? _self.addressText : addressText // ignore: cast_nullable_to_non_nullable
 as String,lat: null == lat ? _self.lat : lat // ignore: cast_nullable_to_non_nullable
 as double,lng: null == lng ? _self.lng : lng // ignore: cast_nullable_to_non_nullable
 as double,
@@ -156,10 +157,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int jobId,  String serviceTitle,  DateTime scheduledTime,  String customerName,  String addressText,  double lat,  double lng)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int jobId,  String serviceTitle,  DateTime scheduledTime,  String customerName,  String? customerPhone,  String addressText,  double lat,  double lng)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _UpNextJobEntity() when $default != null:
-return $default(_that.jobId,_that.serviceTitle,_that.scheduledTime,_that.customerName,_that.addressText,_that.lat,_that.lng);case _:
+return $default(_that.jobId,_that.serviceTitle,_that.scheduledTime,_that.customerName,_that.customerPhone,_that.addressText,_that.lat,_that.lng);case _:
   return orElse();
 
 }
@@ -177,10 +178,10 @@ return $default(_that.jobId,_that.serviceTitle,_that.scheduledTime,_that.custome
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int jobId,  String serviceTitle,  DateTime scheduledTime,  String customerName,  String addressText,  double lat,  double lng)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int jobId,  String serviceTitle,  DateTime scheduledTime,  String customerName,  String? customerPhone,  String addressText,  double lat,  double lng)  $default,) {final _that = this;
 switch (_that) {
 case _UpNextJobEntity():
-return $default(_that.jobId,_that.serviceTitle,_that.scheduledTime,_that.customerName,_that.addressText,_that.lat,_that.lng);case _:
+return $default(_that.jobId,_that.serviceTitle,_that.scheduledTime,_that.customerName,_that.customerPhone,_that.addressText,_that.lat,_that.lng);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -197,10 +198,10 @@ return $default(_that.jobId,_that.serviceTitle,_that.scheduledTime,_that.custome
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int jobId,  String serviceTitle,  DateTime scheduledTime,  String customerName,  String addressText,  double lat,  double lng)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int jobId,  String serviceTitle,  DateTime scheduledTime,  String customerName,  String? customerPhone,  String addressText,  double lat,  double lng)?  $default,) {final _that = this;
 switch (_that) {
 case _UpNextJobEntity() when $default != null:
-return $default(_that.jobId,_that.serviceTitle,_that.scheduledTime,_that.customerName,_that.addressText,_that.lat,_that.lng);case _:
+return $default(_that.jobId,_that.serviceTitle,_that.scheduledTime,_that.customerName,_that.customerPhone,_that.addressText,_that.lat,_that.lng);case _:
   return null;
 
 }
@@ -212,13 +213,14 @@ return $default(_that.jobId,_that.serviceTitle,_that.scheduledTime,_that.custome
 
 
 class _UpNextJobEntity implements UpNextJobEntity {
-  const _UpNextJobEntity({required this.jobId, required this.serviceTitle, required this.scheduledTime, required this.customerName, required this.addressText, required this.lat, required this.lng});
+  const _UpNextJobEntity({required this.jobId, required this.serviceTitle, required this.scheduledTime, required this.customerName, this.customerPhone, required this.addressText, required this.lat, required this.lng});
   
 
 @override final  int jobId;
 @override final  String serviceTitle;
 @override final  DateTime scheduledTime;
 @override final  String customerName;
+@override final  String? customerPhone;
 @override final  String addressText;
 @override final  double lat;
 @override final  double lng;
@@ -233,16 +235,16 @@ _$UpNextJobEntityCopyWith<_UpNextJobEntity> get copyWith => __$UpNextJobEntityCo
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _UpNextJobEntity&&(identical(other.jobId, jobId) || other.jobId == jobId)&&(identical(other.serviceTitle, serviceTitle) || other.serviceTitle == serviceTitle)&&(identical(other.scheduledTime, scheduledTime) || other.scheduledTime == scheduledTime)&&(identical(other.customerName, customerName) || other.customerName == customerName)&&(identical(other.addressText, addressText) || other.addressText == addressText)&&(identical(other.lat, lat) || other.lat == lat)&&(identical(other.lng, lng) || other.lng == lng));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _UpNextJobEntity&&(identical(other.jobId, jobId) || other.jobId == jobId)&&(identical(other.serviceTitle, serviceTitle) || other.serviceTitle == serviceTitle)&&(identical(other.scheduledTime, scheduledTime) || other.scheduledTime == scheduledTime)&&(identical(other.customerName, customerName) || other.customerName == customerName)&&(identical(other.customerPhone, customerPhone) || other.customerPhone == customerPhone)&&(identical(other.addressText, addressText) || other.addressText == addressText)&&(identical(other.lat, lat) || other.lat == lat)&&(identical(other.lng, lng) || other.lng == lng));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,jobId,serviceTitle,scheduledTime,customerName,addressText,lat,lng);
+int get hashCode => Object.hash(runtimeType,jobId,serviceTitle,scheduledTime,customerName,customerPhone,addressText,lat,lng);
 
 @override
 String toString() {
-  return 'UpNextJobEntity(jobId: $jobId, serviceTitle: $serviceTitle, scheduledTime: $scheduledTime, customerName: $customerName, addressText: $addressText, lat: $lat, lng: $lng)';
+  return 'UpNextJobEntity(jobId: $jobId, serviceTitle: $serviceTitle, scheduledTime: $scheduledTime, customerName: $customerName, customerPhone: $customerPhone, addressText: $addressText, lat: $lat, lng: $lng)';
 }
 
 
@@ -253,7 +255,7 @@ abstract mixin class _$UpNextJobEntityCopyWith<$Res> implements $UpNextJobEntity
   factory _$UpNextJobEntityCopyWith(_UpNextJobEntity value, $Res Function(_UpNextJobEntity) _then) = __$UpNextJobEntityCopyWithImpl;
 @override @useResult
 $Res call({
- int jobId, String serviceTitle, DateTime scheduledTime, String customerName, String addressText, double lat, double lng
+ int jobId, String serviceTitle, DateTime scheduledTime, String customerName, String? customerPhone, String addressText, double lat, double lng
 });
 
 
@@ -270,13 +272,14 @@ class __$UpNextJobEntityCopyWithImpl<$Res>
 
 /// Create a copy of UpNextJobEntity
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? jobId = null,Object? serviceTitle = null,Object? scheduledTime = null,Object? customerName = null,Object? addressText = null,Object? lat = null,Object? lng = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? jobId = null,Object? serviceTitle = null,Object? scheduledTime = null,Object? customerName = null,Object? customerPhone = freezed,Object? addressText = null,Object? lat = null,Object? lng = null,}) {
   return _then(_UpNextJobEntity(
 jobId: null == jobId ? _self.jobId : jobId // ignore: cast_nullable_to_non_nullable
 as int,serviceTitle: null == serviceTitle ? _self.serviceTitle : serviceTitle // ignore: cast_nullable_to_non_nullable
 as String,scheduledTime: null == scheduledTime ? _self.scheduledTime : scheduledTime // ignore: cast_nullable_to_non_nullable
 as DateTime,customerName: null == customerName ? _self.customerName : customerName // ignore: cast_nullable_to_non_nullable
-as String,addressText: null == addressText ? _self.addressText : addressText // ignore: cast_nullable_to_non_nullable
+as String,customerPhone: freezed == customerPhone ? _self.customerPhone : customerPhone // ignore: cast_nullable_to_non_nullable
+as String?,addressText: null == addressText ? _self.addressText : addressText // ignore: cast_nullable_to_non_nullable
 as String,lat: null == lat ? _self.lat : lat // ignore: cast_nullable_to_non_nullable
 as double,lng: null == lng ? _self.lng : lng // ignore: cast_nullable_to_non_nullable
 as double,

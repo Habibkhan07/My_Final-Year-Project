@@ -22,6 +22,7 @@ None.
     "service_title": "AC Deep Wash",
     "scheduled_time": "2026-04-26T14:00:00Z",
     "customer_name": "Ali R.",
+    "customer_phone": "+923001234567",
     "address_text": "14 Street, Gulberg III",
     "lat": 31.5204,
     "lng": 74.3587
@@ -44,5 +45,6 @@ None.
 ### Notes on Fields:
 - `profile_picture`: Absolute URL to the technician's profile image. Nullable if not set.
 - `up_next_job`: Nullable if no upcoming jobs exist for the day. Returns the most urgent confirmed job scheduled for now or later today.
+- `up_next_job.customer_phone`: E.164 string used by the dashboard's Contact Customer button to launch a `tel:` deep link. Nullable if the customer has no phone on file (legacy accounts). The Flutter UI hides/disables the call action when null.
 - `later_today_jobs`: Empty array `[]` if no remaining jobs are scheduled for today. Excludes the `up_next_job`.
 - `metrics`: Calculated strictly from jobs with status `COMPLETED` for the current day.

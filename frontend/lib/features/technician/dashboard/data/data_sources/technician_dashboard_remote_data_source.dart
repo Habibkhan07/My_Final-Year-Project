@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../../../../../core/constants.dart';
 import '../../../../../core/common/errors/http_failure.dart';
+import '../../../../auth/data/data_sources/auth_local_data_source.dart';
 import '../models/technician_dashboard_model.dart';
 
 abstract class ITechnicianDashboardRemoteDataSource {
@@ -10,15 +11,26 @@ abstract class ITechnicianDashboardRemoteDataSource {
 
 class TechnicianDashboardRemoteDataSource implements ITechnicianDashboardRemoteDataSource {
   final http.Client client;
+  final AuthLocalDataSource authLocalDataSource;
   final String baseUrl = "${AppConstants.baseUrl}/technicians";
 
-  TechnicianDashboardRemoteDataSource({required this.client});
+  TechnicianDashboardRemoteDataSource({
+    required this.client,
+    required this.authLocalDataSource,
+  });
 
   @override
   Future<TechnicianDashboardModel> getDashboard() async {
+    final token = await authLocalDataSource.getToken();
     final uri = Uri.parse('$baseUrl/dashboard/');
     
-    final response = await client.get(uri);
+    final response = await client.get(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Token $token',
+      },
+    );
 
     _handleResponse(response);
 

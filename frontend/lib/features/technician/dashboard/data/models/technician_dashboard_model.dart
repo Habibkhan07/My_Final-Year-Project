@@ -5,6 +5,7 @@ class UpNextJobModel {
   final String serviceTitle;
   final DateTime scheduledTime;
   final String customerName;
+  final String? customerPhone;
   final String addressText;
   final double lat;
   final double lng;
@@ -14,6 +15,7 @@ class UpNextJobModel {
     required this.serviceTitle,
     required this.scheduledTime,
     required this.customerName,
+    this.customerPhone,
     required this.addressText,
     required this.lat,
     required this.lng,
@@ -24,6 +26,7 @@ class UpNextJobModel {
         serviceTitle: json['service_title'],
         scheduledTime: DateTime.parse(json['scheduled_time']),
         customerName: json['customer_name'],
+        customerPhone: json['customer_phone'] as String?,
         addressText: json['address_text'],
         lat: (json['lat'] as num).toDouble(),
         lng: (json['lng'] as num).toDouble(),
@@ -34,6 +37,7 @@ class UpNextJobModel {
         'service_title': serviceTitle,
         'scheduled_time': scheduledTime.toIso8601String(),
         'customer_name': customerName,
+        'customer_phone': customerPhone,
         'address_text': addressText,
         'lat': lat,
         'lng': lng,
@@ -44,6 +48,7 @@ class UpNextJobModel {
         serviceTitle: serviceTitle,
         scheduledTime: scheduledTime,
         customerName: customerName,
+        customerPhone: customerPhone,
         addressText: addressText,
         lat: lat,
         lng: lng,
@@ -58,6 +63,7 @@ class UpNextJobModel {
           serviceTitle == other.serviceTitle &&
           scheduledTime == other.scheduledTime &&
           customerName == other.customerName &&
+          customerPhone == other.customerPhone &&
           addressText == other.addressText &&
           lat == other.lat &&
           lng == other.lng;
@@ -68,6 +74,7 @@ class UpNextJobModel {
       serviceTitle.hashCode ^
       scheduledTime.hashCode ^
       customerName.hashCode ^
+      customerPhone.hashCode ^
       addressText.hashCode ^
       lat.hashCode ^
       lng.hashCode;

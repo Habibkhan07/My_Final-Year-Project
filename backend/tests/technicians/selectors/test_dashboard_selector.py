@@ -3,7 +3,7 @@ from django.utils import timezone
 from decimal import Decimal
 from bookings.models import JobBooking
 from technicians.selectors.dashboard_selector import get_technician_dashboard
-from tests.factories.accounts import UserFactory
+from tests.factories.accounts import UserFactory, UserProfileFactory
 from tests.factories.technicians import TechnicianProfileFactory
 from tests.factories.customers import CustomerProfileFactory, CustomerAddressFactory
 from tests.factories.bookings import JobBookingFactory
@@ -60,6 +60,7 @@ class TestTechnicianDashboardSelector:
         tech = TechnicianProfileFactory(is_online=True)
         customer_profile = CustomerProfileFactory()
         customer = customer_profile.user
+        UserProfileFactory(user=customer, phone="+923001234567")
         address = CustomerAddressFactory(
             customer=customer_profile,
             street_address="14 Street, Gulberg III",
@@ -98,6 +99,7 @@ class TestTechnicianDashboardSelector:
         assert dashboard["up_next_job"]["job_id"] == job_next.id
         assert dashboard["up_next_job"]["service_title"] == "AC Deep Wash"
         assert dashboard["up_next_job"]["customer_name"] == customer.get_full_name()
+        assert dashboard["up_next_job"]["customer_phone"] == "+923001234567"
         assert dashboard["up_next_job"]["address_text"] == "14 Street, Gulberg III"
         assert dashboard["up_next_job"]["lat"] == 31.5204
         assert dashboard["up_next_job"]["lng"] == 74.3587

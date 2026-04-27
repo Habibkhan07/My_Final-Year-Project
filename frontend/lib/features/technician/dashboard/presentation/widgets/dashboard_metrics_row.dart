@@ -5,8 +5,15 @@ import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/theme/app_shapes.dart';
 import '../../domain/entities/technician_dashboard_entity.dart';
 
-/// Purely presentational. Renders today's summary metrics as two side-by-side
-/// cards at the bottom of the dashboard.
+/// Daily Ledger card — Stitch's sticky-bottom layout.
+///
+/// Two stat columns separated by a vertical divider:
+///   [ Jobs Completed | count ]   |   [ Cash Collected | Rs. amount ]
+///
+/// Cash is rendered in the secondary (success-green) ramp to draw the eye to
+/// the technician's earnings — this is the dashboard's only "good news"
+/// affordance, so it is intentionally chromatic against the otherwise neutral
+/// surface.
 class DashboardMetricsRow extends StatelessWidget {
   const DashboardMetricsRow({super.key, required this.metrics});
   final DashboardMetricsEntity metrics;
@@ -16,86 +23,88 @@ class DashboardMetricsRow extends StatelessWidget {
     final cashFormatted =
         'Rs. ${NumberFormat('#,##0').format(metrics.cashCollectedToday.toInt())}';
 
-    return Row(
-      children: [
-        Expanded(
-          child: _MetricCard(
-            icon: Icons.check_circle_outline,
-            iconColor: AppColors.secondary,
-            iconBackground: AppColors.secondaryContainer,
-            label: 'Jobs Completed',
-            value: '${metrics.jobsCompletedToday}',
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _MetricCard(
-            icon: Icons.payments_outlined,
-            iconColor: AppColors.primary,
-            iconBackground: AppColors.primaryFixed,
-            label: 'Cash Collected',
-            value: cashFormatted,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _MetricCard extends StatelessWidget {
-  const _MetricCard({
-    required this.icon,
-    required this.iconColor,
-    required this.iconBackground,
-    required this.label,
-    required this.value,
-  });
-
-  final IconData icon;
-  final Color iconColor;
-  final Color iconBackground;
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
         color: AppColors.surfaceContainerLowest,
         borderRadius: BorderRadius.circular(AppShapes.radiusMD),
+        border: Border.all(color: AppColors.outlineVariant.withValues(alpha: 0.4)),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.onSurface.withValues(alpha: 0.08),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
+          Expanded(
+            child: _Stat(
+              label: 'Jobs Completed',
+              value: '${metrics.jobsCompletedToday}',
+              valueColor: AppColors.onSurface,
+              alignEnd: false,
+            ),
+          ),
           Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: iconBackground,
-              borderRadius: BorderRadius.circular(AppShapes.radiusSM),
-            ),
-            child: Icon(icon, color: iconColor, size: 20),
+            width: 1,
+            height: 32,
+            color: AppColors.outlineVariant.withValues(alpha: 0.3),
           ),
-          const SizedBox(height: 12),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w700,
-              letterSpacing: -0.44,
-              color: AppColors.onSurface,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 12,
-              color: AppColors.onSurfaceVariant,
+          Expanded(
+            child: _Stat(
+              label: 'Cash Collected',
+              value: cashFormatted,
+              valueColor: AppColors.secondary,
+              alignEnd: true,
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _Stat extends StatelessWidget {
+  const _Stat({
+    required this.label,
+    required this.value,
+    required this.valueColor,
+    required this.alignEnd,
+  });
+
+  final String label;
+  final String value;
+  final Color valueColor;
+  final bool alignEnd;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment:
+          alignEnd ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+      children: [
+        Text(
+          label.toUpperCase(),
+          style: const TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.6,
+            color: AppColors.outline,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.36,
+            color: valueColor,
+          ),
+        ),
+      ],
     );
   }
 }

@@ -111,7 +111,7 @@ final class TechnicianDashboardRemoteDataSourceProvider
 }
 
 String _$technicianDashboardRemoteDataSourceHash() =>
-    r'6152adc020a7dca7020bd185ac5d96a4f250972d';
+    r'5a61c9f71ad6a0208d6af452dbdeb51b17342091';
 
 @ProviderFor(technicianDashboardLocalDataSource)
 final technicianDashboardLocalDataSourceProvider =

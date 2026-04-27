@@ -29,10 +29,11 @@ The root entity for the entire screen.
 |---|---|---|
 | `jobId` | `int` | Primary key — used for deep-linking to the job detail screen. |
 | `serviceTitle` | `String` | Human-readable service name (e.g. "AC Deep Wash"). |
-| `scheduledTime` | `DateTime` | Used for time display and the live countdown chip. |
+| `scheduledTime` | `DateTime` | Used for time display and the live countdown chip (`In Xm`, ticking every 30s). |
 | `customerName` | `String` | Displayed in the job card meta row. |
+| `customerPhone` | `String?` | E.164 phone number. Used by the Contact Customer button to launch a `tel:` deep link. `null` → button still rendered but tapping shows a "phone unavailable" snackbar. |
 | `addressText` | `String` | Human-readable address displayed below customer name. |
-| `lat` / `lng` | `double` | Map centre coordinates for `JobLocationMap`. Also used to build the Google Maps navigation URL. |
+| `lat` / `lng` | `double` | Map centre coordinates for `JobLocationMap`. Also used to build the Google Maps navigation URL and compute the device-side "X.X km away" subtext. |
 
 ### `LaterTodayJobEntity`
 
@@ -101,6 +102,7 @@ Plain Dart classes (not Freezed). Each model owns `fromJson`, `toJson`, and
     "service_title": "AC Deep Wash",
     "scheduled_time": "2026-04-26T14:00:00Z",
     "customer_name": "Ali R.",
+    "customer_phone": "+923001234567",
     "address_text": "14 Street, Gulberg III",
     "lat": 31.5204,
     "lng": 74.3587
@@ -121,6 +123,69 @@ Plain Dart classes (not Freezed). Each model owns `fromJson`, `toJson`, and
 ```
 
 `up_next_job` is nullable — backend sends `null` when no job is scheduled.
+`up_next_job.customer_phone` is nullable — sent as `null` for legacy customers
+without a phone on file.
+
+---
+
+## Layout & UX (post-Stitch alignment)
+
+The presentation matches the "Default Technician Cockpit" Stitch screen with
+two intentional deviations:
+
+1. **No bell / notification icon.** The realtime pipeline is dual-barrel
+   (WebSocket for live updates + Firebase for push). The dashboard's job is
+   to show *now*; the notification ledger (recovery for accidentally-dismissed
+   FCM banners) belongs on the Profile tab when that ships.
+
+2. **No `technician_name` in the dashboard payload.** The greeting "Hi,
+   {firstName}" is sourced from `authProvider` which reads the user from
+   secure storage at startup. Adding a redundant name field to the dashboard
+   selector would have been a wasted round-trip for data the client already
+   has.
+
+### Header (single row)
+```
+[avatar 40px] [Hi, {firstName}]   ······   [ONLINE pill] [Wallet: Rs. X pill]
+```
+- Avatar: `CachedNetworkImage` with a solid placeholder during load and the
+  person-icon fallback only on null URL or load error.
+- Online toggle: animated pulsing dot when online; `HapticFeedback.mediumImpact`
+  on each flip; spinner replaces the dot during the optimistic round-trip.
+- Wallet pill: tappable — currently shows a "coming soon" snackbar; will open
+  a JazzCash top-up sheet when that flow lands. The pill answers "what is
+  this Rs?" with the inline `Wallet:` label rather than a free-floating icon.
+
+### Up Next card
+Vertical CTA stack (Stitch layout):
+- `Start Navigation` — gradient, h=56, full-width. Hands off to Google Maps;
+  origin is omitted so the device's current GPS fix is used at handoff time.
+- `Contact Customer` — surface-container-low, h=48, full-width. Launches a
+  `tel:` deep link with `customerPhone`. Disabled-styled when `customerPhone`
+  is null.
+
+The `In Xm` countdown ticks every 30s via a `Timer.periodic` inside a
+`StatefulWidget`. The `X.X km away` subtext under the address is computed
+device-side from `currentPositionProvider` (a 5-min cached one-shot
+geolocator read) — Haversine to `lat`/`lng`. The subtext is silently hidden
+when location is unavailable (permission denied, service off, timeout).
+
+### Daily Ledger
+Floating card pinned to `bottom: 16`, above the bottom nav, with shadow.
+Two stat columns separated by a vertical divider:
+- `JOBS COMPLETED` / count (in `onSurface`)
+- `CASH COLLECTED` / Rs. amount (in `secondary` green — the only chromatic
+  affordance, drawing the eye to good-news data)
+
+### Why this matters: matchmaking vs dashboard location
+The platform is a *scheduled* booking marketplace, not a live-dispatch service
+(InDrive). Matchmaking already runs off `TechnicianProfile.base_latitude` +
+`max_travel_radius_km` — the technician's declared service area. Live position
+is **not** required for matching and is intentionally **not** tracked
+server-side. The "X km away" subtext on the dashboard is a device-only
+convenience for the technician's own planning. When the active-job flow lands
+("technician is on the way" customer-side tracking), live position will be
+introduced as a feature scoped to in-progress jobs, not as dashboard infra.
 
 ---
 

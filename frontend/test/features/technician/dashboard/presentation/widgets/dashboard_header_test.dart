@@ -5,6 +5,8 @@ import 'package:network_image_mock/network_image_mock.dart';
 import 'package:frontend/features/technician/dashboard/domain/entities/technician_dashboard_entity.dart';
 import 'package:frontend/features/technician/dashboard/presentation/widgets/dashboard_header.dart';
 
+import '../../_helpers/test_overrides.dart';
+
 // ---------------------------------------------------------------------------
 // Fixtures
 // ---------------------------------------------------------------------------
@@ -31,12 +33,14 @@ Widget buildHeader({
   bool isToggleLoading = false,
   ValueChanged<bool>? onToggle,
 }) =>
-    MaterialApp(
-      home: Scaffold(
-        body: DashboardHeader(
-          dashboard: dashboard,
-          isToggleLoading: isToggleLoading,
-          onToggle: onToggle ?? (_) {},
+    dashboardScope(
+      child: MaterialApp(
+        home: Scaffold(
+          body: DashboardHeader(
+            dashboard: dashboard,
+            isToggleLoading: isToggleLoading,
+            onToggle: onToggle ?? (_) {},
+          ),
         ),
       ),
     );
@@ -48,17 +52,35 @@ Widget buildHeader({
 void main() {
   group('DashboardHeader', () {
     // -----------------------------------------------------------------------
-    group('online/offline toggle — render', () {
-      testWidgets('shows "Online" chip text when isOnline is true', (tester) async {
-        await tester.pumpWidget(buildHeader(dashboard: _entity(isOnline: true)));
-        expect(find.text('Online'), findsOneWidget);
-        expect(find.text('Offline'), findsNothing);
+    group('greeting', () {
+      testWidgets('renders "Hi, {firstName}" from authProvider', (tester) async {
+        await tester.pumpWidget(buildHeader(dashboard: _entity()));
+        await tester.pump();
+        expect(find.text('Hi, Ali'), findsOneWidget);
       });
 
-      testWidgets('shows "Offline" chip text when isOnline is false', (tester) async {
+      testWidgets('does not render legacy "FIELD_OPS v1.0" branding', (tester) async {
+        await tester.pumpWidget(buildHeader(dashboard: _entity()));
+        await tester.pump();
+        expect(find.text('FIELD_OPS v1.0'), findsNothing);
+        expect(find.text('Technician Dashboard'), findsNothing);
+      });
+    });
+
+    // -----------------------------------------------------------------------
+    group('online/offline toggle — render', () {
+      testWidgets('shows ONLINE chip when isOnline is true', (tester) async {
+        await tester.pumpWidget(buildHeader(dashboard: _entity(isOnline: true)));
+        await tester.pump();
+        expect(find.text('ONLINE'), findsOneWidget);
+        expect(find.text('OFFLINE'), findsNothing);
+      });
+
+      testWidgets('shows OFFLINE chip when isOnline is false', (tester) async {
         await tester.pumpWidget(buildHeader(dashboard: _entity(isOnline: false)));
-        expect(find.text('Offline'), findsOneWidget);
-        expect(find.text('Online'), findsNothing);
+        await tester.pump();
+        expect(find.text('OFFLINE'), findsOneWidget);
+        expect(find.text('ONLINE'), findsNothing);
       });
 
       testWidgets('shows CircularProgressIndicator inside toggle when loading',
@@ -67,6 +89,7 @@ void main() {
           dashboard: _entity(),
           isToggleLoading: true,
         ));
+        await tester.pump();
         expect(find.byType(CircularProgressIndicator), findsOneWidget);
       });
 
@@ -75,6 +98,7 @@ void main() {
           dashboard: _entity(),
           isToggleLoading: false,
         ));
+        await tester.pump();
         expect(find.byType(CircularProgressIndicator), findsNothing);
       });
     });
@@ -88,8 +112,9 @@ void main() {
           dashboard: _entity(isOnline: true),
           onToggle: (val) => toggledTo = val,
         ));
+        await tester.pump();
 
-        await tester.tap(find.text('Online'));
+        await tester.tap(find.text('ONLINE'));
         expect(toggledTo, false);
       });
 
@@ -100,8 +125,9 @@ void main() {
           dashboard: _entity(isOnline: false),
           onToggle: (val) => toggledTo = val,
         ));
+        await tester.pump();
 
-        await tester.tap(find.text('Offline'));
+        await tester.tap(find.text('OFFLINE'));
         expect(toggledTo, true);
       });
 
@@ -113,9 +139,8 @@ void main() {
           isToggleLoading: true,
           onToggle: (_) => callCount++,
         ));
+        await tester.pump();
 
-        // GestureDetector is disabled (onTap: null) when loading — tap should
-        // not reach the callback.
         await tester.tap(
           find.byType(CircularProgressIndicator),
           warnIfMissed: false,
@@ -125,17 +150,19 @@ void main() {
     });
 
     // -----------------------------------------------------------------------
-    group('wallet badge', () {
-      testWidgets('displays balance as "Rs. {amount}"', (tester) async {
+    group('wallet pill', () {
+      testWidgets('displays balance as "Wallet: Rs. {amount}"', (tester) async {
         await tester.pumpWidget(buildHeader(dashboard: _entity(walletBalance: 750)));
-        expect(find.text('Rs. 750'), findsOneWidget);
+        await tester.pump();
+        expect(find.text('Wallet: Rs. 750'), findsOneWidget);
       });
 
       testWidgets('formats integer balance without decimals', (tester) async {
         await tester.pumpWidget(
           buildHeader(dashboard: _entity(walletBalance: 2000.0)),
         );
-        expect(find.text('Rs. 2000'), findsOneWidget);
+        await tester.pump();
+        expect(find.text('Wallet: Rs. 2000'), findsOneWidget);
       });
     });
 
@@ -144,30 +171,33 @@ void main() {
       testWidgets('shows fallback person_outline icon when profilePicture is null',
           (tester) async {
         await tester.pumpWidget(buildHeader(dashboard: _entity(profilePicture: null)));
+        await tester.pump();
         expect(find.byIcon(Icons.person_outline), findsOneWidget);
       });
 
-      testWidgets('renders CircleAvatar (not fallback) when profilePicture is set',
+      testWidgets('renders no fallback icon when profilePicture is set',
           (tester) async {
         await mockNetworkImagesFor(() async {
           await tester.pumpWidget(buildHeader(
             dashboard: _entity(profilePicture: 'https://example.com/pic.jpg'),
           ));
           await tester.pump();
-
-          // Fallback icon must be absent; CircleAvatar must be present.
+          // Avatar uses CachedNetworkImage in a ClipOval; the fallback icon
+          // should not be rendered when an image URL is provided. The image
+          // itself may not have loaded under mock — that's fine, the test
+          // is about absence of fallback.
           expect(find.byIcon(Icons.person_outline), findsNothing);
-          expect(find.byType(CircleAvatar), findsOneWidget);
         });
       });
     });
 
     // -----------------------------------------------------------------------
-    group('app title', () {
-      testWidgets('renders FIELD_OPS branding text', (tester) async {
+    group('bell icon removal', () {
+      testWidgets('does not render notifications bell', (tester) async {
         await tester.pumpWidget(buildHeader(dashboard: _entity()));
-        expect(find.text('FIELD_OPS v1.0'), findsOneWidget);
-        expect(find.text('Technician Dashboard'), findsOneWidget);
+        await tester.pump();
+        expect(find.byIcon(Icons.notifications_outlined), findsNothing);
+        expect(find.byIcon(Icons.notifications), findsNothing);
       });
     });
   });

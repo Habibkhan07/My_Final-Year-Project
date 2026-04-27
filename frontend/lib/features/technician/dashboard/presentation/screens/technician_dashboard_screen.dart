@@ -7,11 +7,17 @@ import '../../../../../core/theme/app_shapes.dart';
 import '../../../../../core/theme/app_spacing.dart';
 import '../../domain/failures/technician_dashboard_failure.dart';
 import '../notifiers/technician_dashboard_notifier.dart';
+import '../providers/current_position_provider.dart';
 import '../state/technician_dashboard_state.dart';
 import '../widgets/dashboard_header.dart';
 import '../widgets/dashboard_metrics_row.dart';
 import '../widgets/later_today_list.dart';
 import '../widgets/up_next_job_card.dart';
+
+/// Bottom inset reserved for the floating Daily Ledger card so the last
+/// list row never sits underneath it. Equals ledger height (~76) + breathing
+/// room (~16).
+const double _ledgerScrollPadding = 96;
 
 class TechnicianDashboardScreen extends ConsumerWidget {
   const TechnicianDashboardScreen({super.key});
@@ -49,7 +55,7 @@ class TechnicianDashboardScreen extends ConsumerWidget {
           // full UI silently rather than flashing a skeleton.
           final cached = dashboardAsync.value;
           if (cached != null) {
-            return _DashboardContent(state: cached, notifier: notifier);
+            return _DashboardLayout(state: cached, notifier: notifier);
           }
           return const _DashboardSkeleton();
         },
@@ -57,7 +63,7 @@ class TechnicianDashboardScreen extends ConsumerWidget {
           error: error,
           onRetry: notifier.refresh,
         ),
-        data: (state) => _DashboardContent(state: state, notifier: notifier),
+        data: (state) => _DashboardLayout(state: state, notifier: notifier),
       ),
       bottomNavigationBar: const _DashboardNavBar(),
     );
@@ -65,60 +71,74 @@ class TechnicianDashboardScreen extends ConsumerWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Loaded content
+// Loaded layout — scroll content + floating Daily Ledger
 // ---------------------------------------------------------------------------
 
-class _DashboardContent extends StatelessWidget {
-  const _DashboardContent({required this.state, required this.notifier});
+class _DashboardLayout extends ConsumerWidget {
+  const _DashboardLayout({required this.state, required this.notifier});
   final TechnicianDashboardState state;
   final TechnicianDashboardNotifier notifier;
 
+  Future<void> _onRefresh(WidgetRef ref) async {
+    // Pull-to-refresh forces both a fresh dashboard fetch and a fresh GPS
+    // fix — otherwise "X km away" would stay frozen for up to 5 minutes.
+    ref.read(currentPositionProvider.notifier).invalidateCache();
+    await notifier.refresh();
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final dashboard = state.dashboard;
 
-    return RefreshIndicator(
-      onRefresh: notifier.refresh,
-      color: AppColors.primaryContainer,
-      child: CustomScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        slivers: [
-          SliverToBoxAdapter(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                DashboardHeader(
-                  dashboard: dashboard,
-                  isToggleLoading: state.toggleStatus.isLoading,
-                  onToggle: notifier.setOnline,
+    return Stack(
+      children: [
+        RefreshIndicator(
+          onRefresh: () => _onRefresh(ref),
+          color: AppColors.primaryContainer,
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
+              SliverToBoxAdapter(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    DashboardHeader(
+                      dashboard: dashboard,
+                      isToggleLoading: state.toggleStatus.isLoading,
+                      onToggle: notifier.setOnline,
+                    ),
+                    const SizedBox(height: AppSpacing.s4),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.screenPadding),
+                      child: UpNextJobCard(job: dashboard.upNextJob),
+                    ),
+                    const SizedBox(height: AppSpacing.s4),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.screenPadding),
+                      child: LaterTodayList(jobs: dashboard.laterTodayJobs),
+                    ),
+                    const SizedBox(height: _ledgerScrollPadding),
+                  ],
                 ),
-                const SizedBox(height: AppSpacing.s4),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenPadding),
-                  child: UpNextJobCard(job: dashboard.upNextJob),
-                ),
-                const SizedBox(height: AppSpacing.s4),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenPadding),
-                  child: LaterTodayList(jobs: dashboard.laterTodayJobs),
-                ),
-                const SizedBox(height: AppSpacing.s4),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenPadding),
-                  child: DashboardMetricsRow(metrics: dashboard.metrics),
-                ),
-                const SizedBox(height: AppSpacing.s6),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
-      ),
+        ),
+        Positioned(
+          left: 16,
+          right: 16,
+          bottom: 16,
+          child: DashboardMetricsRow(metrics: dashboard.metrics),
+        ),
+      ],
     );
   }
 }
 
 // ---------------------------------------------------------------------------
-// Skeleton loader
+// Skeleton loader — mirrors the new layout, no FIELD_OPS block
 // ---------------------------------------------------------------------------
 
 class _DashboardSkeleton extends StatelessWidget {
@@ -129,33 +149,47 @@ class _DashboardSkeleton extends StatelessWidget {
     return Shimmer.fromColors(
       baseColor: AppColors.surfaceContainerHigh,
       highlightColor: AppColors.surfaceContainerLow,
-      child: SafeArea(
-        child: SingleChildScrollView(
-          physics: const NeverScrollableScrollPhysics(),
-          child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.screenPadding),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _ShimmerBox(height: 88, radius: AppShapes.radiusMD),
-                const SizedBox(height: AppSpacing.s4),
-                _ShimmerBox(height: 320, radius: AppShapes.radiusMD),
-                const SizedBox(height: AppSpacing.s4),
-                _ShimmerBox(height: 16, width: 100, radius: 4),
-                const SizedBox(height: AppSpacing.s2),
-                _ShimmerBox(height: 110, radius: AppShapes.radiusMD),
-                const SizedBox(height: AppSpacing.s4),
-                Row(
+      child: Stack(
+        children: [
+          SafeArea(
+            child: SingleChildScrollView(
+              physics: const NeverScrollableScrollPhysics(),
+              child: Padding(
+                padding: const EdgeInsets.all(AppSpacing.screenPadding),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(child: _ShimmerBox(height: 110, radius: AppShapes.radiusMD)),
-                    const SizedBox(width: 12),
-                    Expanded(child: _ShimmerBox(height: 110, radius: AppShapes.radiusMD)),
+                    Row(
+                      children: [
+                        const _ShimmerBox(height: 40, width: 40, radius: 20),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _ShimmerBox(height: 16, radius: 4),
+                        ),
+                        const SizedBox(width: 8),
+                        const _ShimmerBox(height: 26, width: 70, radius: AppShapes.radiusFull),
+                        const SizedBox(width: 8),
+                        const _ShimmerBox(height: 26, width: 90, radius: AppShapes.radiusFull),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.s4),
+                    _ShimmerBox(height: 380, radius: AppShapes.radiusMD),
+                    const SizedBox(height: AppSpacing.s4),
+                    _ShimmerBox(height: 16, width: 100, radius: 4),
+                    const SizedBox(height: AppSpacing.s2),
+                    _ShimmerBox(height: 80, radius: AppShapes.radiusMD),
                   ],
                 ),
-              ],
+              ),
             ),
           ),
-        ),
+          Positioned(
+            left: 16,
+            right: 16,
+            bottom: 16,
+            child: _ShimmerBox(height: 76, radius: AppShapes.radiusMD),
+          ),
+        ],
       ),
     );
   }

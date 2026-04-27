@@ -10,6 +10,7 @@ abstract class UpNextJobEntity with _$UpNextJobEntity {
     required String serviceTitle,
     required DateTime scheduledTime,
     required String customerName,
+    String? customerPhone,
     required String addressText,
     required double lat,
     required double lng,

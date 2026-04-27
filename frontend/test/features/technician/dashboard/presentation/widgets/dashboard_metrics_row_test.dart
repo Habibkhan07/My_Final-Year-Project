@@ -30,14 +30,14 @@ void main() {
   group('DashboardMetricsRow', () {
     // -----------------------------------------------------------------------
     group('labels', () {
-      testWidgets('renders "Jobs Completed" label', (tester) async {
+      testWidgets('renders "JOBS COMPLETED" label (uppercase)', (tester) async {
         await tester.pumpWidget(buildRow(_zero));
-        expect(find.text('Jobs Completed'), findsOneWidget);
+        expect(find.text('JOBS COMPLETED'), findsOneWidget);
       });
 
-      testWidgets('renders "Cash Collected" label', (tester) async {
+      testWidgets('renders "CASH COLLECTED" label (uppercase)', (tester) async {
         await tester.pumpWidget(buildRow(_zero));
-        expect(find.text('Cash Collected'), findsOneWidget);
+        expect(find.text('CASH COLLECTED'), findsOneWidget);
       });
     });
 

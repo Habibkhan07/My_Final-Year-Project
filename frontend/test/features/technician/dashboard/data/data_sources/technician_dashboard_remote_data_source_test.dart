@@ -3,18 +3,25 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:mocktail/mocktail.dart';
 import 'package:frontend/core/common/errors/http_failure.dart';
+import 'package:frontend/features/auth/data/data_sources/auth_local_data_source.dart';
 import 'package:frontend/features/technician/dashboard/data/data_sources/technician_dashboard_remote_data_source.dart';
 import 'package:frontend/features/technician/dashboard/data/models/technician_dashboard_model.dart';
 
 class MockHttpClient extends Mock implements http.Client {}
+class MockAuthLocalDataSource extends Mock implements AuthLocalDataSource {}
 
 void main() {
   late TechnicianDashboardRemoteDataSource dataSource;
   late MockHttpClient mockHttpClient;
+  late MockAuthLocalDataSource mockAuthLocalDataSource;
 
   setUp(() {
     mockHttpClient = MockHttpClient();
-    dataSource = TechnicianDashboardRemoteDataSource(client: mockHttpClient);
+    mockAuthLocalDataSource = MockAuthLocalDataSource();
+    dataSource = TechnicianDashboardRemoteDataSource(
+      client: mockHttpClient,
+      authLocalDataSource: mockAuthLocalDataSource,
+    );
     registerFallbackValue(Uri());
   });
 
@@ -31,8 +38,9 @@ void main() {
   };
 
   group('getDashboard', () {
-    test('should perform a GET request on the correct URL', () async {
-      when(() => mockHttpClient.get(any())).thenAnswer(
+    test('should perform a GET request on the correct URL with token header', () async {
+      when(() => mockAuthLocalDataSource.getToken()).thenAnswer((_) async => 'test_token');
+      when(() => mockHttpClient.get(any(), headers: any(named: 'headers'))).thenAnswer(
         (_) async => http.Response(jsonEncode(tDashboardJson), 200),
       );
 
@@ -40,11 +48,16 @@ void main() {
 
       verify(() => mockHttpClient.get(
             Uri.parse('http://127.0.0.1:8000/api/technicians/dashboard/'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Token test_token',
+            },
           )).called(1);
     });
 
     test('should return TechnicianDashboardModel when the response code is 200', () async {
-      when(() => mockHttpClient.get(any())).thenAnswer(
+      when(() => mockAuthLocalDataSource.getToken()).thenAnswer((_) async => 'test_token');
+      when(() => mockHttpClient.get(any(), headers: any(named: 'headers'))).thenAnswer(
         (_) async => http.Response(jsonEncode(tDashboardJson), 200),
       );
 
@@ -55,7 +68,8 @@ void main() {
     });
 
     test('should throw HttpFailure when the response code is 404', () async {
-      when(() => mockHttpClient.get(any())).thenAnswer(
+      when(() => mockAuthLocalDataSource.getToken()).thenAnswer((_) async => 'test_token');
+      when(() => mockHttpClient.get(any(), headers: any(named: 'headers'))).thenAnswer(
         (_) async => http.Response(jsonEncode({'message': 'Not Found'}), 404),
       );
 
