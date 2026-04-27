@@ -7,17 +7,18 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../../../constants.dart';
-import '../../data/mappers/system_event_mapper.dart';
-import '../../data/models/system_event_model.dart';
+import '../providers/dependency_injection.dart';
 import '../state/connection_state.dart';
 import 'event_sync_notifier.dart';
-import 'system_event_notifier.dart';
 
 part 'ws_connection_notifier.g.dart';
 
 /// Owns the entire WebSocket lifecycle for the realtime event stream:
 ///   - Connect with the user's auth token in the query string.
-///   - Listen to frames, decode, and feed each into [SystemEventNotifier].
+///   - Listen to frames, JSON-decode, and forward each decoded map into
+///     [WsFrameDispatcher], which routes events vs. streams. This class
+///     deliberately does NOT know about [SystemEventModel], the mapper,
+///     or [SystemEventNotifier] — it is a transport object only.
 ///   - Trigger a REST recovery sync immediately after the socket opens.
 ///   - Reconnect with exponential backoff, capped at [_kMaxBackoff].
 ///   - After [_kMaxRetries] consecutive failures, flip state to `failed`
@@ -122,15 +123,14 @@ class WsConnectionNotifier extends _$WsConnectionNotifier {
   }
 
   /// Each [raw] frame runs through its own try/catch. A single malformed
-  /// message must never break the listener loop.
+  /// message must never break the listener loop. JSON-decode is the only
+  /// concern at this layer; routing by `kind` and entity mapping live in
+  /// [WsFrameDispatcher].
   void _onMessage(dynamic raw) {
     try {
       final text = raw is String ? raw : raw.toString();
       final decoded = jsonDecode(text) as Map<String, dynamic>;
-      final model = SystemEventModel.fromJson(decoded);
-      final entity = model.toDomain();
-      if (entity == null) return;
-      ref.read(systemEventProvider.notifier).processEvent(entity);
+      ref.read(wsFrameDispatcherProvider).dispatch(decoded);
     } catch (e, stack) {
       log(
         'dropping malformed WebSocket frame: $e',

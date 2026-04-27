@@ -15,7 +15,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$SystemEventModel {
 
- String get id;@JsonKey(name: 'rawType') String get rawType;@JsonKey(name: 'targetRole') String get targetRole; String get timestamp; Map<String, dynamic> get payload;
+ String get kind; String get id;@JsonKey(name: 'rawType') String get rawType;@JsonKey(name: 'targetRole') String get targetRole; String get timestamp; Map<String, dynamic> get payload;
 /// Create a copy of SystemEventModel
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -28,16 +28,16 @@ $SystemEventModelCopyWith<SystemEventModel> get copyWith => _$SystemEventModelCo
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is SystemEventModel&&(identical(other.id, id) || other.id == id)&&(identical(other.rawType, rawType) || other.rawType == rawType)&&(identical(other.targetRole, targetRole) || other.targetRole == targetRole)&&(identical(other.timestamp, timestamp) || other.timestamp == timestamp)&&const DeepCollectionEquality().equals(other.payload, payload));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is SystemEventModel&&(identical(other.kind, kind) || other.kind == kind)&&(identical(other.id, id) || other.id == id)&&(identical(other.rawType, rawType) || other.rawType == rawType)&&(identical(other.targetRole, targetRole) || other.targetRole == targetRole)&&(identical(other.timestamp, timestamp) || other.timestamp == timestamp)&&const DeepCollectionEquality().equals(other.payload, payload));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,rawType,targetRole,timestamp,const DeepCollectionEquality().hash(payload));
+int get hashCode => Object.hash(runtimeType,kind,id,rawType,targetRole,timestamp,const DeepCollectionEquality().hash(payload));
 
 @override
 String toString() {
-  return 'SystemEventModel(id: $id, rawType: $rawType, targetRole: $targetRole, timestamp: $timestamp, payload: $payload)';
+  return 'SystemEventModel(kind: $kind, id: $id, rawType: $rawType, targetRole: $targetRole, timestamp: $timestamp, payload: $payload)';
 }
 
 
@@ -48,7 +48,7 @@ abstract mixin class $SystemEventModelCopyWith<$Res>  {
   factory $SystemEventModelCopyWith(SystemEventModel value, $Res Function(SystemEventModel) _then) = _$SystemEventModelCopyWithImpl;
 @useResult
 $Res call({
- String id,@JsonKey(name: 'rawType') String rawType,@JsonKey(name: 'targetRole') String targetRole, String timestamp, Map<String, dynamic> payload
+ String kind, String id,@JsonKey(name: 'rawType') String rawType,@JsonKey(name: 'targetRole') String targetRole, String timestamp, Map<String, dynamic> payload
 });
 
 
@@ -65,9 +65,10 @@ class _$SystemEventModelCopyWithImpl<$Res>
 
 /// Create a copy of SystemEventModel
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? rawType = null,Object? targetRole = null,Object? timestamp = null,Object? payload = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? kind = null,Object? id = null,Object? rawType = null,Object? targetRole = null,Object? timestamp = null,Object? payload = null,}) {
   return _then(_self.copyWith(
-id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
+kind: null == kind ? _self.kind : kind // ignore: cast_nullable_to_non_nullable
+as String,id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,rawType: null == rawType ? _self.rawType : rawType // ignore: cast_nullable_to_non_nullable
 as String,targetRole: null == targetRole ? _self.targetRole : targetRole // ignore: cast_nullable_to_non_nullable
 as String,timestamp: null == timestamp ? _self.timestamp : timestamp // ignore: cast_nullable_to_non_nullable
@@ -157,10 +158,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id, @JsonKey(name: 'rawType')  String rawType, @JsonKey(name: 'targetRole')  String targetRole,  String timestamp,  Map<String, dynamic> payload)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String kind,  String id, @JsonKey(name: 'rawType')  String rawType, @JsonKey(name: 'targetRole')  String targetRole,  String timestamp,  Map<String, dynamic> payload)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _SystemEventModel() when $default != null:
-return $default(_that.id,_that.rawType,_that.targetRole,_that.timestamp,_that.payload);case _:
+return $default(_that.kind,_that.id,_that.rawType,_that.targetRole,_that.timestamp,_that.payload);case _:
   return orElse();
 
 }
@@ -178,10 +179,10 @@ return $default(_that.id,_that.rawType,_that.targetRole,_that.timestamp,_that.pa
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id, @JsonKey(name: 'rawType')  String rawType, @JsonKey(name: 'targetRole')  String targetRole,  String timestamp,  Map<String, dynamic> payload)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String kind,  String id, @JsonKey(name: 'rawType')  String rawType, @JsonKey(name: 'targetRole')  String targetRole,  String timestamp,  Map<String, dynamic> payload)  $default,) {final _that = this;
 switch (_that) {
 case _SystemEventModel():
-return $default(_that.id,_that.rawType,_that.targetRole,_that.timestamp,_that.payload);case _:
+return $default(_that.kind,_that.id,_that.rawType,_that.targetRole,_that.timestamp,_that.payload);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -198,10 +199,10 @@ return $default(_that.id,_that.rawType,_that.targetRole,_that.timestamp,_that.pa
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id, @JsonKey(name: 'rawType')  String rawType, @JsonKey(name: 'targetRole')  String targetRole,  String timestamp,  Map<String, dynamic> payload)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String kind,  String id, @JsonKey(name: 'rawType')  String rawType, @JsonKey(name: 'targetRole')  String targetRole,  String timestamp,  Map<String, dynamic> payload)?  $default,) {final _that = this;
 switch (_that) {
 case _SystemEventModel() when $default != null:
-return $default(_that.id,_that.rawType,_that.targetRole,_that.timestamp,_that.payload);case _:
+return $default(_that.kind,_that.id,_that.rawType,_that.targetRole,_that.timestamp,_that.payload);case _:
   return null;
 
 }
@@ -213,9 +214,10 @@ return $default(_that.id,_that.rawType,_that.targetRole,_that.timestamp,_that.pa
 @JsonSerializable()
 
 class _SystemEventModel implements SystemEventModel {
-  const _SystemEventModel({required this.id, @JsonKey(name: 'rawType') required this.rawType, @JsonKey(name: 'targetRole') required this.targetRole, required this.timestamp, required final  Map<String, dynamic> payload}): _payload = payload;
+  const _SystemEventModel({required this.kind, required this.id, @JsonKey(name: 'rawType') required this.rawType, @JsonKey(name: 'targetRole') required this.targetRole, required this.timestamp, required final  Map<String, dynamic> payload}): _payload = payload;
   factory _SystemEventModel.fromJson(Map<String, dynamic> json) => _$SystemEventModelFromJson(json);
 
+@override final  String kind;
 @override final  String id;
 @override@JsonKey(name: 'rawType') final  String rawType;
 @override@JsonKey(name: 'targetRole') final  String targetRole;
@@ -241,16 +243,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _SystemEventModel&&(identical(other.id, id) || other.id == id)&&(identical(other.rawType, rawType) || other.rawType == rawType)&&(identical(other.targetRole, targetRole) || other.targetRole == targetRole)&&(identical(other.timestamp, timestamp) || other.timestamp == timestamp)&&const DeepCollectionEquality().equals(other._payload, _payload));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _SystemEventModel&&(identical(other.kind, kind) || other.kind == kind)&&(identical(other.id, id) || other.id == id)&&(identical(other.rawType, rawType) || other.rawType == rawType)&&(identical(other.targetRole, targetRole) || other.targetRole == targetRole)&&(identical(other.timestamp, timestamp) || other.timestamp == timestamp)&&const DeepCollectionEquality().equals(other._payload, _payload));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,rawType,targetRole,timestamp,const DeepCollectionEquality().hash(_payload));
+int get hashCode => Object.hash(runtimeType,kind,id,rawType,targetRole,timestamp,const DeepCollectionEquality().hash(_payload));
 
 @override
 String toString() {
-  return 'SystemEventModel(id: $id, rawType: $rawType, targetRole: $targetRole, timestamp: $timestamp, payload: $payload)';
+  return 'SystemEventModel(kind: $kind, id: $id, rawType: $rawType, targetRole: $targetRole, timestamp: $timestamp, payload: $payload)';
 }
 
 
@@ -261,7 +263,7 @@ abstract mixin class _$SystemEventModelCopyWith<$Res> implements $SystemEventMod
   factory _$SystemEventModelCopyWith(_SystemEventModel value, $Res Function(_SystemEventModel) _then) = __$SystemEventModelCopyWithImpl;
 @override @useResult
 $Res call({
- String id,@JsonKey(name: 'rawType') String rawType,@JsonKey(name: 'targetRole') String targetRole, String timestamp, Map<String, dynamic> payload
+ String kind, String id,@JsonKey(name: 'rawType') String rawType,@JsonKey(name: 'targetRole') String targetRole, String timestamp, Map<String, dynamic> payload
 });
 
 
@@ -278,9 +280,10 @@ class __$SystemEventModelCopyWithImpl<$Res>
 
 /// Create a copy of SystemEventModel
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? rawType = null,Object? targetRole = null,Object? timestamp = null,Object? payload = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? kind = null,Object? id = null,Object? rawType = null,Object? targetRole = null,Object? timestamp = null,Object? payload = null,}) {
   return _then(_SystemEventModel(
-id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
+kind: null == kind ? _self.kind : kind // ignore: cast_nullable_to_non_nullable
+as String,id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,rawType: null == rawType ? _self.rawType : rawType // ignore: cast_nullable_to_non_nullable
 as String,targetRole: null == targetRole ? _self.targetRole : targetRole // ignore: cast_nullable_to_non_nullable
 as String,timestamp: null == timestamp ? _self.timestamp : timestamp // ignore: cast_nullable_to_non_nullable

@@ -8,6 +8,7 @@ import '../../data/repositories/event_repository.dart';
 import '../notifiers/event_sync_notifier.dart';
 import '../notifiers/system_event_notifier.dart';
 import '../services/fcm_handler.dart';
+import '../services/ws_frame_dispatcher.dart';
 // SharedPreferences comes from the existing technician-onboarding DI; the
 // main() entrypoint overrides it with the async-loaded instance. Reusing
 // the same provider guarantees we're looking at the same SharedPreferences
@@ -62,6 +63,19 @@ EventRepository eventRepository(Ref ref) {
     ref.watch(eventLocalDataSourceProvider),
   );
 }
+
+// ─── WS Frame Dispatcher ──────────────────────────────────────────────────
+
+/// Wire-edge router for WebSocket frames. Splits `kind: "event"` traffic
+/// (durable, pipelined into [SystemEventNotifier]) from `kind: "stream"`
+/// traffic (transient, dispatched to per-`streamType` handlers registered
+/// by feature DI files).
+///
+/// keepAlive: the handler registry must outlive widget lifecycles, same
+/// reason [systemEventProvider] is keepAlive. Disposing the dispatcher
+/// mid-session would silently drop every registered stream handler.
+@Riverpod(keepAlive: true)
+WsFrameDispatcher wsFrameDispatcher(Ref ref) => WsFrameDispatcher(ref);
 
 // ─── FCM Handler ──────────────────────────────────────────────────────────
 

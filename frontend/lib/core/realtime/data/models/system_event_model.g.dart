@@ -8,6 +8,7 @@ part of 'system_event_model.dart';
 
 _SystemEventModel _$SystemEventModelFromJson(Map<String, dynamic> json) =>
     _SystemEventModel(
+      kind: json['kind'] as String,
       id: json['id'] as String,
       rawType: json['rawType'] as String,
       targetRole: json['targetRole'] as String,
@@ -17,6 +18,7 @@ _SystemEventModel _$SystemEventModelFromJson(Map<String, dynamic> json) =>
 
 Map<String, dynamic> _$SystemEventModelToJson(_SystemEventModel instance) =>
     <String, dynamic>{
+      'kind': instance.kind,
       'id': instance.id,
       'rawType': instance.rawType,
       'targetRole': instance.targetRole,

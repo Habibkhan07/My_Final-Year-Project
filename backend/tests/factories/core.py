@@ -20,6 +20,7 @@ class EventLogFactory(factory.django.DjangoModelFactory):
     @factory.lazy_attribute
     def payload(self):
         return {
+            "kind": "event",
             "id": str(factory.Faker("uuid4").evaluate(None, None, {"locale": "en"})),
             "rawType": self.event_type,
             "targetRole": self.target_role,

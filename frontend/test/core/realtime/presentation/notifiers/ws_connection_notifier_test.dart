@@ -378,6 +378,7 @@ void main() {
         async.flushMicrotasks();
 
         final frame = jsonEncode(<String, dynamic>{
+          'kind': 'event',
           'id': 'evt-w9',
           'rawType': 'job_dispatched',
           'targetRole': 'technician',
@@ -433,6 +434,7 @@ void main() {
         async.flushMicrotasks();
 
         final frame = jsonEncode(<String, dynamic>{
+          'kind': 'event',
           'id': 'evt-w11',
           'rawType': 'job_dispatched',
           'targetRole': 'technician',

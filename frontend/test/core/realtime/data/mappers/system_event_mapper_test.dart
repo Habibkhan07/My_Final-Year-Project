@@ -8,6 +8,7 @@ void main() {
   group('SystemEventMapper', () {
     test('fromJson + toJson byte-equal round-trip', () {
       final json = {
+        'kind': 'event',
         'id': '123e4567-e89b-12d3-a456-426614174000',
         'rawType': 'job_dispatched',
         'targetRole': 'technician',
@@ -21,8 +22,24 @@ void main() {
       expect(result, equals(json));
     });
 
+    test('fromJson without kind throws (required field, fail loudly)', () {
+      // Backend wire contract guarantees kind on every frame post-streams
+      // patch. A missing kind should crash at deserialization rather than
+      // silently enter the event pipeline as ambiguous data.
+      final json = {
+        'id': '123',
+        'rawType': 'job_dispatched',
+        'targetRole': 'technician',
+        'timestamp': '2023-01-01T12:00:00.000Z',
+        'payload': <String, dynamic>{},
+      };
+
+      expect(() => SystemEventModel.fromJson(json), throwsA(anything));
+    });
+
     test('toDomain happy path', () {
       final model = const SystemEventModel(
+        kind: 'event',
         id: '123',
         rawType: 'job_dispatched',
         targetRole: 'technician',
@@ -43,6 +60,7 @@ void main() {
 
     test('toDomain with malformed timestamp returns null', () {
       final model = const SystemEventModel(
+        kind: 'event',
         id: '123',
         rawType: 'job_dispatched',
         targetRole: 'technician',
@@ -57,6 +75,7 @@ void main() {
 
     test('toDomain with unknown rawType returns entity with eventType=unknown', () {
       final model = const SystemEventModel(
+        kind: 'event',
         id: '123',
         rawType: 'something_new_backend_added_v3',
         targetRole: 'technician',
@@ -73,6 +92,7 @@ void main() {
 
     test('toDomain with unknown targetRole string returns entity (lenient default)', () {
       final model = const SystemEventModel(
+        kind: 'event',
         id: '123',
         rawType: 'job_dispatched',
         targetRole: 'admin',

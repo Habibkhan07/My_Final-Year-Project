@@ -48,9 +48,13 @@ def test_sync_filters_by_since_and_user(authed_client):
 
     response = client.get(reverse("realtime:events_sync"), {"since": cutoff})
     assert response.status_code == 200
-    ids = [entry["id"] for entry in response.data["results"]]
+    results = response.data["results"]
+    ids = [entry["id"] for entry in results]
     assert ids == [str(fresh.id)]
     assert response.data["next_cursor"] is not None
+    # Sync output must include the ``kind`` discriminator so the frontend
+    # dispatcher can use the same switch for replayed events as for live ones.
+    assert all(entry["kind"] == "event" for entry in results)
 
 
 @pytest.mark.django_db
@@ -101,5 +105,8 @@ def test_unacknowledged_returns_only_current_user(authed_client):
 
     response = client.get(reverse("realtime:events_unacknowledged"))
     assert response.status_code == 200
-    ids = [entry["id"] for entry in response.data["results"]]
+    results = response.data["results"]
+    ids = [entry["id"] for entry in results]
     assert ids == [str(mine.id)]
+    # Same envelope shape as the sync endpoint — kind discriminator present.
+    assert all(entry["kind"] == "event" for entry in results)

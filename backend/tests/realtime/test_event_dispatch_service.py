@@ -38,22 +38,33 @@ def test_event_log_is_written_before_any_dispatch(mocker):
     )
 
     assert ws.called and fcm.called
+    # ``kind`` is the on-the-wire discriminator the frontend dispatcher
+    # uses to tell events from streams. Lock it in here so a regression
+    # that drops the field surfaces as a test failure, not a UI bug.
+    assert envelope["kind"] == "event"
     row = EventLog.objects.get(id=envelope["id"])
     assert row.is_critical is True  # job_accepted is critical in the registry
     assert row.event_type == "job_accepted"
+    # Stored envelope (EventLog.payload) carries kind for sync replay.
+    assert row.payload["kind"] == "event"
 
 
 @pytest.mark.django_db
 def test_broadcast_event_swallows_channel_layer_failure(mocker):
     user = UserFactory()
-    mocker.patch.object(
-        EventDispatchService,
-        "_push_to_channel_layer",
-        side_effect=ConnectionError("redis is down"),
+    # Mock at the new narrow boundary: the group_send call itself.
+    # Patching _push_to_channel_layer would replace the helper that *owns*
+    # the try/except, masking the real swallow behavior we want to verify.
+    fake_layer = mocker.MagicMock()
+    fake_layer.group_send = mocker.AsyncMock(side_effect=ConnectionError("redis is down"))
+    mocker.patch(
+        "realtime.events.services.event_dispatch_service.get_channel_layer",
+        return_value=fake_layer,
     )
     mocker.patch.object(EventDispatchService, "_queue_fcm")
 
-    # Must not raise — DB write already succeeded.
+    # Must not raise — DB write already succeeded, and the narrow try/except
+    # inside _push_to_channel_layer absorbs the Redis outage.
     envelope = EventDispatchService.broadcast_event(
         user=user,
         target_role="customer",

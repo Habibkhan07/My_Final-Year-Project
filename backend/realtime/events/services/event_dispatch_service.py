@@ -5,11 +5,12 @@ Contract (invariants every caller can rely on):
 
     * The EventLog row is written **before** any network I/O, so the event
       is recoverable via ``GET /api/events/sync/`` even if both barrels fail.
-    * Channels and FCM dispatches are each wrapped in an isolated try/except.
-      A failure in one never prevents the other from firing.
-    * Neither barrel is ever allowed to raise into the caller. Calling code
-      inside ``transaction.atomic()`` is safe — notifications are
-      best-effort; the enclosing DB transaction is what matters.
+    * Channels and FCM network calls are each wrapped in a narrowly-scoped
+      try/except. Redis or Celery outages are absorbed; the caller's DB
+      transaction is never rolled back by a notification failure.
+    * Coding errors *above* the network call (bad config, malformed payload,
+      missing user.id) are deliberately *not* swallowed — they surface so
+      bugs stay debuggable instead of vanishing into a barrel.
 """
 from __future__ import annotations
 
@@ -22,12 +23,11 @@ from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 
 from realtime.constants.event_types import get_event_meta
+from realtime.constants.groups import USER_GROUP_TEMPLATE
 from realtime.models import EventLog
 
 logger = logging.getLogger(__name__)
 
-#: Must match ``api.consumers.USER_GROUP_TEMPLATE``.
-USER_GROUP_TEMPLATE = "user_{user_id}_events"
 #: Must match the handler method ``system_event`` in SystemEventConsumer
 #: (Channels maps ``system.event`` → ``system_event``).
 CHANNEL_EVENT_TYPE = "system.event"
@@ -72,6 +72,9 @@ class EventDispatchService:
         """
         meta = get_event_meta(event_type)
         envelope: dict[str, Any] = {
+            # ``kind`` discriminates events from streams on the same socket.
+            # Frontend dispatcher switches on this field. See STREAM_DISPATCH_API.md.
+            "kind": "event",
             "id": str(uuid.uuid4()),
             "rawType": event_type,
             "targetRole": target_role,
@@ -92,14 +95,9 @@ class EventDispatchService:
         )
 
         # --- Step 2: WebSocket (Barrel 1) ----------------------------------
-        try:
-            EventDispatchService._push_to_channel_layer(user.id, envelope)
-        except Exception:  # noqa: BLE001 — notifications are best-effort
-            logger.exception(
-                "Channels dispatch failed for event %s → user %s",
-                envelope["id"],
-                user.id,
-            )
+        # Narrow try/except lives inside ``_push_to_channel_layer`` —
+        # scoped to the ``group_send`` network call only.
+        EventDispatchService._push_to_channel_layer(user.id, envelope)
 
         # --- Step 3: FCM via Celery (Barrel 2) -----------------------------
         try:
@@ -148,10 +146,18 @@ class EventDispatchService:
             logger.warning("No channel layer configured; skipping WS dispatch.")
             return
         group_name = USER_GROUP_TEMPLATE.format(user_id=user_id)
-        async_to_sync(channel_layer.group_send)(
-            group_name,
-            {"type": CHANNEL_EVENT_TYPE, "message": envelope},
-        )
+        message = {"type": CHANNEL_EVENT_TYPE, "message": envelope}
+        # Narrow swallow: only the network call. Anything raised before this
+        # line (bad config, formatting bugs) is allowed to propagate so it
+        # gets caught in dev instead of disappearing into a log line.
+        try:
+            async_to_sync(channel_layer.group_send)(group_name, message)
+        except Exception:  # noqa: BLE001 — Redis outage must not crash caller
+            logger.exception(
+                "Channels group_send failed for event %s → user %s",
+                envelope["id"],
+                user_id,
+            )
 
     @staticmethod
     def _queue_fcm(user_id: int, envelope: dict[str, Any]) -> None:

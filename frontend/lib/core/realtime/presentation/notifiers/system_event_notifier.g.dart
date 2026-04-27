@@ -87,7 +87,7 @@ final class SystemEventNotifierProvider
 }
 
 String _$systemEventNotifierHash() =>
-    r'496752885d255972bb129843a0d5dd850468555c';
+    r'b0dbe7be40941fc4053b27a6bba025ca83cebedd';
 
 /// Single ingestion funnel for every real-time event, regardless of source
 /// (WebSocket, FCM foreground, FCM background drain, REST sync, REST

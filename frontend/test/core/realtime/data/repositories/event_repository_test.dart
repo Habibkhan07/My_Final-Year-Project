@@ -19,6 +19,7 @@ SystemEventModel _event({
   String timestamp = '2025-01-01T00:00:00Z',
 }) {
   return SystemEventModel(
+    kind: 'event',
     id: id,
     rawType: 'job_dispatched',
     targetRole: 'technician',

@@ -43,6 +43,27 @@ Pakistan blocks Twilio trial SMS verification. Keep `DEBUG=True` in `.env` durin
 
 ---
 
+## REALTIME PIPELINE — Events vs Streams (do not conflate)
+Two distinct kinds of WebSocket traffic. One shared socket. Two distinct backend publishers. One frontend dispatcher.
+
+**Events** = *facts that happened*. Examples: `jobDispatched`, `paymentReceived`, `walletLowBalance`, chat *message*. Durable: written to `EventLog`, FCM fallback when offline, ACK contract for critical types. Backend publisher: `EventDispatchService.broadcast_event(...)`. Wire envelope: `kind: "event"`.
+
+**Streams** = *current state values*. Examples: live GPS, live wallet *balance display*, AI chatbot *tokens*, chat *typing indicator*. Transient: no DB write, no FCM, no ACK, drop-on-disconnect. Backend publisher: `realtime.streams.publish_stream(...)`. Wire envelope: `kind: "stream"`.
+
+The same topic can produce both — e.g. `walletLowBalance` is an event; the live balance number is a stream. The question is never "is X an event?" — it is "is *this frame* a fact or a state value?"
+
+**Strict rules:**
+- Every WS frame carries a top-level `kind` field. The frontend dispatcher (`WsFrameDispatcher`) routes on `kind`. Streams MUST NOT touch `SystemEventNotifier` or the `EventLog` cache.
+- Shared socket: `ws/events/`. Shared per-user channel-layer group: `user_<id>_events` (defined once in `realtime.constants.groups`). The `_events` suffix is historical and intentionally retained — do not bundle a rename into unrelated work.
+- Two publisher modules, never collapsed into one with a flag. The import graph enforces the boundary: `publish_stream` cannot accidentally write to `EventLog`; `broadcast_event` cannot accidentally bypass persistence.
+- Try/except in the publishers is **narrow** — wraps only the `group_send` network call. Coding errors above that line MUST propagate. Bug-hiding via wide barrels is forbidden.
+- Client-originated streams (e.g. typing indicators) ingress via thin REST views that internally call `publish_stream(...)`. The WS consumer stays one-way and logic-less.
+- No `StreamType` enum — strings until a stream type needs registered metadata.
+
+Authoritative docs: `backend/realtime/api/EVENT_DISPATCH_API.md`, `backend/realtime/api/STREAM_DISPATCH_API.md`, and `REALTIME_STREAMS_PATCH_SUMMARY.md` (frontend sync brief + decision log).
+
+---
+
 ## MANDATORY WORKFLOW — READ BEFORE EVERY TASK
 **NEVER write code immediately.**
 1. Output a `<scratchpad>` execution plan first

@@ -35,7 +35,10 @@ Map<String, dynamic> _baseData({
   String timestamp = '2026-04-25T12:00:00Z',
   Object? payload,
 }) {
+  // FCM is the offline-fallback channel for events specifically — streams
+  // never reach FCM — so every FCM-data fixture pins `kind: "event"`.
   return <String, dynamic>{
+    'kind': 'event',
     'id': id,
     'rawType': rawType,
     'targetRole': targetRole,

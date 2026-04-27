@@ -14,6 +14,7 @@ exact JSON shape. The Flutter client has ONE parser.
 
 ```json
 {
+  "kind": "event",
   "id": "f1c9...-...-...-...-...",
   "rawType": "job_accepted",
   "targetRole": "customer",
@@ -24,6 +25,7 @@ exact JSON shape. The Flutter client has ONE parser.
 
 | Field        | Type     | Notes                                                                 |
 |--------------|----------|-----------------------------------------------------------------------|
+| `kind`       | literal  | Always `"event"`. Discriminates events from streams on the same socket. |
 | `id`         | UUIDv4   | Primary key of the `EventLog` row. Use to `ACK`.                      |
 | `rawType`    | string   | Registered key in `core.constants.event_types.EventType`.             |
 | `targetRole` | enum     | `"customer"` \| `"technician"`. Drives client-side routing.           |
@@ -32,6 +34,9 @@ exact JSON shape. The Flutter client has ONE parser.
 
 `is_critical` is **not** sent on the wire — it lives server-side in the
 registry and controls whether the Flutter client must call `/ack/`.
+
+Stream frames travel on the same socket but use a different envelope
+shape (`kind: "stream"`). See `STREAM_DISPATCH_API.md` for the contract.
 
 ---
 
@@ -186,7 +191,9 @@ by a notification failure.
 
 ## Backend Implementation Structure
 
-The `realtime` app is organized into two primary sub-modules for traceability:
+The `realtime` app is organized into sub-modules for traceability:
 
 - **`realtime.events`**: Owns persistence (`EventLog`), the Dispatch/ACK services, and WebSocket transport (`consumers`, `routing`, `ws_auth`).
+- **`realtime.streams`**: Owns the transient stream publisher (`publish_stream`). No persistence, no FCM. See `STREAM_DISPATCH_API.md`.
 - **`realtime.devices`**: Owns FCM device registration (`FCMDevice`) and the Celery background tasks.
+- **`realtime.constants`**: Cross-cutting constants (`event_types`, `groups`) shared by the above.

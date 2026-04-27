@@ -27,6 +27,13 @@ backend through a debounced batch endpoint; an unacknowledged-critical
 sweep on every reconnect guarantees the user sees them again if the ACK
 never made it.
 
+The WebSocket also carries a second pipeline — **streams** — for transient
+state values (live wallet balance, GPS, typing indicators). Streams share
+the socket, the consumer, and the per-user channel-layer group with events
+but use a different envelope (`kind: "stream"`), a different publisher on
+the backend, and never touch the event ingestion funnel. Routing happens
+at the wire edge in `WsFrameDispatcher` (see §2.1 below).
+
 ---
 
 ## 2. Architecture
@@ -41,18 +48,27 @@ never made it.
               ┌──────────────────┐  ┌─────────────────────┐
               │ WsConnection     │  │  FCMHandler         │
               │ Notifier         │  │  + bg-isolate       │
-              │  (dedup not its  │  │   handler (writes   │
-              │   job — frame    │  │   to SharedPrefs)   │
-              │   decode + feed) │  └────────────┬────────┘
+              │  (transport-only:│  │   handler (writes   │
+              │   JSON-decode +  │  │   to SharedPrefs)   │
+              │   forward)       │  └────────────┬────────┘
               └────┬─────────────┘               │
-                   │                             │ resume drain
-                   │                             ▼
-                   │                 ┌────────────────────┐
-                   │                 │ EventLocalDataSrc  │
-                   │                 │ pending_bg_events  │
-                   │                 └────────────┬───────┘
-                   │                              │
-                   ▼                              ▼
+                   │ decoded                     │ resume drain
+                   │ Map<String,dyn>             ▼
+                   ▼                 ┌────────────────────┐
+        ┌────────────────────────┐   │ EventLocalDataSrc  │
+        │  WsFrameDispatcher     │   │ pending_bg_events  │
+        │  switch on `kind`:     │   └────────────┬───────┘
+        │   "event" → notifier   │                │
+        │   "stream" → registry  │                │
+        └────┬───────────────┬───┘                │
+             │ event         │ stream             │
+             │               ▼                    │
+             │      per-streamType handler        │
+             │      (registered by feature DI)    │
+             │      (no concrete handlers ship    │
+             │       in this patch — first one    │
+             │       will be wallet_balance)      │
+             ▼                                    ▼
         ┌────────────────────────────────────────────────┐
         │          SystemEventNotifier                    │
         │    dedup · same-type order guard · cursor       │
@@ -78,6 +94,35 @@ never made it.
                                  └─► /api/events/unacknowledged/
                             └─► flush pending_acks  → /api/events/ack/
 ```
+
+### 2.1 WsFrameDispatcher
+
+`lib/core/realtime/presentation/services/ws_frame_dispatcher.dart`
+
+A plain Dart class (intentionally not a Riverpod notifier — no observable
+state) that sits between `WsConnectionNotifier` and the rest of the
+pipeline. It owns the wire-edge `kind` switch and the per-`streamType`
+handler registry.
+
+| Frame `kind` | Routing |
+| :--- | :--- |
+| `"event"` | Deserialized via `SystemEventModel.fromJson` → mapped to `SystemEventEntity` (mapper drops malformed frames to `null`, dispatcher null-checks before forwarding) → `SystemEventNotifier.processEvent`. |
+| `"stream"` | Looked up in `_streamHandlers[streamType]`. If a handler is registered, called with the `payload` map only (envelope stripped). If absent, dropped with a **warning** log — likely a backend-vs-frontend version skew where a new stream type shipped before its handler. |
+| `null` (missing field) | **Severe** log + `assert(false)` in debug. The backend wire contract guarantees `kind` on every frame; missing it is a contract violation, not version skew. |
+| any other value (e.g. `"telemetry-v2"`) | Dropped with a warning log. Same category as unknown `streamType` — visible but not fatal. |
+
+Streams are deliberately walled off from `SystemEventNotifier`. They have
+no `id` to dedupe on, no critical-ACK contract, and would thrash the
+`SharedPreferences`-backed event cache if routed through the event funnel.
+This is the exact trap the original audit warned about ("is wallet
+balance an event?" — no: per-frame, the live balance is a stream, the
+`walletLowBalance` notification is an event).
+
+The dispatcher imports nothing feature-specific. Concrete `streamType`
+handlers register themselves from each feature's DI file via
+`dispatcher.register(streamType, handler)`. No concrete stream types ship
+in this patch — the registry is the contract that future stream wirings
+hang off.
 
 ### Directory Structure
 
@@ -290,6 +335,7 @@ If step 1 had returned 401 instead, step 3 would route into the
 | `eventRemoteDataSourceProvider` | `EventRemoteDataSource` | `eventHttpClient`, `eventSecureStorage` |
 | `eventLocalDataSourceProvider` | `EventLocalDataSource` | `sharedPreferencesProvider` (overridden in `main()`) |
 | `eventRepositoryProvider` | `EventRepository` | `eventRemoteDataSource`, `eventLocalDataSource` |
+| `wsFrameDispatcherProvider` | `WsFrameDispatcher` | `Ref` (used internally to read `systemEventProvider` lazily on each event frame) |
 | `fcmHandlerProvider` | `FCMHandler` | `systemEventProvider`, `eventSyncProvider`, `eventRepository`, `eventLocalDataSource` |
 
 `lib/core/presentation/providers/connection_status_provider.dart`

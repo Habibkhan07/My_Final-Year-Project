@@ -258,6 +258,79 @@ final class EventRepositoryProvider
 
 String _$eventRepositoryHash() => r'8d1be6d03a2ce89a5ae47ac236250e12bef0f94a';
 
+/// Wire-edge router for WebSocket frames. Splits `kind: "event"` traffic
+/// (durable, pipelined into [SystemEventNotifier]) from `kind: "stream"`
+/// traffic (transient, dispatched to per-`streamType` handlers registered
+/// by feature DI files).
+///
+/// keepAlive: the handler registry must outlive widget lifecycles, same
+/// reason [systemEventProvider] is keepAlive. Disposing the dispatcher
+/// mid-session would silently drop every registered stream handler.
+
+@ProviderFor(wsFrameDispatcher)
+final wsFrameDispatcherProvider = WsFrameDispatcherProvider._();
+
+/// Wire-edge router for WebSocket frames. Splits `kind: "event"` traffic
+/// (durable, pipelined into [SystemEventNotifier]) from `kind: "stream"`
+/// traffic (transient, dispatched to per-`streamType` handlers registered
+/// by feature DI files).
+///
+/// keepAlive: the handler registry must outlive widget lifecycles, same
+/// reason [systemEventProvider] is keepAlive. Disposing the dispatcher
+/// mid-session would silently drop every registered stream handler.
+
+final class WsFrameDispatcherProvider
+    extends
+        $FunctionalProvider<
+          WsFrameDispatcher,
+          WsFrameDispatcher,
+          WsFrameDispatcher
+        >
+    with $Provider<WsFrameDispatcher> {
+  /// Wire-edge router for WebSocket frames. Splits `kind: "event"` traffic
+  /// (durable, pipelined into [SystemEventNotifier]) from `kind: "stream"`
+  /// traffic (transient, dispatched to per-`streamType` handlers registered
+  /// by feature DI files).
+  ///
+  /// keepAlive: the handler registry must outlive widget lifecycles, same
+  /// reason [systemEventProvider] is keepAlive. Disposing the dispatcher
+  /// mid-session would silently drop every registered stream handler.
+  WsFrameDispatcherProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'wsFrameDispatcherProvider',
+        isAutoDispose: false,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$wsFrameDispatcherHash();
+
+  @$internal
+  @override
+  $ProviderElement<WsFrameDispatcher> $createElement(
+    $ProviderPointer pointer,
+  ) => $ProviderElement(pointer);
+
+  @override
+  WsFrameDispatcher create(Ref ref) {
+    return wsFrameDispatcher(ref);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(WsFrameDispatcher value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<WsFrameDispatcher>(value),
+    );
+  }
+}
+
+String _$wsFrameDispatcherHash() => r'1f219a1061bc8d3e67b42b74f2934e1f4a3d3244';
+
 /// Instantiated once by the App Lifecycle Orchestrator in session 4. The
 /// handler owns stream subscriptions, so this provider is keepAlive to
 /// prevent repeated instantiation from double-subscribing to Firebase

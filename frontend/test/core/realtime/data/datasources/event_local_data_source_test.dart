@@ -16,6 +16,7 @@ void main() {
 
   group('EventLocalDataSource', () {
     final sampleEvent = SystemEventModel(
+      kind: 'event',
       id: '123',
       rawType: 'job_dispatched',
       targetRole: 'technician',
