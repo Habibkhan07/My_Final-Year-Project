@@ -10,7 +10,7 @@ BOOKINGS_API.md:
   * Fallback — no discovery context.
 
 Plus the absolute promo firewall rule on Scenario A (no discount stacking
-on fixed gigs) and the labor-gig rate-range / fallback variations.
+on fixed gigs) and the labor-gig single-rate / fallback variations.
 """
 import decimal
 import pytest
@@ -45,7 +45,6 @@ class TestInspectionScenario:
 
         assert intent.booking_type == BOOKING_TYPE_INSPECTION
         assert intent.primary_amount == decimal.Decimal('500.00')
-        assert intent.primary_amount_max is None
         assert intent.price_context_label == 'Inspection Fee'
         assert intent.promo_tag_firewalled is None
 
@@ -82,7 +81,6 @@ class TestFixedGigScenario:
 
         assert intent.booking_type == BOOKING_TYPE_FIXED_GIG
         assert intent.primary_amount == decimal.Decimal('1500.00')
-        assert intent.primary_amount_max is None
         assert intent.price_context_label == 'Fixed Price'
 
     def test_promo_firewall_strips_promotion_and_tag(self):
@@ -105,19 +103,18 @@ class TestFixedGigScenario:
 
 
 # ---------------------------------------------------------------------------
-# Scenario B — Labor gig (range / single / fallback)
+# Scenario B — Labor gig (single rate / fallback)
 # ---------------------------------------------------------------------------
 
 class TestLaborGigScenario:
 
-    def test_asymmetric_skill_rate_yields_range(self):
+    def test_skill_rate_yields_single_value(self):
         service = ServiceFactory()
         sub = SubServiceFactory(service=service, is_fixed_price=False)
         tech = TechnicianProfileFactory(status='APPROVED')
         TechnicianSkillFactory(
             technician=tech, sub_service=sub,
-            base_rate=decimal.Decimal('1000.00'),
-            max_rate=decimal.Decimal('1400.00'),
+            labor_rate=decimal.Decimal('1200.00'),
         )
 
         intent = resolve_booking_intent(
@@ -125,28 +122,9 @@ class TestLaborGigScenario:
         )
 
         assert intent.booking_type == BOOKING_TYPE_LABOR_GIG
-        assert intent.primary_amount == decimal.Decimal('1000.00')
-        assert intent.primary_amount_max == decimal.Decimal('1400.00')
-        assert intent.primary_price == 'Rs. 1,000 - 1,400'
-        assert intent.price_context_label == 'Labor Fee'
-
-    def test_symmetric_skill_rate_yields_single_value(self):
-        service = ServiceFactory()
-        sub = SubServiceFactory(service=service, is_fixed_price=False)
-        tech = TechnicianProfileFactory(status='APPROVED')
-        TechnicianSkillFactory(
-            technician=tech, sub_service=sub,
-            base_rate=decimal.Decimal('1200.00'),
-            max_rate=decimal.Decimal('1200.00'),
-        )
-
-        intent = resolve_booking_intent(
-            technician=tech, service=service, sub_service=sub, promotion=None,
-        )
-
         assert intent.primary_amount == decimal.Decimal('1200.00')
-        assert intent.primary_amount_max is None
         assert intent.primary_price == 'Rs. 1,200'
+        assert intent.price_context_label == 'Labor Fee'
 
     def test_no_skill_rate_falls_back_to_subservice_base_price(self):
         service = ServiceFactory()
@@ -154,14 +132,13 @@ class TestLaborGigScenario:
             service=service, is_fixed_price=False, base_price=decimal.Decimal('800.00'),
         )
         tech = TechnicianProfileFactory(status='APPROVED')
-        TechnicianSkillFactory(technician=tech, sub_service=sub, base_rate=None, max_rate=None)
+        TechnicianSkillFactory(technician=tech, sub_service=sub, labor_rate=None)
 
         intent = resolve_booking_intent(
             technician=tech, service=service, sub_service=sub, promotion=None,
         )
 
         assert intent.primary_amount == decimal.Decimal('800.00')
-        assert intent.primary_amount_max is None
 
     def test_promo_on_labor_gig_surfaces_tag(self):
         service = ServiceFactory()
@@ -170,7 +147,7 @@ class TestLaborGigScenario:
         tech = TechnicianProfileFactory(status='APPROVED')
         TechnicianSkillFactory(
             technician=tech, sub_service=sub,
-            base_rate=decimal.Decimal('1000.00'), max_rate=decimal.Decimal('1000.00'),
+            labor_rate=decimal.Decimal('1000.00'),
         )
 
         intent = resolve_booking_intent(

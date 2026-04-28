@@ -58,14 +58,12 @@ _SkillInputModel _$SkillInputModelFromJson(Map<String, dynamic> json) =>
     _SkillInputModel(
       subServiceId: (json['sub_service_id'] as num).toInt(),
       yearsOfExperience: (json['years_of_experience'] as num).toInt(),
-      baseRate: json['base_rate'] as String?,
-      maxRate: json['max_rate'] as String?,
+      laborRate: json['labor_rate'] as String?,
     );
 
 Map<String, dynamic> _$SkillInputModelToJson(_SkillInputModel instance) =>
     <String, dynamic>{
       'sub_service_id': instance.subServiceId,
       'years_of_experience': instance.yearsOfExperience,
-      'base_rate': instance.baseRate,
-      'max_rate': instance.maxRate,
+      'labor_rate': instance.laborRate,
     };

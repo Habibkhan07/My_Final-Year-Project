@@ -51,7 +51,7 @@ class TestTechnicianDiscoveryListView:
         """
         sub_service = SubServiceFactory(base_price=1500.00, max_price=1500.00, is_fixed_price=False, name="AC Check")
         tech = TechnicianProfileFactory(is_active=True, is_onboarding_complete=True)
-        TechnicianSkillFactory(technician=tech, sub_service=sub_service, base_rate=1500.00, max_rate=1500.00)
+        TechnicianSkillFactory(technician=tech, sub_service=sub_service, labor_rate=1500.00)
 
         response = self.client.get(f"{self.url}?sub_service_id={sub_service.id}")
 
@@ -67,7 +67,7 @@ class TestTechnicianDiscoveryListView:
         sub_service = SubServiceFactory(base_price=800.00, max_price=2000.00, name="Pipe Leak")
         tech = TechnicianProfileFactory(is_active=True, is_onboarding_complete=True)
         # Technician picks a specific rate
-        TechnicianSkillFactory(technician=tech, sub_service=sub_service, base_rate=1200.00, max_rate=1200.00)
+        TechnicianSkillFactory(technician=tech, sub_service=sub_service, labor_rate=1200.00)
         
         response = self.client.get(f"{self.url}?sub_service_id={sub_service.id}")
         
@@ -76,22 +76,6 @@ class TestTechnicianDiscoveryListView:
         tech_data = data['results'][0]
         
         assert tech_data['primary_price'] == "Rs. 1,200"
-        assert tech_data['price_context'] == "Labor Fee"
-
-    def test_scenario_3_variable_labor_rate_range(self):
-        """Scenario 3: Variable Job (Technician sets a pricing window)"""
-        sub_service = SubServiceFactory(base_price=800.00, max_price=2000.00, name="Pipe Leak")
-        tech = TechnicianProfileFactory(is_active=True, is_onboarding_complete=True)
-        # Technician picks a range
-        TechnicianSkillFactory(technician=tech, sub_service=sub_service, base_rate=1000.00, max_rate=1400.00)
-        
-        response = self.client.get(f"{self.url}?sub_service_id={sub_service.id}")
-        
-        assert response.status_code == 200
-        data = response.json()
-        tech_data = data['results'][0]
-        
-        assert tech_data['primary_price'] == "Rs. 1,000 - 1,400"
         assert tech_data['price_context'] == "Labor Fee"
 
     def test_scenario_4_promo_click(self):
@@ -122,7 +106,7 @@ class TestTechnicianDiscoveryListView:
         """Search query matching a sub-service should trigger Scenario 3 logic"""
         sub_service = SubServiceFactory(name="Plumbing Leak", base_price=800.00, max_price=2000.00)
         tech = TechnicianProfileFactory(is_active=True, is_onboarding_complete=True)
-        TechnicianSkillFactory(technician=tech, sub_service=sub_service, base_rate=1100.00, max_rate=1100.00)
+        TechnicianSkillFactory(technician=tech, sub_service=sub_service, labor_rate=1100.00)
 
         response = self.client.get(f"{self.url}?q=Plumb")
 

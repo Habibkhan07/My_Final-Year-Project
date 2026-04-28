@@ -13,12 +13,7 @@ from bookings.exceptions import (
     PromoFirewallError,
     SlotUnavailableError,
 )
-from bookings.selectors import (
-    BOOKING_TYPE_FIXED_GIG,
-    BOOKING_TYPE_INSPECTION,
-    BOOKING_TYPE_LABOR_GIG,
-    resolve_booking_intent,
-)
+from bookings.selectors import resolve_booking_intent
 
 
 # ---------------------------------------------------------------------------
@@ -109,11 +104,12 @@ def create_instant_booking(
          * A ``promotion_id`` paired with an ``is_fixed_price`` sub-service is
            rejected (no discount stacking on fixed gigs).
 
-    4. Price validation — derived from the resolver:
-         * FIXED_GIG: ``price_amount`` must equal ``sub_service.base_price``.
-         * LABOR_GIG: ``price_amount`` must fall within the technician's rate
-           window (or equal the platform fallback when no rate is set).
-         * INSPECTION: ``price_amount`` must equal ``service.base_inspection_fee``.
+    4. Price validation — exact equality against the figure the resolver
+       derives from the catalog + technician skill:
+         * FIXED_GIG: ``sub_service.base_price``.
+         * LABOR_GIG: technician's ``TechnicianSkill.labor_rate`` (or the
+           sub-service base price when no rate is set).
+         * INSPECTION: ``service.base_inspection_fee``.
 
     5. Geofence — Haversine distance must be ≤ ``tech.max_travel_radius_km``.
 
@@ -254,35 +250,14 @@ def _assert_price_in_bounds(price_amount: decimal.Decimal, intent) -> None:
     Validate the customer-supplied ``price_amount`` against the figure the
     pricing resolver derived from the catalog + technician skill row.
 
-    * FIXED_GIG and INSPECTION require an exact match.
-    * LABOR_GIG accepts any amount within the technician's
-      ``[base_rate, max_rate]`` window — when the labor-rate flag collapses
-      that range to a single value, this check tightens to equality.
+    Exact equality across all booking types — labor pricing is now a
+    single ``TechnicianSkill.labor_rate`` value, no range.
 
     Both sides are normalized to ``Decimal`` so ``"500"`` vs ``"500.00"`` is
     not a false negative.
     """
     actual = decimal.Decimal(price_amount)
-    expected_min = decimal.Decimal(intent.primary_amount)
-    expected_max = (
-        decimal.Decimal(intent.primary_amount_max)
-        if intent.primary_amount_max is not None
-        else None
-    )
+    expected = decimal.Decimal(intent.primary_amount)
 
-    if intent.booking_type == BOOKING_TYPE_LABOR_GIG and expected_max is not None:
-        if not (expected_min <= actual <= expected_max):
-            raise PriceMismatchError(
-                expected_min=expected_min,
-                expected_max=expected_max,
-                actual=actual,
-            )
-        return
-
-    # FIXED_GIG, INSPECTION, and LABOR_GIG-without-range: exact equality.
-    if actual != expected_min:
-        raise PriceMismatchError(
-            expected_min=expected_min,
-            expected_max=None,
-            actual=actual,
-        )
+    if actual != expected:
+        raise PriceMismatchError(expected=expected, actual=actual)

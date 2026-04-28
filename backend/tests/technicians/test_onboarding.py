@@ -86,8 +86,7 @@ class TechnicianOnboardingTests(APITestCase):
                 {
                     "sub_service_id": self.sub_service.id,
                     "years_of_experience": 3,
-                    "base_rate": 2700.00,
-                    "max_rate": 2900.00
+                    "labor_rate": 2700.00
                 }
             ]
         }
@@ -100,8 +99,7 @@ class TechnicianOnboardingTests(APITestCase):
         # Verify Database Persistence of Pricing
         profile = TechnicianProfile.objects.get(user=self.user)
         skill = profile.technicianskill_set.first()
-        self.assertEqual(float(skill.base_rate), 2700.00)
-        self.assertEqual(float(skill.max_rate), 2900.00)
+        self.assertEqual(float(skill.labor_rate), 2700.00)
 
     # --- 4. EDGE CASES & SECURITY ---
 
@@ -117,8 +115,7 @@ class TechnicianOnboardingTests(APITestCase):
                 {
                     "sub_service_id": self.sub_service.id,
                     "years_of_experience": 1,
-                    "base_rate": 2500.00,
-                    "max_rate": 3000.00
+                    "labor_rate": 2500.00
                 }
             ]
         }

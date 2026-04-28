@@ -80,14 +80,14 @@
 | `top_technicians[].distance_km` | **Number (Float)** | Circular distance from user. |
 | `top_technicians[].bayesian_score` | **Number (Float)** | Trust-weighted sorting score. |
 | `top_technicians[].ui_rating_text` | String | **Dumb UI**: Pre-formatted rating (e.g., "4.9 (120 jobs)"). |
-| `top_technicians[].primary_price` | String | **Dumb UI**: The main price string (e.g., "Rs. 500", "Rs. 1,200", or "Rs. 1k-1.4k"). |
+| `top_technicians[].primary_price` | String | **Dumb UI**: The main price string (e.g., "Rs. 500", "Rs. 1,200"). Single value across all scenarios — labor pricing is one `TechnicianSkill.labor_rate`. |
 | `top_technicians[].price_context` | String | **Dumb UI**: Label for the price (e.g., "Inspection Fee", "Fixed Price", "Labor Rate"). |
 | `top_technicians[].promo_tag` | String? | **Dumb UI**: Optional promo chip text (e.g., "20% Off Final Bill"). |
 
 
 #### The "Dumb UI" Implementations
 This endpoint heavily utilizes the Dumb UI principle to prevent the Flutter frontend from performing complex string concatenation or conditional rendering:
-*   `top_technicians[].primary_price`: Automatically formats based on intent. Shows "Inspection Fee" for categories, "Fixed Price" for gigs, and the technician's specific "Labor Rate" (including ranges) for searches.
+*   `top_technicians[].primary_price`: Automatically formats based on intent. Shows the inspection fee for categories, the fixed price for gigs, and the technician's `labor_rate` (single value) for searches.
 *   `top_technicians[].promo_tag`: Carries the formatted discount message ONLY if a promo is active.
 *   `top_technicians[].ui_rating_text`: Pre-formatted rating (e.g., "4.9 (120 jobs)").
 *   `top_technicians[].distance_km`: Calculated dynamically in Python memory via the Haversine distance formula based on the `lat`/`lng` query params. Omitted if coordinates are invalid.
@@ -196,7 +196,7 @@ This endpoint heavily utilizes the Dumb UI principle to prevent the Flutter fron
   "bayesian_score": 4.85,
   "is_active": true,
   "ui_rating_text": "⭐ 4.97 (120 jobs)",
-  "primary_price": "Rs. 1,000 - 1,400",
+  "primary_price": "Rs. 1,200",
   "price_context": "Labor Fee",
   "promo_tag": "20% OFF Final Bill!",
   "skills": [
@@ -215,7 +215,7 @@ This endpoint heavily utilizes the Dumb UI principle to prevent the Flutter fron
 | Scenario | Trigger | `primary_price` | `price_context` | `promo_tag` |
 | :--- | :--- | :--- | :--- | :--- |
 | **A — Fixed-Price Gig** | `sub_service_id` + `SubService.is_fixed_price=True` | `"Rs. X"` (fixed gig price) | `"Fixed Price"` | **Always `null`** — discount stacking forbidden |
-| **B — Labor Gig** | `sub_service_id` + `SubService.is_fixed_price=False` | `"Rs. X,XXX"` or `"Rs. X,XXX - Y,YYY"` (technician's rate window) | `"Labor Fee"` | Promo string if active, else `null` |
+| **B — Labor Gig** | `sub_service_id` + `SubService.is_fixed_price=False` | `"Rs. X,XXX"` (technician's `labor_rate`, or sub-service fallback when unset) | `"Labor Fee"` | Promo string if active, else `null` |
 | **C — Category Discovery** | `service_id` only | `"Rs. X"` (category inspection fee) | `"Inspection Fee"` | Promo string if active, else `null` |
 | **Default** | No context params | `"Rs. 500"` | `"Inspection Fee"` | `null` |
 

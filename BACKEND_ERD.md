@@ -57,8 +57,7 @@ erDiagram
     TechnicianProfile ||--o{ TechnicianSkill : "M:1"
     SubService ||--o{ TechnicianSkill : "M:1"
     TechnicianSkill {
-        decimal base_rate
-        decimal max_rate
+        decimal labor_rate
         int years_of_experience
     }
 

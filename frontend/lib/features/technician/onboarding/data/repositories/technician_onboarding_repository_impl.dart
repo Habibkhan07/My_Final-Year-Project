@@ -112,8 +112,7 @@ class TechnicianRepositoryImpl implements TechnicianRepository {
               (s) => SkillInputModel(
                 subServiceId: s.subServiceId,
                 yearsOfExperience: s.yearsOfExperience,
-                baseRate: s.baseRate,
-                maxRate: s.maxRate,
+                laborRate: s.laborRate,
               ),
             )
             .toList(),

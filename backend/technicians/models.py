@@ -60,10 +60,9 @@ class TechnicianSkill(models.Model):
     # Added detail for specialized verification
     years_of_experience = models.PositiveIntegerField(default=0)
     
-    # NEW: Technician-specific pricing window for this specific skill/gig
-    # Scenario 3: Technician decides their labor within the SubService limits.
-    base_rate = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
-    max_rate = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    # Technician's labor rate for this skill (Scenario B labor gigs).
+    # Single value; the booking write path enforces exact equality.
+    labor_rate = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
 
     class Meta:
         unique_together = ('technician', 'sub_service')

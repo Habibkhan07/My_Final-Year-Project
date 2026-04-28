@@ -26,7 +26,7 @@
 | `promotion_id` | int | No | Active `Promotion` the customer arrived with. Omit unless the customer reached this technician via a promo banner. **Forbidden** with a fixed-price `sub_service_id` (write-side promo firewall). |
 | `scheduled_start` | string (ISO 8601) | **Yes** | Job start time. Must be a timezone-aware datetime (e.g., PKT `+05:00` from the slot's `iso_start` field). |
 | `scheduled_end` | string (ISO 8601) | **Yes** | Job end time. Must be strictly after `scheduled_start`. Pass the slot's `iso_end` field directly. |
-| `price_amount` | string (Decimal) | **Yes** | The agreed price in PKR, as a decimal string (e.g., `"1500.00"`). Server re-validates against the catalog: exact match for fixed-gig / inspection; within `[base_rate, max_rate]` for labor. |
+| `price_amount` | string (Decimal) | **Yes** | The agreed price in PKR, as a decimal string (e.g., `"1500.00"`). Server re-validates against the catalog: exact equality for all booking types (fixed gig, labor, inspection). |
 
 **Removed**: `price_context` was previously an ingress field. The server now derives the customer-receipt label from the resolved catalog references; clients should stop sending it.
 
@@ -95,7 +95,7 @@ The service runs these checks in strict order. The first failure short-circuits 
 | 2 | **Technician Status** | `TechnicianProfile.objects.filter(status='APPROVED').get(pk=technician_id)` | 404 `not_found` |
 | 3 | **Catalog Consistency** | `service`/`sub_service`/`promotion` resolve, `sub_service.service == service`, `promotion.target_service == service` | 400 `validation_error` |
 | 4 | **Promo Firewall** | If `sub_service.is_fixed_price=True`, reject any `promotion_id` | 400 `validation_error` |
-| 5 | **Price Validation** | `price_amount` matches the catalog/skill-derived figure (exact for fixed/inspection; range for labor) | 400 `validation_error` |
+| 5 | **Price Validation** | `price_amount` matches the catalog/skill-derived figure exactly (fixed-gig: `sub_service.base_price`; labor: `TechnicianSkill.labor_rate` or sub-service fallback; inspection: `service.base_inspection_fee`) | 400 `validation_error` |
 | 6 | **Geofence** | Haversine distance ≤ `tech.max_travel_radius_km` | 400 `out_of_service_area` |
 | 7 | **Slot Race Lock** | `transaction.atomic()` + `select_for_update()` + overlap query | 409 `slot_unavailable` |
 
@@ -218,7 +218,7 @@ All errors follow the standard envelope contract.
 }
 ```
 
-For labor gigs the message reports the rate window: `Expected between 1000.00 and 1400.00, received 999.00.`
+All booking types report the expected figure verbatim: `Expected 1000.00, received 999.00.`
 
 ---
 

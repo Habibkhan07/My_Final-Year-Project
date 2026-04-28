@@ -58,8 +58,7 @@ def finalize_registration(*, user, validated_data):
                 technician=profile,
                 sub_service_id=skill['sub_service_id'],
                 years_of_experience=skill['years_of_experience'],
-                base_rate=skill.get('base_rate'),
-                max_rate=skill.get('max_rate'),
+                labor_rate=skill.get('labor_rate'),
             )
             
     return profile

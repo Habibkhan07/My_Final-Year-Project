@@ -119,7 +119,7 @@ class TestGetTechnicianProfileDetail:
         service = ServiceFactory()
         sub = SubServiceFactory(service=service, is_fixed_price=False)
         tech = TechnicianProfileFactory(status='APPROVED')
-        TechnicianSkillFactory(technician=tech, sub_service=sub, base_rate=1000, max_rate=1400)
+        TechnicianSkillFactory(technician=tech, sub_service=sub, labor_rate=1000)
 
         result, _, resolved_subservice, _ = get_technician_profile_detail(
             tech_id=tech.id, sub_service_id=sub.id
@@ -128,7 +128,7 @@ class TestGetTechnicianProfileDetail:
         # prefetched_skill must be attached and non-empty
         assert hasattr(result, 'prefetched_skill')
         assert len(result.prefetched_skill) == 1
-        assert result.prefetched_skill[0].base_rate == 1000
+        assert result.prefetched_skill[0].labor_rate == 1000
 
     def test_scenario_c_resolves_service_from_service_id(self):
         service = ServiceFactory(base_inspection_fee=600.00)
@@ -264,7 +264,7 @@ class TestGetTechnicianProfileDetail:
         tech = TechnicianProfileFactory(status='APPROVED')
         for _ in range(5):
             TechnicianSkillFactory(technician=tech, sub_service=SubServiceFactory(service=service))
-        TechnicianSkillFactory(technician=tech, sub_service=sub, base_rate=1000, max_rate=1400)
+        TechnicianSkillFactory(technician=tech, sub_service=sub, labor_rate=1000)
         for _ in range(5):
             ReviewFactory(technician=tech)
 

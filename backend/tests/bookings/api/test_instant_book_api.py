@@ -431,19 +431,18 @@ class TestInstantBookView:
         assert data['code'] == 'validation_error'
         assert 'price_amount' in data['errors']
 
-    def test_201_labor_gig_within_range_succeeds(self):
+    def test_201_labor_gig_exact_rate_succeeds(self):
         tech, _, address = self._approved_tech_and_owned_address()
         service = ServiceFactory()
         sub = SubServiceFactory(service=service, is_fixed_price=False)
         TechnicianSkillFactory(
             technician=tech, sub_service=sub,
-            base_rate=decimal.Decimal('1000.00'),
-            max_rate=decimal.Decimal('1400.00'),
+            labor_rate=decimal.Decimal('1200.00'),
         )
 
         payload = _make_payload(tech, address, service=service)
         payload['sub_service_id'] = sub.id
-        payload['price_amount'] = '1200.00'  # mid-range
+        payload['price_amount'] = '1200.00'  # must match labor_rate exactly
 
         response = self.client.post(URL, payload, format='json')
         assert response.status_code == 201

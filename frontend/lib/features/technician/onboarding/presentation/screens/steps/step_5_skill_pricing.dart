@@ -133,44 +133,25 @@ class Step5SkillPricing extends ConsumerWidget {
                     ),
                     const Divider(height: 32),
                     const Text(
-                      "Your Labor Rates (PKR)",
+                      "Your Labor Rate (PKR)",
                       style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       metadata.maxPrice != null
                           ? "Platform Range: Rs. ${metadata.basePrice} - Rs. ${metadata.maxPrice}"
-                          : "Fixed Rate: Rs. ${metadata.basePrice}",
+                          : "Platform Rate: Rs. ${metadata.basePrice}",
                       style: TextStyle(color: Colors.grey[600], fontSize: 13),
                     ),
                     const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _RateInput(
-                            label: "Base Rate",
-                            initialValue: skill.baseRate ?? metadata.basePrice,
-                            hint: metadata.basePrice,
-                            onChanged: (val) => notifier.updateSkillRates(
-                              skill.subServiceId,
-                              baseRate: val,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: _RateInput(
-                            label: "Max Rate",
-                            // When maxPrice is null the sub-service is fixed-rate; default the max to basePrice
-                            initialValue: skill.maxRate ?? metadata.maxPrice ?? metadata.basePrice,
-                            hint: metadata.maxPrice ?? metadata.basePrice,
-                            onChanged: (val) => notifier.updateSkillRates(
-                              skill.subServiceId,
-                              maxRate: val,
-                            ),
-                          ),
-                        ),
-                      ],
+                    _RateInput(
+                      label: "Labor Rate",
+                      initialValue: skill.laborRate ?? metadata.basePrice,
+                      hint: metadata.basePrice,
+                      onChanged: (val) => notifier.updateSkillRate(
+                        skill.subServiceId,
+                        laborRate: val,
+                      ),
                     ),
                   ],
                 ),

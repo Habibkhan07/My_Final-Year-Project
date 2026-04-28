@@ -31,7 +31,7 @@ void main() {
       'bayesian_score': 4.8,
       'is_active': true,
       'ui_rating_text': '⭐ 4.9 (120 jobs)',
-      'primary_price': 'Rs. 1,000 - 1,400',
+      'primary_price': 'Rs. 1,200',
       'primary_price_raw': '1000.00',
       'price_context': 'Labor Fee',
       'promo_tag': '20% OFF',
@@ -52,7 +52,7 @@ void main() {
       bayesianScore: 4.8,
       isActive: true,
       uiRatingText: '⭐ 4.9 (120 jobs)',
-      primaryPrice: 'Rs. 1,000 - 1,400',
+      primaryPrice: 'Rs. 1,200',
       primaryPriceRaw: '1000.00',
       priceContext: 'Labor Fee',
       promoTag: '20% OFF',
@@ -141,7 +141,7 @@ void main() {
     });
 
     test('Scenario B — labor gig from search: same shape as A, '
-        'price_amount sits within the labor range', () {
+        'price_amount equals the technician labor_rate', () {
       const model = InstantBookingRequestModel(
         technicianId: 42,
         addressId: 7,

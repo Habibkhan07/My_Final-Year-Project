@@ -583,7 +583,7 @@ as String,
 /// @nodoc
 mixin _$SkillInputModel {
 
-@JsonKey(name: 'sub_service_id') int get subServiceId;@JsonKey(name: 'years_of_experience') int get yearsOfExperience;@JsonKey(name: 'base_rate') String? get baseRate;@JsonKey(name: 'max_rate') String? get maxRate;
+@JsonKey(name: 'sub_service_id') int get subServiceId;@JsonKey(name: 'years_of_experience') int get yearsOfExperience;@JsonKey(name: 'labor_rate') String? get laborRate;
 /// Create a copy of SkillInputModel
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -596,16 +596,16 @@ $SkillInputModelCopyWith<SkillInputModel> get copyWith => _$SkillInputModelCopyW
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is SkillInputModel&&(identical(other.subServiceId, subServiceId) || other.subServiceId == subServiceId)&&(identical(other.yearsOfExperience, yearsOfExperience) || other.yearsOfExperience == yearsOfExperience)&&(identical(other.baseRate, baseRate) || other.baseRate == baseRate)&&(identical(other.maxRate, maxRate) || other.maxRate == maxRate));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is SkillInputModel&&(identical(other.subServiceId, subServiceId) || other.subServiceId == subServiceId)&&(identical(other.yearsOfExperience, yearsOfExperience) || other.yearsOfExperience == yearsOfExperience)&&(identical(other.laborRate, laborRate) || other.laborRate == laborRate));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,subServiceId,yearsOfExperience,baseRate,maxRate);
+int get hashCode => Object.hash(runtimeType,subServiceId,yearsOfExperience,laborRate);
 
 @override
 String toString() {
-  return 'SkillInputModel(subServiceId: $subServiceId, yearsOfExperience: $yearsOfExperience, baseRate: $baseRate, maxRate: $maxRate)';
+  return 'SkillInputModel(subServiceId: $subServiceId, yearsOfExperience: $yearsOfExperience, laborRate: $laborRate)';
 }
 
 
@@ -616,7 +616,7 @@ abstract mixin class $SkillInputModelCopyWith<$Res>  {
   factory $SkillInputModelCopyWith(SkillInputModel value, $Res Function(SkillInputModel) _then) = _$SkillInputModelCopyWithImpl;
 @useResult
 $Res call({
-@JsonKey(name: 'sub_service_id') int subServiceId,@JsonKey(name: 'years_of_experience') int yearsOfExperience,@JsonKey(name: 'base_rate') String? baseRate,@JsonKey(name: 'max_rate') String? maxRate
+@JsonKey(name: 'sub_service_id') int subServiceId,@JsonKey(name: 'years_of_experience') int yearsOfExperience,@JsonKey(name: 'labor_rate') String? laborRate
 });
 
 
@@ -633,12 +633,11 @@ class _$SkillInputModelCopyWithImpl<$Res>
 
 /// Create a copy of SkillInputModel
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? subServiceId = null,Object? yearsOfExperience = null,Object? baseRate = freezed,Object? maxRate = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? subServiceId = null,Object? yearsOfExperience = null,Object? laborRate = freezed,}) {
   return _then(_self.copyWith(
 subServiceId: null == subServiceId ? _self.subServiceId : subServiceId // ignore: cast_nullable_to_non_nullable
 as int,yearsOfExperience: null == yearsOfExperience ? _self.yearsOfExperience : yearsOfExperience // ignore: cast_nullable_to_non_nullable
-as int,baseRate: freezed == baseRate ? _self.baseRate : baseRate // ignore: cast_nullable_to_non_nullable
-as String?,maxRate: freezed == maxRate ? _self.maxRate : maxRate // ignore: cast_nullable_to_non_nullable
+as int,laborRate: freezed == laborRate ? _self.laborRate : laborRate // ignore: cast_nullable_to_non_nullable
 as String?,
   ));
 }
@@ -724,10 +723,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(name: 'sub_service_id')  int subServiceId, @JsonKey(name: 'years_of_experience')  int yearsOfExperience, @JsonKey(name: 'base_rate')  String? baseRate, @JsonKey(name: 'max_rate')  String? maxRate)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(name: 'sub_service_id')  int subServiceId, @JsonKey(name: 'years_of_experience')  int yearsOfExperience, @JsonKey(name: 'labor_rate')  String? laborRate)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _SkillInputModel() when $default != null:
-return $default(_that.subServiceId,_that.yearsOfExperience,_that.baseRate,_that.maxRate);case _:
+return $default(_that.subServiceId,_that.yearsOfExperience,_that.laborRate);case _:
   return orElse();
 
 }
@@ -745,10 +744,10 @@ return $default(_that.subServiceId,_that.yearsOfExperience,_that.baseRate,_that.
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(name: 'sub_service_id')  int subServiceId, @JsonKey(name: 'years_of_experience')  int yearsOfExperience, @JsonKey(name: 'base_rate')  String? baseRate, @JsonKey(name: 'max_rate')  String? maxRate)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(name: 'sub_service_id')  int subServiceId, @JsonKey(name: 'years_of_experience')  int yearsOfExperience, @JsonKey(name: 'labor_rate')  String? laborRate)  $default,) {final _that = this;
 switch (_that) {
 case _SkillInputModel():
-return $default(_that.subServiceId,_that.yearsOfExperience,_that.baseRate,_that.maxRate);case _:
+return $default(_that.subServiceId,_that.yearsOfExperience,_that.laborRate);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -765,10 +764,10 @@ return $default(_that.subServiceId,_that.yearsOfExperience,_that.baseRate,_that.
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(name: 'sub_service_id')  int subServiceId, @JsonKey(name: 'years_of_experience')  int yearsOfExperience, @JsonKey(name: 'base_rate')  String? baseRate, @JsonKey(name: 'max_rate')  String? maxRate)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(name: 'sub_service_id')  int subServiceId, @JsonKey(name: 'years_of_experience')  int yearsOfExperience, @JsonKey(name: 'labor_rate')  String? laborRate)?  $default,) {final _that = this;
 switch (_that) {
 case _SkillInputModel() when $default != null:
-return $default(_that.subServiceId,_that.yearsOfExperience,_that.baseRate,_that.maxRate);case _:
+return $default(_that.subServiceId,_that.yearsOfExperience,_that.laborRate);case _:
   return null;
 
 }
@@ -780,13 +779,12 @@ return $default(_that.subServiceId,_that.yearsOfExperience,_that.baseRate,_that.
 @JsonSerializable()
 
 class _SkillInputModel implements SkillInputModel {
-  const _SkillInputModel({@JsonKey(name: 'sub_service_id') required this.subServiceId, @JsonKey(name: 'years_of_experience') required this.yearsOfExperience, @JsonKey(name: 'base_rate') this.baseRate, @JsonKey(name: 'max_rate') this.maxRate});
+  const _SkillInputModel({@JsonKey(name: 'sub_service_id') required this.subServiceId, @JsonKey(name: 'years_of_experience') required this.yearsOfExperience, @JsonKey(name: 'labor_rate') this.laborRate});
   factory _SkillInputModel.fromJson(Map<String, dynamic> json) => _$SkillInputModelFromJson(json);
 
 @override@JsonKey(name: 'sub_service_id') final  int subServiceId;
 @override@JsonKey(name: 'years_of_experience') final  int yearsOfExperience;
-@override@JsonKey(name: 'base_rate') final  String? baseRate;
-@override@JsonKey(name: 'max_rate') final  String? maxRate;
+@override@JsonKey(name: 'labor_rate') final  String? laborRate;
 
 /// Create a copy of SkillInputModel
 /// with the given fields replaced by the non-null parameter values.
@@ -801,16 +799,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _SkillInputModel&&(identical(other.subServiceId, subServiceId) || other.subServiceId == subServiceId)&&(identical(other.yearsOfExperience, yearsOfExperience) || other.yearsOfExperience == yearsOfExperience)&&(identical(other.baseRate, baseRate) || other.baseRate == baseRate)&&(identical(other.maxRate, maxRate) || other.maxRate == maxRate));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _SkillInputModel&&(identical(other.subServiceId, subServiceId) || other.subServiceId == subServiceId)&&(identical(other.yearsOfExperience, yearsOfExperience) || other.yearsOfExperience == yearsOfExperience)&&(identical(other.laborRate, laborRate) || other.laborRate == laborRate));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,subServiceId,yearsOfExperience,baseRate,maxRate);
+int get hashCode => Object.hash(runtimeType,subServiceId,yearsOfExperience,laborRate);
 
 @override
 String toString() {
-  return 'SkillInputModel(subServiceId: $subServiceId, yearsOfExperience: $yearsOfExperience, baseRate: $baseRate, maxRate: $maxRate)';
+  return 'SkillInputModel(subServiceId: $subServiceId, yearsOfExperience: $yearsOfExperience, laborRate: $laborRate)';
 }
 
 
@@ -821,7 +819,7 @@ abstract mixin class _$SkillInputModelCopyWith<$Res> implements $SkillInputModel
   factory _$SkillInputModelCopyWith(_SkillInputModel value, $Res Function(_SkillInputModel) _then) = __$SkillInputModelCopyWithImpl;
 @override @useResult
 $Res call({
-@JsonKey(name: 'sub_service_id') int subServiceId,@JsonKey(name: 'years_of_experience') int yearsOfExperience,@JsonKey(name: 'base_rate') String? baseRate,@JsonKey(name: 'max_rate') String? maxRate
+@JsonKey(name: 'sub_service_id') int subServiceId,@JsonKey(name: 'years_of_experience') int yearsOfExperience,@JsonKey(name: 'labor_rate') String? laborRate
 });
 
 
@@ -838,12 +836,11 @@ class __$SkillInputModelCopyWithImpl<$Res>
 
 /// Create a copy of SkillInputModel
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? subServiceId = null,Object? yearsOfExperience = null,Object? baseRate = freezed,Object? maxRate = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? subServiceId = null,Object? yearsOfExperience = null,Object? laborRate = freezed,}) {
   return _then(_SkillInputModel(
 subServiceId: null == subServiceId ? _self.subServiceId : subServiceId // ignore: cast_nullable_to_non_nullable
 as int,yearsOfExperience: null == yearsOfExperience ? _self.yearsOfExperience : yearsOfExperience // ignore: cast_nullable_to_non_nullable
-as int,baseRate: freezed == baseRate ? _self.baseRate : baseRate // ignore: cast_nullable_to_non_nullable
-as String?,maxRate: freezed == maxRate ? _self.maxRate : maxRate // ignore: cast_nullable_to_non_nullable
+as int,laborRate: freezed == laborRate ? _self.laborRate : laborRate // ignore: cast_nullable_to_non_nullable
 as String?,
   ));
 }

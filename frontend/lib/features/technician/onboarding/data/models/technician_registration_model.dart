@@ -34,14 +34,13 @@ abstract class CategoryLicenseInputModel with _$CategoryLicenseInputModel {
   factory CategoryLicenseInputModel.fromJson(Map<String, dynamic> json) => _$CategoryLicenseInputModelFromJson(json);
 }
 
-/// [SkillInputModel] represents the technician's selected skills and labor rates.
+/// [SkillInputModel] represents the technician's selected skills and labor rate.
 @freezed
 abstract class SkillInputModel with _$SkillInputModel {
   const factory SkillInputModel({
     @JsonKey(name: 'sub_service_id') required int subServiceId,
     @JsonKey(name: 'years_of_experience') required int yearsOfExperience,
-    @JsonKey(name: 'base_rate') String? baseRate,
-    @JsonKey(name: 'max_rate') String? maxRate,
+    @JsonKey(name: 'labor_rate') String? laborRate,
   }) = _SkillInputModel;
 
   factory SkillInputModel.fromJson(Map<String, dynamic> json) => _$SkillInputModelFromJson(json);

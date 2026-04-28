@@ -79,11 +79,10 @@ The onboarding process transitions a standard `User` into a `TechnicianProfile`.
 | `profile_picture_uuid` | UUID | Yes | |
 | `cnic_picture_uuid` | UUID | Yes | |
 | `category_licenses` | List | No | List of `{service_id, media_uuid}`. |
-| `skills` | List | Yes | List of `{sub_service_id, years_of_experience, base_rate, max_rate}`. |
+| `skills` | List | Yes | List of `{sub_service_id, years_of_experience, labor_rate}`. |
 
 #### Skill Object Detail
-*   `base_rate`: Decimal/String (Required for variable jobs).
-*   `max_rate`: Decimal/String (Optional. If null or equal to `base_rate`, it's a fixed rate).
+*   `labor_rate`: Decimal/String (Optional. The technician's labor rate for this sub-service. When null, booking falls back to the platform's per-sub-service base price.)
 
 #### Response Contract (Happy Path)
 ```json

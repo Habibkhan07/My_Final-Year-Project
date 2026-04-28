@@ -403,14 +403,13 @@ class TestCatalogScenarioCoverage:
         assert booking.promotion is None
         assert booking.price_context == 'Fixed Price'
 
-    def test_scenario_b_labor_gig_accepts_floor_of_range(self, lahore_tech_and_address):
+    def test_scenario_b_labor_gig_accepts_exact_rate(self, lahore_tech_and_address):
         tech, profile, address = lahore_tech_and_address
         service = ServiceFactory()
         sub = SubServiceFactory(service=service, is_fixed_price=False)
         TechnicianSkillFactory(
             technician=tech, sub_service=sub,
-            base_rate=decimal.Decimal('1000.00'),
-            max_rate=decimal.Decimal('1400.00'),
+            labor_rate=decimal.Decimal('1200.00'),
         )
 
         booking = create_instant_booking(
@@ -418,32 +417,13 @@ class TestCatalogScenarioCoverage:
             technician_id=tech.id, address_id=address.id,
             service_id=service.id, sub_service_id=sub.id,
             scheduled_start=_pkt(10), scheduled_end=_pkt(11),
-            price_amount=decimal.Decimal('1000.00'),  # floor of range
+            price_amount=decimal.Decimal('1200.00'),
         )
 
         booking.refresh_from_db()
         assert booking.sub_service == sub
         assert booking.price_context == 'Labor Fee'
-
-    def test_scenario_b_labor_gig_accepts_ceiling_of_range(self, lahore_tech_and_address):
-        tech, profile, address = lahore_tech_and_address
-        service = ServiceFactory()
-        sub = SubServiceFactory(service=service, is_fixed_price=False)
-        TechnicianSkillFactory(
-            technician=tech, sub_service=sub,
-            base_rate=decimal.Decimal('1000.00'),
-            max_rate=decimal.Decimal('1400.00'),
-        )
-
-        booking = create_instant_booking(
-            customer_user=profile.user,
-            technician_id=tech.id, address_id=address.id,
-            service_id=service.id, sub_service_id=sub.id,
-            scheduled_start=_pkt(10), scheduled_end=_pkt(11),
-            price_amount=decimal.Decimal('1400.00'),  # ceiling of range
-        )
-
-        assert booking.price_amount == decimal.Decimal('1400.00')
+        assert booking.price_amount == decimal.Decimal('1200.00')
 
     def test_scenario_d_promo_on_parent_persists_promotion_fk(self, lahore_tech_and_address):
         tech, profile, address = lahore_tech_and_address
@@ -526,45 +506,26 @@ class TestWritePathRejections:
                 scheduled_start=_pkt(10), scheduled_end=_pkt(11),
                 price_amount=decimal.Decimal('1.00'),
             )
-        assert exc.value.expected_min == decimal.Decimal('500.00')
+        assert exc.value.expected == decimal.Decimal('500.00')
 
-    def test_price_below_labor_floor_rejects(self, lahore_tech_and_address):
+    def test_price_mismatch_on_labor_rate_rejects(self, lahore_tech_and_address):
         tech, profile, address = lahore_tech_and_address
         service = ServiceFactory()
         sub = SubServiceFactory(service=service, is_fixed_price=False)
         TechnicianSkillFactory(
             technician=tech, sub_service=sub,
-            base_rate=decimal.Decimal('1000.00'),
-            max_rate=decimal.Decimal('1400.00'),
+            labor_rate=decimal.Decimal('1200.00'),
         )
 
-        with pytest.raises(PriceMismatchError):
+        with pytest.raises(PriceMismatchError) as exc:
             create_instant_booking(
                 customer_user=profile.user,
                 technician_id=tech.id, address_id=address.id,
                 service_id=service.id, sub_service_id=sub.id,
                 scheduled_start=_pkt(10), scheduled_end=_pkt(11),
-                price_amount=decimal.Decimal('999.00'),
+                price_amount=decimal.Decimal('1199.00'),
             )
-
-    def test_price_above_labor_ceiling_rejects(self, lahore_tech_and_address):
-        tech, profile, address = lahore_tech_and_address
-        service = ServiceFactory()
-        sub = SubServiceFactory(service=service, is_fixed_price=False)
-        TechnicianSkillFactory(
-            technician=tech, sub_service=sub,
-            base_rate=decimal.Decimal('1000.00'),
-            max_rate=decimal.Decimal('1400.00'),
-        )
-
-        with pytest.raises(PriceMismatchError):
-            create_instant_booking(
-                customer_user=profile.user,
-                technician_id=tech.id, address_id=address.id,
-                service_id=service.id, sub_service_id=sub.id,
-                scheduled_start=_pkt(10), scheduled_end=_pkt(11),
-                price_amount=decimal.Decimal('1401.00'),
-            )
+        assert exc.value.expected == decimal.Decimal('1200.00')
 
     def test_nonexistent_service_id_rejects_as_inconsistent(self, lahore_tech_and_address):
         tech, profile, address = lahore_tech_and_address

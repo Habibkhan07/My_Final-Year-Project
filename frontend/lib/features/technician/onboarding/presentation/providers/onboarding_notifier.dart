@@ -124,23 +124,21 @@ class OnboardingNotifier extends _$OnboardingNotifier {
             ? SkillSelectionEntity(
                 subServiceId: s.subServiceId,
                 yearsOfExperience: years,
-                baseRate: s.baseRate,
-                maxRate: s.maxRate,
+                laborRate: s.laborRate,
               )
             : s)
         .toList();
     state = AsyncData(current.copyWith(selectedSkills: updated));
   }
 
-  void updateSkillRates(int subServiceId, {String? baseRate, String? maxRate}) {
+  void updateSkillRate(int subServiceId, {String? laborRate}) {
     final current = state.requireValue;
     final updated = current.selectedSkills
         .map((s) => s.subServiceId == subServiceId
             ? SkillSelectionEntity(
                 subServiceId: s.subServiceId,
                 yearsOfExperience: s.yearsOfExperience,
-                baseRate: baseRate ?? s.baseRate,
-                maxRate: maxRate ?? s.maxRate,
+                laborRate: laborRate ?? s.laborRate,
               )
             : s)
         .toList();

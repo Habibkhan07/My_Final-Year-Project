@@ -93,7 +93,7 @@ class Command(BaseCommand):
         )
 
         # Labor gig (Scenario B pricing on profile — is_fixed_price=False)
-        # Technician sets their own base_rate/max_rate on the TechnicianSkill row.
+        # Technician sets their own labor_rate on the TechnicianSkill row.
         plumbing_labor_gig, _ = SubService.objects.get_or_create(
             service=plumbing_service,
             name='General Plumbing Repair',
@@ -280,8 +280,7 @@ class Command(BaseCommand):
                 sub_service=plumbing_labor_gig,
                 defaults={
                     'years_of_experience': 7,
-                    'base_rate': 1200.00,  # technician's minimum labor rate
-                    'max_rate': 2500.00,   # technician's maximum labor rate
+                    'labor_rate': 1500.00,  # technician's labor rate
                 },
             )
 

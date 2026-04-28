@@ -176,24 +176,13 @@ class TestTechnicianProfileDetailView:
         service = ServiceFactory()
         sub = SubServiceFactory(service=service, is_fixed_price=False)
         tech = TechnicianProfileFactory(status='APPROVED')
-        TechnicianSkillFactory(technician=tech, sub_service=sub, base_rate=1200.00, max_rate=1200.00)
+        TechnicianSkillFactory(technician=tech, sub_service=sub, labor_rate=1200.00)
 
         data = self.client.get(self._url(tech.id), {'sub_service_id': sub.id}).json()
 
         assert data['primary_price'] == 'Rs. 1,200'
         assert data['price_context'] == 'Labor Fee'
         assert data['promo_tag'] is None
-
-    def test_scenario_b_labor_rate_range(self):
-        service = ServiceFactory()
-        sub = SubServiceFactory(service=service, is_fixed_price=False)
-        tech = TechnicianProfileFactory(status='APPROVED')
-        TechnicianSkillFactory(technician=tech, sub_service=sub, base_rate=1000.00, max_rate=1400.00)
-
-        data = self.client.get(self._url(tech.id), {'sub_service_id': sub.id}).json()
-
-        assert data['primary_price'] == 'Rs. 1,000 - 1,400'
-        assert data['price_context'] == 'Labor Fee'
 
     def test_scenario_b_labor_gig_with_active_promo(self):
         service = ServiceFactory()
@@ -205,7 +194,7 @@ class TestTechnicianProfileDetailView:
             description="20% Off Final Bill",
         )
         tech = TechnicianProfileFactory(status='APPROVED')
-        TechnicianSkillFactory(technician=tech, sub_service=sub, base_rate=1000, max_rate=1400)
+        TechnicianSkillFactory(technician=tech, sub_service=sub, labor_rate=1000)
 
         data = self.client.get(
             self._url(tech.id),
@@ -220,7 +209,7 @@ class TestTechnicianProfileDetailView:
         service = ServiceFactory()
         sub = SubServiceFactory(service=service, is_fixed_price=False, base_price=800.00)
         tech = TechnicianProfileFactory(status='APPROVED')
-        TechnicianSkillFactory(technician=tech, sub_service=sub, base_rate=None, max_rate=None)
+        TechnicianSkillFactory(technician=tech, sub_service=sub, labor_rate=None)
 
         data = self.client.get(self._url(tech.id), {'sub_service_id': sub.id}).json()
 

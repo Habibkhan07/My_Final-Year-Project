@@ -125,13 +125,7 @@ class InstantBookView(APIView):
             )
 
         except PriceMismatchError as exc:
-            if exc.expected_max is None:
-                detail = f'Expected {exc.expected_min}, received {exc.actual}.'
-            else:
-                detail = (
-                    f'Expected between {exc.expected_min} and {exc.expected_max}, '
-                    f'received {exc.actual}.'
-                )
+            detail = f'Expected {exc.expected}, received {exc.actual}.'
             return Response(
                 {
                     'status': 400,

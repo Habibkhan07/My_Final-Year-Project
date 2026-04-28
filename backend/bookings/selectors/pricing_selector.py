@@ -7,8 +7,8 @@ booking write path.
 
 Read paths consume the formatted display strings (``primary_price``,
 ``price_context_label``, ``promo_tag_firewalled``). The booking write
-path will consume the raw ``primary_amount`` / ``primary_amount_max``
-plus ``booking_type`` for validation and persistence.
+path consumes the raw ``primary_amount`` plus ``booking_type`` for
+validation and persistence.
 
 Discovery intent is never user-typed at booking time — it carries
 through from the URL the customer arrived on (search bar match, gig
@@ -44,11 +44,8 @@ class ResolvedIntent:
     """
     Outcome of :func:`resolve_booking_intent`. Stable contract.
 
-    ``primary_amount`` / ``primary_amount_max`` are the raw figures the
-    write path will validate against. For ``LABOR_GIG`` with an
-    asymmetric technician rate, ``primary_amount`` is the floor and
-    ``primary_amount_max`` is the ceiling. For every other type,
-    ``primary_amount_max`` is ``None``.
+    ``primary_amount`` is the raw figure the write path validates
+    against (exact equality across all booking types).
 
     ``promo_tag_firewalled`` honours the absolute product rule: discount
     stacking on a fixed-price gig is forbidden, so the field is ``None``
@@ -63,7 +60,6 @@ class ResolvedIntent:
     booking_type: str  # one of the BOOKING_TYPE_* constants above
 
     primary_amount: Decimal
-    primary_amount_max: Optional[Decimal]
 
     # Pre-formatted display strings. Comma thousand-separators are
     # applied uniformly across all scenarios; read consumers render
@@ -99,10 +95,9 @@ def resolve_booking_intent(
     * **A — Fixed-Price Gig** (``sub_service.is_fixed_price=True``):
       promo firewalled to ``None``; promotion FK also nulled.
     * **B — Labor Gig** (``sub_service.is_fixed_price=False``): price
-      derived from the technician's ``TechnicianSkill`` rate window
-      (range when ``base_rate != max_rate``); falls back to the
-      sub-service's platform base price when the technician hasn't set
-      a custom rate.
+      is the technician's ``TechnicianSkill.labor_rate``; falls back to
+      the sub-service's platform base price when the technician hasn't
+      set a custom rate.
     * **C — Category / Promo on parent service** (only ``service``
       provided): price is the service's inspection fee.
 
@@ -131,7 +126,6 @@ def resolve_booking_intent(
             promotion=None,
             booking_type=BOOKING_TYPE_FIXED_GIG,
             primary_amount=amount,
-            primary_amount_max=None,
             primary_price=f"Rs. {int(amount):,}",
             primary_price_raw=str(sub_service.base_price),
             price_context_label="Fixed Price",
@@ -147,25 +141,13 @@ def resolve_booking_intent(
             else technician.technicianskill_set.filter(sub_service=sub_service).first()
         )
 
-        if tech_skill is not None and tech_skill.base_rate:
-            base_int = int(tech_skill.base_rate)
-            max_int = int(tech_skill.max_rate) if tech_skill.max_rate else None
-
-            primary_amount = Decimal(tech_skill.base_rate)
-            primary_price_raw = str(tech_skill.base_rate)
-
-            if max_int is not None and max_int != base_int:
-                primary_price = f"Rs. {base_int:,} - {max_int:,}"
-                primary_amount_max = Decimal(tech_skill.max_rate)
-            else:
-                primary_price = f"Rs. {base_int:,}"
-                primary_amount_max = None
+        if tech_skill is not None and tech_skill.labor_rate:
+            primary_amount = Decimal(tech_skill.labor_rate)
+            primary_price_raw = str(tech_skill.labor_rate)
         else:
             # Tech hasn't set a custom rate — fall back to the platform
-            # per-sub-service default. No range possible in this branch.
+            # per-sub-service default.
             primary_amount = Decimal(sub_service.base_price)
-            primary_amount_max = None
-            primary_price = f"Rs. {int(primary_amount):,}"
             primary_price_raw = str(sub_service.base_price)
 
         return ResolvedIntent(
@@ -174,8 +156,7 @@ def resolve_booking_intent(
             promotion=promotion,
             booking_type=BOOKING_TYPE_LABOR_GIG,
             primary_amount=primary_amount,
-            primary_amount_max=primary_amount_max,
-            primary_price=primary_price,
+            primary_price=f"Rs. {int(primary_amount):,}",
             primary_price_raw=primary_price_raw,
             price_context_label="Labor Fee",
             promo_tag_firewalled=promotion.ui_description if promotion else None,
@@ -190,7 +171,6 @@ def resolve_booking_intent(
             promotion=promotion,
             booking_type=BOOKING_TYPE_INSPECTION,
             primary_amount=amount,
-            primary_amount_max=None,
             primary_price=f"Rs. {int(amount):,}",
             primary_price_raw=str(service.base_inspection_fee),
             price_context_label="Inspection Fee",
@@ -204,7 +184,6 @@ def resolve_booking_intent(
         promotion=None,
         booking_type=BOOKING_TYPE_UNKNOWN,
         primary_amount=_DEFAULT_PRICE,
-        primary_amount_max=None,
         primary_price=_DEFAULT_PRICE_DISPLAY,
         primary_price_raw=_DEFAULT_PRICE_RAW,
         price_context_label="Inspection Fee",
