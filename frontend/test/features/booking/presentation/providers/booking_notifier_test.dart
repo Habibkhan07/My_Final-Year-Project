@@ -42,10 +42,12 @@ void main() {
     when(() => mockUseCase.call(
           technicianId: any(named: 'technicianId'),
           addressId: any(named: 'addressId'),
+          serviceId: any(named: 'serviceId'),
+          subServiceId: any(named: 'subServiceId'),
+          promotionId: any(named: 'promotionId'),
           scheduledStart: any(named: 'scheduledStart'),
           scheduledEnd: any(named: 'scheduledEnd'),
           priceAmount: any(named: 'priceAmount'),
-          priceContext: any(named: 'priceContext'),
         )).thenAnswer((_) async => tEntity);
   }
 
@@ -53,10 +55,12 @@ void main() {
     when(() => mockUseCase.call(
           technicianId: any(named: 'technicianId'),
           addressId: any(named: 'addressId'),
+          serviceId: any(named: 'serviceId'),
+          subServiceId: any(named: 'subServiceId'),
+          promotionId: any(named: 'promotionId'),
           scheduledStart: any(named: 'scheduledStart'),
           scheduledEnd: any(named: 'scheduledEnd'),
           priceAmount: any(named: 'priceAmount'),
-          priceContext: any(named: 'priceContext'),
         )).thenThrow(failure);
   }
 
@@ -64,6 +68,7 @@ void main() {
       container.read(instantBookingProvider.notifier).book(
             technicianId: 42,
             addressId: 7,
+            serviceId: 3,
             scheduledStart: '2026-04-07T10:00:00+05:00',
             scheduledEnd: '2026-04-07T11:00:00+05:00',
             priceAmount: '1500.00',
@@ -155,6 +160,26 @@ void main() {
       expect(state.hasError, isTrue);
       expect(state.error, isA<BookingInvalidAddressFailure>());
     });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Defensive promo firewall — fail-fast at the Flutter layer so we don't
+  // waste a round trip on a combination the server is guaranteed to reject.
+  // ---------------------------------------------------------------------------
+  test('book() asserts when subServiceId AND promotionId are both present', () {
+    expect(
+      () => container.read(instantBookingProvider.notifier).book(
+            technicianId: 42,
+            addressId: 7,
+            serviceId: 3,
+            subServiceId: 17,
+            promotionId: 9,
+            scheduledStart: '2026-04-08T10:00:00+05:00',
+            scheduledEnd: '2026-04-08T11:00:00+05:00',
+            priceAmount: '1500.00',
+          ),
+      throwsA(isA<AssertionError>()),
+    );
   });
 
   // ---------------------------------------------------------------------------

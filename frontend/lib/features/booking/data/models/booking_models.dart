@@ -138,11 +138,28 @@ abstract class AvailabilitySlotModel with _$AvailabilitySlotModel {
 // ---------------------------------------------------------------------------
 
 /// Outgoing POST body. Use [toJson] to build the request payload.
+///
+/// `includeIfNull: false` keeps optional FKs (`sub_service_id`, `promotion_id`)
+/// off the wire when null, matching the backend's four-scenario contract
+/// (Scenario A/B/C/D in BOOKINGS_API.md).
 @freezed
 abstract class InstantBookingRequestModel with _$InstantBookingRequestModel {
   const factory InstantBookingRequestModel({
     @JsonKey(name: 'technician_id') required int technicianId,
     @JsonKey(name: 'address_id') required int addressId,
+
+    /// Parent service the customer was browsing. Threaded from the discovery
+    /// URL (search match, gig tile, category tile, promo banner).
+    @JsonKey(name: 'service_id') required int serviceId,
+
+    /// Specific sub-service for fixed-price gigs (Scenario A) or labor matches
+    /// from search (Scenario B). Omit for parent-category / inspection.
+    @JsonKey(name: 'sub_service_id', includeIfNull: false) int? subServiceId,
+
+    /// Set only when the customer arrived via a promo banner. Forbidden with
+    /// a fixed-price [subServiceId] — the server rejects that combo, and the
+    /// presentation layer also blocks it defensively to save a round trip.
+    @JsonKey(name: 'promotion_id', includeIfNull: false) int? promotionId,
 
     /// Pass [AvailabilitySlotEntity.isoStart] directly — no conversion.
     @JsonKey(name: 'scheduled_start') required String scheduledStart,
@@ -152,9 +169,6 @@ abstract class InstantBookingRequestModel with _$InstantBookingRequestModel {
 
     /// Decimal string e.g. "1500.00" — backend validates as DecimalField.
     @JsonKey(name: 'price_amount') required String priceAmount,
-
-    /// Optional display label for the UI receipt (max 50 chars).
-    @JsonKey(name: 'price_context') @Default('') String priceContext,
   }) = _InstantBookingRequestModel;
 
   factory InstantBookingRequestModel.fromJson(Map<String, dynamic> json) =>

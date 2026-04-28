@@ -12,12 +12,18 @@ class ReviewBookingSheet extends ConsumerWidget {
   final TechnicianProfileEntity technician;
   final DateTime selectedDate;
   final AvailabilitySlotEntity selectedSlot;
+  final int? serviceId;
+  final int? subServiceId;
+  final int? promotionId;
 
   const ReviewBookingSheet({
     super.key,
     required this.technician,
     required this.selectedDate,
     required this.selectedSlot,
+    this.serviceId,
+    this.subServiceId,
+    this.promotionId,
   });
 
   @override
@@ -38,14 +44,16 @@ class ReviewBookingSheet extends ConsumerWidget {
           },
           error: (error, stack) {
             if (error is BookingFailure) {
+              final (message, popOnShow) = _resolveErrorPresentation(error);
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text(error.message),
+                  content: Text(message),
                   backgroundColor: Colors.red,
                 ),
               );
-              if (error is BookingSlotUnavailableFailure) {
-                // Close the review sheet to let user pick again
+              if (popOnShow) {
+                // Pop the review sheet so the customer can refresh discovery
+                // (slot taken, stale catalog, stale promo, stale price).
                 Navigator.pop(context);
               }
             }
@@ -93,16 +101,18 @@ class ReviewBookingSheet extends ConsumerWidget {
           Expanded(
             flex: 3,
             child: ElevatedButton(
-              onPressed: isSubmitting || defaultAddress == null
+              onPressed: isSubmitting || defaultAddress == null || serviceId == null
                   ? null
                   : () {
                       ref.read(instantBookingProvider.notifier).book(
                             technicianId: technician.id,
                             addressId: defaultAddress.id,
+                            serviceId: serviceId!,
+                            subServiceId: subServiceId,
+                            promotionId: promotionId,
                             scheduledStart: selectedSlot.isoStart,
                             scheduledEnd: selectedSlot.isoEnd,
                             priceAmount: technician.primaryPriceRaw,
-                            priceContext: technician.priceContext,
                           );
                     },
               style: ElevatedButton.styleFrom(
@@ -259,6 +269,32 @@ class ReviewBookingSheet extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  /// Resolves a [BookingFailure] into a user-friendly toast string and
+  /// whether the review sheet should pop afterwards.
+  ///
+  /// The three field-keyed validation errors are translated via the dictionary
+  /// in BOOKINGS_API.md §2.2 — the server returns diagnostic-friendly text,
+  /// not user-friendly text, so we map locally rather than render `error.message`.
+  /// All three pop the sheet so the customer is sent back to discovery to refresh.
+  (String message, bool popSheet) _resolveErrorPresentation(BookingFailure error) {
+    if (error is BookingValidationFailure) {
+      final keys = error.errors?.keys.toSet() ?? const <String>{};
+      if (keys.contains('sub_service_id')) {
+        return ('This gig is no longer available. Refresh and try again.', true);
+      }
+      if (keys.contains('promotion_id')) {
+        return ("This gig already has a fixed price — promotions don't apply.", true);
+      }
+      if (keys.contains('price_amount')) {
+        return ('Pricing has updated. Please refresh and confirm again.', true);
+      }
+    }
+    if (error is BookingSlotUnavailableFailure) {
+      return (error.message, true);
+    }
+    return (error.message, false);
   }
 
   String _getDaySuffix(int day) {

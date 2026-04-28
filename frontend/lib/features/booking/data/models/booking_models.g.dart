@@ -106,10 +106,12 @@ _InstantBookingRequestModel _$InstantBookingRequestModelFromJson(
 ) => _InstantBookingRequestModel(
   technicianId: (json['technician_id'] as num).toInt(),
   addressId: (json['address_id'] as num).toInt(),
+  serviceId: (json['service_id'] as num).toInt(),
+  subServiceId: (json['sub_service_id'] as num?)?.toInt(),
+  promotionId: (json['promotion_id'] as num?)?.toInt(),
   scheduledStart: json['scheduled_start'] as String,
   scheduledEnd: json['scheduled_end'] as String,
   priceAmount: json['price_amount'] as String,
-  priceContext: json['price_context'] as String? ?? '',
 );
 
 Map<String, dynamic> _$InstantBookingRequestModelToJson(
@@ -117,10 +119,12 @@ Map<String, dynamic> _$InstantBookingRequestModelToJson(
 ) => <String, dynamic>{
   'technician_id': instance.technicianId,
   'address_id': instance.addressId,
+  'service_id': instance.serviceId,
+  'sub_service_id': ?instance.subServiceId,
+  'promotion_id': ?instance.promotionId,
   'scheduled_start': instance.scheduledStart,
   'scheduled_end': instance.scheduledEnd,
   'price_amount': instance.priceAmount,
-  'price_context': instance.priceContext,
 };
 
 _InstantBookingResponseModel _$InstantBookingResponseModelFromJson(

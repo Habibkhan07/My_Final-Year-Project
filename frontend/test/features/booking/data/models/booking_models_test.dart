@@ -111,36 +111,86 @@ void main() {
 
   // ---------------------------------------------------------------------------
   // InstantBookingRequestModel
+  //
+  // Four scenarios per BOOKINGS_API.md §1.1 / §2.1. The optional FK fields
+  // (sub_service_id, promotion_id) must be omitted from the wire when null,
+  // not serialized as `null`. price_context is no longer on the request body.
   // ---------------------------------------------------------------------------
   group('InstantBookingRequestModel', () {
-    const tModel = InstantBookingRequestModel(
-      technicianId: 42,
-      addressId: 7,
-      scheduledStart: '2026-04-07T10:00:00+05:00',
-      scheduledEnd: '2026-04-07T11:00:00+05:00',
-      priceAmount: '1500.00',
-      priceContext: 'AC Repair',
-    );
-
-    test('toJson emits snake_case keys matching the backend contract', () {
-      final json = tModel.toJson();
+    test('Scenario A — fixed-price gig: includes service_id + sub_service_id, '
+        'omits promotion_id and price_context', () {
+      const model = InstantBookingRequestModel(
+        technicianId: 42,
+        addressId: 7,
+        serviceId: 3,
+        subServiceId: 17,
+        scheduledStart: '2026-04-08T10:00:00+05:00',
+        scheduledEnd: '2026-04-08T11:00:00+05:00',
+        priceAmount: '1500.00',
+      );
+      final json = model.toJson();
       expect(json['technician_id'], 42);
       expect(json['address_id'], 7);
-      expect(json['scheduled_start'], '2026-04-07T10:00:00+05:00');
-      expect(json['scheduled_end'], '2026-04-07T11:00:00+05:00');
+      expect(json['service_id'], 3);
+      expect(json['sub_service_id'], 17);
+      expect(json['scheduled_start'], '2026-04-08T10:00:00+05:00');
+      expect(json['scheduled_end'], '2026-04-08T11:00:00+05:00');
       expect(json['price_amount'], '1500.00');
-      expect(json['price_context'], 'AC Repair');
+      expect(json.containsKey('promotion_id'), isFalse);
+      expect(json.containsKey('price_context'), isFalse);
     });
 
-    test('price_context defaults to empty string when not provided', () {
-      const modelWithoutContext = InstantBookingRequestModel(
-        technicianId: 1,
-        addressId: 1,
-        scheduledStart: '2026-04-07T10:00:00+05:00',
-        scheduledEnd: '2026-04-07T11:00:00+05:00',
+    test('Scenario B — labor gig from search: same shape as A, '
+        'price_amount sits within the labor range', () {
+      const model = InstantBookingRequestModel(
+        technicianId: 42,
+        addressId: 7,
+        serviceId: 3,
+        subServiceId: 17,
+        scheduledStart: '2026-04-08T10:00:00+05:00',
+        scheduledEnd: '2026-04-08T11:00:00+05:00',
+        priceAmount: '1200.00',
+      );
+      final json = model.toJson();
+      expect(json['service_id'], 3);
+      expect(json['sub_service_id'], 17);
+      expect(json.containsKey('promotion_id'), isFalse);
+      expect(json.containsKey('price_context'), isFalse);
+    });
+
+    test('Scenario C — inspection / parent-category: omits sub_service_id '
+        'and promotion_id', () {
+      const model = InstantBookingRequestModel(
+        technicianId: 42,
+        addressId: 7,
+        serviceId: 3,
+        scheduledStart: '2026-04-08T10:00:00+05:00',
+        scheduledEnd: '2026-04-08T11:00:00+05:00',
         priceAmount: '500.00',
       );
-      expect(modelWithoutContext.toJson()['price_context'], '');
+      final json = model.toJson();
+      expect(json['service_id'], 3);
+      expect(json.containsKey('sub_service_id'), isFalse);
+      expect(json.containsKey('promotion_id'), isFalse);
+      expect(json.containsKey('price_context'), isFalse);
+    });
+
+    test('Scenario D — promo on parent service: includes promotion_id, '
+        'omits sub_service_id', () {
+      const model = InstantBookingRequestModel(
+        technicianId: 42,
+        addressId: 7,
+        serviceId: 3,
+        promotionId: 9,
+        scheduledStart: '2026-04-08T10:00:00+05:00',
+        scheduledEnd: '2026-04-08T11:00:00+05:00',
+        priceAmount: '500.00',
+      );
+      final json = model.toJson();
+      expect(json['service_id'], 3);
+      expect(json['promotion_id'], 9);
+      expect(json.containsKey('sub_service_id'), isFalse);
+      expect(json.containsKey('price_context'), isFalse);
     });
   });
 

@@ -46,15 +46,23 @@ abstract class IBookingRepository {
   /// [scheduledStart] and [scheduledEnd] must be the [AvailabilitySlotEntity.isoStart]
   /// and [AvailabilitySlotEntity.isoEnd] values — pass them through verbatim.
   ///
+  /// [serviceId] is the parent category the customer was browsing — required.
+  /// [subServiceId] is the specific gig (omit for parent-category / inspection bookings).
+  /// [promotionId] is set only when the customer arrived via a promo banner.
+  /// Pairing [promotionId] with a fixed-price [subServiceId] is rejected by the
+  /// server's promo firewall — callers should block that combo locally too.
+  ///
   /// Throws [BookingFailure] on any failure. The caller is responsible for
   /// caching [CreatedBookingEntity.bookingId] in Tier 3 for crash recovery.
   Future<CreatedBookingEntity> createInstantBooking({
     required int technicianId,
     required int addressId,
+    required int serviceId,
+    int? subServiceId,
+    int? promotionId,
     required String scheduledStart,
     required String scheduledEnd,
     required String priceAmount,
-    String priceContext,
   });
 
 }

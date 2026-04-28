@@ -1,6 +1,7 @@
 # customers/api/technician_profile/serializers.py
 from rest_framework import serializers
 from technicians.models import TechnicianProfile, TechnicianSkill, Review
+from bookings.selectors import resolve_booking_intent
 
 
 class ReviewSummarySerializer(serializers.ModelSerializer):
@@ -110,68 +111,24 @@ class TechnicianProfileDetailSerializer(serializers.ModelSerializer):
 
     def _resolve_pricing(self, obj):
         """
-        Returns (primary_price: str, primary_price_raw: str, price_context: str, promo_tag: str | None).
+        Returns (primary_price, primary_price_raw, price_context, promo_tag).
 
-        Scenario A — Fixed-Price Gig:
-          sub_service_id passed AND SubService.is_fixed_price=True.
-          promo_tag is ALWAYS None — discount stacking on fixed gigs is forbidden.
-
-        Scenario B — Labor Gig (variable task):
-          sub_service_id passed AND SubService.is_fixed_price=False.
-          Price is the technician's own rate window (base..max).
-          promo_tag allowed.
-
-        Scenario C — Category Discovery:
-          Only service_id provided.
-          Price is the category's inspection fee.
-          promo_tag allowed.
+        Logic lives in ``bookings.selectors.resolve_booking_intent`` — single
+        source of truth shared with the home feed and (next sprint) the
+        booking write path.
         """
-        resolved_subservice = self.context.get('resolved_subservice')
-        resolved_service = self.context.get('resolved_service')
-        resolved_promo = self.context.get('resolved_promo')
-
-        if resolved_subservice:
-            # --- Scenario A: Fixed-Price Gig ---
-            if resolved_subservice.is_fixed_price:
-                price = f"Rs. {int(resolved_subservice.base_price):,}"
-                raw_price = str(resolved_subservice.base_price)
-                # ABSOLUTE RULE: promo_tag=None regardless of any passed promotion_id
-                return price, raw_price, "Fixed Price", None
-
-            # --- Scenario B: Labor Gig ---
-            # prefetched_skill set by selector only when sub_service_id was passed
-            prefetched_skill = getattr(obj, 'prefetched_skill', [])
-            tech_skill = (
-                prefetched_skill[0]
-                if prefetched_skill
-                else obj.technicianskill_set.filter(sub_service=resolved_subservice).first()
-            )
-
-            if tech_skill and tech_skill.base_rate:
-                base = int(tech_skill.base_rate)
-                raw_price = str(tech_skill.base_rate)
-                max_r = int(tech_skill.max_rate) if tech_skill.max_rate else None
-                if max_r and max_r != base:
-                    price = f"Rs. {base:,} - {max_r:,}"
-                else:
-                    price = f"Rs. {base:,}"
-            else:
-                # Fallback to platform base_price when technician hasn't set their rate
-                price = f"Rs. {int(resolved_subservice.base_price):,}"
-                raw_price = str(resolved_subservice.base_price)
-
-            promo_tag = resolved_promo.ui_description if resolved_promo else None
-            return price, raw_price, "Labor Fee", promo_tag
-
-        # --- Scenario C: Category Discovery ---
-        if resolved_service:
-            price = f"Rs. {int(resolved_service.base_inspection_fee):,}"
-            raw_price = str(resolved_service.base_inspection_fee)
-            promo_tag = resolved_promo.ui_description if resolved_promo else None
-            return price, raw_price, "Inspection Fee", promo_tag
-
-        # Default fallback (no context passed — global browse)
-        return "Rs. 500", "500.00", "Inspection Fee", None
+        intent = resolve_booking_intent(
+            technician=obj,
+            service=self.context.get('resolved_service'),
+            sub_service=self.context.get('resolved_subservice'),
+            promotion=self.context.get('resolved_promo'),
+        )
+        return (
+            intent.primary_price,
+            intent.primary_price_raw,
+            intent.price_context_label,
+            intent.promo_tag_firewalled,
+        )
 
     def get_primary_price(self, obj):
         price, _, _, _ = self._resolve_pricing(obj)

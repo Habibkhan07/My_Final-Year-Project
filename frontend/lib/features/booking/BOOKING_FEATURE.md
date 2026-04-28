@@ -56,7 +56,7 @@ Fed by `GET /api/customers/technician-profile/{id}/`.
 | `uiRatingText` | `String` | Pre-formatted rating string (e.g. `"4.8 (23 reviews)"`). Render directly. |
 | `primaryPrice` | `String` | Pre-formatted display price (e.g. `"Rs. 1,500"`). Render directly. |
 | `primaryPriceRaw` | `String` | Decimal string (e.g. `"1500.00"`). Pass as `price_amount` to instant-book. |
-| `priceContext` | `String` | Display label for the price (e.g. `"AC Repair — 2 hrs"`). Pass as `price_context` to instant-book. |
+| `priceContext` | `String` | Server-derived display label (`"Inspection Fee"` / `"Fixed Price"` / `"Labor Fee"`). Render only — no longer sent on the booking write. |
 | `promoTag` | `String?` | Promo badge label. Null when no active promotion. |
 | `skills` | `List<TechnicianSkillEntity>` | Sub-services the technician offers. |
 | `recentReviews` | `List<TechnicianReviewEntity>` | Last few reviews. |
@@ -103,7 +103,7 @@ Response from `POST /api/bookings/instant-book/` (201).
 | :--- | :--- | :--- |
 | `getTechnicianProfile({id, lat?, lng?, serviceId?, subServiceId?, promotionId?})` | `TechnicianProfileEntity` | `lat`/`lng` enable distance + contextual pricing. All optional. |
 | `getAvailability({technicianId, date, serviceId?, subServiceId?})` | `List<AvailabilitySlotEntity>` | Empty list (not an error) when fully booked or no schedule. `date` is `"YYYY-MM-DD"`. |
-| `createInstantBooking({technicianId, addressId, scheduledStart, scheduledEnd, priceAmount, priceContext?})` | `CreatedBookingEntity` | `scheduledStart`/`scheduledEnd` must be the slot's `isoStart`/`isoEnd` verbatim. |
+| `createInstantBooking({technicianId, addressId, serviceId, subServiceId?, promotionId?, scheduledStart, scheduledEnd, priceAmount})` | `CreatedBookingEntity` | `serviceId` is required and threaded from the discovery URL. `subServiceId` for fixed-price gigs (Scenario A) or labor matches (Scenario B). `promotionId` only on promo-banner arrivals (Scenario D). Pairing `subServiceId` + `promotionId` triggers a local `assert` (server's promo firewall — fail fast to save a round trip). |
 
 ---
 
@@ -135,7 +135,7 @@ All models are Freezed + `json_serializable`. Co-located in one file because the
 - `InstantBookingResponseModel` — `{"booking_id": 123}` → `CreatedBookingEntity`
 
 **Write model** (Dart → JSON → request body):
-- `InstantBookingRequestModel` — outgoing POST body; `priceContext` defaults to `''`
+- `InstantBookingRequestModel` — outgoing POST body. Carries `service_id` (required), `sub_service_id` / `promotion_id` (optional, `includeIfNull: false` keeps them off the wire when null). `price_context` is no longer on the request — server derives the receipt label from the resolved catalog FKs.
 
 Each model has a `toEntity()` method as the single conversion point. No entity-to-model conversion needed (writes use raw fields directly).
 
@@ -177,7 +177,7 @@ remoteDataSource.method(...)
 | `out_of_service_area` | `BookingOutOfServiceAreaFailure(failure.message)` — message passed through verbatim |
 | `slot_unavailable` | `BookingSlotUnavailableFailure` |
 | `validation_error` + `errors['address_id']` | `BookingInvalidAddressFailure` |
-| `validation_error` (other) | `BookingValidationFailure(message, errors)` |
+| `validation_error` (other) | `BookingValidationFailure(message, errors)` — the `errors` map is preserved so the presentation layer can map field-level keys (`sub_service_id` / `promotion_id` / `price_amount`) to specific toasts |
 | `server_error` | `BookingServerFailure` |
 | default | `BookingUnexpectedFailure(failure.message)` |
 
@@ -252,8 +252,17 @@ Freezed immutable. Holds the full slot list for one date + the customer's curren
 - Listens to `instantBookingProvider` for navigation + error handling:
   - `AsyncData(entity != null)` → close sheet → show "Booking Confirmed!" Snackbar → **(TODO: write `bookingId` to Tier 3)**
   - `AsyncError(BookingSlotUnavailableFailure)` → show Snackbar + close sheet so customer can re-pick
+  - `AsyncError(BookingValidationFailure)` with a known field-level key → user-friendly toast via `_resolveErrorPresentation` and pop the sheet (see table below)
   - `AsyncError(other)` → show `error.message` Snackbar
-- "Confirm & Lock" button calls `instantBookingProvider.notifier.book(...)`, passing `isoStart`/`isoEnd` verbatim and `defaultAddress.id`.
+- "Confirm & Lock" button calls `instantBookingProvider.notifier.book(...)`, threading `serviceId` (required), `subServiceId`/`promotionId` (scenario-dependent), `isoStart`/`isoEnd` verbatim, and `defaultAddress.id`.
+
+**Field-level validation_error → user-friendly toast** (BOOKINGS_API.md §2.2). Server returns diagnostic-friendly text; the sheet maps each error key to a fixed user-friendly string via the local dictionary in `_resolveErrorPresentation`:
+
+| `errors` key | Likely cause | Toast |
+| :--- | :--- | :--- |
+| `sub_service_id` | Stale discovery context — the sub-service no longer belongs to the supplied parent service. | "This gig is no longer available. Refresh and try again." → pop sheet |
+| `promotion_id` | Promo applied to a fixed-price gig (server's promo firewall). | "This gig already has a fixed price — promotions don't apply." → pop sheet |
+| `price_amount` | Stale cached technician rate; price drifted between profile fetch and book press. | "Pricing has updated. Please refresh and confirm again." → pop sheet |
 
 #### `ModalBottomSheetLayout`
 `lib/features/booking/presentation/widgets/modal_bottom_sheet_layout.dart`
@@ -307,3 +316,15 @@ instantBookingProvider               ← watched by ReviewBookingSheet
 
 ## Known TODOs
 - `ReviewBookingSheet`: Tier 3 cache write (`bookingId` → `SharedPreferences`) after confirmed booking is marked `// TODO` — must be implemented before shipping to prevent crash-recovery failures.
+
+---
+
+## Realtime — incoming job requests ⏳ pending
+
+The catalog-FK rollout extends the `job_new_request` event payload with `booking_type` (`INSPECTION` / `FIXED_GIG` / `LABOR_GIG`) and `payout_context` (server-picked prose under the headline payout). See BOOKINGS_API.md §2.3–§2.5.
+
+**Out of scope for this sync** — the technician incoming-request screen does not yet exist in `frontend/lib/features/technician/`. When it lands:
+- Add `JobNewRequestPayload` Freezed model with `bookingType` and `payoutContext` as **nullable** (older `EventLog` rows replayed via `/api/events/sync/` predate the rollout).
+- Route the on-site flow on `bookingType` (Inspection → "Build Quote", Fixed/Labor → "Mark Complete").
+- Render `payoutContext` verbatim under the payout figure (Dumb-UI principle).
+- Defensive parsing: when `bookingType` is null, default to `LABOR_GIG`-style layout and hide the `payoutContext` line.

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:network_image_mock/network_image_mock.dart';
 import 'package:frontend/features/booking/domain/entities/booking_entities.dart';
+import 'package:frontend/features/booking/domain/failures/booking_failure.dart';
 import 'package:frontend/features/booking/presentation/providers/booking_notifier.dart';
 import 'package:frontend/features/booking/presentation/widgets/review_booking_sheet.dart';
 import 'package:frontend/features/customer/addresses/domain/entities/address_entity.dart';
@@ -16,6 +17,12 @@ class MockInstantBookingNotifier extends InstantBookingNotifier {
   @override
   AsyncValue<CreatedBookingEntity?> build() {
     return _mockState;
+  }
+
+  /// Test-only: drive a state transition so `ref.listen` callbacks fire
+  /// (ref.listen does not fire on the initial build value).
+  void emit(AsyncValue<CreatedBookingEntity?> next) {
+    state = next;
   }
 }
 
@@ -74,6 +81,8 @@ void main() {
             technician: tTechnician,
             selectedDate: tDate,
             selectedSlot: tSlot,
+            serviceId: 3,
+            subServiceId: 17,
           ),
         ),
       ),
@@ -108,6 +117,83 @@ void main() {
 
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
       expect(find.text('Confirm & Lock'), findsNothing); // It's hidden by loading indicator
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Field-level validation_error → user-friendly toast (BOOKINGS_API.md §2.2).
+  // The server returns diagnostic-friendly text; the sheet maps each error
+  // key to a fixed, user-friendly string via the local dictionary.
+  // ---------------------------------------------------------------------------
+  group('validation_error toast mapping', () {
+    Future<void> pumpWithValidationError(
+      WidgetTester tester,
+      Map<String, List<String>> errors,
+    ) async {
+      // Build with AsyncData(null) first, then transition to AsyncError so
+      // the ref.listen callback fires (it ignores the initial build value).
+      final notifier = MockInstantBookingNotifier(const AsyncData(null));
+      await mockNetworkImagesFor(() async {
+        await tester.pumpWidget(ProviderScope(
+          overrides: [
+            instantBookingProvider.overrideWith(() => notifier),
+            addressesProvider
+                .overrideWith((ref) => Future.value([tDefaultAddress])),
+          ],
+          child: MaterialApp(
+            home: Scaffold(
+              body: ReviewBookingSheet(
+                technician: tTechnician,
+                selectedDate: tDate,
+                selectedSlot: tSlot,
+                serviceId: 3,
+                subServiceId: 17,
+              ),
+            ),
+          ),
+        ));
+        await tester.pumpAndSettle();
+
+        notifier.emit(AsyncError(
+          BookingValidationFailure(
+            message: 'Diagnostic-friendly server text',
+            errors: errors,
+          ),
+          StackTrace.empty,
+        ));
+        await tester.pump(); // build SnackBar
+        await tester.pump(const Duration(milliseconds: 300)); // animate in
+      });
+    }
+
+    testWidgets('sub_service_id key → "This gig is no longer available" toast',
+        (tester) async {
+      await pumpWithValidationError(tester, {
+        'sub_service_id': ['Sub-service does not belong to the supplied service.'],
+      });
+
+      expect(find.text('This gig is no longer available. Refresh and try again.'),
+          findsOneWidget);
+    });
+
+    testWidgets('promotion_id key → "This gig already has a fixed price" toast',
+        (tester) async {
+      await pumpWithValidationError(tester, {
+        'promotion_id': ['Discount stacking is not allowed on fixed-price sub-services.'],
+      });
+
+      expect(
+          find.text("This gig already has a fixed price — promotions don't apply."),
+          findsOneWidget);
+    });
+
+    testWidgets('price_amount key → "Pricing has updated" toast', (tester) async {
+      await pumpWithValidationError(tester, {
+        'price_amount': ['Expected 500.00, received 1.00.'],
+      });
+
+      expect(find.text('Pricing has updated. Please refresh and confirm again.'),
+          findsOneWidget);
     });
   });
 }

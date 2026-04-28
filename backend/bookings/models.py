@@ -35,12 +35,45 @@ class JobBooking(models.Model):
         null=True,
         related_name='bookings',
     )
+
+    # Catalog references — capture customer's discovery intent at booking time.
+    # service is required (every booking has a parent category). sub_service
+    # is set only for Scenario A (fixed gig) and B (labor gig). promotion is
+    # set only when the customer arrived via a promo banner; the resolver's
+    # firewall strips it on fixed gigs (no discount stacking).
+    # PROTECT on catalog deletes — historical bookings preserve intent; if a
+    # Service must be removed, deactivate (is_active=False) rather than delete.
+    service = models.ForeignKey(
+        'catalog.Service',
+        on_delete=models.PROTECT,
+        related_name='bookings',
+    )
+    sub_service = models.ForeignKey(
+        'catalog.SubService',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='bookings',
+    )
+    promotion = models.ForeignKey(
+        'marketing.Promotion',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='bookings',
+    )
+
     scheduled_start = models.DateTimeField()
     scheduled_end = models.DateTimeField()
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_PENDING)
     price_amount = models.DecimalField(max_digits=10, decimal_places=2)
     price_context = models.CharField(max_length=50, blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)
+
+    # NULL until the assigned technician acknowledges the dispatched job request.
+    # The SLA timeout Celery task uses this to distinguish "still awaiting tech
+    # acknowledgement" from "already accepted" before flipping status.
+    accepted_at = models.DateTimeField(null=True, blank=True, default=None)
 
     class Meta:
         indexes = [

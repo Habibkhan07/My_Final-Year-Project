@@ -24,3 +24,43 @@ class SlotUnavailableError(Exception):
     Raised inside the atomic lock when a concurrent booking has already
     claimed the requested time window before this transaction committed.
     """
+
+
+class InconsistentBookingIntentError(Exception):
+    """
+    Raised when the catalog references in the request body don't form a
+    coherent triplet — e.g. ``sub_service_id`` whose parent ``Service`` is
+    not the supplied ``service_id``, or a ``promotion_id`` whose
+    ``target_service`` is a different category. Carries the field name
+    that was inconsistent so the caller can surface a per-field error.
+    """
+    def __init__(self, field: str, message: str):
+        self.field = field
+        self.message = message
+        super().__init__(f"{field}: {message}")
+
+
+class PromoFirewallError(Exception):
+    """
+    Raised when a ``promotion_id`` is supplied alongside a fixed-price
+    sub-service. Discount stacking on fixed gigs is forbidden by product
+    rule (mirrors the read-side firewall in the pricing resolver).
+    """
+
+
+class PriceMismatchError(Exception):
+    """
+    Raised when ``price_amount`` doesn't match the figure derived from
+    the catalog references + technician skill. Carries the expected
+    bounds so the caller's error message can describe the gap.
+    """
+    def __init__(self, expected_min, expected_max, actual):
+        self.expected_min = expected_min
+        self.expected_max = expected_max
+        self.actual = actual
+        if expected_max is None or expected_max == expected_min:
+            super().__init__(f"Expected {expected_min}, got {actual}")
+        else:
+            super().__init__(
+                f"Expected between {expected_min} and {expected_max}, got {actual}"
+            )

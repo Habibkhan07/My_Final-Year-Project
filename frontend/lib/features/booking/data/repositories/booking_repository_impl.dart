@@ -71,19 +71,23 @@ class BookingRepositoryImpl implements IBookingRepository {
   Future<CreatedBookingEntity> createInstantBooking({
     required int technicianId,
     required int addressId,
+    required int serviceId,
+    int? subServiceId,
+    int? promotionId,
     required String scheduledStart,
     required String scheduledEnd,
     required String priceAmount,
-    String priceContext = '',
   }) async {
     try {
       final request = InstantBookingRequestModel(
         technicianId: technicianId,
         addressId: addressId,
+        serviceId: serviceId,
+        subServiceId: subServiceId,
+        promotionId: promotionId,
         scheduledStart: scheduledStart,
         scheduledEnd: scheduledEnd,
         priceAmount: priceAmount,
-        priceContext: priceContext,
       );
       final response = await remoteDataSource.createInstantBooking(request);
       return response.toEntity();

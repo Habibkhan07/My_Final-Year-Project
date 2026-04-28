@@ -133,6 +133,8 @@ void main() {
       final result = await repository.createInstantBooking(
         technicianId: tTechnicianId,
         addressId: 7,
+        serviceId: 3,
+        subServiceId: 17,
         scheduledStart: '2026-04-07T10:00:00+05:00',
         scheduledEnd: '2026-04-07T11:00:00+05:00',
         priceAmount: '1500.00',
@@ -140,6 +142,30 @@ void main() {
 
       expect(result, isA<CreatedBookingEntity>());
       expect(result.bookingId, 99);
+    });
+
+    test('forwards serviceId / subServiceId / promotionId to the request model',
+        () async {
+      InstantBookingRequestModel? captured;
+      when(() => mockRemote.createInstantBooking(any())).thenAnswer((inv) async {
+        captured = inv.positionalArguments.first as InstantBookingRequestModel;
+        return tResponseModel;
+      });
+
+      await repository.createInstantBooking(
+        technicianId: 42,
+        addressId: 7,
+        serviceId: 3,
+        promotionId: 9,
+        scheduledStart: '2026-04-08T10:00:00+05:00',
+        scheduledEnd: '2026-04-08T11:00:00+05:00',
+        priceAmount: '500.00',
+      );
+
+      expect(captured, isNotNull);
+      expect(captured!.serviceId, 3);
+      expect(captured!.subServiceId, isNull);
+      expect(captured!.promotionId, 9);
     });
   });
 
@@ -166,6 +192,7 @@ void main() {
     Future<void> callBooking() => repository.createInstantBooking(
           technicianId: tTechnicianId,
           addressId: 7,
+          serviceId: 3,
           scheduledStart: '2026-04-07T10:00:00+05:00',
           scheduledEnd: '2026-04-07T11:00:00+05:00',
           priceAmount: '1500.00',
@@ -235,6 +262,53 @@ void main() {
         callBooking,
         throwsA(isA<BookingValidationFailure>()
             .having((e) => e.message, 'message', 'Invalid booking data.')),
+      );
+    });
+
+    // The three field-level error keys introduced by the catalog-FK rollout
+    // (BOOKINGS_API.md §2.2). The repository surfaces them as a generic
+    // BookingValidationFailure with the errors map intact — the presentation
+    // layer is responsible for mapping each key to a specific toast.
+    test('validation_error with sub_service_id → BookingValidationFailure '
+        'preserves the field key for the UI dictionary', () {
+      stubBookingThrows(HttpFailure(
+        statusCode: 400,
+        code: 'validation_error',
+        message: 'Inconsistent booking intent.',
+        errors: {'sub_service_id': ['Sub-service does not belong to the supplied service.']},
+      ));
+      expect(
+        callBooking,
+        throwsA(isA<BookingValidationFailure>().having(
+            (e) => e.errors?.keys, 'errors keys', contains('sub_service_id'))),
+      );
+    });
+
+    test('validation_error with promotion_id → BookingValidationFailure (firewall)', () {
+      stubBookingThrows(HttpFailure(
+        statusCode: 400,
+        code: 'validation_error',
+        message: 'Promotions cannot be applied to fixed-price gigs.',
+        errors: {'promotion_id': ['Discount stacking is not allowed on fixed-price sub-services.']},
+      ));
+      expect(
+        callBooking,
+        throwsA(isA<BookingValidationFailure>()
+            .having((e) => e.errors?.keys, 'errors keys', contains('promotion_id'))),
+      );
+    });
+
+    test('validation_error with price_amount → BookingValidationFailure (mismatch)', () {
+      stubBookingThrows(HttpFailure(
+        statusCode: 400,
+        code: 'validation_error',
+        message: 'price_amount does not match the catalog figure.',
+        errors: {'price_amount': ['Expected 500.00, received 1.00.']},
+      ));
+      expect(
+        callBooking,
+        throwsA(isA<BookingValidationFailure>()
+            .having((e) => e.errors?.keys, 'errors keys', contains('price_amount'))),
       );
     });
 

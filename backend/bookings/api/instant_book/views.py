@@ -4,7 +4,14 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 
 from technicians.models import TechnicianProfile
-from bookings.exceptions import InvalidAddressError, OutOfServiceAreaError, SlotUnavailableError
+from bookings.exceptions import (
+    InconsistentBookingIntentError,
+    InvalidAddressError,
+    OutOfServiceAreaError,
+    PriceMismatchError,
+    PromoFirewallError,
+    SlotUnavailableError,
+)
 from bookings.services.instant_book_service import create_instant_booking
 from bookings.api.instant_book.serializers import InstantBookSerializer
 
@@ -89,6 +96,50 @@ class InstantBookView(APIView):
                     'errors': {},
                 },
                 status=status.HTTP_409_CONFLICT,
+            )
+
+        except InconsistentBookingIntentError as exc:
+            return Response(
+                {
+                    'status': 400,
+                    'code': 'validation_error',
+                    'message': 'Inconsistent booking intent.',
+                    'errors': {exc.field: [exc.message]},
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        except PromoFirewallError:
+            return Response(
+                {
+                    'status': 400,
+                    'code': 'validation_error',
+                    'message': 'Promotions cannot be applied to fixed-price gigs.',
+                    'errors': {
+                        'promotion_id': [
+                            'Discount stacking is not allowed on fixed-price sub-services.'
+                        ],
+                    },
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        except PriceMismatchError as exc:
+            if exc.expected_max is None:
+                detail = f'Expected {exc.expected_min}, received {exc.actual}.'
+            else:
+                detail = (
+                    f'Expected between {exc.expected_min} and {exc.expected_max}, '
+                    f'received {exc.actual}.'
+                )
+            return Response(
+                {
+                    'status': 400,
+                    'code': 'validation_error',
+                    'message': 'price_amount does not match the catalog figure.',
+                    'errors': {'price_amount': [detail]},
+                },
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         return Response({'booking_id': booking.id}, status=status.HTTP_201_CREATED)

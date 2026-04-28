@@ -15,18 +15,22 @@ class CreateInstantBookingUseCase {
   Future<CreatedBookingEntity> call({
     required int technicianId,
     required int addressId,
+    required int serviceId,
+    int? subServiceId,
+    int? promotionId,
     required String scheduledStart,
     required String scheduledEnd,
     required String priceAmount,
-    String priceContext = '',
   }) {
     return repository.createInstantBooking(
       technicianId: technicianId,
       addressId: addressId,
+      serviceId: serviceId,
+      subServiceId: subServiceId,
+      promotionId: promotionId,
       scheduledStart: scheduledStart,
       scheduledEnd: scheduledEnd,
       priceAmount: priceAmount,
-      priceContext: priceContext,
     );
   }
 }

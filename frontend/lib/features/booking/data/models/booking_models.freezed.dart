@@ -1154,11 +1154,17 @@ as String,
 /// @nodoc
 mixin _$InstantBookingRequestModel {
 
-@JsonKey(name: 'technician_id') int get technicianId;@JsonKey(name: 'address_id') int get addressId;/// Pass [AvailabilitySlotEntity.isoStart] directly — no conversion.
+@JsonKey(name: 'technician_id') int get technicianId;@JsonKey(name: 'address_id') int get addressId;/// Parent service the customer was browsing. Threaded from the discovery
+/// URL (search match, gig tile, category tile, promo banner).
+@JsonKey(name: 'service_id') int get serviceId;/// Specific sub-service for fixed-price gigs (Scenario A) or labor matches
+/// from search (Scenario B). Omit for parent-category / inspection.
+@JsonKey(name: 'sub_service_id', includeIfNull: false) int? get subServiceId;/// Set only when the customer arrived via a promo banner. Forbidden with
+/// a fixed-price [subServiceId] — the server rejects that combo, and the
+/// presentation layer also blocks it defensively to save a round trip.
+@JsonKey(name: 'promotion_id', includeIfNull: false) int? get promotionId;/// Pass [AvailabilitySlotEntity.isoStart] directly — no conversion.
 @JsonKey(name: 'scheduled_start') String get scheduledStart;/// Pass [AvailabilitySlotEntity.isoEnd] directly — no conversion.
 @JsonKey(name: 'scheduled_end') String get scheduledEnd;/// Decimal string e.g. "1500.00" — backend validates as DecimalField.
-@JsonKey(name: 'price_amount') String get priceAmount;/// Optional display label for the UI receipt (max 50 chars).
-@JsonKey(name: 'price_context') String get priceContext;
+@JsonKey(name: 'price_amount') String get priceAmount;
 /// Create a copy of InstantBookingRequestModel
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -1171,16 +1177,16 @@ $InstantBookingRequestModelCopyWith<InstantBookingRequestModel> get copyWith => 
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is InstantBookingRequestModel&&(identical(other.technicianId, technicianId) || other.technicianId == technicianId)&&(identical(other.addressId, addressId) || other.addressId == addressId)&&(identical(other.scheduledStart, scheduledStart) || other.scheduledStart == scheduledStart)&&(identical(other.scheduledEnd, scheduledEnd) || other.scheduledEnd == scheduledEnd)&&(identical(other.priceAmount, priceAmount) || other.priceAmount == priceAmount)&&(identical(other.priceContext, priceContext) || other.priceContext == priceContext));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is InstantBookingRequestModel&&(identical(other.technicianId, technicianId) || other.technicianId == technicianId)&&(identical(other.addressId, addressId) || other.addressId == addressId)&&(identical(other.serviceId, serviceId) || other.serviceId == serviceId)&&(identical(other.subServiceId, subServiceId) || other.subServiceId == subServiceId)&&(identical(other.promotionId, promotionId) || other.promotionId == promotionId)&&(identical(other.scheduledStart, scheduledStart) || other.scheduledStart == scheduledStart)&&(identical(other.scheduledEnd, scheduledEnd) || other.scheduledEnd == scheduledEnd)&&(identical(other.priceAmount, priceAmount) || other.priceAmount == priceAmount));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,technicianId,addressId,scheduledStart,scheduledEnd,priceAmount,priceContext);
+int get hashCode => Object.hash(runtimeType,technicianId,addressId,serviceId,subServiceId,promotionId,scheduledStart,scheduledEnd,priceAmount);
 
 @override
 String toString() {
-  return 'InstantBookingRequestModel(technicianId: $technicianId, addressId: $addressId, scheduledStart: $scheduledStart, scheduledEnd: $scheduledEnd, priceAmount: $priceAmount, priceContext: $priceContext)';
+  return 'InstantBookingRequestModel(technicianId: $technicianId, addressId: $addressId, serviceId: $serviceId, subServiceId: $subServiceId, promotionId: $promotionId, scheduledStart: $scheduledStart, scheduledEnd: $scheduledEnd, priceAmount: $priceAmount)';
 }
 
 
@@ -1191,7 +1197,7 @@ abstract mixin class $InstantBookingRequestModelCopyWith<$Res>  {
   factory $InstantBookingRequestModelCopyWith(InstantBookingRequestModel value, $Res Function(InstantBookingRequestModel) _then) = _$InstantBookingRequestModelCopyWithImpl;
 @useResult
 $Res call({
-@JsonKey(name: 'technician_id') int technicianId,@JsonKey(name: 'address_id') int addressId,@JsonKey(name: 'scheduled_start') String scheduledStart,@JsonKey(name: 'scheduled_end') String scheduledEnd,@JsonKey(name: 'price_amount') String priceAmount,@JsonKey(name: 'price_context') String priceContext
+@JsonKey(name: 'technician_id') int technicianId,@JsonKey(name: 'address_id') int addressId,@JsonKey(name: 'service_id') int serviceId,@JsonKey(name: 'sub_service_id', includeIfNull: false) int? subServiceId,@JsonKey(name: 'promotion_id', includeIfNull: false) int? promotionId,@JsonKey(name: 'scheduled_start') String scheduledStart,@JsonKey(name: 'scheduled_end') String scheduledEnd,@JsonKey(name: 'price_amount') String priceAmount
 });
 
 
@@ -1208,14 +1214,16 @@ class _$InstantBookingRequestModelCopyWithImpl<$Res>
 
 /// Create a copy of InstantBookingRequestModel
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? technicianId = null,Object? addressId = null,Object? scheduledStart = null,Object? scheduledEnd = null,Object? priceAmount = null,Object? priceContext = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? technicianId = null,Object? addressId = null,Object? serviceId = null,Object? subServiceId = freezed,Object? promotionId = freezed,Object? scheduledStart = null,Object? scheduledEnd = null,Object? priceAmount = null,}) {
   return _then(_self.copyWith(
 technicianId: null == technicianId ? _self.technicianId : technicianId // ignore: cast_nullable_to_non_nullable
 as int,addressId: null == addressId ? _self.addressId : addressId // ignore: cast_nullable_to_non_nullable
-as int,scheduledStart: null == scheduledStart ? _self.scheduledStart : scheduledStart // ignore: cast_nullable_to_non_nullable
+as int,serviceId: null == serviceId ? _self.serviceId : serviceId // ignore: cast_nullable_to_non_nullable
+as int,subServiceId: freezed == subServiceId ? _self.subServiceId : subServiceId // ignore: cast_nullable_to_non_nullable
+as int?,promotionId: freezed == promotionId ? _self.promotionId : promotionId // ignore: cast_nullable_to_non_nullable
+as int?,scheduledStart: null == scheduledStart ? _self.scheduledStart : scheduledStart // ignore: cast_nullable_to_non_nullable
 as String,scheduledEnd: null == scheduledEnd ? _self.scheduledEnd : scheduledEnd // ignore: cast_nullable_to_non_nullable
 as String,priceAmount: null == priceAmount ? _self.priceAmount : priceAmount // ignore: cast_nullable_to_non_nullable
-as String,priceContext: null == priceContext ? _self.priceContext : priceContext // ignore: cast_nullable_to_non_nullable
 as String,
   ));
 }
@@ -1301,10 +1309,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(name: 'technician_id')  int technicianId, @JsonKey(name: 'address_id')  int addressId, @JsonKey(name: 'scheduled_start')  String scheduledStart, @JsonKey(name: 'scheduled_end')  String scheduledEnd, @JsonKey(name: 'price_amount')  String priceAmount, @JsonKey(name: 'price_context')  String priceContext)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(name: 'technician_id')  int technicianId, @JsonKey(name: 'address_id')  int addressId, @JsonKey(name: 'service_id')  int serviceId, @JsonKey(name: 'sub_service_id', includeIfNull: false)  int? subServiceId, @JsonKey(name: 'promotion_id', includeIfNull: false)  int? promotionId, @JsonKey(name: 'scheduled_start')  String scheduledStart, @JsonKey(name: 'scheduled_end')  String scheduledEnd, @JsonKey(name: 'price_amount')  String priceAmount)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _InstantBookingRequestModel() when $default != null:
-return $default(_that.technicianId,_that.addressId,_that.scheduledStart,_that.scheduledEnd,_that.priceAmount,_that.priceContext);case _:
+return $default(_that.technicianId,_that.addressId,_that.serviceId,_that.subServiceId,_that.promotionId,_that.scheduledStart,_that.scheduledEnd,_that.priceAmount);case _:
   return orElse();
 
 }
@@ -1322,10 +1330,10 @@ return $default(_that.technicianId,_that.addressId,_that.scheduledStart,_that.sc
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(name: 'technician_id')  int technicianId, @JsonKey(name: 'address_id')  int addressId, @JsonKey(name: 'scheduled_start')  String scheduledStart, @JsonKey(name: 'scheduled_end')  String scheduledEnd, @JsonKey(name: 'price_amount')  String priceAmount, @JsonKey(name: 'price_context')  String priceContext)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(name: 'technician_id')  int technicianId, @JsonKey(name: 'address_id')  int addressId, @JsonKey(name: 'service_id')  int serviceId, @JsonKey(name: 'sub_service_id', includeIfNull: false)  int? subServiceId, @JsonKey(name: 'promotion_id', includeIfNull: false)  int? promotionId, @JsonKey(name: 'scheduled_start')  String scheduledStart, @JsonKey(name: 'scheduled_end')  String scheduledEnd, @JsonKey(name: 'price_amount')  String priceAmount)  $default,) {final _that = this;
 switch (_that) {
 case _InstantBookingRequestModel():
-return $default(_that.technicianId,_that.addressId,_that.scheduledStart,_that.scheduledEnd,_that.priceAmount,_that.priceContext);case _:
+return $default(_that.technicianId,_that.addressId,_that.serviceId,_that.subServiceId,_that.promotionId,_that.scheduledStart,_that.scheduledEnd,_that.priceAmount);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -1342,10 +1350,10 @@ return $default(_that.technicianId,_that.addressId,_that.scheduledStart,_that.sc
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(name: 'technician_id')  int technicianId, @JsonKey(name: 'address_id')  int addressId, @JsonKey(name: 'scheduled_start')  String scheduledStart, @JsonKey(name: 'scheduled_end')  String scheduledEnd, @JsonKey(name: 'price_amount')  String priceAmount, @JsonKey(name: 'price_context')  String priceContext)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(name: 'technician_id')  int technicianId, @JsonKey(name: 'address_id')  int addressId, @JsonKey(name: 'service_id')  int serviceId, @JsonKey(name: 'sub_service_id', includeIfNull: false)  int? subServiceId, @JsonKey(name: 'promotion_id', includeIfNull: false)  int? promotionId, @JsonKey(name: 'scheduled_start')  String scheduledStart, @JsonKey(name: 'scheduled_end')  String scheduledEnd, @JsonKey(name: 'price_amount')  String priceAmount)?  $default,) {final _that = this;
 switch (_that) {
 case _InstantBookingRequestModel() when $default != null:
-return $default(_that.technicianId,_that.addressId,_that.scheduledStart,_that.scheduledEnd,_that.priceAmount,_that.priceContext);case _:
+return $default(_that.technicianId,_that.addressId,_that.serviceId,_that.subServiceId,_that.promotionId,_that.scheduledStart,_that.scheduledEnd,_that.priceAmount);case _:
   return null;
 
 }
@@ -1357,19 +1365,27 @@ return $default(_that.technicianId,_that.addressId,_that.scheduledStart,_that.sc
 @JsonSerializable()
 
 class _InstantBookingRequestModel implements InstantBookingRequestModel {
-  const _InstantBookingRequestModel({@JsonKey(name: 'technician_id') required this.technicianId, @JsonKey(name: 'address_id') required this.addressId, @JsonKey(name: 'scheduled_start') required this.scheduledStart, @JsonKey(name: 'scheduled_end') required this.scheduledEnd, @JsonKey(name: 'price_amount') required this.priceAmount, @JsonKey(name: 'price_context') this.priceContext = ''});
+  const _InstantBookingRequestModel({@JsonKey(name: 'technician_id') required this.technicianId, @JsonKey(name: 'address_id') required this.addressId, @JsonKey(name: 'service_id') required this.serviceId, @JsonKey(name: 'sub_service_id', includeIfNull: false) this.subServiceId, @JsonKey(name: 'promotion_id', includeIfNull: false) this.promotionId, @JsonKey(name: 'scheduled_start') required this.scheduledStart, @JsonKey(name: 'scheduled_end') required this.scheduledEnd, @JsonKey(name: 'price_amount') required this.priceAmount});
   factory _InstantBookingRequestModel.fromJson(Map<String, dynamic> json) => _$InstantBookingRequestModelFromJson(json);
 
 @override@JsonKey(name: 'technician_id') final  int technicianId;
 @override@JsonKey(name: 'address_id') final  int addressId;
+/// Parent service the customer was browsing. Threaded from the discovery
+/// URL (search match, gig tile, category tile, promo banner).
+@override@JsonKey(name: 'service_id') final  int serviceId;
+/// Specific sub-service for fixed-price gigs (Scenario A) or labor matches
+/// from search (Scenario B). Omit for parent-category / inspection.
+@override@JsonKey(name: 'sub_service_id', includeIfNull: false) final  int? subServiceId;
+/// Set only when the customer arrived via a promo banner. Forbidden with
+/// a fixed-price [subServiceId] — the server rejects that combo, and the
+/// presentation layer also blocks it defensively to save a round trip.
+@override@JsonKey(name: 'promotion_id', includeIfNull: false) final  int? promotionId;
 /// Pass [AvailabilitySlotEntity.isoStart] directly — no conversion.
 @override@JsonKey(name: 'scheduled_start') final  String scheduledStart;
 /// Pass [AvailabilitySlotEntity.isoEnd] directly — no conversion.
 @override@JsonKey(name: 'scheduled_end') final  String scheduledEnd;
 /// Decimal string e.g. "1500.00" — backend validates as DecimalField.
 @override@JsonKey(name: 'price_amount') final  String priceAmount;
-/// Optional display label for the UI receipt (max 50 chars).
-@override@JsonKey(name: 'price_context') final  String priceContext;
 
 /// Create a copy of InstantBookingRequestModel
 /// with the given fields replaced by the non-null parameter values.
@@ -1384,16 +1400,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _InstantBookingRequestModel&&(identical(other.technicianId, technicianId) || other.technicianId == technicianId)&&(identical(other.addressId, addressId) || other.addressId == addressId)&&(identical(other.scheduledStart, scheduledStart) || other.scheduledStart == scheduledStart)&&(identical(other.scheduledEnd, scheduledEnd) || other.scheduledEnd == scheduledEnd)&&(identical(other.priceAmount, priceAmount) || other.priceAmount == priceAmount)&&(identical(other.priceContext, priceContext) || other.priceContext == priceContext));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _InstantBookingRequestModel&&(identical(other.technicianId, technicianId) || other.technicianId == technicianId)&&(identical(other.addressId, addressId) || other.addressId == addressId)&&(identical(other.serviceId, serviceId) || other.serviceId == serviceId)&&(identical(other.subServiceId, subServiceId) || other.subServiceId == subServiceId)&&(identical(other.promotionId, promotionId) || other.promotionId == promotionId)&&(identical(other.scheduledStart, scheduledStart) || other.scheduledStart == scheduledStart)&&(identical(other.scheduledEnd, scheduledEnd) || other.scheduledEnd == scheduledEnd)&&(identical(other.priceAmount, priceAmount) || other.priceAmount == priceAmount));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,technicianId,addressId,scheduledStart,scheduledEnd,priceAmount,priceContext);
+int get hashCode => Object.hash(runtimeType,technicianId,addressId,serviceId,subServiceId,promotionId,scheduledStart,scheduledEnd,priceAmount);
 
 @override
 String toString() {
-  return 'InstantBookingRequestModel(technicianId: $technicianId, addressId: $addressId, scheduledStart: $scheduledStart, scheduledEnd: $scheduledEnd, priceAmount: $priceAmount, priceContext: $priceContext)';
+  return 'InstantBookingRequestModel(technicianId: $technicianId, addressId: $addressId, serviceId: $serviceId, subServiceId: $subServiceId, promotionId: $promotionId, scheduledStart: $scheduledStart, scheduledEnd: $scheduledEnd, priceAmount: $priceAmount)';
 }
 
 
@@ -1404,7 +1420,7 @@ abstract mixin class _$InstantBookingRequestModelCopyWith<$Res> implements $Inst
   factory _$InstantBookingRequestModelCopyWith(_InstantBookingRequestModel value, $Res Function(_InstantBookingRequestModel) _then) = __$InstantBookingRequestModelCopyWithImpl;
 @override @useResult
 $Res call({
-@JsonKey(name: 'technician_id') int technicianId,@JsonKey(name: 'address_id') int addressId,@JsonKey(name: 'scheduled_start') String scheduledStart,@JsonKey(name: 'scheduled_end') String scheduledEnd,@JsonKey(name: 'price_amount') String priceAmount,@JsonKey(name: 'price_context') String priceContext
+@JsonKey(name: 'technician_id') int technicianId,@JsonKey(name: 'address_id') int addressId,@JsonKey(name: 'service_id') int serviceId,@JsonKey(name: 'sub_service_id', includeIfNull: false) int? subServiceId,@JsonKey(name: 'promotion_id', includeIfNull: false) int? promotionId,@JsonKey(name: 'scheduled_start') String scheduledStart,@JsonKey(name: 'scheduled_end') String scheduledEnd,@JsonKey(name: 'price_amount') String priceAmount
 });
 
 
@@ -1421,14 +1437,16 @@ class __$InstantBookingRequestModelCopyWithImpl<$Res>
 
 /// Create a copy of InstantBookingRequestModel
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? technicianId = null,Object? addressId = null,Object? scheduledStart = null,Object? scheduledEnd = null,Object? priceAmount = null,Object? priceContext = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? technicianId = null,Object? addressId = null,Object? serviceId = null,Object? subServiceId = freezed,Object? promotionId = freezed,Object? scheduledStart = null,Object? scheduledEnd = null,Object? priceAmount = null,}) {
   return _then(_InstantBookingRequestModel(
 technicianId: null == technicianId ? _self.technicianId : technicianId // ignore: cast_nullable_to_non_nullable
 as int,addressId: null == addressId ? _self.addressId : addressId // ignore: cast_nullable_to_non_nullable
-as int,scheduledStart: null == scheduledStart ? _self.scheduledStart : scheduledStart // ignore: cast_nullable_to_non_nullable
+as int,serviceId: null == serviceId ? _self.serviceId : serviceId // ignore: cast_nullable_to_non_nullable
+as int,subServiceId: freezed == subServiceId ? _self.subServiceId : subServiceId // ignore: cast_nullable_to_non_nullable
+as int?,promotionId: freezed == promotionId ? _self.promotionId : promotionId // ignore: cast_nullable_to_non_nullable
+as int?,scheduledStart: null == scheduledStart ? _self.scheduledStart : scheduledStart // ignore: cast_nullable_to_non_nullable
 as String,scheduledEnd: null == scheduledEnd ? _self.scheduledEnd : scheduledEnd // ignore: cast_nullable_to_non_nullable
 as String,priceAmount: null == priceAmount ? _self.priceAmount : priceAmount // ignore: cast_nullable_to_non_nullable
-as String,priceContext: null == priceContext ? _self.priceContext : priceContext // ignore: cast_nullable_to_non_nullable
 as String,
   ));
 }

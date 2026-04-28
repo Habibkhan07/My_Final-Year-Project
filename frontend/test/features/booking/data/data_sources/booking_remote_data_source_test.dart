@@ -239,10 +239,11 @@ void main() {
     const tRequest = InstantBookingRequestModel(
       technicianId: 42,
       addressId: 7,
+      serviceId: 3,
+      subServiceId: 17,
       scheduledStart: '2026-04-07T10:00:00+05:00',
       scheduledEnd: '2026-04-07T11:00:00+05:00',
       priceAmount: '1500.00',
-      priceContext: 'AC Repair',
     );
     const tResponseJson = {'booking_id': 123};
 

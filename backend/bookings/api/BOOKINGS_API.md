@@ -7,7 +7,7 @@
 ## 1. INSTANT BOOKING
 
 ### 1.1 Create Instant Booking
-**Description**: The checkout endpoint. Creates a `CONFIRMED` `JobBooking` after passing four sequential defensive checks: address ownership, technician approval status, geofence, and an atomic race-condition lock on the technician's schedule. Called immediately after the customer selects a time slot from the Availability endpoint (`/api/customers/technicians/{id}/availability/`).
+**Description**: The checkout endpoint. Creates a `CONFIRMED` `JobBooking` after passing the defensive check pipeline: address ownership, technician approval status, catalog consistency, promo firewall, price-amount validation, geofence, and an atomic race-condition lock on the technician's schedule. Called immediately after the customer selects a time slot from the Availability endpoint (`/api/customers/technicians/{id}/availability/`).
 
 **URL**: `/api/bookings/instant-book/`
 **Method**: `POST`
@@ -21,22 +21,52 @@
 | :--- | :--- | :--- | :--- |
 | `technician_id` | int | **Yes** | Primary key of the `TechnicianProfile` to book. |
 | `address_id` | int | **Yes** | Primary key of the `CustomerAddress` for the job location. Must belong to the authenticated user. |
+| `service_id` | int | **Yes** | Parent `Service` the customer was browsing. Threaded through from the discovery URL (search match, gig tile, category tile, promo banner) — never user-typed. |
+| `sub_service_id` | int | No | Specific `SubService` if the customer picked a fixed-price gig (Scenario A) or a labor gig via the search bar (Scenario B). Omit for category / inspection bookings (Scenario C). |
+| `promotion_id` | int | No | Active `Promotion` the customer arrived with. Omit unless the customer reached this technician via a promo banner. **Forbidden** with a fixed-price `sub_service_id` (write-side promo firewall). |
 | `scheduled_start` | string (ISO 8601) | **Yes** | Job start time. Must be a timezone-aware datetime (e.g., PKT `+05:00` from the slot's `iso_start` field). |
 | `scheduled_end` | string (ISO 8601) | **Yes** | Job end time. Must be strictly after `scheduled_start`. Pass the slot's `iso_end` field directly. |
-| `price_amount` | string (Decimal) | **Yes** | The agreed price in PKR, as a decimal string (e.g., `"1500.00"`). |
-| `price_context` | string | No | Short display label for the UI receipt (max 50 chars, e.g., `"AC Repair — 2 hrs"`). Defaults to empty string. |
+| `price_amount` | string (Decimal) | **Yes** | The agreed price in PKR, as a decimal string (e.g., `"1500.00"`). Server re-validates against the catalog: exact match for fixed-gig / inspection; within `[base_rate, max_rate]` for labor. |
 
-**Flutter integration note**: `scheduled_start` and `scheduled_end` should be taken directly from the `iso_start` / `iso_end` fields returned by the Availability endpoint — no timezone conversion needed.
+**Removed**: `price_context` was previously an ingress field. The server now derives the customer-receipt label from the resolved catalog references; clients should stop sending it.
 
-#### Sample Request
+**Flutter integration note**: `scheduled_start` and `scheduled_end` should be taken directly from the `iso_start` / `iso_end` fields returned by the Availability endpoint — no timezone conversion needed. `service_id` / `sub_service_id` / `promotion_id` are the same query params Flutter already passes to `/profile/{id}/` and `/availability/{id}/` — thread them through into the booking POST body.
+
+#### Sample Request — Scenario C (inspection)
 ```json
 {
   "technician_id": 42,
   "address_id": 7,
+  "service_id": 3,
   "scheduled_start": "2026-04-08T10:00:00+05:00",
   "scheduled_end": "2026-04-08T11:00:00+05:00",
-  "price_amount": "1500.00",
-  "price_context": "AC Repair"
+  "price_amount": "500.00"
+}
+```
+
+#### Sample Request — Scenario A (fixed-price gig)
+```json
+{
+  "technician_id": 42,
+  "address_id": 7,
+  "service_id": 3,
+  "sub_service_id": 17,
+  "scheduled_start": "2026-04-08T10:00:00+05:00",
+  "scheduled_end": "2026-04-08T11:00:00+05:00",
+  "price_amount": "1500.00"
+}
+```
+
+#### Sample Request — Scenario D (promo on parent service)
+```json
+{
+  "technician_id": 42,
+  "address_id": 7,
+  "service_id": 3,
+  "promotion_id": 9,
+  "scheduled_start": "2026-04-08T10:00:00+05:00",
+  "scheduled_end": "2026-04-08T11:00:00+05:00",
+  "price_amount": "500.00"
 }
 ```
 
@@ -63,10 +93,13 @@ The service runs these checks in strict order. The first failure short-circuits 
 | :--- | :--- | :--- | :--- |
 | 1 | **Address Ownership** | `CustomerAddress.objects.get(id=address_id, customer__user=request.user)` | 400 `validation_error` |
 | 2 | **Technician Status** | `TechnicianProfile.objects.filter(status='APPROVED').get(pk=technician_id)` | 404 `not_found` |
-| 3 | **Geofence** | Haversine distance ≤ `tech.max_travel_radius_km` | 400 `out_of_service_area` |
-| 4 | **Slot Race Lock** | `transaction.atomic()` + `select_for_update()` + overlap query | 409 `slot_unavailable` |
+| 3 | **Catalog Consistency** | `service`/`sub_service`/`promotion` resolve, `sub_service.service == service`, `promotion.target_service == service` | 400 `validation_error` |
+| 4 | **Promo Firewall** | If `sub_service.is_fixed_price=True`, reject any `promotion_id` | 400 `validation_error` |
+| 5 | **Price Validation** | `price_amount` matches the catalog/skill-derived figure (exact for fixed/inspection; range for labor) | 400 `validation_error` |
+| 6 | **Geofence** | Haversine distance ≤ `tech.max_travel_radius_km` | 400 `out_of_service_area` |
+| 7 | **Slot Race Lock** | `transaction.atomic()` + `select_for_update()` + overlap query | 409 `slot_unavailable` |
 
-**Why this order?** Address check is cheapest (single indexed lookup). Technician fetch is next. Geofence requires both models to be loaded. The DB lock is last because acquiring it is the most expensive operation.
+**Why this order?** Address check is cheapest (single indexed lookup). Technician fetch is next. Catalog/promo/price checks come before geofence because they're pure-Python comparisons against already-loaded rows. The DB lock is last because acquiring it is the most expensive operation.
 
 #### Geofence Detail
 - Distance is calculated using the **Haversine formula** (great-circle distance).
@@ -149,6 +182,44 @@ All errors follow the standard envelope contract.
 }
 ```
 
+**400 — Inconsistent Booking Intent** *(catalog references in the body don't form a coherent triplet — sub-service's parent isn't `service_id`, or promotion targets a different service)*
+```json
+{
+  "status": 400,
+  "code": "validation_error",
+  "message": "Inconsistent booking intent.",
+  "errors": {
+    "sub_service_id": ["Sub-service does not belong to the supplied service."]
+  }
+}
+```
+
+**400 — Promo Firewall** *(`promotion_id` paired with a fixed-price sub-service — discount stacking is forbidden)*
+```json
+{
+  "status": 400,
+  "code": "validation_error",
+  "message": "Promotions cannot be applied to fixed-price gigs.",
+  "errors": {
+    "promotion_id": ["Discount stacking is not allowed on fixed-price sub-services."]
+  }
+}
+```
+
+**400 — Price Mismatch** *(`price_amount` doesn't match the catalog figure derived from `service` / `sub_service` / `technician_skill`)*
+```json
+{
+  "status": 400,
+  "code": "validation_error",
+  "message": "price_amount does not match the catalog figure.",
+  "errors": {
+    "price_amount": ["Expected 500.00, received 1.00."]
+  }
+}
+```
+
+For labor gigs the message reports the rate window: `Expected between 1000.00 and 1400.00, received 999.00.`
+
 ---
 
 #### Flutter Integration Guide
@@ -173,3 +244,196 @@ On 400 out_of_service_area → show error.message directly (already human-readab
 On 400 validation_error    → highlight error.errors fields in the form
 On 404                     → show generic "Technician not available" and navigate back
 ```
+
+---
+
+### 1.2 Post-Booking Side Effects — Realtime Event + SLA Timer
+
+When the four checks pass and the `JobBooking` row is **committed**, the service layer performs two side effects in a single `transaction.on_commit` callback:
+
+1. **Broadcast** a `job_new_request` event to the assigned technician's WebSocket (and FCM, persisted to `EventLog`).
+2. **Arm** an SLA-timeout Celery task that mutates booking state if the technician fails to acknowledge.
+
+Neither side effect runs on any error path. A rolled-back transaction produces no phantom event, push, or queued timeout.
+
+#### Wire envelope (technician socket)
+
+```json
+{
+  "kind": "event",
+  "id": "<uuid4>",
+  "rawType": "job_new_request",
+  "targetRole": "technician",
+  "timestamp": "2026-04-27T20:14:42.000Z",
+  "payload": {
+    "job_id": 99482,
+    "service_name": "AC Deep Wash",
+    "booking_type": "FIXED_GIG",
+    "scheduled_start_iso": "2026-04-08T05:00:00Z",
+    "payout": "1200",
+    "payout_context": "Fixed-price gig — full payout",
+    "expires_in_seconds": 900
+  }
+}
+```
+
+| Payload field | Type | Source |
+| :--- | :--- | :--- |
+| `job_id` | int | `JobBooking.id` |
+| `service_name` | string | `JobBooking.sub_service.name` if set, else `JobBooking.service.name`. The more specific catalog name wins. |
+| `booking_type` | string enum | One of `INSPECTION` / `FIXED_GIG` / `LABOR_GIG`. Derived from the FK shape: no sub_service → `INSPECTION`; sub_service with `is_fixed_price=True` → `FIXED_GIG`; sub_service with `is_fixed_price=False` → `LABOR_GIG`. The technician's app routes the on-site flow on this discriminator (Complete vs. Build Quote). |
+| `scheduled_start_iso` | string (ISO-8601 UTC, `Z` suffix) | `JobBooking.scheduled_start` serialized verbatim. **Flutter formats** the locale-aware label — Dumb-UI principle, no server-side display strings on the wire. |
+| `payout` | string (integer rupees) | `JobBooking.price_amount × 0.80`, rounded half-up to the nearest rupee, returned as a string for parse-fidelity on Flutter |
+| `payout_context` | string | Short prose the technician card renders verbatim under the payout. One of three values keyed by `booking_type`: `"Inspection visit — quote built on-site"`, `"Fixed-price gig — full payout"`, `"Labor agreed up front"`. Prevents the reject-from-confusion failure mode where a Rs. 400 inspection fee looks indistinguishable from a Rs. 400 fixed gig. |
+| `expires_in_seconds` | int | Two-tier dispatch SLA — see below |
+
+#### Commission rule (`payout`)
+
+- `PLATFORM_COMMISSION_RATE = 0.20` → technician sees `price_amount × 0.80`.
+- Returned as an integer string (e.g. `"1200"`), not a Decimal or float — keeps the wire format stable and avoids client-side float drift.
+
+#### Two-tier dispatch SLA (`expires_in_seconds`)
+
+Computed at broadcast time from `scheduled_start − timezone.now()`:
+
+| Tier | Condition | `expires_in_seconds` |
+| :--- | :--- | :--- |
+| ASAP | `delta ≤ 2h` (incl. past — defensive against stale slots) | `60` |
+| Scheduled | `delta > 2h` | `900` (15 min) |
+
+The same value is sent in the payload (so the technician's UI counts down in sync) **and** passed to `JobDispatchScheduler.schedule_sla_timeout(...)` as the Celery `countdown`.
+
+#### SLA timeout — DB state mutation
+
+When the timer fires, `bookings.tasks.expire_pending_job_booking(booking_id)` runs under `SELECT FOR UPDATE` and:
+
+| Booking state when task fires | Outcome |
+| :--- | :--- |
+| Booking not found | no-op |
+| `accepted_at IS NOT NULL` | no-op (technician acknowledged in time) |
+| `status != CONFIRMED` | no-op (already cancelled / completed / rejected) |
+| `status == CONFIRMED` AND `accepted_at IS NULL` | `status = REJECTED`, persisted via `update_fields=["status"]` |
+
+Customer-facing notification on timeout is **out of scope this sprint** — DB mutation only. The task is idempotent, so re-runs (Celery retries, manual re-fires) cannot double-mutate.
+
+#### Architecture — Port and Adapter
+
+The service layer never imports Celery. The wiring graph:
+
+```
+bookings/services/job_request_dispatch.py
+        │  depends on Protocol
+        ▼
+bookings/services/ports.py            (Port)
+        ▲  structurally implemented by
+        │
+bookings/adapters/celery_scheduler.py (Adapter — only file that imports the task)
+        │  invokes
+        ▼
+bookings/tasks.py                     (@shared_task expire_pending_job_booking)
+```
+
+`bookings/adapters/__init__.get_default_scheduler()` resolves the production adapter via a **lazy import**, so `bookings.services.*` modules stay free of queue-library imports at top level. Tests pass a fake `JobDispatchScheduler` directly to `dispatch_job_new_request_event(...)`.
+
+#### Failure isolation
+
+| Failure | Effect |
+| :--- | :--- |
+| Channels / Redis down | Booking still committed; `EventLog` row still written; FCM still queued (best-effort barrels in `EventDispatchService`). |
+| FCM broker down | Booking still committed; warning logged; in-app socket still receives the frame on reconnect via `GET /api/events/sync/`. |
+| Celery broker down for SLA queue | Booking still committed; SLA simply will not auto-expire. The technician accept/decline flow is still authoritative; missing the timer cannot create double-bookings (existing bookings keep their slot lock). |
+
+Cross-reference: realtime envelope + `EventDispatchService` semantics live in [`backend/realtime/api/EVENT_DISPATCH_API.md`](../../realtime/api/EVENT_DISPATCH_API.md).
+
+---
+
+## 2. FRONTEND CONTRACT — flag #2 catalog-FK rollout
+
+This section documents the cross-stack contract for the catalog-FK rollout. §2.1 and §2.2 describe behavior live on the Flutter checkout. §2.3–§2.6 describe technician-side work still pending — the on-site `bookingType` routing and `JobNewRequestPayload` model. Out of scope: any rename of `SystemEventNotifier`, any second WebSocket connection, any client-originated stream ingress (the realtime split owns those — see `REALTIME_STREAMS_PATCH_SUMMARY.md`).
+
+### 2.1 Checkout request body — three new fields, one removed
+
+The Flutter checkout screen builds the `POST /api/bookings/instant-book/` body as follows:
+
+- **`service_id` (required).** Same value Flutter passes as `service_id` to `/profile/{id}/` and `/availability/{id}/` — carries the customer's discovery intent through.
+- **`sub_service_id` (optional).** Sent when the customer reached this technician via a fixed-price gig tile (Scenario A) or a search-bar match against a specific sub-service (Scenario B). Omitted for parent-category clicks (Scenario C) and bare promo-banner clicks (Scenario D).
+- **`promotion_id` (optional).** Sent only when the customer arrived via a promo banner. Never paired with a fixed-price `sub_service_id` — the server rejects that combination (write-side promo firewall), and Flutter blocks it client-side too via an assertion in `InstantBookingNotifier.book` to avoid a wasted round trip.
+- **`price_context` is no longer sent.** The server derives the customer-receipt label (`"Inspection Fee"` / `"Fixed Price"` / `"Labor Fee"`) from the resolved catalog references. Flutter still reads `JobBooking.price_context` from any persisted booking response.
+
+The IDs Flutter sends are the ones the customer's discovery URL carried — never user-typed at the checkout screen. If the discovery context is lost (e.g., deep link with no IDs), Flutter defaults to category-only Scenario C: `service_id` derived from the technician's primary skill or a UI-level service picker.
+
+### 2.2 Checkout error handling — three new error envelopes
+
+All three return HTTP 400 with `code: "validation_error"`. Flutter maps the field-level keys to user-facing toasts via this dictionary (server text is diagnostic-friendly, not user-friendly — Flutter never displays it raw):
+
+| Error envelope `errors` key | Likely cause | Toast Flutter shows |
+| :--- | :--- | :--- |
+| `{ "sub_service_id": [...] }` | Stale Flutter cache: the discovery context combined a sub-service with the wrong parent service. | "This gig is no longer available. Refresh and try again." → pop back to discovery. |
+| `{ "promotion_id": [...] }` (firewall) | Customer somehow has a promo applied to a fixed-price gig. | "This gig already has a fixed price — promotions don't apply." → pop back to gig screen with promo cleared. |
+| `{ "price_amount": [...] }` (mismatch) | Price drifted between when the customer saw the figure and when they pressed Book — typically a stale cached technician rate. | "Pricing has updated. Please refresh and confirm again." → re-fetch profile/availability and retry. |
+
+Implementation lives in `frontend/lib/features/booking/presentation/widgets/review_booking_sheet.dart` (`_resolveErrorPresentation`).
+
+### 2.3 Technician job-card model — two new fields
+
+The `job_new_request` payload (received over the WS event pipeline, also returned by `/api/events/sync/` on reconnect) now carries:
+
+```dart
+@freezed
+class JobNewRequestPayload with _$JobNewRequestPayload {
+  const factory JobNewRequestPayload({
+    required int jobId,
+    required String serviceName,
+    required BookingType bookingType,           // NEW
+    required DateTime scheduledStartIso,
+    required String payout,
+    required String payoutContext,              // NEW
+    required int expiresInSeconds,
+  }) = _JobNewRequestPayload;
+}
+
+enum BookingType { inspection, fixedGig, laborGig }
+```
+
+`bookingType` and `payoutContext` are **always present** on freshly dispatched events. Older `EventLog` rows replayed via `/api/events/sync/` predate the rollout — defensive parsing should treat both fields as optional on the deserialization model and fall back gracefully (see §2.5).
+
+### 2.4 Technician on-site flow — route on `bookingType`
+
+The job card's affordances differ per type. Recommended switch:
+
+```dart
+switch (payload.bookingType) {
+  case BookingType.inspection:
+    // After accept → navigate to address → "Build Quote" screen as the
+    // primary completion path. payoutContext under the headline payout
+    // tells the technician the Rs. 400 is the visit fee, not the whole job.
+    break;
+  case BookingType.fixedGig:
+    // After accept → navigate to address → "Mark Complete" button as the
+    // primary completion path. Optional "Add line item" affordance for
+    // on-site upsell — the customer must approve before any extra work.
+    break;
+  case BookingType.laborGig:
+    // Same shape as fixed gig at the start; the labor scope is pre-agreed.
+    // Same optional "Add line item" upsell affordance.
+    break;
+}
+```
+
+Render `payoutContext` verbatim under the `payout` figure (Dumb-UI principle — server picks the prose, Flutter doesn't compose strings).
+
+### 2.5 Backwards compatibility for replayed events
+
+`EventLog` rows persisted before this rollout contain the old payload shape (`service_name`, `scheduled_start_iso`, `payout`, `expires_in_seconds` — no `booking_type` or `payout_context`). On reconnect, `/api/events/sync/` returns these alongside fresh ones.
+
+Flutter's deserializer should:
+- Treat `bookingType` and `payoutContext` as **nullable** on the Freezed model.
+- When `bookingType` is null, default the card to a neutral layout (treat as `LABOR_GIG`-style: Mark Complete + optional upsell) and hide the `payoutContext` line.
+- Once historical `EventLog` rows have aged out (two acceptance-window cycles after the backend rollout), the fields can be tightened to required.
+
+### 2.6 Frontend test coverage
+
+- ✅ **Checkout request-body builder** — each of the four scenarios (A/B/C/D) produces the expected JSON; Scenario-A + promo combination is blocked at the Flutter layer too via a `book(...)` assertion. (`test/features/booking/data/models/booking_models_test.dart`, `test/features/booking/presentation/providers/booking_notifier_test.dart`)
+- ✅ **400 error mapping** — each new field-level error key maps to the expected toast + navigation action. (`test/features/booking/data/repositories/booking_repository_impl_test.dart`, `test/features/booking/presentation/widgets/review_booking_sheet_test.dart`)
+- ⏳ **`JobNewRequestPayload` deserialization** — parses fresh payloads (with `bookingType` / `payoutContext`) and replayed payloads (without) without throwing.
+- ⏳ **Technician job-card widget** — snapshot one card per `BookingType` to lock the layout differences.

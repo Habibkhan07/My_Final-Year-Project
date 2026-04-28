@@ -12,7 +12,7 @@ class EventLogFactory(factory.django.DjangoModelFactory):
         model = EventLog
 
     user = factory.SubFactory(UserFactory)
-    event_type = "job_dispatched"
+    event_type = "job_new_request"
     target_role = EventLog.TARGET_TECHNICIAN
     is_critical = True
     acknowledged_at = None

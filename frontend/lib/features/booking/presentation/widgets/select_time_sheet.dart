@@ -12,12 +12,14 @@ class SelectTimeSheet extends ConsumerStatefulWidget {
   final TechnicianProfileEntity technician;
   final int? serviceId;
   final int? subServiceId;
+  final int? promotionId;
 
   const SelectTimeSheet({
     super.key,
     required this.technician,
     this.serviceId,
     this.subServiceId,
+    this.promotionId,
   });
 
   @override
@@ -76,6 +78,9 @@ class _SelectTimeSheetState extends ConsumerState<SelectTimeSheet> {
                         technician: widget.technician,
                         selectedDate: _selectedDate,
                         selectedSlot: state.selectedSlot!,
+                        serviceId: widget.serviceId,
+                        subServiceId: widget.subServiceId,
+                        promotionId: widget.promotionId,
                       ),
                     );
                   }

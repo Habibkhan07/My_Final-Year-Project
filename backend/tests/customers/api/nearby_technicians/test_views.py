@@ -41,7 +41,7 @@ class TestTechnicianDiscoveryListView:
         data = response.json()
         tech_data = data['results'][0]
 
-        assert tech_data['primary_price'] == "Rs. 1500"
+        assert tech_data['primary_price'] == "Rs. 1,500"
         assert tech_data['price_context'] == "Fixed Price"
 
     def test_scenario_2_variable_with_equal_prices_is_not_fixed(self):

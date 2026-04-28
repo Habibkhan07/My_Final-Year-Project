@@ -44,6 +44,7 @@ class TechnicianProfileScreen extends ConsumerWidget {
           profile: profile,
           serviceId: serviceId,
           subServiceId: subServiceId,
+          promotionId: promotionId,
         ),
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, stack) => Center(
@@ -74,11 +75,13 @@ class _ProfileContent extends StatelessWidget {
   final TechnicianProfileEntity profile;
   final int? serviceId;
   final int? subServiceId;
+  final int? promotionId;
 
   const _ProfileContent({
     required this.profile,
     this.serviceId,
     this.subServiceId,
+    this.promotionId,
   });
 
   void _showSelectTimeSheet(BuildContext context) {
@@ -90,6 +93,7 @@ class _ProfileContent extends StatelessWidget {
         technician: profile,
         serviceId: serviceId,
         subServiceId: subServiceId,
+        promotionId: promotionId,
       ),
     );
   }

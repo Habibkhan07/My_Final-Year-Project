@@ -2,6 +2,7 @@ from rest_framework import serializers
 from technicians.models import TechnicianProfile
 from catalog.models import Service, SubService
 from marketing.models import Promotion
+from bookings.selectors import resolve_booking_intent
 
 # 1. THE NESTED COMPONENT SERIALIZERS
 
@@ -93,44 +94,22 @@ class TopTechnicianSerializer(serializers.ModelSerializer):
 
     def _resolve_pricing_data(self, obj):
         """
-        Internal helper to calculate the 4 pricing scenarios.
+        Returns (primary_price, price_context).
+
+        Logic lives in ``bookings.selectors.resolve_booking_intent`` — single
+        source of truth shared with the technician profile detail and (next
+        sprint) the booking write path. The shared resolver formats with
+        comma thousand-separators for all scenarios; that consistency is an
+        intentional improvement over the prior in-place logic, which
+        omitted commas for fixed-gig and inspection-fee displays.
         """
-        resolved_subservice = self.context.get('resolved_subservice')
-        resolved_service = self.context.get('resolved_service')
-        
-        # Scenario 2 & 3: Specific Gig (Sub-Service)
-        if resolved_subservice:
-            # Scenario 2: Fixed Price Gig — use the explicit flag, not price equality
-            if resolved_subservice.is_fixed_price:
-                return f"Rs. {int(resolved_subservice.base_price)}", "Fixed Price"
-            
-            # Scenario 3: Variable Job (Labor Fee)
-            # Fetch from prefetch (O(1)) if available, else DB fallback
-            prefetched_skill = getattr(obj, 'prefetched_skill', [])
-            tech_skill = prefetched_skill[0] if prefetched_skill else obj.technicianskill_set.filter(sub_service=resolved_subservice).first()
-            
-            if tech_skill and tech_skill.base_rate:
-                base = int(tech_skill.base_rate)
-                max_r = int(tech_skill.max_rate) if tech_skill.max_rate else None
-                
-                if max_r and max_r != base:
-                    # Unequal Technician Rate: Show Range
-                    # Formatting: 1k - 1.4k or full numbers? 
-                    # User requested: "Rs. 1,000 - 1,400"
-                    return f"Rs. {base:,} - {max_r:,}", "Labor Fee"
-                else:
-                    # Equal Technician Rate: Show single price
-                    return f"Rs. {base:,}", "Labor Fee"
-            
-            # Fallback to SubService platform default if tech hasn't set custom rate
-            return f"Rs. {int(resolved_subservice.base_price):,}", "Labor Fee"
-
-        # Scenario 1: Category Click (Service)
-        if resolved_service:
-            return f"Rs. {int(resolved_service.base_inspection_fee)}", "Inspection Fee"
-
-        # Scenario 4 / Default: Global Search or missing intent
-        return "Rs. 500", "Inspection Fee"
+        intent = resolve_booking_intent(
+            technician=obj,
+            service=self.context.get('resolved_service'),
+            sub_service=self.context.get('resolved_subservice'),
+            promotion=self.context.get('resolved_promo'),
+        )
+        return intent.primary_price, intent.price_context_label
 
     def get_primary_price(self, obj):
         price, _ = self._resolve_pricing_data(obj)
