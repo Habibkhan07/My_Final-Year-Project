@@ -54,8 +54,8 @@ Fed by `GET /api/customers/technician-profile/{id}/`.
 | `bayesianScore` | `double?` | Backend-computed trust score. Null if no location params passed. |
 | `isActive` | `bool` | Online/offline indicator. |
 | `uiRatingText` | `String` | Pre-formatted rating string (e.g. `"4.8 (23 reviews)"`). Render directly. |
-| `primaryPrice` | `String` | Pre-formatted display price (e.g. `"Rs. 1,500"`). Render directly. |
-| `primaryPriceRaw` | `String` | Decimal string (e.g. `"1500.00"`). Pass as `price_amount` to instant-book. |
+| `primaryPrice` | `String` | Pre-formatted display price (e.g. `"Rs. 1,500"`). Render directly on the review sheet for the customer to confirm. |
+| `primaryPriceRaw` | `String` | Decimal string (e.g. `"1500.00"`). Display-only — the booking write no longer carries a price; the server derives it from the resolved catalog references + technician skill row. |
 | `priceContext` | `String` | Server-derived display label (`"Inspection Fee"` / `"Fixed Price"` / `"Labor Fee"`). Render only — no longer sent on the booking write. |
 | `promoTag` | `String?` | Promo badge label. Null when no active promotion. |
 | `skills` | `List<TechnicianSkillEntity>` | Sub-services the technician offers. |
@@ -103,7 +103,7 @@ Response from `POST /api/bookings/instant-book/` (201).
 | :--- | :--- | :--- |
 | `getTechnicianProfile({id, lat?, lng?, serviceId?, subServiceId?, promotionId?})` | `TechnicianProfileEntity` | `lat`/`lng` enable distance + contextual pricing. All optional. |
 | `getAvailability({technicianId, date, serviceId?, subServiceId?})` | `List<AvailabilitySlotEntity>` | Empty list (not an error) when fully booked or no schedule. `date` is `"YYYY-MM-DD"`. |
-| `createInstantBooking({technicianId, addressId, serviceId, subServiceId?, promotionId?, scheduledStart, scheduledEnd, priceAmount})` | `CreatedBookingEntity` | `serviceId` is required and threaded from the discovery URL. `subServiceId` for fixed-price gigs (Scenario A) or labor matches (Scenario B). `promotionId` only on promo-banner arrivals (Scenario D). Pairing `subServiceId` + `promotionId` triggers a local `assert` (server's promo firewall — fail fast to save a round trip). |
+| `createInstantBooking({technicianId, addressId, serviceId, subServiceId?, promotionId?, scheduledStart, scheduledEnd})` | `CreatedBookingEntity` | `serviceId` is required and threaded from the discovery URL. `subServiceId` for fixed-price gigs (Scenario A) or labor matches (Scenario B). `promotionId` only on promo-banner arrivals (Scenario D). Pairing `subServiceId` + `promotionId` triggers a local `assert` (server's promo firewall — fail fast to save a round trip). The persisted price is server-derived — no `priceAmount` parameter. |
 
 ---
 
@@ -135,7 +135,7 @@ All models are Freezed + `json_serializable`. Co-located in one file because the
 - `InstantBookingResponseModel` — `{"booking_id": 123}` → `CreatedBookingEntity`
 
 **Write model** (Dart → JSON → request body):
-- `InstantBookingRequestModel` — outgoing POST body. Carries `service_id` (required), `sub_service_id` / `promotion_id` (optional, `includeIfNull: false` keeps them off the wire when null). `price_context` is no longer on the request — server derives the receipt label from the resolved catalog FKs.
+- `InstantBookingRequestModel` — outgoing POST body. Carries `service_id` (required), `sub_service_id` / `promotion_id` (optional, `includeIfNull: false` keeps them off the wire when null). Both `price_context` and `price_amount` are no longer on the request — server derives the receipt label and the persisted figure from the resolved catalog FKs + technician skill row.
 
 Each model has a `toEntity()` method as the single conversion point. No entity-to-model conversion needed (writes use raw fields directly).
 
@@ -177,7 +177,7 @@ remoteDataSource.method(...)
 | `out_of_service_area` | `BookingOutOfServiceAreaFailure(failure.message)` — message passed through verbatim |
 | `slot_unavailable` | `BookingSlotUnavailableFailure` |
 | `validation_error` + `errors['address_id']` | `BookingInvalidAddressFailure` |
-| `validation_error` (other) | `BookingValidationFailure(message, errors)` — the `errors` map is preserved so the presentation layer can map field-level keys (`sub_service_id` / `promotion_id` / `price_amount`) to specific toasts |
+| `validation_error` (other) | `BookingValidationFailure(message, errors)` — the `errors` map is preserved so the presentation layer can map field-level keys (`sub_service_id` / `promotion_id`) to specific toasts |
 | `server_error` | `BookingServerFailure` |
 | default | `BookingUnexpectedFailure(failure.message)` |
 
@@ -262,7 +262,6 @@ Freezed immutable. Holds the full slot list for one date + the customer's curren
 | :--- | :--- | :--- |
 | `sub_service_id` | Stale discovery context — the sub-service no longer belongs to the supplied parent service. | "This gig is no longer available. Refresh and try again." → pop sheet |
 | `promotion_id` | Promo applied to a fixed-price gig (server's promo firewall). | "This gig already has a fixed price — promotions don't apply." → pop sheet |
-| `price_amount` | Stale cached technician rate; price drifted between profile fetch and book press. | "Pricing has updated. Please refresh and confirm again." → pop sheet |
 
 #### `ModalBottomSheetLayout`
 `lib/features/booking/presentation/widgets/modal_bottom_sheet_layout.dart`

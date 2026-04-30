@@ -1,5 +1,4 @@
 import math
-import decimal
 from typing import Optional
 
 from django.db import transaction
@@ -9,7 +8,6 @@ from bookings.exceptions import (
     InconsistentBookingIntentError,
     InvalidAddressError,
     OutOfServiceAreaError,
-    PriceMismatchError,
     PromoFirewallError,
     SlotUnavailableError,
 )
@@ -84,7 +82,6 @@ def create_instant_booking(
     service_id: int,
     scheduled_start,
     scheduled_end,
-    price_amount: decimal.Decimal,
     sub_service_id: Optional[int] = None,
     promotion_id: Optional[int] = None,
 ):
@@ -104,12 +101,15 @@ def create_instant_booking(
          * A ``promotion_id`` paired with an ``is_fixed_price`` sub-service is
            rejected (no discount stacking on fixed gigs).
 
-    4. Price validation — exact equality against the figure the resolver
-       derives from the catalog + technician skill:
+    4. Resolve the catalog intent into the persisted figure. The resolver
+       is the single source of truth across read and write paths:
          * FIXED_GIG: ``sub_service.base_price``.
          * LABOR_GIG: technician's ``TechnicianSkill.labor_rate`` (or the
            sub-service base price when no rate is set).
          * INSPECTION: ``service.base_inspection_fee``.
+
+       Stamped onto ``JobBooking.price_amount`` directly — no client value
+       on the wire, so no validation step is needed.
 
     5. Geofence — Haversine distance must be ≤ ``tech.max_travel_radius_km``.
 
@@ -171,15 +171,13 @@ def create_instant_booking(
         # a stale promo onto a fixed-price booking.
         raise PromoFirewallError()
 
-    # --- 4. Resolve intent + price validation ---
+    # --- 4. Resolve intent (server-derived price) ---
     intent = resolve_booking_intent(
         technician=tech,
         service=service,
         sub_service=sub_service,
         promotion=promotion,
     )
-
-    _assert_price_in_bounds(price_amount, intent)
 
     # --- 5. Geofence ---
     if tech.base_latitude is None or tech.base_longitude is None:
@@ -229,7 +227,9 @@ def create_instant_booking(
             scheduled_start=scheduled_start,
             scheduled_end=scheduled_end,
             status=JobBooking.STATUS_CONFIRMED,
-            price_amount=price_amount,
+            # Server-derived figure — single source of truth lives in the
+            # pricing resolver, never on the wire.
+            price_amount=intent.primary_amount,
             # Customer-receipt label, derived from the resolver. The column
             # stays as a denormalized snapshot so historical bookings render
             # consistently even if the catalog row is later renamed.
@@ -243,21 +243,3 @@ def create_instant_booking(
         transaction.on_commit(lambda: dispatch_job_new_request_event(booking))
 
     return booking
-
-
-def _assert_price_in_bounds(price_amount: decimal.Decimal, intent) -> None:
-    """
-    Validate the customer-supplied ``price_amount`` against the figure the
-    pricing resolver derived from the catalog + technician skill row.
-
-    Exact equality across all booking types — labor pricing is now a
-    single ``TechnicianSkill.labor_rate`` value, no range.
-
-    Both sides are normalized to ``Decimal`` so ``"500"`` vs ``"500.00"`` is
-    not a false negative.
-    """
-    actual = decimal.Decimal(price_amount)
-    expected = decimal.Decimal(intent.primary_amount)
-
-    if actual != expected:
-        raise PriceMismatchError(expected=expected, actual=actual)

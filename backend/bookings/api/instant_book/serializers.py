@@ -16,9 +16,10 @@ class InstantBookSerializer(serializers.Serializer):
     category tile, promo banner). The service layer re-validates the
     triplet for consistency before persisting.
 
-    The previous ``price_context`` ingress field has been removed; the
-    server now derives the customer-receipt label from the resolved
-    catalog references.
+    Both ``price_context`` and ``price_amount`` were previously ingress
+    fields. The server now derives the receipt label and the figure
+    itself from the resolved catalog references + the technician's skill
+    row — no client-supplied price reaches persistence.
     """
     technician_id   = serializers.IntegerField(min_value=1)
     address_id      = serializers.IntegerField(min_value=1)
@@ -27,7 +28,6 @@ class InstantBookSerializer(serializers.Serializer):
     promotion_id    = serializers.IntegerField(min_value=1, required=False, allow_null=True)
     scheduled_start = serializers.DateTimeField()
     scheduled_end   = serializers.DateTimeField()
-    price_amount    = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=0)
 
     def validate(self, data):
         if data['scheduled_end'] <= data['scheduled_start']:

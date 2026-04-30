@@ -10,7 +10,10 @@ part of 'ws_connection_notifier.dart';
 // ignore_for_file: type=lint, type=warning
 /// Owns the entire WebSocket lifecycle for the realtime event stream:
 ///   - Connect with the user's auth token in the query string.
-///   - Listen to frames, decode, and feed each into [SystemEventNotifier].
+///   - Listen to frames, JSON-decode, and forward each decoded map into
+///     [WsFrameDispatcher], which routes events vs. streams. This class
+///     deliberately does NOT know about [SystemEventModel], the mapper,
+///     or [SystemEventNotifier] — it is a transport object only.
 ///   - Trigger a REST recovery sync immediately after the socket opens.
 ///   - Reconnect with exponential backoff, capped at [_kMaxBackoff].
 ///   - After [_kMaxRetries] consecutive failures, flip state to `failed`
@@ -25,7 +28,10 @@ final wsConnectionProvider = WsConnectionNotifierProvider._();
 
 /// Owns the entire WebSocket lifecycle for the realtime event stream:
 ///   - Connect with the user's auth token in the query string.
-///   - Listen to frames, decode, and feed each into [SystemEventNotifier].
+///   - Listen to frames, JSON-decode, and forward each decoded map into
+///     [WsFrameDispatcher], which routes events vs. streams. This class
+///     deliberately does NOT know about [SystemEventModel], the mapper,
+///     or [SystemEventNotifier] — it is a transport object only.
 ///   - Trigger a REST recovery sync immediately after the socket opens.
 ///   - Reconnect with exponential backoff, capped at [_kMaxBackoff].
 ///   - After [_kMaxRetries] consecutive failures, flip state to `failed`
@@ -38,7 +44,10 @@ final class WsConnectionNotifierProvider
     extends $NotifierProvider<WsConnectionNotifier, WsConnectionStatus> {
   /// Owns the entire WebSocket lifecycle for the realtime event stream:
   ///   - Connect with the user's auth token in the query string.
-  ///   - Listen to frames, decode, and feed each into [SystemEventNotifier].
+  ///   - Listen to frames, JSON-decode, and forward each decoded map into
+  ///     [WsFrameDispatcher], which routes events vs. streams. This class
+  ///     deliberately does NOT know about [SystemEventModel], the mapper,
+  ///     or [SystemEventNotifier] — it is a transport object only.
   ///   - Trigger a REST recovery sync immediately after the socket opens.
   ///   - Reconnect with exponential backoff, capped at [_kMaxBackoff].
   ///   - After [_kMaxRetries] consecutive failures, flip state to `failed`
@@ -75,11 +84,14 @@ final class WsConnectionNotifierProvider
 }
 
 String _$wsConnectionNotifierHash() =>
-    r'bfd0bd17d078811e6f41fe014013d559e0ea7c93';
+    r'f43dd1d23ef9219d053dd493c8f3e7b48aa7eb07';
 
 /// Owns the entire WebSocket lifecycle for the realtime event stream:
 ///   - Connect with the user's auth token in the query string.
-///   - Listen to frames, decode, and feed each into [SystemEventNotifier].
+///   - Listen to frames, JSON-decode, and forward each decoded map into
+///     [WsFrameDispatcher], which routes events vs. streams. This class
+///     deliberately does NOT know about [SystemEventModel], the mapper,
+///     or [SystemEventNotifier] — it is a transport object only.
 ///   - Trigger a REST recovery sync immediately after the socket opens.
 ///   - Reconnect with exponential backoff, capped at [_kMaxBackoff].
 ///   - After [_kMaxRetries] consecutive failures, flip state to `failed`

@@ -29,7 +29,6 @@ from bookings.exceptions import (
     InconsistentBookingIntentError,
     InvalidAddressError,
     OutOfServiceAreaError,
-    PriceMismatchError,
     PromoFirewallError,
     SlotUnavailableError,
 )
@@ -52,8 +51,9 @@ def _pkt(h: int, m: int = 0) -> datetime.datetime:
 def _make_booking_kwargs(tech, address, service=None):
     """
     Minimal valid kwargs for ``create_instant_booking``. Defaults to a
-    Scenario-C inspection booking; ``price_amount`` matches the supplied
-    service's ``base_inspection_fee`` so the price check passes.
+    Scenario-C inspection booking. The persisted ``price_amount`` is
+    derived from the resolved catalog references — there is no client
+    price field on the service signature.
     """
     if service is None:
         service = ServiceFactory(base_inspection_fee=decimal.Decimal('500.00'))
@@ -63,7 +63,6 @@ def _make_booking_kwargs(tech, address, service=None):
         service_id=service.id,
         scheduled_start=_pkt(10),
         scheduled_end=_pkt(11),
-        price_amount=decimal.Decimal(service.base_inspection_fee),
     )
 
 
@@ -95,7 +94,6 @@ class TestCreateInstantBooking:
             service_id=service.id,
             scheduled_start=_pkt(10),
             scheduled_end=_pkt(11),
-            price_amount=decimal.Decimal('500.00'),
         )
 
         booking.refresh_from_db()
@@ -106,8 +104,8 @@ class TestCreateInstantBooking:
         assert booking.service == service
         assert booking.sub_service is None
         assert booking.promotion is None
+        # Server-derived from the resolver — Scenario C → service.base_inspection_fee.
         assert booking.price_amount == decimal.Decimal('500.00')
-        # Server-derived from the resolver — Scenario C → "Inspection Fee".
         assert booking.price_context == 'Inspection Fee'
 
     def test_booking_exists_in_db(self):
@@ -135,7 +133,6 @@ class TestCreateInstantBooking:
                 service_id=ServiceFactory().id,
                 scheduled_start=_pkt(10),
                 scheduled_end=_pkt(11),
-                price_amount=decimal.Decimal('500.00'),
             )
 
     def test_address_owned_by_other_user_raises_invalid_address(self):
@@ -157,7 +154,6 @@ class TestCreateInstantBooking:
                 service_id=ServiceFactory().id,
                 scheduled_start=_pkt(10),
                 scheduled_end=_pkt(11),
-                price_amount=decimal.Decimal('500.00'),
             )
 
     # ------------------------------------------------------------------
@@ -176,7 +172,6 @@ class TestCreateInstantBooking:
                 service_id=ServiceFactory().id,
                 scheduled_start=_pkt(10),
                 scheduled_end=_pkt(11),
-                price_amount=decimal.Decimal('500.00'),
             )
 
     def test_pending_technician_raises_does_not_exist(self):
@@ -394,16 +389,16 @@ class TestCatalogScenarioCoverage:
             technician_id=tech.id, address_id=address.id,
             service_id=service.id, sub_service_id=sub.id,
             scheduled_start=_pkt(10), scheduled_end=_pkt(11),
-            price_amount=decimal.Decimal('1500.00'),
         )
 
         booking.refresh_from_db()
         assert booking.service == service
         assert booking.sub_service == sub
         assert booking.promotion is None
+        assert booking.price_amount == decimal.Decimal('1500.00')
         assert booking.price_context == 'Fixed Price'
 
-    def test_scenario_b_labor_gig_accepts_exact_rate(self, lahore_tech_and_address):
+    def test_scenario_b_labor_gig_persists_skill_rate(self, lahore_tech_and_address):
         tech, profile, address = lahore_tech_and_address
         service = ServiceFactory()
         sub = SubServiceFactory(service=service, is_fixed_price=False)
@@ -417,7 +412,6 @@ class TestCatalogScenarioCoverage:
             technician_id=tech.id, address_id=address.id,
             service_id=service.id, sub_service_id=sub.id,
             scheduled_start=_pkt(10), scheduled_end=_pkt(11),
-            price_amount=decimal.Decimal('1200.00'),
         )
 
         booking.refresh_from_db()
@@ -435,11 +429,11 @@ class TestCatalogScenarioCoverage:
             technician_id=tech.id, address_id=address.id,
             service_id=service.id, promotion_id=promo.id,
             scheduled_start=_pkt(10), scheduled_end=_pkt(11),
-            price_amount=decimal.Decimal('500.00'),
         )
 
         booking.refresh_from_db()
         assert booking.promotion == promo
+        assert booking.price_amount == decimal.Decimal('500.00')
         assert booking.price_context == 'Inspection Fee'
 
 
@@ -458,7 +452,6 @@ class TestWritePathRejections:
                 technician_id=tech.id, address_id=address.id,
                 service_id=service_a.id, sub_service_id=sub.id,
                 scheduled_start=_pkt(10), scheduled_end=_pkt(11),
-                price_amount=decimal.Decimal('500.00'),
             )
         assert exc.value.field == 'sub_service_id'
 
@@ -474,7 +467,6 @@ class TestWritePathRejections:
                 technician_id=tech.id, address_id=address.id,
                 service_id=service_a.id, promotion_id=promo.id,
                 scheduled_start=_pkt(10), scheduled_end=_pkt(11),
-                price_amount=decimal.Decimal(service_a.base_inspection_fee),
             )
         assert exc.value.field == 'promotion_id'
 
@@ -492,40 +484,7 @@ class TestWritePathRejections:
                 technician_id=tech.id, address_id=address.id,
                 service_id=service.id, sub_service_id=sub.id, promotion_id=promo.id,
                 scheduled_start=_pkt(10), scheduled_end=_pkt(11),
-                price_amount=decimal.Decimal('1500.00'),
             )
-
-    def test_price_below_inspection_fee_rejects(self, lahore_tech_and_address):
-        tech, profile, address = lahore_tech_and_address
-        service = ServiceFactory(base_inspection_fee=decimal.Decimal('500.00'))
-
-        with pytest.raises(PriceMismatchError) as exc:
-            create_instant_booking(
-                customer_user=profile.user,
-                technician_id=tech.id, address_id=address.id, service_id=service.id,
-                scheduled_start=_pkt(10), scheduled_end=_pkt(11),
-                price_amount=decimal.Decimal('1.00'),
-            )
-        assert exc.value.expected == decimal.Decimal('500.00')
-
-    def test_price_mismatch_on_labor_rate_rejects(self, lahore_tech_and_address):
-        tech, profile, address = lahore_tech_and_address
-        service = ServiceFactory()
-        sub = SubServiceFactory(service=service, is_fixed_price=False)
-        TechnicianSkillFactory(
-            technician=tech, sub_service=sub,
-            labor_rate=decimal.Decimal('1200.00'),
-        )
-
-        with pytest.raises(PriceMismatchError) as exc:
-            create_instant_booking(
-                customer_user=profile.user,
-                technician_id=tech.id, address_id=address.id,
-                service_id=service.id, sub_service_id=sub.id,
-                scheduled_start=_pkt(10), scheduled_end=_pkt(11),
-                price_amount=decimal.Decimal('1199.00'),
-            )
-        assert exc.value.expected == decimal.Decimal('1200.00')
 
     def test_nonexistent_service_id_rejects_as_inconsistent(self, lahore_tech_and_address):
         tech, profile, address = lahore_tech_and_address
@@ -535,22 +494,8 @@ class TestWritePathRejections:
                 technician_id=tech.id, address_id=address.id,
                 service_id=999_999,
                 scheduled_start=_pkt(10), scheduled_end=_pkt(11),
-                price_amount=decimal.Decimal('500.00'),
             )
         assert exc.value.field == 'service_id'
-
-    def test_decimal_normalisation_accepts_500_vs_500_00(self, lahore_tech_and_address):
-        """``"500"`` and ``"500.00"`` must compare equal — normalize both sides."""
-        tech, profile, address = lahore_tech_and_address
-        service = ServiceFactory(base_inspection_fee=decimal.Decimal('500'))
-
-        booking = create_instant_booking(
-            customer_user=profile.user,
-            technician_id=tech.id, address_id=address.id, service_id=service.id,
-            scheduled_start=_pkt(10), scheduled_end=_pkt(11),
-            price_amount=decimal.Decimal('500.00'),
-        )
-        assert booking.pk is not None
 
 
 # ======================================================================
@@ -610,7 +555,6 @@ class TestInstantBookOnCommitDispatch:
                 service_id=ServiceFactory().id,
                 scheduled_start=_pkt(10),
                 scheduled_end=_pkt(11),
-                price_amount=decimal.Decimal('500.00'),
             )
         assert dispatch.call_count == 0
 
@@ -669,6 +613,5 @@ class TestInstantBookOnCommitDispatch:
                 service_id=ServiceFactory().id,
                 scheduled_start=_pkt(10),
                 scheduled_end=_pkt(11),
-                price_amount=decimal.Decimal('500.00'),
             )
         assert dispatch.call_count == 0

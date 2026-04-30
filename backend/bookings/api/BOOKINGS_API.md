@@ -7,7 +7,7 @@
 ## 1. INSTANT BOOKING
 
 ### 1.1 Create Instant Booking
-**Description**: The checkout endpoint. Creates a `CONFIRMED` `JobBooking` after passing the defensive check pipeline: address ownership, technician approval status, catalog consistency, promo firewall, price-amount validation, geofence, and an atomic race-condition lock on the technician's schedule. Called immediately after the customer selects a time slot from the Availability endpoint (`/api/customers/technicians/{id}/availability/`).
+**Description**: The checkout endpoint. Creates a `CONFIRMED` `JobBooking` after passing the defensive check pipeline: address ownership, technician approval status, catalog consistency, promo firewall, geofence, and an atomic race-condition lock on the technician's schedule. The persisted `price_amount` is server-derived from the resolved catalog references — clients never put a price on the wire. Called immediately after the customer selects a time slot from the Availability endpoint (`/api/customers/technicians/{id}/availability/`).
 
 **URL**: `/api/bookings/instant-book/`
 **Method**: `POST`
@@ -26,9 +26,8 @@
 | `promotion_id` | int | No | Active `Promotion` the customer arrived with. Omit unless the customer reached this technician via a promo banner. **Forbidden** with a fixed-price `sub_service_id` (write-side promo firewall). |
 | `scheduled_start` | string (ISO 8601) | **Yes** | Job start time. Must be a timezone-aware datetime (e.g., PKT `+05:00` from the slot's `iso_start` field). |
 | `scheduled_end` | string (ISO 8601) | **Yes** | Job end time. Must be strictly after `scheduled_start`. Pass the slot's `iso_end` field directly. |
-| `price_amount` | string (Decimal) | **Yes** | The agreed price in PKR, as a decimal string (e.g., `"1500.00"`). Server re-validates against the catalog: exact equality for all booking types (fixed gig, labor, inspection). |
 
-**Removed**: `price_context` was previously an ingress field. The server now derives the customer-receipt label from the resolved catalog references; clients should stop sending it.
+**Removed**: `price_context` and `price_amount` were previously ingress fields. The server now derives both the customer-receipt label and the persisted figure from the resolved catalog references + the technician's skill row; clients should stop sending either.
 
 **Flutter integration note**: `scheduled_start` and `scheduled_end` should be taken directly from the `iso_start` / `iso_end` fields returned by the Availability endpoint — no timezone conversion needed. `service_id` / `sub_service_id` / `promotion_id` are the same query params Flutter already passes to `/profile/{id}/` and `/availability/{id}/` — thread them through into the booking POST body.
 
@@ -39,8 +38,7 @@
   "address_id": 7,
   "service_id": 3,
   "scheduled_start": "2026-04-08T10:00:00+05:00",
-  "scheduled_end": "2026-04-08T11:00:00+05:00",
-  "price_amount": "500.00"
+  "scheduled_end": "2026-04-08T11:00:00+05:00"
 }
 ```
 
@@ -52,8 +50,7 @@
   "service_id": 3,
   "sub_service_id": 17,
   "scheduled_start": "2026-04-08T10:00:00+05:00",
-  "scheduled_end": "2026-04-08T11:00:00+05:00",
-  "price_amount": "1500.00"
+  "scheduled_end": "2026-04-08T11:00:00+05:00"
 }
 ```
 
@@ -65,8 +62,7 @@
   "service_id": 3,
   "promotion_id": 9,
   "scheduled_start": "2026-04-08T10:00:00+05:00",
-  "scheduled_end": "2026-04-08T11:00:00+05:00",
-  "price_amount": "500.00"
+  "scheduled_end": "2026-04-08T11:00:00+05:00"
 }
 ```
 
@@ -95,11 +91,12 @@ The service runs these checks in strict order. The first failure short-circuits 
 | 2 | **Technician Status** | `TechnicianProfile.objects.filter(status='APPROVED').get(pk=technician_id)` | 404 `not_found` |
 | 3 | **Catalog Consistency** | `service`/`sub_service`/`promotion` resolve, `sub_service.service == service`, `promotion.target_service == service` | 400 `validation_error` |
 | 4 | **Promo Firewall** | If `sub_service.is_fixed_price=True`, reject any `promotion_id` | 400 `validation_error` |
-| 5 | **Price Validation** | `price_amount` matches the catalog/skill-derived figure exactly (fixed-gig: `sub_service.base_price`; labor: `TechnicianSkill.labor_rate` or sub-service fallback; inspection: `service.base_inspection_fee`) | 400 `validation_error` |
-| 6 | **Geofence** | Haversine distance ≤ `tech.max_travel_radius_km` | 400 `out_of_service_area` |
-| 7 | **Slot Race Lock** | `transaction.atomic()` + `select_for_update()` + overlap query | 409 `slot_unavailable` |
+| 5 | **Geofence** | Haversine distance ≤ `tech.max_travel_radius_km` | 400 `out_of_service_area` |
+| 6 | **Slot Race Lock** | `transaction.atomic()` + `select_for_update()` + overlap query | 409 `slot_unavailable` |
 
-**Why this order?** Address check is cheapest (single indexed lookup). Technician fetch is next. Catalog/promo/price checks come before geofence because they're pure-Python comparisons against already-loaded rows. The DB lock is last because acquiring it is the most expensive operation.
+After step 4 the resolver derives the persisted `price_amount` deterministically (fixed-gig: `sub_service.base_price`; labor: `TechnicianSkill.labor_rate` or sub-service fallback; inspection: `service.base_inspection_fee`). The figure is stamped onto the row at creation — there's no separate validation step because no client value exists to validate.
+
+**Why this order?** Address check is cheapest (single indexed lookup). Technician fetch is next. Catalog/promo checks come before geofence because they're pure-Python comparisons against already-loaded rows. The DB lock is last because acquiring it is the most expensive operation.
 
 #### Geofence Detail
 - Distance is calculated using the **Haversine formula** (great-circle distance).
@@ -205,20 +202,6 @@ All errors follow the standard envelope contract.
   }
 }
 ```
-
-**400 — Price Mismatch** *(`price_amount` doesn't match the catalog figure derived from `service` / `sub_service` / `technician_skill`)*
-```json
-{
-  "status": 400,
-  "code": "validation_error",
-  "message": "price_amount does not match the catalog figure.",
-  "errors": {
-    "price_amount": ["Expected 500.00, received 1.00."]
-  }
-}
-```
-
-All booking types report the expected figure verbatim: `Expected 1000.00, received 999.00.`
 
 ---
 
@@ -351,7 +334,7 @@ Cross-reference: realtime envelope + `EventDispatchService` semantics live in [`
 
 This section documents the cross-stack contract for the catalog-FK rollout. §2.1 and §2.2 describe behavior live on the Flutter checkout. §2.3–§2.6 describe technician-side work still pending — the on-site `bookingType` routing and `JobNewRequestPayload` model. Out of scope: any rename of `SystemEventNotifier`, any second WebSocket connection, any client-originated stream ingress (the realtime split owns those — see `REALTIME_STREAMS_PATCH_SUMMARY.md`).
 
-### 2.1 Checkout request body — three new fields, one removed
+### 2.1 Checkout request body — three new fields, two removed
 
 The Flutter checkout screen builds the `POST /api/bookings/instant-book/` body as follows:
 
@@ -359,20 +342,20 @@ The Flutter checkout screen builds the `POST /api/bookings/instant-book/` body a
 - **`sub_service_id` (optional).** Sent when the customer reached this technician via a fixed-price gig tile (Scenario A) or a search-bar match against a specific sub-service (Scenario B). Omitted for parent-category clicks (Scenario C) and bare promo-banner clicks (Scenario D).
 - **`promotion_id` (optional).** Sent only when the customer arrived via a promo banner. Never paired with a fixed-price `sub_service_id` — the server rejects that combination (write-side promo firewall), and Flutter blocks it client-side too via an assertion in `InstantBookingNotifier.book` to avoid a wasted round trip.
 - **`price_context` is no longer sent.** The server derives the customer-receipt label (`"Inspection Fee"` / `"Fixed Price"` / `"Labor Fee"`) from the resolved catalog references. Flutter still reads `JobBooking.price_context` from any persisted booking response.
+- **`price_amount` is no longer sent.** The server derives the figure from the resolved catalog references + the technician's skill row and stamps it onto the booking. Flutter still renders `TechnicianProfileEntity.primaryPrice` on the review sheet for the customer to confirm — that value comes from the same resolver, so display and persistence stay in sync.
 
 The IDs Flutter sends are the ones the customer's discovery URL carried — never user-typed at the checkout screen. If the discovery context is lost (e.g., deep link with no IDs), Flutter defaults to category-only Scenario C: `service_id` derived from the technician's primary skill or a UI-level service picker.
 
-### 2.2 Checkout error handling — three new error envelopes
+### 2.2 Checkout error handling — two field-keyed validation errors
 
-All three return HTTP 400 with `code: "validation_error"`. Flutter maps the field-level keys to user-facing toasts via this dictionary (server text is diagnostic-friendly, not user-friendly — Flutter never displays it raw):
+Both return HTTP 400 with `code: "validation_error"`. Flutter maps the field-level keys to user-facing toasts via this dictionary (server text is diagnostic-friendly, not user-friendly — Flutter never displays it raw):
 
 | Error envelope `errors` key | Likely cause | Toast Flutter shows |
 | :--- | :--- | :--- |
 | `{ "sub_service_id": [...] }` | Stale Flutter cache: the discovery context combined a sub-service with the wrong parent service. | "This gig is no longer available. Refresh and try again." → pop back to discovery. |
 | `{ "promotion_id": [...] }` (firewall) | Customer somehow has a promo applied to a fixed-price gig. | "This gig already has a fixed price — promotions don't apply." → pop back to gig screen with promo cleared. |
-| `{ "price_amount": [...] }` (mismatch) | Price drifted between when the customer saw the figure and when they pressed Book — typically a stale cached technician rate. | "Pricing has updated. Please refresh and confirm again." → re-fetch profile/availability and retry. |
 
-Implementation lives in `frontend/lib/features/booking/presentation/widgets/review_booking_sheet.dart` (`_resolveErrorPresentation`).
+Implementation lives in `frontend/lib/features/booking/presentation/widgets/review_booking_sheet.dart` (`_resolveErrorPresentation`). The previous `price_amount` mismatch envelope was retired alongside the field itself — the server is now end-to-end authoritative on the figure, so a mismatch is impossible.
 
 ### 2.3 Technician job-card model — two new fields
 

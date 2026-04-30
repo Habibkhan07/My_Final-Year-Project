@@ -52,6 +52,9 @@ abstract class IBookingRepository {
   /// Pairing [promotionId] with a fixed-price [subServiceId] is rejected by the
   /// server's promo firewall — callers should block that combo locally too.
   ///
+  /// The persisted price is derived server-side from the resolved catalog
+  /// references — no client-side price reaches the wire.
+  ///
   /// Throws [BookingFailure] on any failure. The caller is responsible for
   /// caching [CreatedBookingEntity.bookingId] in Tier 3 for crash recovery.
   Future<CreatedBookingEntity> createInstantBooking({
@@ -62,7 +65,6 @@ abstract class IBookingRepository {
     int? promotionId,
     required String scheduledStart,
     required String scheduledEnd,
-    required String priceAmount,
   });
 
 }

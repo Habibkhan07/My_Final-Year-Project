@@ -137,7 +137,6 @@ void main() {
         subServiceId: 17,
         scheduledStart: '2026-04-07T10:00:00+05:00',
         scheduledEnd: '2026-04-07T11:00:00+05:00',
-        priceAmount: '1500.00',
       );
 
       expect(result, isA<CreatedBookingEntity>());
@@ -159,7 +158,6 @@ void main() {
         promotionId: 9,
         scheduledStart: '2026-04-08T10:00:00+05:00',
         scheduledEnd: '2026-04-08T11:00:00+05:00',
-        priceAmount: '500.00',
       );
 
       expect(captured, isNotNull);
@@ -195,7 +193,6 @@ void main() {
           serviceId: 3,
           scheduledStart: '2026-04-07T10:00:00+05:00',
           scheduledEnd: '2026-04-07T11:00:00+05:00',
-          priceAmount: '1500.00',
         );
 
     test('SocketException → BookingNetworkFailure', () {
@@ -295,20 +292,6 @@ void main() {
         callBooking,
         throwsA(isA<BookingValidationFailure>()
             .having((e) => e.errors?.keys, 'errors keys', contains('promotion_id'))),
-      );
-    });
-
-    test('validation_error with price_amount → BookingValidationFailure (mismatch)', () {
-      stubBookingThrows(HttpFailure(
-        statusCode: 400,
-        code: 'validation_error',
-        message: 'price_amount does not match the catalog figure.',
-        errors: {'price_amount': ['Expected 500.00, received 1.00.']},
-      ));
-      expect(
-        callBooking,
-        throwsA(isA<BookingValidationFailure>()
-            .having((e) => e.errors?.keys, 'errors keys', contains('price_amount'))),
       );
     });
 

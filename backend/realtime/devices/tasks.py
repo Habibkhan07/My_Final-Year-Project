@@ -45,7 +45,7 @@ def _build_notification_body(event_type: str, payload: dict[str, Any]) -> str:
     if event_type == "chat_message":
         sender = inner.get("sender_name") or "Someone"
         return f"{sender} sent you a new message"
-    if event_type == "job_dispatched":
+    if event_type == "job_new_request":
         return "A new job is available near you"
     if event_type == "job_accepted":
         tech = inner.get("technician_name") or "A technician"

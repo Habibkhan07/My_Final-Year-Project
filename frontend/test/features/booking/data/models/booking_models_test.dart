@@ -114,11 +114,12 @@ void main() {
   //
   // Four scenarios per BOOKINGS_API.md §1.1 / §2.1. The optional FK fields
   // (sub_service_id, promotion_id) must be omitted from the wire when null,
-  // not serialized as `null`. price_context is no longer on the request body.
+  // not serialized as `null`. Neither price_context nor price_amount belong
+  // on the request body — both are server-derived from the catalog FKs.
   // ---------------------------------------------------------------------------
   group('InstantBookingRequestModel', () {
     test('Scenario A — fixed-price gig: includes service_id + sub_service_id, '
-        'omits promotion_id and price_context', () {
+        'omits promotion_id, price_context, price_amount', () {
       const model = InstantBookingRequestModel(
         technicianId: 42,
         addressId: 7,
@@ -126,7 +127,6 @@ void main() {
         subServiceId: 17,
         scheduledStart: '2026-04-08T10:00:00+05:00',
         scheduledEnd: '2026-04-08T11:00:00+05:00',
-        priceAmount: '1500.00',
       );
       final json = model.toJson();
       expect(json['technician_id'], 42);
@@ -135,13 +135,12 @@ void main() {
       expect(json['sub_service_id'], 17);
       expect(json['scheduled_start'], '2026-04-08T10:00:00+05:00');
       expect(json['scheduled_end'], '2026-04-08T11:00:00+05:00');
-      expect(json['price_amount'], '1500.00');
       expect(json.containsKey('promotion_id'), isFalse);
       expect(json.containsKey('price_context'), isFalse);
+      expect(json.containsKey('price_amount'), isFalse);
     });
 
-    test('Scenario B — labor gig from search: same shape as A, '
-        'price_amount equals the technician labor_rate', () {
+    test('Scenario B — labor gig from search: same shape as A', () {
       const model = InstantBookingRequestModel(
         technicianId: 42,
         addressId: 7,
@@ -149,13 +148,13 @@ void main() {
         subServiceId: 17,
         scheduledStart: '2026-04-08T10:00:00+05:00',
         scheduledEnd: '2026-04-08T11:00:00+05:00',
-        priceAmount: '1200.00',
       );
       final json = model.toJson();
       expect(json['service_id'], 3);
       expect(json['sub_service_id'], 17);
       expect(json.containsKey('promotion_id'), isFalse);
       expect(json.containsKey('price_context'), isFalse);
+      expect(json.containsKey('price_amount'), isFalse);
     });
 
     test('Scenario C — inspection / parent-category: omits sub_service_id '
@@ -166,13 +165,13 @@ void main() {
         serviceId: 3,
         scheduledStart: '2026-04-08T10:00:00+05:00',
         scheduledEnd: '2026-04-08T11:00:00+05:00',
-        priceAmount: '500.00',
       );
       final json = model.toJson();
       expect(json['service_id'], 3);
       expect(json.containsKey('sub_service_id'), isFalse);
       expect(json.containsKey('promotion_id'), isFalse);
       expect(json.containsKey('price_context'), isFalse);
+      expect(json.containsKey('price_amount'), isFalse);
     });
 
     test('Scenario D — promo on parent service: includes promotion_id, '
@@ -184,13 +183,13 @@ void main() {
         promotionId: 9,
         scheduledStart: '2026-04-08T10:00:00+05:00',
         scheduledEnd: '2026-04-08T11:00:00+05:00',
-        priceAmount: '500.00',
       );
       final json = model.toJson();
       expect(json['service_id'], 3);
       expect(json['promotion_id'], 9);
       expect(json.containsKey('sub_service_id'), isFalse);
       expect(json.containsKey('price_context'), isFalse);
+      expect(json.containsKey('price_amount'), isFalse);
     });
   });
 

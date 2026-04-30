@@ -17,7 +17,10 @@ from typing import TypedDict
 
 
 class EventType(str, Enum):
-    JOB_DISPATCHED = "job_dispatched"
+    # Renamed from JOB_DISPATCHED → JOB_NEW_REQUEST so the wire string matches
+    # the Flutter WsFrameDispatcher key. Bookings broadcast this when a customer
+    # finalizes an instant booking — see bookings/services/job_request_dispatch.py.
+    JOB_NEW_REQUEST = "job_new_request"
     JOB_ACCEPTED = "job_accepted"
     QUOTE_GENERATED = "quote_generated"
     QUOTE_APPROVED = "quote_approved"
@@ -37,7 +40,7 @@ class EventMeta(TypedDict):
 
 
 EVENT_REGISTRY: dict[EventType, EventMeta] = {
-    EventType.JOB_DISPATCHED:     {"is_critical": True,  "display_name": "New Job Available"},
+    EventType.JOB_NEW_REQUEST:    {"is_critical": True,  "display_name": "New Job Available"},
     EventType.JOB_ACCEPTED:       {"is_critical": True,  "display_name": "Job Accepted"},
     EventType.QUOTE_GENERATED:    {"is_critical": True,  "display_name": "New Quote Ready"},
     EventType.QUOTE_APPROVED:     {"is_critical": True,  "display_name": "Quote Approved"},

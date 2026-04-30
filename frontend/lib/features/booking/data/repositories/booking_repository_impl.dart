@@ -76,7 +76,6 @@ class BookingRepositoryImpl implements IBookingRepository {
     int? promotionId,
     required String scheduledStart,
     required String scheduledEnd,
-    required String priceAmount,
   }) async {
     try {
       final request = InstantBookingRequestModel(
@@ -87,7 +86,6 @@ class BookingRepositoryImpl implements IBookingRepository {
         promotionId: promotionId,
         scheduledStart: scheduledStart,
         scheduledEnd: scheduledEnd,
-        priceAmount: priceAmount,
       );
       final response = await remoteDataSource.createInstantBooking(request);
       return response.toEntity();

@@ -20,7 +20,6 @@ class CreateInstantBookingUseCase {
     int? promotionId,
     required String scheduledStart,
     required String scheduledEnd,
-    required String priceAmount,
   }) {
     return repository.createInstantBooking(
       technicianId: technicianId,
@@ -30,7 +29,6 @@ class CreateInstantBookingUseCase {
       promotionId: promotionId,
       scheduledStart: scheduledStart,
       scheduledEnd: scheduledEnd,
-      priceAmount: priceAmount,
     );
   }
 }

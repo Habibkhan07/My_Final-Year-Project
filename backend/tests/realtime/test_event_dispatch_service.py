@@ -87,7 +87,7 @@ def test_broadcast_event_swallows_celery_broker_failure(mocker):
     envelope = EventDispatchService.broadcast_event(
         user=user,
         target_role="technician",
-        event_type="job_dispatched",
+        event_type="job_new_request",
         payload={},
     )
     assert EventLog.objects.filter(id=envelope["id"]).exists()
@@ -102,7 +102,7 @@ def test_broadcast_to_multiple_fans_out(mocker):
     envelopes = EventDispatchService.broadcast_to_multiple(
         users=users,
         target_role="technician",
-        event_type="job_dispatched",
+        event_type="job_new_request",
         payload={"job_id": "fanout-1"},
     )
 

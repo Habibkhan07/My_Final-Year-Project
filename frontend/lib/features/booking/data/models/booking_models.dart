@@ -142,6 +142,10 @@ abstract class AvailabilitySlotModel with _$AvailabilitySlotModel {
 /// `includeIfNull: false` keeps optional FKs (`sub_service_id`, `promotion_id`)
 /// off the wire when null, matching the backend's four-scenario contract
 /// (Scenario A/B/C/D in BOOKINGS_API.md).
+///
+/// `price_amount` is no longer on the wire — the server derives the figure
+/// from the resolved catalog references + technician skill row and stamps
+/// it onto the booking.
 @freezed
 abstract class InstantBookingRequestModel with _$InstantBookingRequestModel {
   const factory InstantBookingRequestModel({
@@ -166,9 +170,6 @@ abstract class InstantBookingRequestModel with _$InstantBookingRequestModel {
 
     /// Pass [AvailabilitySlotEntity.isoEnd] directly — no conversion.
     @JsonKey(name: 'scheduled_end') required String scheduledEnd,
-
-    /// Decimal string e.g. "1500.00" — backend validates as DecimalField.
-    @JsonKey(name: 'price_amount') required String priceAmount,
   }) = _InstantBookingRequestModel;
 
   factory InstantBookingRequestModel.fromJson(Map<String, dynamic> json) =>

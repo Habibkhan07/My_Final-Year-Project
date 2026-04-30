@@ -4,7 +4,7 @@ bookings/api/instant_book/views.py
 
 Coverage:
   - 401 when unauthenticated
-  - 400 for each missing required field (technician_id, address_id, scheduled_start, scheduled_end, price_amount)
+  - 400 for each missing required field (technician_id, address_id, scheduled_start, scheduled_end, service_id)
   - 400 for malformed datetime
   - 400 for scheduled_end <= scheduled_start
   - 400 envelope structure matches contract (status, code, message, errors)
@@ -15,6 +15,7 @@ Coverage:
   - 409 slot_unavailable when a conflicting booking already exists
   - 201 happy path: response body is {"booking_id": <int>}
   - 201 verifies booking exists in DB with status CONFIRMED
+  - 201 verifies persisted price_amount is the server-derived figure (no client value on the wire)
 """
 import datetime
 import decimal
@@ -44,9 +45,9 @@ def _pkt_iso(h: int, m: int = 0) -> str:
 
 def _make_payload(tech, address, start_h=10, end_h=11, service=None):
     """
-    Default payload: an inspection-fee booking (Scenario C). ``price_amount``
-    matches the supplied service's ``base_inspection_fee`` so the write-path
-    price check passes.
+    Default payload: an inspection-fee booking (Scenario C). The server
+    derives ``price_amount`` from the resolved catalog references, so the
+    payload doesn't carry a price field at all.
     """
     if service is None:
         service = ServiceFactory(base_inspection_fee=decimal.Decimal('500.00'))
@@ -56,7 +57,6 @@ def _make_payload(tech, address, start_h=10, end_h=11, service=None):
         'service_id': service.id,
         'scheduled_start': _pkt_iso(start_h),
         'scheduled_end': _pkt_iso(end_h),
-        'price_amount': str(service.base_inspection_fee),
     }
 
 
@@ -127,18 +127,6 @@ class TestInstantBookView:
         response = self.client.post(URL, payload, format='json')
         assert response.status_code == 400
         assert 'scheduled_end' in response.json()['errors']
-
-    def test_400_missing_price_amount(self):
-        profile = CustomerProfileFactory()
-        self._auth(profile.user)
-        address = CustomerAddressFactory(customer=profile)
-        tech = TechnicianProfileFactory(status='APPROVED', base_latitude=31.5204, base_longitude=74.3587)
-        payload = _make_payload(tech, address)
-        del payload['price_amount']
-
-        response = self.client.post(URL, payload, format='json')
-        assert response.status_code == 400
-        assert 'price_amount' in response.json()['errors']
 
     def test_400_missing_service_id(self):
         profile = CustomerProfileFactory()
@@ -217,7 +205,6 @@ class TestInstantBookView:
             'service_id': ServiceFactory().id,
             'scheduled_start': _pkt_iso(10),
             'scheduled_end': _pkt_iso(11),
-            'price_amount': '500.00',
         }
         response = self.client.post(URL, payload, format='json')
         assert response.status_code == 400
@@ -243,7 +230,6 @@ class TestInstantBookView:
             'service_id': ServiceFactory().id,
             'scheduled_start': _pkt_iso(10),
             'scheduled_end': _pkt_iso(11),
-            'price_amount': '500.00',
         }
         response = self.client.post(URL, payload, format='json')
         assert response.status_code == 400
@@ -284,7 +270,6 @@ class TestInstantBookView:
             'service_id': ServiceFactory().id,
             'scheduled_start': _pkt_iso(10),
             'scheduled_end': _pkt_iso(11),
-            'price_amount': '500.00',
         }
         response = self.client.post(URL, payload, format='json')
         assert response.status_code == 404
@@ -410,7 +395,6 @@ class TestInstantBookView:
         payload = _make_payload(tech, address, service=service)
         payload['sub_service_id'] = sub.id
         payload['promotion_id'] = promo.id
-        payload['price_amount'] = '1500.00'
 
         response = self.client.post(URL, payload, format='json')
         assert response.status_code == 400
@@ -418,20 +402,11 @@ class TestInstantBookView:
         assert data['code'] == 'validation_error'
         assert 'promotion_id' in data['errors']
 
-    def test_400_price_mismatch_below_inspection_fee(self):
-        tech, _, address = self._approved_tech_and_owned_address()
-        service = ServiceFactory(base_inspection_fee=decimal.Decimal('500.00'))
-
-        payload = _make_payload(tech, address, service=service)
-        payload['price_amount'] = '1.00'
-
-        response = self.client.post(URL, payload, format='json')
-        assert response.status_code == 400
-        data = response.json()
-        assert data['code'] == 'validation_error'
-        assert 'price_amount' in data['errors']
-
-    def test_201_labor_gig_exact_rate_succeeds(self):
+    def test_201_labor_gig_persists_skill_rate(self):
+        """
+        The persisted ``price_amount`` is the technician's labor_rate, not
+        anything the client sent. No price field is on the wire.
+        """
         tech, _, address = self._approved_tech_and_owned_address()
         service = ServiceFactory()
         sub = SubServiceFactory(service=service, is_fixed_price=False)
@@ -442,13 +417,13 @@ class TestInstantBookView:
 
         payload = _make_payload(tech, address, service=service)
         payload['sub_service_id'] = sub.id
-        payload['price_amount'] = '1200.00'  # must match labor_rate exactly
 
         response = self.client.post(URL, payload, format='json')
         assert response.status_code == 201
 
         booking = JobBooking.objects.get(pk=response.json()['booking_id'])
         assert booking.sub_service == sub
+        assert booking.price_amount == decimal.Decimal('1200.00')
         assert booking.price_context == 'Labor Fee'
 
     # ------------------------------------------------------------------
@@ -590,7 +565,6 @@ class TestInstantBookViewDispatchSideEffect:
             'service_id': ServiceFactory().id,
             'scheduled_start': _pkt_iso(10),
             'scheduled_end': _pkt_iso(11),
-            'price_amount': '500.00',
         }
         response = self.client.post(URL, payload, format='json')
         assert response.status_code == 404

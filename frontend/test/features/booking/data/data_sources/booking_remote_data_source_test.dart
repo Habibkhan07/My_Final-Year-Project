@@ -243,7 +243,6 @@ void main() {
       subServiceId: 17,
       scheduledStart: '2026-04-07T10:00:00+05:00',
       scheduledEnd: '2026-04-07T11:00:00+05:00',
-      priceAmount: '1500.00',
     );
     const tResponseJson = {'booking_id': 123};
 
@@ -300,7 +299,7 @@ void main() {
       expect(decoded['technician_id'], 42);
       expect(decoded['address_id'], 7);
       expect(decoded['scheduled_start'], '2026-04-07T10:00:00+05:00');
-      expect(decoded['price_amount'], '1500.00');
+      expect(decoded.containsKey('price_amount'), isFalse);
     });
 
     test('400 validation_error throws HttpFailure with correct code', () async {

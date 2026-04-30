@@ -47,7 +47,6 @@ void main() {
           promotionId: any(named: 'promotionId'),
           scheduledStart: any(named: 'scheduledStart'),
           scheduledEnd: any(named: 'scheduledEnd'),
-          priceAmount: any(named: 'priceAmount'),
         )).thenAnswer((_) async => tEntity);
   }
 
@@ -60,7 +59,6 @@ void main() {
           promotionId: any(named: 'promotionId'),
           scheduledStart: any(named: 'scheduledStart'),
           scheduledEnd: any(named: 'scheduledEnd'),
-          priceAmount: any(named: 'priceAmount'),
         )).thenThrow(failure);
   }
 
@@ -71,7 +69,6 @@ void main() {
             serviceId: 3,
             scheduledStart: '2026-04-07T10:00:00+05:00',
             scheduledEnd: '2026-04-07T11:00:00+05:00',
-            priceAmount: '1500.00',
           );
 
   // ---------------------------------------------------------------------------
@@ -176,7 +173,6 @@ void main() {
             promotionId: 9,
             scheduledStart: '2026-04-08T10:00:00+05:00',
             scheduledEnd: '2026-04-08T11:00:00+05:00',
-            priceAmount: '1500.00',
           ),
       throwsA(isA<AssertionError>()),
     );

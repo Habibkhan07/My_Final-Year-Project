@@ -186,14 +186,5 @@ void main() {
           find.text("This gig already has a fixed price — promotions don't apply."),
           findsOneWidget);
     });
-
-    testWidgets('price_amount key → "Pricing has updated" toast', (tester) async {
-      await pumpWithValidationError(tester, {
-        'price_amount': ['Expected 500.00, received 1.00.'],
-      });
-
-      expect(find.text('Pricing has updated. Please refresh and confirm again.'),
-          findsOneWidget);
-    });
   });
 }

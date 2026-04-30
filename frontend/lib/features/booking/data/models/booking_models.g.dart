@@ -111,7 +111,6 @@ _InstantBookingRequestModel _$InstantBookingRequestModelFromJson(
   promotionId: (json['promotion_id'] as num?)?.toInt(),
   scheduledStart: json['scheduled_start'] as String,
   scheduledEnd: json['scheduled_end'] as String,
-  priceAmount: json['price_amount'] as String,
 );
 
 Map<String, dynamic> _$InstantBookingRequestModelToJson(
@@ -124,7 +123,6 @@ Map<String, dynamic> _$InstantBookingRequestModelToJson(
   'promotion_id': ?instance.promotionId,
   'scheduled_start': instance.scheduledStart,
   'scheduled_end': instance.scheduledEnd,
-  'price_amount': instance.priceAmount,
 };
 
 _InstantBookingResponseModel _$InstantBookingResponseModelFromJson(

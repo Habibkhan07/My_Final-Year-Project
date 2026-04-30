@@ -8,7 +8,6 @@ from bookings.exceptions import (
     InconsistentBookingIntentError,
     InvalidAddressError,
     OutOfServiceAreaError,
-    PriceMismatchError,
     PromoFirewallError,
     SlotUnavailableError,
 )
@@ -120,18 +119,6 @@ class InstantBookView(APIView):
                             'Discount stacking is not allowed on fixed-price sub-services.'
                         ],
                     },
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        except PriceMismatchError as exc:
-            detail = f'Expected {exc.expected}, received {exc.actual}.'
-            return Response(
-                {
-                    'status': 400,
-                    'code': 'validation_error',
-                    'message': 'price_amount does not match the catalog figure.',
-                    'errors': {'price_amount': [detail]},
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )

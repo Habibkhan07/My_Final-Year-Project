@@ -112,7 +112,6 @@ class ReviewBookingSheet extends ConsumerWidget {
                             promotionId: promotionId,
                             scheduledStart: selectedSlot.isoStart,
                             scheduledEnd: selectedSlot.isoEnd,
-                            priceAmount: technician.primaryPriceRaw,
                           );
                     },
               style: ElevatedButton.styleFrom(
@@ -274,10 +273,10 @@ class ReviewBookingSheet extends ConsumerWidget {
   /// Resolves a [BookingFailure] into a user-friendly toast string and
   /// whether the review sheet should pop afterwards.
   ///
-  /// The three field-keyed validation errors are translated via the dictionary
+  /// The two field-keyed validation errors are translated via the dictionary
   /// in BOOKINGS_API.md §2.2 — the server returns diagnostic-friendly text,
   /// not user-friendly text, so we map locally rather than render `error.message`.
-  /// All three pop the sheet so the customer is sent back to discovery to refresh.
+  /// Both pop the sheet so the customer is sent back to discovery to refresh.
   (String message, bool popSheet) _resolveErrorPresentation(BookingFailure error) {
     if (error is BookingValidationFailure) {
       final keys = error.errors?.keys.toSet() ?? const <String>{};
@@ -286,9 +285,6 @@ class ReviewBookingSheet extends ConsumerWidget {
       }
       if (keys.contains('promotion_id')) {
         return ("This gig already has a fixed price — promotions don't apply.", true);
-      }
-      if (keys.contains('price_amount')) {
-        return ('Pricing has updated. Please refresh and confirm again.', true);
       }
     }
     if (error is BookingSlotUnavailableFailure) {

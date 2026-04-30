@@ -27,7 +27,6 @@ void main() {
           promotionId: any(named: 'promotionId'),
           scheduledStart: any(named: 'scheduledStart'),
           scheduledEnd: any(named: 'scheduledEnd'),
-          priceAmount: any(named: 'priceAmount'),
         )).thenAnswer((_) async => tEntity);
   }
 
@@ -42,7 +41,6 @@ void main() {
       subServiceId: 17,
       scheduledStart: '2026-04-08T10:00:00+05:00',
       scheduledEnd: '2026-04-08T11:00:00+05:00',
-      priceAmount: '1500.00',
     );
 
     expect(result, tEntity);
@@ -54,7 +52,6 @@ void main() {
           promotionId: null,
           scheduledStart: '2026-04-08T10:00:00+05:00',
           scheduledEnd: '2026-04-08T11:00:00+05:00',
-          priceAmount: '1500.00',
         )).called(1);
   });
 
@@ -68,7 +65,6 @@ void main() {
       serviceId: 3,
       scheduledStart: '2026-04-08T10:00:00+05:00',
       scheduledEnd: '2026-04-08T11:00:00+05:00',
-      priceAmount: '500.00',
     );
 
     verify(() => mockRepository.createInstantBooking(
@@ -79,7 +75,6 @@ void main() {
           promotionId: null,
           scheduledStart: any(named: 'scheduledStart'),
           scheduledEnd: any(named: 'scheduledEnd'),
-          priceAmount: any(named: 'priceAmount'),
         )).called(1);
   });
 
@@ -94,7 +89,6 @@ void main() {
       promotionId: 9,
       scheduledStart: '2026-04-08T10:00:00+05:00',
       scheduledEnd: '2026-04-08T11:00:00+05:00',
-      priceAmount: '500.00',
     );
 
     verify(() => mockRepository.createInstantBooking(
@@ -105,7 +99,6 @@ void main() {
           promotionId: 9,
           scheduledStart: any(named: 'scheduledStart'),
           scheduledEnd: any(named: 'scheduledEnd'),
-          priceAmount: any(named: 'priceAmount'),
         )).called(1);
   });
 
@@ -118,7 +111,6 @@ void main() {
           promotionId: any(named: 'promotionId'),
           scheduledStart: any(named: 'scheduledStart'),
           scheduledEnd: any(named: 'scheduledEnd'),
-          priceAmount: any(named: 'priceAmount'),
         )).thenThrow(const BookingSlotUnavailableFailure());
 
     expect(
@@ -128,7 +120,6 @@ void main() {
         serviceId: 3,
         scheduledStart: '2026-04-07T10:00:00+05:00',
         scheduledEnd: '2026-04-07T11:00:00+05:00',
-        priceAmount: '1500.00',
       ),
       throwsA(isA<BookingSlotUnavailableFailure>()),
     );

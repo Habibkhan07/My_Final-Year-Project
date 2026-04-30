@@ -1,0 +1,290 @@
+"""
+Tests for bookings/services/job_request_dispatch.py.
+
+Covers the three pure helpers (payout, two-tier timer, ISO formatter) and
+the dispatcher's contract: it builds the right payload — including the
+``booking_type`` discriminator and ``payout_context`` prose used by the
+technician's job card — broadcasts it once via EventDispatchService, and
+arms the SLA scheduler exactly once with the same ``expires_in_seconds``
+it sent on the wire.
+
+EventDispatchService is mocked so tests don't touch Channels / Celery / the
+EventLog. The Port-and-Adapter split lets us pass a fake JobDispatchScheduler
+directly — no Celery broker, no apply_async.
+"""
+from __future__ import annotations
+
+import datetime
+import decimal
+import zoneinfo
+
+import pytest
+
+from bookings.selectors import (
+    BOOKING_TYPE_FIXED_GIG,
+    BOOKING_TYPE_INSPECTION,
+    BOOKING_TYPE_LABOR_GIG,
+)
+from bookings.services import job_request_dispatch as dispatch_module
+from bookings.services.job_request_dispatch import (
+    ASAP_TIMER_SECONDS,
+    SCHEDULED_TIMER_SECONDS,
+    _to_iso_utc,
+    compute_dispatch_timer_seconds,
+    compute_technician_payout,
+    dispatch_job_new_request_event,
+)
+from tests.factories.bookings import JobBookingFactory
+from tests.factories.catalog import ServiceFactory, SubServiceFactory
+from tests.factories.customers import CustomerAddressFactory, CustomerProfileFactory
+from tests.factories.technicians import TechnicianProfileFactory
+
+pytestmark = pytest.mark.django_db
+
+PKT = zoneinfo.ZoneInfo("Asia/Karachi")
+UTC = datetime.timezone.utc
+
+
+class _FakeScheduler:
+    """In-memory JobDispatchScheduler — captures schedule_sla_timeout calls."""
+
+    def __init__(self) -> None:
+        self.calls: list[dict] = []
+
+    def schedule_sla_timeout(self, *, booking_id: int, delay_seconds: int) -> None:
+        self.calls.append({"booking_id": booking_id, "delay_seconds": delay_seconds})
+
+
+# =====================================================================
+# compute_technician_payout
+# =====================================================================
+
+class TestComputeTechnicianPayout:
+
+    def test_returns_string(self):
+        assert isinstance(compute_technician_payout(decimal.Decimal("1500.00")), str)
+
+    def test_simple_value_is_eighty_percent(self):
+        # 1500 × 0.80 = 1200 — the contract example.
+        assert compute_technician_payout(decimal.Decimal("1500.00")) == "1200"
+
+    def test_drops_decimals_via_half_up_rounding(self):
+        # 1234 × 0.80 = 987.20 → "987"
+        assert compute_technician_payout(decimal.Decimal("1234.00")) == "987"
+
+    def test_half_up_rounding_rounds_up_at_exactly_half(self):
+        # 1234.375 × 0.80 = 987.50 → "988" (HALF_UP, not banker's rounding).
+        assert compute_technician_payout(decimal.Decimal("1234.375")) == "988"
+
+    def test_zero_amount(self):
+        assert compute_technician_payout(decimal.Decimal("0.00")) == "0"
+
+    def test_no_float_drift(self):
+        # If the implementation used float, 0.1 + 0.2 errors would compound.
+        # Decimal arithmetic must give the exact answer.
+        assert compute_technician_payout(decimal.Decimal("100.10")) == "80"
+
+
+# =====================================================================
+# compute_dispatch_timer_seconds (two-tier SLA)
+# =====================================================================
+
+class TestComputeDispatchTimerSeconds:
+
+    def test_within_two_hours_is_asap_tier(self):
+        from django.utils import timezone
+        scheduled = timezone.now() + datetime.timedelta(hours=1)
+        assert compute_dispatch_timer_seconds(scheduled) == ASAP_TIMER_SECONDS
+
+    def test_just_over_two_hours_is_scheduled_tier(self):
+        from django.utils import timezone
+        scheduled = timezone.now() + datetime.timedelta(hours=2, minutes=1)
+        assert compute_dispatch_timer_seconds(scheduled) == SCHEDULED_TIMER_SECONDS
+
+    def test_far_future_is_scheduled_tier(self):
+        from django.utils import timezone
+        scheduled = timezone.now() + datetime.timedelta(days=2)
+        assert compute_dispatch_timer_seconds(scheduled) == SCHEDULED_TIMER_SECONDS
+
+    def test_exactly_two_hours_is_asap_tier(self):
+        # delta == 2h exactly — boundary collapses to ASAP (≤ 2h).
+        from django.utils import timezone
+        scheduled = timezone.now() + datetime.timedelta(hours=2)
+        assert compute_dispatch_timer_seconds(scheduled) == ASAP_TIMER_SECONDS
+
+    def test_past_scheduled_start_collapses_to_asap(self):
+        # Defensive: stale slot or clock skew → most-urgent tier, never miss.
+        from django.utils import timezone
+        scheduled = timezone.now() - datetime.timedelta(hours=5)
+        assert compute_dispatch_timer_seconds(scheduled) == ASAP_TIMER_SECONDS
+
+
+# =====================================================================
+# _to_iso_utc
+# =====================================================================
+
+class TestToIsoUtc:
+
+    def test_utc_input_emits_z_suffix(self):
+        dt = datetime.datetime(2026, 4, 8, 5, 0, 0, tzinfo=UTC)
+        assert _to_iso_utc(dt) == "2026-04-08T05:00:00Z"
+
+    def test_pkt_input_is_converted_to_utc(self):
+        # 10:00 PKT == 05:00 UTC (PKT = UTC+5).
+        dt = datetime.datetime(2026, 4, 8, 10, 0, 0, tzinfo=PKT)
+        assert _to_iso_utc(dt) == "2026-04-08T05:00:00Z"
+
+    def test_no_offset_in_output(self):
+        # The Z suffix replaces the +00:00 — never both.
+        dt = datetime.datetime(2026, 4, 8, 5, 0, 0, tzinfo=UTC)
+        out = _to_iso_utc(dt)
+        assert "+00:00" not in out
+        assert out.endswith("Z")
+
+
+# =====================================================================
+# dispatch_job_new_request_event
+# =====================================================================
+
+class TestDispatchJobNewRequestEvent:
+
+    def _build_booking(self, **overrides):
+        tech = TechnicianProfileFactory(status="APPROVED")
+        profile = CustomerProfileFactory()
+        address = CustomerAddressFactory(customer=profile)
+        kwargs = dict(
+            technician=tech,
+            customer=profile.user,
+            address=address,
+            price_amount=decimal.Decimal("1500.00"),
+            price_context="Inspection Fee",
+        )
+        kwargs.update(overrides)
+        return JobBookingFactory(**kwargs)
+
+    def test_calls_broadcast_event_exactly_once(self, mocker):
+        booking = self._build_booking()
+        broadcast = mocker.patch.object(
+            dispatch_module.EventDispatchService, "broadcast_event"
+        )
+        dispatch_job_new_request_event(booking, scheduler=_FakeScheduler())
+        assert broadcast.call_count == 1
+
+    def test_broadcast_targets_the_assigned_technicians_user(self, mocker):
+        booking = self._build_booking()
+        broadcast = mocker.patch.object(
+            dispatch_module.EventDispatchService, "broadcast_event"
+        )
+        dispatch_job_new_request_event(booking, scheduler=_FakeScheduler())
+        kwargs = broadcast.call_args.kwargs
+        assert kwargs["user"] == booking.technician.user
+        assert kwargs["target_role"] == "technician"
+        assert kwargs["event_type"] == "job_new_request"
+
+    def test_payload_shape_matches_contract(self, mocker):
+        # Far-future Scenario-C booking → SCHEDULED_TIMER_SECONDS, INSPECTION.
+        from django.utils import timezone
+        service = ServiceFactory(name="AC Service")
+        booking = self._build_booking(
+            service=service,
+            scheduled_start=timezone.now() + datetime.timedelta(days=1),
+            price_amount=decimal.Decimal("1500.00"),
+        )
+        broadcast = mocker.patch.object(
+            dispatch_module.EventDispatchService, "broadcast_event"
+        )
+        dispatch_job_new_request_event(booking, scheduler=_FakeScheduler())
+
+        payload = broadcast.call_args.kwargs["payload"]
+        assert set(payload.keys()) == {
+            "job_id",
+            "service_name",
+            "booking_type",
+            "scheduled_start_iso",
+            "payout",
+            "payout_context",
+            "expires_in_seconds",
+        }
+        assert payload["job_id"] == booking.id
+        # service_name derived from the parent Service when no sub_service.
+        assert payload["service_name"] == "AC Service"
+        assert payload["booking_type"] == BOOKING_TYPE_INSPECTION
+        assert payload["payout_context"] == "Inspection visit — quote built on-site"
+        assert payload["payout"] == "1200"
+        assert payload["expires_in_seconds"] == SCHEDULED_TIMER_SECONDS
+        # scheduled_start_iso must be UTC, not the source PKT offset.
+        assert payload["scheduled_start_iso"].endswith("Z")
+
+    def test_fixed_gig_payload_uses_subservice_name_and_correct_type(self, mocker):
+        service = ServiceFactory(name="AC Service")
+        sub = SubServiceFactory(
+            service=service, name="AC Deep Wash", is_fixed_price=True,
+        )
+        booking = self._build_booking(service=service, sub_service=sub)
+
+        broadcast = mocker.patch.object(
+            dispatch_module.EventDispatchService, "broadcast_event"
+        )
+        dispatch_job_new_request_event(booking, scheduler=_FakeScheduler())
+        payload = broadcast.call_args.kwargs["payload"]
+
+        # sub_service overrides parent service for the technician's headline.
+        assert payload["service_name"] == "AC Deep Wash"
+        assert payload["booking_type"] == BOOKING_TYPE_FIXED_GIG
+        assert payload["payout_context"] == "Fixed-price gig — full payout"
+
+    def test_labor_gig_payload_uses_subservice_name_and_correct_type(self, mocker):
+        service = ServiceFactory(name="Plumbing")
+        sub = SubServiceFactory(
+            service=service, name="Faucet Repair", is_fixed_price=False,
+        )
+        booking = self._build_booking(service=service, sub_service=sub)
+
+        broadcast = mocker.patch.object(
+            dispatch_module.EventDispatchService, "broadcast_event"
+        )
+        dispatch_job_new_request_event(booking, scheduler=_FakeScheduler())
+        payload = broadcast.call_args.kwargs["payload"]
+
+        assert payload["service_name"] == "Faucet Repair"
+        assert payload["booking_type"] == BOOKING_TYPE_LABOR_GIG
+        assert payload["payout_context"] == "Labor agreed up front"
+
+    def test_arms_scheduler_with_matching_expires_in_seconds(self, mocker):
+        # Arming the SLA timer with a delay that diverges from the value sent
+        # on the wire would desync the technician's countdown UI from the
+        # server-side expiry — assert they are the same integer.
+        from django.utils import timezone
+        booking = self._build_booking(
+            scheduled_start=timezone.now() + datetime.timedelta(minutes=30),
+        )
+        broadcast = mocker.patch.object(
+            dispatch_module.EventDispatchService, "broadcast_event"
+        )
+        scheduler = _FakeScheduler()
+        dispatch_job_new_request_event(booking, scheduler=scheduler)
+
+        wire_value = broadcast.call_args.kwargs["payload"]["expires_in_seconds"]
+        assert len(scheduler.calls) == 1
+        assert scheduler.calls[0]["booking_id"] == booking.id
+        assert scheduler.calls[0]["delay_seconds"] == wire_value
+        assert wire_value == ASAP_TIMER_SECONDS  # within-2h booking
+
+    def test_default_scheduler_resolved_lazily_when_none_passed(self, mocker):
+        # Verify the lazy-import wiring: when no scheduler is injected,
+        # bookings.adapters.get_default_scheduler is called and its result
+        # is the one that gets schedule_sla_timeout invoked on it.
+        booking = self._build_booking()
+        mocker.patch.object(
+            dispatch_module.EventDispatchService, "broadcast_event"
+        )
+        fake = _FakeScheduler()
+        # Patch where it's looked up — the lazy import resolves
+        # bookings.adapters.get_default_scheduler at call time.
+        mocker.patch(
+            "bookings.adapters.get_default_scheduler",
+            return_value=fake,
+        )
+        dispatch_job_new_request_event(booking)  # no scheduler kwarg
+        assert len(fake.calls) == 1
+        assert fake.calls[0]["booking_id"] == booking.id

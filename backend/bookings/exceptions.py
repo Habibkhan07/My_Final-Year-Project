@@ -46,15 +46,3 @@ class PromoFirewallError(Exception):
     sub-service. Discount stacking on fixed gigs is forbidden by product
     rule (mirrors the read-side firewall in the pricing resolver).
     """
-
-
-class PriceMismatchError(Exception):
-    """
-    Raised when ``price_amount`` doesn't match the figure derived from
-    the catalog references + technician skill. Carries the expected and
-    actual values so the caller can describe the gap.
-    """
-    def __init__(self, expected, actual):
-        self.expected = expected
-        self.actual = actual
-        super().__init__(f"Expected {expected}, got {actual}")

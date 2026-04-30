@@ -87,7 +87,7 @@ final class InstantBookingNotifierProvider
 }
 
 String _$instantBookingNotifierHash() =>
-    r'99d4a980b96e0f7ebc0559894dc7e0495179f58e';
+    r'4573086bd8fddd74dd87fdc9f7f4427339b86391';
 
 /// Manages the instant booking creation mutation.
 ///

@@ -47,7 +47,7 @@ def test_stale_tokens_are_marked_inactive(mocker):
 
     envelope = {
         "id": "evt-1",
-        "rawType": "job_dispatched",
+        "rawType": "job_new_request",
         "targetRole": "technician",
         "timestamp": "2026-04-24T00:00:00Z",
         "payload": {"job_id": "j1"},

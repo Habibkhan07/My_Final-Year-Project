@@ -44,7 +44,6 @@ class InstantBookingNotifier extends _$InstantBookingNotifier {
     int? promotionId,
     required String scheduledStart,
     required String scheduledEnd,
-    required String priceAmount,
   }) async {
     assert(
       !(subServiceId != null && promotionId != null),
@@ -62,7 +61,6 @@ class InstantBookingNotifier extends _$InstantBookingNotifier {
             promotionId: promotionId,
             scheduledStart: scheduledStart,
             scheduledEnd: scheduledEnd,
-            priceAmount: priceAmount,
           ),
     );
   }
