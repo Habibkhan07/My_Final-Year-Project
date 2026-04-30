@@ -37,7 +37,7 @@ class EventUrgencyRouter {
   // ─── Route tables ──────────────────────────────────────────────────────
 
   static const _highUrgencyRoutes = <SystemEventType, String>{
-    SystemEventType.jobDispatched: '/technician/incoming-job',
+    SystemEventType.jobNewRequest: '/technician/incoming-job-request',
     SystemEventType.jobAccepted: '/customer/job-accepted',
     SystemEventType.quoteGenerated: '/customer/incoming-quote',
     SystemEventType.quoteApproved: '/technician/quote-approved',
@@ -74,13 +74,23 @@ class EventUrgencyRouter {
   /// entity" for the nav guard. Types not in the map skip the guard and
   /// always push — the guard is an optimization, not a correctness gate.
   static const _navGuardPayloadKeys = <SystemEventType, String>{
-    SystemEventType.jobDispatched: 'job_id',
     SystemEventType.jobAccepted: 'job_id',
     SystemEventType.quoteGenerated: 'quote_id',
     SystemEventType.quoteApproved: 'quote_id',
     SystemEventType.jobCompleted: 'job_id',
     SystemEventType.disputeOpened: 'dispute_id',
     SystemEventType.disputeResolved: 'dispute_id',
+  };
+
+  /// Events whose target route is a **list view** rather than a per-entity
+  /// detail screen. When the screen is already mounted, the router skips the
+  /// push: the screen reacts to new entries via `ref.watch` on its feature's
+  /// queue notifier, so a second push would only stack duplicate screens.
+  ///
+  /// Detail-route events use [_navGuardPayloadKeys] for entity-id matching;
+  /// list-route events bypass that mechanism entirely.
+  static const _listRouteEvents = <SystemEventType>{
+    SystemEventType.jobNewRequest,
   };
 
   // ─── Entry point ───────────────────────────────────────────────────────
@@ -152,6 +162,10 @@ class EventUrgencyRouter {
   ) {
     final currentLocation = GoRouterState.of(ctx).matchedLocation;
     if (!currentLocation.startsWith(targetRoute)) return false;
+
+    // List-route events: a single screen instance handles every entry, so
+    // "already on the route" is sufficient — no per-entity discrimination.
+    if (_listRouteEvents.contains(event.eventType)) return true;
 
     final key = _navGuardPayloadKeys[event.eventType];
     if (key == null) return false; // no guard defined — always push.

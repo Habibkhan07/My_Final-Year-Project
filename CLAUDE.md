@@ -211,6 +211,33 @@ The Service layer MUST NEVER import Celery directly. Use Port and Adapter so the
 - Local cache is UX only, never source of truth for wallet balances or payment status
 - JWT tokens: `flutter_secure_storage` only
 
+### Per-event feature wiring (mandatory for every typed realtime event)
+
+The realtime transport (`lib/core/realtime/`) is generic and audience-agnostic. Each typed event has its own feature-side wiring under the **receiver's** feature directory.
+
+**Architecture rules:**
+- **Audience-first placement**: an event lives under the receiver's feature, not the topic's feature. `job_new_request` → `features/technician/incoming_job_requests/`, not `features/booking/` (which is customer-side checkout). Audience boundaries match UX boundaries; topic boundaries usually don't.
+- **One subscriber per typed event, no central switch on the consumer side**: each event type gets its own `@Riverpod(keepAlive: true)` notifier whose `build()` calls `ref.listen(systemEventProvider, ...)` and filters by `SystemEventType`. Adding a new event = a new notifier in the consuming feature, never an edit to `core/realtime`'s notifier code.
+- **Payload model lives with the consumer, never in core**: the `@freezed` `*PayloadModel` with `fromJson` belongs in the feature's `data/models/`. Putting payload models in `core/realtime/` would invert the dependency graph (core would grow with every new feature event).
+- **Mapper owns backwards-compat defaults**: when the backend adds payload fields mid-rollout, the feature's `data/mappers/` mapper defaults missing fields safely so domain entities are always typed. Backwards-compat policy never lives in widgets.
+- **Type discipline at the mapper boundary**: parse wire-strings to typed domain values (e.g. integer-string `payout` → `int`, ISO-8601 string → `DateTime`) at the mapper. Domain entities expose typed fields; widgets format display. Wire-string preservation is a transport concern, not a domain concern.
+- **List-route vs detail-route distinction**: events that can arrive in bursts (multiple pending at once — incoming job requests, batched chat messages) target a **list-style** screen with no entity id in the URL. Register the event in `EventUrgencyRouter._listRouteEvents` so the nav guard skips push when the screen is already mounted; the screen reacts via its `ref.watch` on the feature's queue notifier. Detail-route events (one-shot per entity — `job_accepted`, `quote_generated`) use `_navGuardPayloadKeys` instead.
+- **Wake-up at app boot is load-bearing**: a `keepAlive: true` queue notifier doesn't subscribe to `systemEventProvider` until first read. If the screen is what reads it, the notifier wakes *after* the event that pushed the screen has already passed `SystemEventNotifier`. `AppLifecycleOrchestrator.bootAfterAuth` must call `ref.read(<feature>QueueProvider)` once on boot for every list-route event feature, **before** the WS connect cascade fires.
+
+**Touch-points in `core/realtime` per new event (one-line edits, expected):**
+- `system_event_type.dart` — add the enum case + rawType lookup entry. Source of truth is the backend wire string.
+- `event_urgency.dart` — add the urgency level (`highUrgency` / `lowUrgency` / `silent`).
+- `event_criticality.dart` — add to `criticalTypes` if the event needs ACK.
+- `event_urgency_router.dart`:
+  - High-urgency: add to `_highUrgencyRoutes`. List-route → also add to `_listRouteEvents`. Detail-route → also add to `_navGuardPayloadKeys`.
+  - Low-urgency: add to `_lowUrgencyTapRoutes`, `_bannerIcons`, `_bannerTitles`, and extend `_bannerBody` with the event's prose key.
+- `app_lifecycle_orchestrator.dart` — one `ref.read(<feature>QueueProvider)` in `bootAfterAuth` for list-route features.
+- `app_router.dart` — register the `GoRoute` for the screen.
+
+**Reference impl**: `frontend/lib/features/technician/incoming_job_requests/`.
+
+---
+
 ### Frontend Testing Rules
 - Test directory mirrors `lib/` exactly (`test/features/auth/domain/` mirrors `lib/features/auth/domain/`)
 - Framework: `flutter_test` + `mocktail` only (no legacy `mockito`)

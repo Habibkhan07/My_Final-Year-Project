@@ -5,7 +5,7 @@ import 'system_event_type.dart';
 /// never be ACK'd or non-critical events will trigger unnecessary ACK calls.
 abstract class EventCriticality {
   static const criticalTypes = <SystemEventType>{
-    SystemEventType.jobDispatched,
+    SystemEventType.jobNewRequest,
     SystemEventType.jobAccepted,
     SystemEventType.quoteGenerated,
     SystemEventType.quoteApproved,

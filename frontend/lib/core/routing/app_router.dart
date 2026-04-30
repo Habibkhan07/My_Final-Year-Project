@@ -14,6 +14,7 @@ import '../../features/technician/onboarding/domain/entities/technician_entity.d
 import '../../features/booking/presentation/screens/technician_profile_screen.dart';
 import '../../features/customer/addresses/presentation/screens/map_picker_screen.dart';
 import '../../features/technician/dashboard/presentation/screens/technician_dashboard_screen.dart';
+import '../../features/technician/incoming_job_requests/presentation/screens/incoming_job_request_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   // Accessing the user through the AsyncValue wrapper
@@ -56,6 +57,14 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/technician/dashboard',
         builder: (context, state) => const TechnicianDashboardScreen(),
+      ),
+      // List-route target for `job_new_request` events. Pushed by
+      // `EventUrgencyRouter` on first arrival; subsequent arrivals stay in
+      // place via the list-route nav guard. The screen reads the queue from
+      // `IncomingJobQueueNotifier` — `state.extra` is intentionally unused.
+      GoRoute(
+        path: '/technician/incoming-job-request',
+        builder: (context, state) => const IncomingJobRequestScreen(),
       ),
       GoRoute(
         path: '/addresses/map-picker',

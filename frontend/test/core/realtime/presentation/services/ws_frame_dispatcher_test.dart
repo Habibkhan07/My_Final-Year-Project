@@ -19,7 +19,7 @@ ProviderContainer _buildContainer(EventLocalDataSource local) {
 
 Map<String, dynamic> _eventFrame({
   String id = 'd-evt-1',
-  String rawType = 'job_dispatched',
+  String rawType = 'job_new_request',
   String targetRole = 'technician',
   String timestamp = '2026-04-25T12:00:00Z',
   Map<String, dynamic> payload = const <String, dynamic>{},
@@ -144,7 +144,7 @@ void main() {
 
     final frameMissingKind = <String, dynamic>{
       'id': 'd-evt-no-kind',
-      'rawType': 'job_dispatched',
+      'rawType': 'job_new_request',
       'targetRole': 'technician',
       'timestamp': '2026-04-25T12:00:00Z',
       'payload': <String, dynamic>{},

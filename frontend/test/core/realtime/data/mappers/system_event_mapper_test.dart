@@ -10,7 +10,7 @@ void main() {
       final json = {
         'kind': 'event',
         'id': '123e4567-e89b-12d3-a456-426614174000',
-        'rawType': 'job_dispatched',
+        'rawType': 'job_new_request',
         'targetRole': 'technician',
         'timestamp': '2023-01-01T12:00:00.000Z',
         'payload': {'key': 'value'},
@@ -28,7 +28,7 @@ void main() {
       // silently enter the event pipeline as ambiguous data.
       final json = {
         'id': '123',
-        'rawType': 'job_dispatched',
+        'rawType': 'job_new_request',
         'targetRole': 'technician',
         'timestamp': '2023-01-01T12:00:00.000Z',
         'payload': <String, dynamic>{},
@@ -41,7 +41,7 @@ void main() {
       final model = const SystemEventModel(
         kind: 'event',
         id: '123',
-        rawType: 'job_dispatched',
+        rawType: 'job_new_request',
         targetRole: 'technician',
         timestamp: '2023-01-01T12:00:00.000Z',
         payload: {'key': 'value'},
@@ -51,8 +51,8 @@ void main() {
 
       expect(entity, isNotNull);
       expect(entity!.id, equals('123'));
-      expect(entity.rawType, equals('job_dispatched'));
-      expect(entity.eventType, equals(SystemEventType.jobDispatched));
+      expect(entity.rawType, equals('job_new_request'));
+      expect(entity.eventType, equals(SystemEventType.jobNewRequest));
       expect(entity.targetRole, equals(TargetRole.technician));
       expect(entity.timestamp, equals(DateTime.parse('2023-01-01T12:00:00.000Z')));
       expect(entity.payload, equals({'key': 'value'}));
@@ -62,7 +62,7 @@ void main() {
       final model = const SystemEventModel(
         kind: 'event',
         id: '123',
-        rawType: 'job_dispatched',
+        rawType: 'job_new_request',
         targetRole: 'technician',
         timestamp: 'not-a-date',
         payload: {},
@@ -94,7 +94,7 @@ void main() {
       final model = const SystemEventModel(
         kind: 'event',
         id: '123',
-        rawType: 'job_dispatched',
+        rawType: 'job_new_request',
         targetRole: 'admin',
         timestamp: '2023-01-01T12:00:00.000Z',
         payload: {},

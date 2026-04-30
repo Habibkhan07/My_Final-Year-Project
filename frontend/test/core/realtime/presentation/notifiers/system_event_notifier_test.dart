@@ -11,7 +11,7 @@ class _MockLocal extends Mock implements EventLocalDataSource {}
 
 SystemEventEntity _entity({
   required String id,
-  String rawType = 'job_dispatched',
+  String rawType = 'job_new_request',
   required DateTime timestamp,
   String role = 'technician',
   Map<String, dynamic> payload = const <String, dynamic>{},
@@ -119,7 +119,7 @@ void main() {
       final t1 = DateTime.utc(2026, 4, 25, 12);
       final t2 = DateTime.utc(2026, 4, 25, 13);
       notifier.processEvent(
-        _entity(id: 'e1', rawType: 'job_dispatched', timestamp: t1),
+        _entity(id: 'e1', rawType: 'job_new_request', timestamp: t1),
       );
 
       final accepted = notifier.processEvent(
@@ -140,7 +140,7 @@ void main() {
       final tNewer = DateTime.utc(2026, 4, 25, 13);
       final tOlder = DateTime.utc(2026, 4, 25, 12);
       notifier.processEvent(
-        _entity(id: 'e1', rawType: 'job_dispatched', timestamp: tNewer),
+        _entity(id: 'e1', rawType: 'job_new_request', timestamp: tNewer),
       );
       final cursorBefore = container.read(systemEventProvider).lastSyncTimestamp;
 
@@ -161,11 +161,11 @@ void main() {
       final t1 = DateTime.utc(2026, 4, 25, 12);
       final t2 = DateTime.utc(2026, 4, 25, 13);
       notifier.processEvent(
-        _entity(id: 'e1', rawType: 'job_dispatched', timestamp: t1),
+        _entity(id: 'e1', rawType: 'job_new_request', timestamp: t1),
       );
 
       final accepted = notifier.processEvent(
-        _entity(id: 'e2', rawType: 'job_dispatched', timestamp: t2),
+        _entity(id: 'e2', rawType: 'job_new_request', timestamp: t2),
       );
 
       final state = container.read(systemEventProvider);
@@ -199,12 +199,12 @@ void main() {
       final tNewer = DateTime.utc(2026, 4, 25, 13);
       final tOlder = DateTime.utc(2026, 4, 25, 12);
       notifier.processEvent(
-        _entity(id: 'e1', rawType: 'job_dispatched', timestamp: tNewer),
+        _entity(id: 'e1', rawType: 'job_new_request', timestamp: tNewer),
       );
       final snapshot = container.read(systemEventProvider);
 
       final accepted = notifier.processEvent(
-        _entity(id: 'e2', rawType: 'job_dispatched', timestamp: tOlder),
+        _entity(id: 'e2', rawType: 'job_new_request', timestamp: tOlder),
       );
 
       final after = container.read(systemEventProvider);
@@ -232,7 +232,7 @@ void main() {
         notifier.processEvent(
           _entity(
             id: 'e$i',
-            rawType: 'job_dispatched',
+            rawType: 'job_new_request',
             timestamp: base.add(Duration(minutes: i)),
           ),
         );
@@ -242,7 +242,7 @@ void main() {
       notifier.processEvent(
         _entity(
           id: 'e101',
-          rawType: 'job_dispatched',
+          rawType: 'job_new_request',
           timestamp: base.add(const Duration(minutes: 101)),
         ),
       );
@@ -271,7 +271,7 @@ void main() {
       final notifier = container.read(systemEventProvider.notifier);
       final ts = DateTime.utc(2026, 4, 25, 12);
       notifier.processEvent(
-        _entity(id: 'e1', rawType: 'job_dispatched', timestamp: ts),
+        _entity(id: 'e1', rawType: 'job_new_request', timestamp: ts),
       );
       final cursorBefore =
           container.read(systemEventProvider).lastSyncTimestamp;
@@ -294,7 +294,7 @@ void main() {
       final tNewer = DateTime.utc(2026, 4, 25, 13);
       final tOlder = DateTime.utc(2026, 4, 25, 12);
       notifier.processEvent(
-        _entity(id: 'e1', rawType: 'job_dispatched', timestamp: tNewer),
+        _entity(id: 'e1', rawType: 'job_new_request', timestamp: tNewer),
       );
 
       notifier.processEvent(

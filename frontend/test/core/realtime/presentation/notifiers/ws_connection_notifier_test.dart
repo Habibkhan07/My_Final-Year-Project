@@ -380,7 +380,7 @@ void main() {
         final frame = jsonEncode(<String, dynamic>{
           'kind': 'event',
           'id': 'evt-w9',
-          'rawType': 'job_dispatched',
+          'rawType': 'job_new_request',
           'targetRole': 'technician',
           'timestamp': '2026-04-25T12:00:00Z',
           'payload': <String, dynamic>{},
@@ -436,7 +436,7 @@ void main() {
         final frame = jsonEncode(<String, dynamic>{
           'kind': 'event',
           'id': 'evt-w11',
-          'rawType': 'job_dispatched',
+          'rawType': 'job_new_request',
           'targetRole': 'technician',
           'timestamp': 'not-a-valid-timestamp',
           'payload': <String, dynamic>{},

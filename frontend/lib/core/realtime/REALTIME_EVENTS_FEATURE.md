@@ -208,8 +208,8 @@ user.
 
 | Scenario | Path |
 | :--- | :--- |
-| Technician gets a new job notification while the app is open. | WS frame → `SystemEventNotifier` → `EventUrgencyRouter` → `/technician/incoming-job` route push. |
-| Technician gets a new job notification while the app is closed. | FCM data message → background isolate writes to `pending_bg_events` → app cold start → `FCMHandler.processPendingBackgroundEvents` drains → router pushes `/technician/incoming-job`. |
+| Technician gets a new job notification while the app is open. | WS frame → `SystemEventNotifier` → `EventUrgencyRouter` → `/technician/incoming-job-request` route push. |
+| Technician gets a new job notification while the app is closed. | FCM data message → background isolate writes to `pending_bg_events` → app cold start → `FCMHandler.processPendingBackgroundEvents` drains → router pushes `/technician/incoming-job-request`. |
 | Customer was offline for an hour, comes back online. | WS reconnect succeeds → `syncMissedEvents` pulls events with `since=<lastSyncTimestamp>` → fed in chronological order → router surfaces each. |
 | A critical event was never ACK'd (network died after push, before ACK POST). | Next reconnect cycle calls `syncUnacknowledgedCritical` → backend replies with the same event → router shows it again → user dismisses → ACK posts successfully. |
 | Customer receives a chat message while browsing. | Low-urgency banner with the sender name; tap routes to `/shared/chat`. |

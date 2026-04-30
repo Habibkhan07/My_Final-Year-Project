@@ -18,7 +18,7 @@ void main() {
     final sampleEvent = SystemEventModel(
       kind: 'event',
       id: '123',
-      rawType: 'job_dispatched',
+      rawType: 'job_new_request',
       targetRole: 'technician',
       timestamp: '2023-01-01T12:00:00.000Z',
       payload: {'key': 'value'},

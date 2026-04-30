@@ -4,15 +4,20 @@ import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-// ─── Sanctioned core → features import ─────────────────────────────────────
+// ─── Sanctioned core → features imports ────────────────────────────────────
 // This file is the *only* place in `lib/core/` that imports from `lib/features/`.
 // The orchestrator is the app composition root: it bridges the realtime event
-// subsystem (core) with the auth feature (features/auth) at the lifecycle
-// layer. Anywhere else in core, this kind of bridging must instead use a
-// callback inversion (see `EventSyncNotifier.onUnauthorized` for the pattern).
-// Do NOT add a second import like this — extend the orchestrator instead.
+// subsystem (core) with feature notifiers at the lifecycle layer. Anywhere
+// else in core, this kind of bridging must instead use a callback inversion
+// (see `EventSyncNotifier.onUnauthorized` for the pattern).
+//
+// Adding a feature import here is permitted only when the orchestrator
+// genuinely needs to drive that feature's lifecycle (e.g. waking a
+// `keepAlive: true` realtime subscriber before the WS connect cascade).
+// Anywhere else in core: callback inversion, not a direct import.
 // ───────────────────────────────────────────────────────────────────────────
 import '../../../features/auth/presentation/providers/auth_notifier.dart';
+import '../../../features/technician/incoming_job_requests/presentation/providers/incoming_job_queue_notifier.dart';
 import '../data/datasources/event_local_data_source.dart';
 import '../domain/entities/system_event_entity.dart';
 import '../domain/entities/target_role.dart';
@@ -112,6 +117,14 @@ class AppLifecycleOrchestrator extends ConsumerStatefulWidget {
     ref.read(eventSyncProvider.notifier).onUnauthorized = () {
       ref.read(authProvider.notifier).logout();
     };
+
+    // Wake list-route event subscribers BEFORE the WS connect cascade fires.
+    // `keepAlive: true` notifiers don't subscribe to `systemEventProvider`
+    // until first read — if the screen is what reads them, the notifier wakes
+    // *after* the event that pushed the screen has already passed
+    // `SystemEventNotifier`. See CLAUDE.md → "Per-event feature wiring".
+    ref.read(incomingJobQueueProvider);
+
     await ref.read(fcmHandlerProvider).initialize();
     await ref.read(wsConnectionProvider.notifier).connect(authToken);
   }

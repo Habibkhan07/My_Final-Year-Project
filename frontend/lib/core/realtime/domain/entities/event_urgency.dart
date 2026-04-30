@@ -6,7 +6,7 @@ enum EventUrgency {
   silent;
 
   static const Map<SystemEventType, EventUrgency> _urgencyMap = {
-    SystemEventType.jobDispatched: EventUrgency.highUrgency,
+    SystemEventType.jobNewRequest: EventUrgency.highUrgency,
     SystemEventType.jobAccepted: EventUrgency.highUrgency,
     SystemEventType.quoteGenerated: EventUrgency.highUrgency,
     SystemEventType.quoteApproved: EventUrgency.highUrgency,

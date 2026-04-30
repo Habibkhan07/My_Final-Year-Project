@@ -19,7 +19,7 @@ class _MockLocal extends Mock implements EventLocalDataSource {}
 
 SystemEventEntity _entity({
   required String id,
-  String rawType = 'job_dispatched',
+  String rawType = 'job_new_request',
   required DateTime timestamp,
   String role = 'technician',
 }) {

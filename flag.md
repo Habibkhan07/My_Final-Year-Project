@@ -89,3 +89,145 @@ Flag #2's scope was "stop using `price_context` as a service identifier." The M2
 5. Commission accounting moves from `JobBooking.price_amount × 0.80` to a per-line-item sum.
 
 When picking this up, the technician's on-site UX is the design-heavy part — the data model is straightforward.
+
+---
+
+## 6. `IncomingJobQueueNotifier` — append-only queue, no expiry sweep
+
+**Where**
+- `frontend/lib/features/technician/incoming_job_requests/presentation/providers/incoming_job_queue_notifier.dart`
+
+**What's wrong**
+The queue notifier is append-only this sprint. Entries are never auto-evicted when `expiresAt` passes, and there is no periodic sweep timer. ASAP-tier requests linger in memory for 60 seconds past their server SLA; scheduled-tier for 15 minutes past. With no UI consuming or dismissing entries (the real card widget hasn't shipped yet), a long-running technician session can accumulate stale entries until app restart. The bound is loose — the dispatch volume is low and `keepAlive: true` survives navigation but not process death — so memory pressure is not realistic, but the in-memory state misrepresents truth: the queue can hold "pending" requests that the server already flipped to `REJECTED` via the SLA timeout Celery task.
+
+**Why we shipped it that way**
+The widget that would naturally drive eviction (accept / decline / dismiss → `removeRequest(jobId)`, already wired) is intentionally deferred to the UI sprint. Adding a sweep timer now without the UI consuming it is premature; the bound is loose enough to be safe in normal use; and the on-disk state of truth is the backend (server-side `JobBooking.status`), so a stale entry in memory is a UX nuisance, not a data-integrity bug.
+
+**The proper fix**
+1. Inside `IncomingJobQueueNotifier.build()`, add a `Timer.periodic(const Duration(seconds: 10), _sweepExpired)` and register `ref.onDispose(timer.cancel)` so the sweep dies with the notifier.
+2. `_sweepExpired` filters `state.queue` by `entry.expiresAt.isAfter(DateTime.now())` and reassigns state only if the resulting list shrank (avoids spurious rebuilds).
+3. Make sure the widget cancels its per-entry countdown UI atomically with the sweep so the technician never sees a card flicker between "5s left" and gone.
+4. Search hint: grep for `removeRequest` to find the existing manual-eviction surface; the sweep helper should sit alongside it.
+
+When picking this up, also evaluate whether the eviction policy should be aggressive (drop the moment `expiresAt` passes) or grace-period (keep showing for ~3s with a visual fade) — either is fine, but the choice should be conscious and documented in `INCOMING_JOB_REQUESTS_FEATURE.md`'s "Known limitations" section.
+
+---
+
+## 7. Realtime stack defined but never mounted in app boot
+
+**Where**
+- `frontend/lib/main.dart` (composition root that needs the wiring)
+- `frontend/lib/features/auth/presentation/providers/auth_notifier.dart` (build / verifyOtp / logout — three integration points)
+- `frontend/lib/core/realtime/presentation/app_lifecycle_orchestrator.dart` (the consumer waiting to be mounted)
+- `frontend/lib/core/routing/app_router.dart` (GoRouter constructor, currently no `navigatorKey`)
+- `frontend/ios/Runner/Info.plist`
+- `frontend/android/app/src/main/AndroidManifest.xml`
+
+**What's wrong**
+The realtime subsystem (`SystemEventNotifier`, `WsConnectionNotifier`, `EventSyncNotifier`, `FCMHandler`, `firebaseMessagingBackgroundHandler`, `EventUrgencyRouter`, and feature-side queue notifiers like `IncomingJobQueueNotifier`) is fully implemented and unit-tested in isolation, but **none of it runs in the production app boot path**. Specifically:
+
+1. **`main.dart` does not call `Firebase.initializeApp()`**. The only place Firebase initializes is the BG isolate inside `firebaseMessagingBackgroundHandler` (`fcm_background_handler.dart:35`). The main isolate never does, so foreground listeners (`FirebaseMessaging.onMessage`, `onMessageOpenedApp`, `getInitialMessage`) and `getToken()` would all crash on first use.
+
+2. **`main.dart` does not register the BG handler**. `FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler)` is never called, so the OS has no Dart-side callback to invoke for FCM messages while the app is terminated. The `event_sync_pending_bg_events` queue stays empty forever; the entire terminated-state delivery path is dead despite the BG handler file existing and being correct.
+
+3. **`AppLifecycleOrchestrator` is never mounted in the widget tree**. `runApp(...)` jumps from `ProviderScope` straight to `MyApp` (`MaterialApp.router`). The orchestrator's `WidgetsBindingObserver` never registers, so `didChangeAppLifecycleState(AppLifecycleState.resumed)` never fires, so `_onResumed` (WS reconcile + sync + BG-queue drain) never runs. The `ref.listenManual(systemEventProvider, ...)` that drives `EventUrgencyRouter` (`app_lifecycle_orchestrator.dart:183-191`) is also never set up — meaning even if events arrived, no one would route them.
+
+4. **`AuthNotifier` does not bridge to `bootAfterAuth` or `teardownOnLogout`**:
+   - `build()` (cold-start session restoration, `auth_notifier.dart:13`) returns the cached user without touching the realtime stack.
+   - `verifyOtp(...)` (fresh login, `auth_notifier.dart:40`) returns `AuthState(user: user)` and stops.
+   - `logout()` (`auth_notifier.dart:97`) calls the repository and clears state; never tears down WS, FCM, pending events, or the unauthorized callback.
+   The orchestrator's docstring (`app_lifecycle_orchestrator.dart:67-76`) explicitly directs the auth feature to call these helpers; that contract is unmet.
+
+5. **`navigatorKey` and `scaffoldMessengerKey` are not constructed or threaded**. `EventUrgencyRouter` requires the same `GlobalKey<NavigatorState>` GoRouter uses (so push routes against the live navigator) and the same `GlobalKey<ScaffoldMessengerState>` `MaterialApp` uses (so banners surface on the visible screen). Currently:
+   - `app_router.dart:18-22` constructs `GoRouter(...)` with no `navigatorKey:` argument.
+   - `main.dart:38-47` constructs `MaterialApp.router(...)` with no `scaffoldMessengerKey:`.
+   Without shared keys, even a wired-up `EventUrgencyRouter` can't push or banner.
+
+6. **iOS push capability is not declared**. `ios/Runner/Info.plist` has no `UIBackgroundModes` array containing `remote-notification`, and there's no evidence the Push Notifications capability is enabled in `Runner.xcodeproj` (Info.plist alone doesn't switch it on — Xcode also needs an entitlement). Without these, iOS will not wake the app for background data messages even if everything else is fixed. APNs auth key upload to Firebase is also out-of-band and presumably not done.
+
+7. **Android `POST_NOTIFICATIONS` permission is missing**. `AndroidManifest.xml:1-7` declares only `ACCESS_FINE_LOCATION` / `ACCESS_COARSE_LOCATION`. Android 13+ (API 33+) requires `<uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>` plus a runtime prompt for the system tray notification to appear at all. `FCMHandler.requestPermission()` calls `FirebaseMessaging.instance.requestPermission()`, which on Android 13+ delegates to the OS permission dialog — but the OS will not surface the dialog without the manifest entry. (Native Firebase Android otherwise looks fine: `google-services` Gradle plugin is wired in `android/build.gradle.kts` + `android/app/build.gradle.kts`, `google-services.json` is real for project `karigar-8e3d3`.)
+
+**Why we shipped it that way**
+The realtime subsystem was developed as a self-contained module landing in a single reviewable patch, with the integration into `main.dart` and `auth_notifier` deliberately deferred to a follow-up. Tests pass cleanly because every realtime test exercises the stack via direct `ProviderContainer` calls — no test calls `runApp`, so no test catches the missing wiring. Subsequent feature work (incoming job requests, addresses, discovery) builds on top of providers that are reachable from a `ProviderContainer` even without the orchestrator, so no incremental sprint has been forced to confront this.
+
+The result is a subsystem that is logically correct end-to-end and a production app that delivers zero realtime events.
+
+**The proper fix**
+
+In order:
+
+1. **`main.dart`** — initialize Firebase, register the BG handler, construct the shared keys, and mount the orchestrator above `MaterialApp.router`:
+
+   ```dart
+   import 'package:firebase_core/firebase_core.dart';
+   import 'package:firebase_messaging/firebase_messaging.dart';
+   import 'core/realtime/presentation/app_lifecycle_orchestrator.dart';
+   import 'core/realtime/presentation/services/fcm_background_handler.dart';
+
+   final _navigatorKey = GlobalKey<NavigatorState>();
+   final _messengerKey = GlobalKey<ScaffoldMessengerState>();
+
+   Future<void> main() async {
+     WidgetsFlutterBinding.ensureInitialized();
+     await Firebase.initializeApp();
+     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+     final sharedPreferences = await SharedPreferences.getInstance();
+     runApp(
+       ProviderScope(
+         overrides: [sharedPreferencesProvider.overrideWithValue(sharedPreferences)],
+         child: AppLifecycleOrchestrator(
+           navigatorKey: _navigatorKey,
+           scaffoldMessengerKey: _messengerKey,
+           child: MyApp(navigatorKey: _navigatorKey, messengerKey: _messengerKey),
+         ),
+       ),
+     );
+   }
+   ```
+
+2. **`MyApp`** — accept the messenger key and thread it into `MaterialApp.router`:
+
+   ```dart
+   MaterialApp.router(
+     scaffoldMessengerKey: messengerKey,
+     routerConfig: router,
+     ...
+   );
+   ```
+
+3. **`app_router.dart`** — accept the same `navigatorKey` and pass it to `GoRouter`. Easiest path is to expose the key via a top-level provider (`final navigatorKeyProvider = Provider((_) => GlobalKey<NavigatorState>());`) and `ref.watch` it inside `routerProvider`, or accept it as a parameter to a `routerProviderFor(navigatorKey)` family. Either way: `GoRouter(navigatorKey: navigatorKey, ...)`.
+
+4. **`auth_notifier.dart`** — call boot/teardown at three transition points:
+   - `build()` (`auth_notifier.dart:13`) — after restoring the cached user, if `user.token != null`, await `AppLifecycleOrchestrator.bootAfterAuth(ref, user.token!)`. This is the cold-start-with-valid-session path.
+   - `verifyOtp(...)` (`auth_notifier.dart:40`) — after `useCase.execute(...)` returns the fresh user, await `bootAfterAuth(ref, user.token!)` before emitting `AsyncData(AuthState(user: user))`.
+   - `logout()` (`auth_notifier.dart:97`) — await `AppLifecycleOrchestrator.teardownOnLogout(ref)` BEFORE `repository.logout()`, because `performTeardown` requires the WS to disconnect with the auth token still valid (server-side device unregister needs the token).
+
+   `Notifier.build()` does not receive a `WidgetRef`, so the `bootAfterAuth` helpers will need a `Ref`-only variant (the current signature takes `WidgetRef`; refactor to accept `Ref` since the helpers only call `ref.read`, never `ref.watch`). Alternative: defer the boot call to the first widget consumer via `ref.listenSelf`. The `Ref`-variant is cleaner.
+
+5. **iOS — `ios/Runner/Info.plist`**:
+
+   ```xml
+   <key>UIBackgroundModes</key>
+   <array>
+     <string>remote-notification</string>
+   </array>
+   ```
+
+   Plus enable the Push Notifications capability in `Runner.xcodeproj` (creates `Runner.entitlements` with `aps-environment`). Plus upload the APNs auth key to Firebase Console → Project Settings → Cloud Messaging → Apple app config.
+
+6. **Android — `AndroidManifest.xml`**: add `<uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>` at the manifest root level. The default `FirebaseMessagingService` declaration is auto-merged by the FCM plugin and does not need to be added manually — verify after first build by inspecting `app/build/intermediates/merged_manifests/.../AndroidManifest.xml`.
+
+**Search hints**
+- `runApp(` — single call site to wrap.
+- `FCMHandler.initialize` (`fcm_handler.dart:62`) — what runs after `Firebase.initializeApp` succeeds; nothing to change here, just the entry contract.
+- `bootAfterAuth` / `teardownOnLogout` (`app_lifecycle_orchestrator.dart:111` / `:147`) — the static helpers to call from auth.
+- `routerProvider` (`app_router.dart:18`) — the GoRouter construction site.
+- `WidgetRef` in `bootAfterAuth` signature — replace with `Ref` to make it callable from `Notifier.build()`.
+
+**Test coverage that should land with the fix**
+- A widget test that pumps the full `runApp` tree (with mocked `Firebase`, `FirebaseMessaging`, and a fake WS data source): cold start with a cached user → `WsConnectionNotifier.connect` is called; `logout()` → `WsConnectionNotifier.disconnect` is called.
+- A test asserting that `getInitialMessage()` returning a `job_new_request` payload at cold start results in the expected route push to `/technician/incoming-job-request`. Doable with `mocktail` + a fake `FirebaseMessaging`.
+- An auth-notifier test asserting that `build()` with a cached token, `verifyOtp` success, and `logout` each invoke the expected orchestrator helper.
+
+**Severity**
+Blocking for any production use of the realtime stack. Not blocking for sprints that don't depend on real event delivery (most current frontend feature work runs against direct provider containers in tests and doesn't exercise the WS/FCM path in dev). Should be picked up before the technician dashboard ships, since the technician's incoming-job experience is meaningless without it.

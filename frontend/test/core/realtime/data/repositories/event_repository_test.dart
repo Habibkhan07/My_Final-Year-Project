@@ -21,7 +21,7 @@ SystemEventModel _event({
   return SystemEventModel(
     kind: 'event',
     id: id,
-    rawType: 'job_dispatched',
+    rawType: 'job_new_request',
     targetRole: 'technician',
     timestamp: timestamp,
     payload: const {},
