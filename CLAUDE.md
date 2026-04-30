@@ -72,6 +72,32 @@ Authoritative docs: `backend/realtime/api/EVENT_DISPATCH_API.md`, `backend/realt
 
 ---
 
+## TECH-DEBT LOG (`flag.md`) — log-as-you-go
+`flag.md` (repo root) is the authoritative log of accepted shortcuts, half-wired features, and decisions that constrain future sprints. It is the bridge between sessions — future-me cannot see hidden seams in shipped code, only what is written here.
+
+**Log a flag when wrapping a task that:**
+- Ships a partial implementation (one side wired, counterpart deferred — e.g. tech-accept button without the customer-facing notification/event)
+- Accepts a known shortcut to keep scope manageable (additive column instead of schema reshape, hardcoded constant pending config plumbing, feature flag)
+- Makes a decision that future sprints must respect or migrate around (API contract that constrains the data model, status enum that doesn't yet model a real state)
+
+**Do NOT flag:**
+- Bug fixes, refactors, doc-only changes with no future obligation
+- Style / local cleanups
+- Anything fully self-contained within the patch
+
+**Schema (mirrors existing flags):**
+- **Where** — files, models, endpoints, migrations
+- **What's wrong** — the asymmetry or shortcut
+- **Why we shipped it** — scope / contract / sprint pressure that justified it
+- **The proper fix** — concrete steps + search hints for the lockstep migration
+
+**Process:**
+1. At task wrap-up, audit for the conditions above.
+2. If a flag is warranted, **propose the entry to the user before writing it** — they may reframe or merge with an existing flag.
+3. Resolved flags get struck through with an ✅ Resolved (date) line and short "What changed" summary; never delete.
+
+---
+
 ## BACKEND (Django REST Framework)
 **Root**: `backend/`
 
@@ -99,6 +125,17 @@ Enforced via custom DRF exception handler in `exception.py`.
 - **Secrets**: All credentials via environment variables (`django-environ`). Never hardcode.
 - **Validation**: All incoming data sanitized at Serializer level. Never trust Flutter app input.
 - **Security Pause**: Before finalizing any View or Service, output a 1-sentence comment: `# SECURITY: <how this prevents unauthorized access>`
+
+### Async Tasks (Celery) — Port and Adapter Pattern (mandatory)
+The Service layer MUST NEVER import Celery directly. Use Port and Adapter so the queue backend can be swapped without touching services and tests can inject fakes.
+
+- **Port** — `<feature>/services/ports.py` defines a `typing.Protocol` describing the operation (e.g. `JobDispatchScheduler.schedule_sla_timeout`). Service code depends on the Protocol, not on a concrete adapter.
+- **Adapter** — `<feature>/adapters/<topic>_<backend>.py` implements the Protocol structurally and is the **only** file in the feature that imports the Celery task. Adapters live under `<feature>/adapters/`, never under `services/`.
+- **Tasks** — `<feature>/tasks.py` declares `@shared_task` functions. Tasks operate on **primitive IDs**, never ORM instances. Tasks must be **idempotent**: re-fetch under `select_for_update`, guard with status / nullable timestamp checks, and short-circuit to no-op if the precondition no longer holds.
+- **Wiring** — `<feature>/adapters/__init__.py` exposes `get_default_scheduler()` (or analogous factory) using a **lazy import** of the concrete adapter inside the function body. This keeps `<feature>.services.*` modules free of queue-library imports at module load time.
+- **Service usage** — service functions accept the Port as an optional parameter and lazily resolve the default if `None`. Tests pass a fake; production gets the Celery adapter.
+- **Side-effects on commit** — when a task is armed alongside DB writes, register the scheduling call inside `transaction.on_commit(...)` so a rolled-back transaction never queues phantom work.
+- **Constraint check** — `bookings/services/*.py` (and any feature's `services/*.py`) must NOT contain `from celery import` or `from <feature>.adapters import` at module-level. Adapter imports are inside function bodies. Reference implementation: `backend/bookings/{services/ports.py, services/job_request_dispatch.py, adapters/__init__.py, adapters/celery_scheduler.py, tasks.py}`.
 
 ### Backend Testing Rules
 - Framework: `pytest` + `pytest-django` only. No Django `TestCase`, no JSON fixtures.
