@@ -1,5 +1,12 @@
 # Realtime Events — `job_new_request` Backend Patch & Frontend Sync Brief
 
+> ⚠️ **Snapshot — 2026-04-27 patch.** This is a frozen handoff brief, not a living doc. It is superseded where it conflicts with current source-of-truth docs (`backend/bookings/api/BOOKINGS_API.md`, `backend/realtime/api/EVENT_DISPATCH_API.md`, `frontend/lib/features/booking/BOOKING_FEATURE.md`). Trust those over this file.
+>
+> **Known stale references after flag #1 closed (2026-05-01):**
+> - The `accepted_at` column has been removed; the booking lifecycle now uses an explicit `AWAITING` status. The SLA timer flips `AWAITING → REJECTED` (was: flipped `CONFIRMED → REJECTED` iff `accepted_at IS NULL`).
+> - §5 (SLA timer), §6 (technician-acceptance hole), and §10 (source-of-truth file index) reference `accepted_at` and migration `0004_jobbooking_accepted_at.py` — read those sections for historical context only.
+> - For local end-to-end testing: simulate acceptance by flipping `JobBooking.status` from `AWAITING` to `CONFIRMED` via Django Admin / shell (was: setting `accepted_at = timezone.now()`).
+>
 > **Purpose.** Handoff document for the backend changes shipped in the
 > instant-book → technician event-dispatch patch (2026-04-27). Read this
 > before touching `frontend/lib/core/realtime/` or the technician's
@@ -9,7 +16,7 @@
 > - `REALTIME_STREAMS_PATCH_SUMMARY.md` — the streams pipeline brief that mirrors this one.
 > - `backend/realtime/api/EVENT_DISPATCH_API.md` — event-envelope and dispatcher contract.
 > - `backend/bookings/api/BOOKINGS_API.md` — full booking API + the post-booking side-effects section.
-> - `flag.md` — accepted shortcuts (`accepted_at`, `service_name = price_context`).
+> - `flag.md` — accepted shortcuts (both `accepted_at` and `service_name = price_context` are now ✅ resolved; see flag.md for the closure notes).
 
 ---
 

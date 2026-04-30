@@ -1,5 +1,7 @@
 # Realtime Streams — Backend Patch Summary & Frontend Sync Brief
 
+> ⚠️ **Snapshot — 2026-04-27 patch.** This is a frozen handoff brief, not a living doc. The authoritative contracts live in `backend/realtime/api/EVENT_DISPATCH_API.md` and `backend/realtime/api/STREAM_DISPATCH_API.md` — trust those over this file when they disagree. (No flag-#1 staleness here; this file does not reference `accepted_at`.)
+>
 > **Purpose.** This file is a handoff document. It captures the backend
 > changes shipped in the streams-introduction patch (2026-04-27) and
 > brief the next session on the frontend work needed to sync. Read this
