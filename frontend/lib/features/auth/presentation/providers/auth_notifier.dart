@@ -1,9 +1,11 @@
 // auth_notifier.dart
 import 'dart:async';
+import 'dart:developer' as developer;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-import '../../domain/failures/auth_failure.dart'; 
+import '../../../../core/realtime/presentation/app_lifecycle_orchestrator.dart';
+import '../../domain/failures/auth_failure.dart';
 import 'auth_state.dart';
-import 'dependency_injection.dart'; 
+import 'dependency_injection.dart';
 
 part 'auth_notifier.g.dart';
 
@@ -11,15 +13,43 @@ part 'auth_notifier.g.dart';
 class AuthNotifier extends _$AuthNotifier {
   @override
   FutureOr<AuthState> build() async {
-    // 1. Check for cached session on startup
     final repository = ref.read(authRepositoryProvider);
     final user = await repository.getCachedUser();
-    
+
     if (user != null) {
+      _scheduleBoot(user.token);
       return AuthState(user: user);
     }
-    
+
     return const AuthState();
+  }
+
+  /// Fire-and-forget bridge to the realtime subsystem. Called on cold-start
+  /// with a cached user and on fresh login from `verifyOtp`.
+  ///
+  /// Awaiting `bootAfterAuth` would stall auth state on the WS handshake —
+  /// the user would sit in `AsyncLoading` for seconds on a slow network and
+  /// the router would route to `/login`. Fire-and-forget instead; errors
+  /// surface on `wsConnectionProvider`'s own state and via the `.catchError`
+  /// log below for dev/ops visibility.
+  ///
+  /// Empty-string symmetry: matches `_onResumed` in the orchestrator, which
+  /// treats `null || isEmpty` as "not signed in." A corrupted cache row
+  /// could store `token: ""`; without this guard we'd hand an empty string
+  /// to `wsConnection.connect(...)` which the backend rejects with 4001/4003.
+  void _scheduleBoot(String? token) {
+    if (token == null || token.isEmpty) return;
+    unawaited(
+      AppLifecycleOrchestrator.bootAfterAuth(ref, token).catchError(
+        (Object e, StackTrace st) {
+          developer.log(
+            'bootAfterAuth failed: $e',
+            name: 'auth_notifier',
+            stackTrace: st,
+          );
+        },
+      ),
+    );
   }
 
   Future<void> requestOtp(String phone) async {
@@ -44,6 +74,7 @@ class AuthNotifier extends _$AuthNotifier {
     state = await AsyncValue.guard(() async {
       final useCase = ref.read(verifyOtpUseCaseProvider);
       final user = await useCase.execute(phone, otp);
+      _scheduleBoot(user.token);
       return AuthState(user: user);
     });
   }
@@ -95,7 +126,15 @@ class AuthNotifier extends _$AuthNotifier {
   }
 
   Future<void> logout() async {
+    if (state.isLoading) return;
     state = const AsyncLoading();
+    // Teardown BEFORE repository.logout(): the WS disconnect side-effect
+    // notifies the server to unregister the FCM device, and that POST goes
+    // through the auth interceptor which reads the token from secure storage.
+    // `repository.logout()` is what clears storage. Reverse the order and
+    // device-unregister silently 401s, leaving stale FCM subscriptions on
+    // the backend dispatching events to a phone that has logged out.
+    await AppLifecycleOrchestrator.teardownOnLogout(ref);
     await ref.read(authRepositoryProvider).logout();
     state = const AsyncData(AuthState());
   }

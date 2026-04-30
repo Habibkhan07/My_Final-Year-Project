@@ -408,16 +408,24 @@ feature. The remote data source reads it per call.
 ## 13. Boot & Teardown Integration
 
 The `AppLifecycleOrchestrator` exposes two static helpers that the auth
-feature calls at the appropriate lifecycle points:
+feature calls at the appropriate lifecycle points. Both take a `Ref`
+(not a `WidgetRef`) so they are callable directly from `Notifier.build`.
 
 ```dart
-// On successful login (after the auth token is persisted):
-await AppLifecycleOrchestrator.bootAfterAuth(ref, authToken);
-//   1. wires `eventSyncProvider.notifier.onUnauthorized = … logout()`
-//   2. fcmHandler.initialize()
-//   3. wsConnection.connect(authToken) — cascades sync + ack flush
+// On cold-start with a cached user, or after a successful verifyOtp:
+unawaited(
+  AppLifecycleOrchestrator.bootAfterAuth(ref, authToken).catchError(log),
+);
+//   1. wires `eventSyncProvider.notifier.onUnauthorized = … logout()`.
+//   2. iterates `realtimeBootHooksProvider` and reads each entry,
+//      waking every list-route feature's queue notifier so it
+//      subscribes to systemEventProvider before frames arrive.
+//   3. fcmHandler.initialize().
+//   4. SENTINEL — if `onUnauthorized` is null (teardown ran while
+//      FCM init was awaiting), bail before the WS connect.
+//   5. wsConnection.connect(authToken) — cascades sync + ack flush.
 
-// On logout (before clearing cached user / token):
+// On logout (BEFORE clearing cached user / token):
 await AppLifecycleOrchestrator.teardownOnLogout(ref);
 //   1. wsConnection.disconnect()
 //   2. fcmHandler.unregister()
@@ -428,14 +436,20 @@ await AppLifecycleOrchestrator.teardownOnLogout(ref);
 //   7. clear the onUnauthorized callback
 ```
 
-Mounting the orchestrator widget itself — covered in the file's dartdoc
-— is done once in `main.dart`, above `MaterialApp.router`, with the
-shared `navigatorKey` and `scaffoldMessengerKey`.
+The auth-side wiring lives in `AuthNotifier` (`features/auth/.../auth_notifier.dart`):
 
-The boot ordering is deliberate: setting `onUnauthorized` *before* FCM
-registration means a stale-token 401 from `registerDevice` is handled,
-not swallowed. The teardown clears the callback *last* so an in-flight
-401 cannot trigger a second logout against fresh state.
+- `build()` and `verifyOtp()` schedule boot via a private `_scheduleBoot(token)` helper. The helper short-circuits on `token == null || token.isEmpty` (symmetry with `_onResumed`) and wraps the `unawaited` future in `.catchError(log)` so failures surface in dev/ops instead of vanishing into the Dart zone.
+- `logout()` is `isLoading`-guarded against double-tap and awaits `teardownOnLogout(ref)` BEFORE `repository.logout()` — load-bearing because the FCM device-unregister POST inside teardown reads the token from secure storage that `repository.logout()` is about to clear.
+
+Boot is fire-and-forget for a reason: `bootAfterAuth` can take seconds on slow networks (FCM init + WS handshake). Awaiting it would stall auth state in `AsyncLoading` and the router would route to `/login`. The orchestrator's helpers are idempotent (FCM init guards against double-register; WS connect short-circuits if already connected), so a fast `verifyOtp` → `completeSignup` chain re-firing boot is benign.
+
+Mounting the orchestrator widget itself — covered in the file's dartdoc — is done once in `main.dart` (via `_Bootstrap`), above `MaterialApp.router`, with the shared `navigatorKey` and `scaffoldMessengerKey` resolved through `navigatorKeyProvider` / `scaffoldMessengerKeyProvider`.
+
+The boot ordering is deliberate at every step:
+- Setting `onUnauthorized` *first* means a stale-token 401 from FCM `registerDevice` is recovered, not swallowed.
+- Waking queue subscribers *before* FCM/WS guarantees no list-route event arrives at `SystemEventNotifier` before its feature's listener exists.
+- The sentinel after FCM init closes the dominant case of the boot/teardown race (logout-during-FCM). The residual case (logout-during-WS-handshake) is tracked in `flag.md` #9 and is benign — wasted reconnect cycles, no incorrect state.
+- Teardown clears `onUnauthorized` *last* so an in-flight 401 cannot trigger a second logout against fresh state.
 
 ---
 

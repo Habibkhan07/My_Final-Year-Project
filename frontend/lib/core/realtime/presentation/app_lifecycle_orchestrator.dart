@@ -3,6 +3,7 @@ import 'dart:developer';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 // ─── Sanctioned core → features imports ────────────────────────────────────
 // This file is the *only* place in `lib/core/` that imports from `lib/features/`.
@@ -29,6 +30,8 @@ import 'router/event_urgency_router.dart';
 import 'services/fcm_handler.dart';
 import 'state/connection_state.dart';
 import 'state/system_event_state.dart';
+
+part 'app_lifecycle_orchestrator.g.dart';
 
 /// Wraps the app root and owns the realtime event subsystem's runtime wiring:
 ///
@@ -73,10 +76,18 @@ import 'state/system_event_state.dart';
 /// Auth callers wire the subsystem in two places:
 ///
 /// ```dart
-/// // After a successful login that yields an auth token:
-/// await AppLifecycleOrchestrator.bootAfterAuth(ref, token);
+/// // After a successful login that yields an auth token (fire-and-forget;
+/// // awaiting would stall auth state on the WS handshake — the user would
+/// // sit in AsyncLoading until the socket completes). Wrap the call in
+/// // `.catchError(log)` at the call site so failures surface in dev/ops.
+/// unawaited(
+///   AppLifecycleOrchestrator.bootAfterAuth(ref, token).catchError(log),
+/// );
 ///
-/// // Before clearing local auth state on logout:
+/// // Before clearing local auth state on logout (awaited — WS device-
+/// // unregister POST needs the token still valid; reversing this order
+/// // silently breaks server-side device-unregister and leaves stale FCM
+/// // subscriptions on the backend):
 /// await AppLifecycleOrchestrator.teardownOnLogout(ref);
 /// ```
 class AppLifecycleOrchestrator extends ConsumerStatefulWidget {
@@ -105,27 +116,45 @@ class AppLifecycleOrchestrator extends ConsumerStatefulWidget {
   ///      between sessions, the callback must already be in place — otherwise
   ///      the 401 is logged and swallowed and the user is left on a logged-in
   ///      shell talking to a backend that has rejected them.
-  ///   2. Initialize FCM (permission, token register, listeners, drain
+  ///   2. Wake every list-route subscriber registered in
+  ///      [realtimeBootHooksProvider]. `keepAlive: true` notifiers do not
+  ///      subscribe to `systemEventProvider` until first read; reading them
+  ///      here guarantees they wake before the first event of their type
+  ///      arrives. Adding a new event = appending to that registry, never
+  ///      editing this method. See CLAUDE.md → "Per-event feature wiring".
+  ///   3. Initialize FCM (permission, token register, listeners, drain
   ///      isolate queue).
-  ///   3. Open the WebSocket. The connect cascade triggers
+  ///   4. Sentinel check — if logout fired during step 3, teardown nulled
+  ///      `onUnauthorized`. Bail before the WS connect to avoid the
+  ///      "connecting → disconnecting → connecting-with-stale-token" race.
+  ///   5. Open the WebSocket. The connect cascade triggers
   ///      `syncMissedEvents → syncUnacknowledgedCritical → flush pending ACKs`
   ///      automatically, so no manual sync call is needed here.
   ///
+  /// Residual race (out of scope here, tracked in flag.md): if logout fires
+  /// during the `_channel!.ready` handshake at step 5, [WsConnectionNotifier]
+  /// can still re-arm a reconnect timer in its catch path. That is a WS
+  /// layer concern, not an auth-bridge concern.
+  ///
   /// The `ref.listenManual` set up in `initState` activates as soon as events
   /// start flowing through `SystemEventNotifier`.
-  static Future<void> bootAfterAuth(WidgetRef ref, String authToken) async {
+  static Future<void> bootAfterAuth(Ref ref, String authToken) async {
     ref.read(eventSyncProvider.notifier).onUnauthorized = () {
       ref.read(authProvider.notifier).logout();
     };
 
-    // Wake list-route event subscribers BEFORE the WS connect cascade fires.
-    // `keepAlive: true` notifiers don't subscribe to `systemEventProvider`
-    // until first read — if the screen is what reads them, the notifier wakes
-    // *after* the event that pushed the screen has already passed
-    // `SystemEventNotifier`. See CLAUDE.md → "Per-event feature wiring".
-    ref.read(incomingJobQueueProvider);
+    for (final hook in ref.read(realtimeBootHooksProvider)) {
+      ref.read(hook);
+    }
 
     await ref.read(fcmHandlerProvider).initialize();
+
+    // Sentinel: if `performTeardown` ran while we were awaiting FCM init,
+    // it nulled `onUnauthorized`. Skip the WS connect — otherwise we'd open
+    // a socket with a token `repository.logout()` has just cleared, and the
+    // next 401 would have no callback to recover the auth state.
+    if (ref.read(eventSyncProvider.notifier).onUnauthorized == null) return;
+
     await ref.read(wsConnectionProvider.notifier).connect(authToken);
   }
 
@@ -157,7 +186,7 @@ class AppLifecycleOrchestrator extends ConsumerStatefulWidget {
     eventSync.onUnauthorized = null;
   }
 
-  static Future<void> teardownOnLogout(WidgetRef ref) => performTeardown(
+  static Future<void> teardownOnLogout(Ref ref) => performTeardown(
     wsConnection: ref.read(wsConnectionProvider.notifier),
     fcmHandler: ref.read(fcmHandlerProvider),
     systemEventNotifier: ref.read(systemEventProvider.notifier),
@@ -275,3 +304,25 @@ class _AppLifecycleOrchestratorState
   @override
   Widget build(BuildContext context) => widget.child;
 }
+
+// ─── Boot hooks registry ──────────────────────────────────────────────────
+/// Providers whose `keepAlive: true` notifiers must wake during
+/// [AppLifecycleOrchestrator.bootAfterAuth] so they subscribe to
+/// `systemEventProvider` BEFORE the WS connect cascade fires.
+///
+/// Adding a new list-route event feature: append the feature's queue
+/// provider here. There is intentionally no other registration site —
+/// this keeps the boot extension point in one file alongside the
+/// orchestrator that consumes it.
+///
+/// Order is currently irrelevant — entries are independent. If a future
+/// feature needs to wake AFTER another, document the constraint here and
+/// reorder.
+///
+/// Tests override this provider with `[]` (or with probe providers) to
+/// keep `AuthNotifier` tests narrow and to assert that the for-loop in
+/// `bootAfterAuth` actually iterates the registry.
+@Riverpod(keepAlive: true)
+List<ProviderListenable<Object?>> realtimeBootHooks(Ref ref) => [
+  incomingJobQueueProvider,
+];

@@ -231,3 +231,87 @@ In order:
 
 **Severity**
 Blocking for any production use of the realtime stack. Not blocking for sprints that don't depend on real event delivery (most current frontend feature work runs against direct provider containers in tests and doesn't exercise the WS/FCM path in dev). Should be picked up before the technician dashboard ships, since the technician's incoming-job experience is meaningless without it.
+
+**Progress (2026-05-01)**
+
+Session 1 (commit 2fb512d) closed sub-items 1, 2, 3, 5: `Firebase.initializeApp()` runs on the main isolate, `firebaseMessagingBackgroundHandler` is registered before `runApp`, `AppLifecycleOrchestrator` wraps `MaterialApp.router` via `_Bootstrap`, and `navigatorKey` / `scaffoldMessengerKey` flow through shared providers (`navigatorKeyProvider`, `scaffoldMessengerKeyProvider`) into both the orchestrator and `GoRouter` / `MaterialApp.router`. Pinned by `main_isolate_wiring_test.dart` (W1a/W1b/W2/W3).
+
+Session 2 (this session) closes sub-item 4 — the `AuthNotifier` ↔ orchestrator bridge:
+
+- `bootAfterAuth(WidgetRef, String)` → `bootAfterAuth(Ref, String)`; `teardownOnLogout(WidgetRef)` → `teardownOnLogout(Ref)`. Callable from `Notifier.build()`.
+- `AuthNotifier.build()` and `verifyOtp()` schedule boot via a private `_scheduleBoot(token)` helper. Helper is empty-string-safe (`token == null || token.isEmpty` short-circuits, matching the orchestrator's `_onResumed` symmetry) and wraps the `unawaited` future in `.catchError(log)` so failures surface in dev/ops instead of vanishing into the Dart zone.
+- `AuthNotifier.logout()` now (a) gates on `state.isLoading` to no-op a fast double-tap and (b) awaits `teardownOnLogout(ref)` BEFORE `repository.logout()` — load-bearing because the FCM device-unregister POST inside teardown reads the token from secure storage that `repository.logout()` is about to clear.
+- `AppLifecycleOrchestrator.bootAfterAuth` gained a "still booting" sentinel after FCM init: if `eventSync.onUnauthorized` is null (teardown ran during the FCM await), skip `wsConnection.connect(authToken)`. Closes the dominant case of the boot/teardown race; the residual race (teardown during the WS handshake itself) is tracked as flag #9 below.
+- The inline `ref.read(incomingJobQueueProvider)` was extracted into a new `realtimeBootHooksProvider` registry. Adding a new list-route event feature is now an append to that list — no edits to `bootAfterAuth`, no risk of silently dropping the wake-up. Tests R1/R2 in `app_lifecycle_orchestrator_test.dart` pin the contract.
+- New tests: AB1–AB8 in `auth_notifier_test.dart` cover boot fires on cached token / verify success, no-boot on null/empty token, teardown ordering via `verifyInOrder`, and the `isLoading` guard against double-tap logout. R1/R2/B1/B2 in `app_lifecycle_orchestrator_test.dart` cover the registry contract and the sentinel race.
+
+**Remaining**: sub-item 6 (iOS native push capability) is out of scope for this Android-only project. Sub-item 7 (Android `POST_NOTIFICATIONS` permission) plus the widget-level `runApp`-tree integration test remain for Session 3. Severity downgrades from "blocking for any realtime use" to "blocking only for Android 13+ system-tray notifications" — in-app foreground events flow today.
+
+---
+
+## 8. Auth token rotation has no graceful path
+
+**Where**
+- `frontend/lib/features/auth/presentation/providers/auth_notifier.dart`
+- `frontend/lib/core/realtime/presentation/app_lifecycle_orchestrator.dart`
+- `frontend/lib/core/realtime/presentation/notifiers/event_sync_notifier.dart`
+- `frontend/lib/core/realtime/presentation/notifiers/ws_connection_notifier.dart`
+
+**What's wrong**
+The realtime stack captures the auth token at boot time. `bootAfterAuth(ref, authToken)` passes the token into `wsConnection.connect(authToken)`, which embeds it in the WS query string. There is no mechanism to update that connection's token mid-session: if the backend rotates the token (refresh endpoint, key rotation, forced re-auth), the next authenticated WS frame eventually 401s. `EventSyncNotifier.onUnauthorized` then fires `authProvider.notifier.logout()` — destructive recovery that drops the user back to `/login` even though their session is otherwise valid.
+
+Cold-start works because `AuthNotifier.build()` reads the latest cached token before scheduling boot. But a long-lived foreground session that survives a server-side rotation has no path to update the WS auth without a full logout/login round-trip.
+
+**Why we shipped it that way**
+Session 2's scope was the boot/teardown bridge — wiring three call sites in `AuthNotifier`. Token rotation is a distinct concern: it requires a refresh endpoint contract (which the backend has not committed to), a secure-storage write path that the WS layer can observe, and `WsConnectionNotifier.connect` semantics for "reconnect with a different token." Bundling that work into Session 2 would have multiplied the scope and shipped half-built rotation logic.
+
+**The proper fix**
+Pick one of:
+1. **WS watches secure storage.** `WsConnectionNotifier` listens for token changes on `eventSecureStorageProvider` (or a dedicated `authTokenProvider` backed by it) and re-handshakes when the value flips. Cleanest from a "single source of truth" angle (storage is already authoritative), heaviest in plumbing (storage doesn't naturally produce a stream).
+2. **Auth notifier exposes `refreshToken(newToken)`** that calls a new `AppLifecycleOrchestrator.rebootAfterRotation(ref, newToken)` helper. Helper is `wsConnection.disconnect()` → `wsConnection.connect(newToken)`. Conceptually simpler; couples auth and realtime more tightly but keeps the rotation surface explicit.
+3. **Short-lived JWTs + WS interceptor** that refreshes silently before each frame. Most correct long-term; biggest backend lift.
+
+The decision depends on whether the backend ships rotation at all. If it does, option 2 is the smallest move that closes this. If JWT migration ever lands, option 3 supersedes everything.
+
+**Search hints**
+- `wsConnection.connect(` — every call site that hands a token to the WS.
+- `EventSyncUnauthorized` (`event_failures.dart`) — the trigger that today only knows "log out."
+- `_kTokenKey = 'auth_token'` (`event_remote_data_source.dart`, mirrored in `app_lifecycle_orchestrator.dart`'s `_tokenKey`) — the secure-storage key whose value changes on rotation.
+
+**Severity**
+Latent. Backend doesn't rotate today; the failure mode does not exist in production yet. Ship before any backend rotation feature lands; otherwise the first rotation event will look like a mass logout to users.
+
+---
+
+## 9. `WsConnectionNotifier.connect` ignores `_manualDisconnect` in its handshake catch path
+
+**Where**
+- `frontend/lib/core/realtime/presentation/notifiers/ws_connection_notifier.dart` — `connect()` body, lines ~80-94 and `_scheduleReconnect` lines ~158-177.
+
+**What's wrong**
+`disconnect()` sets `_manualDisconnect = true` and cancels the reconnect timer. The stream listener's `onDone` callback honors this flag (returns early on manual disconnect, line 110). The catch block around `await _channel!.ready` does NOT — it calls `_scheduleReconnect(authToken)` unconditionally on any handshake failure (line 92).
+
+This matters because of the boot/teardown race. Session 2 added a sentinel in `bootAfterAuth` that handles teardown-during-FCM-init (the dominant case). The residual race is teardown landing during the WS handshake itself: `connect()` is awaiting `_channel!.ready`, `disconnect()` runs (closing the channel, which fails the `ready` future), the catch block schedules a reconnect with the original (now-stale) `authToken`. Reconnect timer fires after `_currentBackoff`, calls `connect(staleToken)`, repeats until `_kMaxRetries` (10) and flips state to `failed`. Token is already cleared from secure storage by the time the reconnect attempts run, so each one is wasted work that ends in another `failed` flip.
+
+**Why we shipped it that way**
+The race window is the WS handshake duration (typically 100–500ms) intersected with the user manually tapping logout. Practically rare. The sentinel in `bootAfterAuth` already handles the much wider window (FCM init, often 2–5s). Fixing this required a one-line guard inside `WsConnectionNotifier`, which is outside Session 2's two-files scope (auth_notifier, app_lifecycle_orchestrator).
+
+**The proper fix**
+Two-line guard at the top of `_scheduleReconnect`:
+
+```dart
+void _scheduleReconnect(String authToken) {
+  if (_manualDisconnect) return;
+  _reconnectTimer?.cancel();
+  ...
+}
+```
+
+Plus a regression test in `ws_connection_notifier_test.dart`: kick off `connect()` with a fake channel whose `ready` future never completes; call `disconnect()`; advance fake time past the reconnect backoff; assert no second `connect` was attempted.
+
+**Search hints**
+- `_manualDisconnect` (`ws_connection_notifier.dart`) — currently only consulted in the `onDone` handler.
+- `_scheduleReconnect` — all three call sites (handshake catch, stream onDone, stream onError) should respect manual disconnect.
+
+**Severity**
+Edge case. Logs noise + wasted backoff cycles after a logout-during-handshake, but no incorrect state — the WS eventually flips to `failed` and stays disconnected. Fix when next touching `WsConnectionNotifier`; do not bundle into auth or orchestrator work.

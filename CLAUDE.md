@@ -222,7 +222,7 @@ The realtime transport (`lib/core/realtime/`) is generic and audience-agnostic. 
 - **Mapper owns backwards-compat defaults**: when the backend adds payload fields mid-rollout, the feature's `data/mappers/` mapper defaults missing fields safely so domain entities are always typed. Backwards-compat policy never lives in widgets.
 - **Type discipline at the mapper boundary**: parse wire-strings to typed domain values (e.g. integer-string `payout` → `int`, ISO-8601 string → `DateTime`) at the mapper. Domain entities expose typed fields; widgets format display. Wire-string preservation is a transport concern, not a domain concern.
 - **List-route vs detail-route distinction**: events that can arrive in bursts (multiple pending at once — incoming job requests, batched chat messages) target a **list-style** screen with no entity id in the URL. Register the event in `EventUrgencyRouter._listRouteEvents` so the nav guard skips push when the screen is already mounted; the screen reacts via its `ref.watch` on the feature's queue notifier. Detail-route events (one-shot per entity — `job_accepted`, `quote_generated`) use `_navGuardPayloadKeys` instead.
-- **Wake-up at app boot is load-bearing**: a `keepAlive: true` queue notifier doesn't subscribe to `systemEventProvider` until first read. If the screen is what reads it, the notifier wakes *after* the event that pushed the screen has already passed `SystemEventNotifier`. `AppLifecycleOrchestrator.bootAfterAuth` must call `ref.read(<feature>QueueProvider)` once on boot for every list-route event feature, **before** the WS connect cascade fires.
+- **Wake-up at app boot is load-bearing**: a `keepAlive: true` queue notifier doesn't subscribe to `systemEventProvider` until first read. If the screen is what reads it, the notifier wakes *after* the event that pushed the screen has already passed `SystemEventNotifier`. Every list-route event feature must register its queue provider in `realtimeBootHooksProvider` (declared at the bottom of `app_lifecycle_orchestrator.dart`); `bootAfterAuth` iterates that registry **before** the WS connect cascade fires. New event = append to the registry, never edit `bootAfterAuth`.
 
 **Touch-points in `core/realtime` per new event (one-line edits, expected):**
 - `system_event_type.dart` — add the enum case + rawType lookup entry. Source of truth is the backend wire string.
@@ -231,7 +231,7 @@ The realtime transport (`lib/core/realtime/`) is generic and audience-agnostic. 
 - `event_urgency_router.dart`:
   - High-urgency: add to `_highUrgencyRoutes`. List-route → also add to `_listRouteEvents`. Detail-route → also add to `_navGuardPayloadKeys`.
   - Low-urgency: add to `_lowUrgencyTapRoutes`, `_bannerIcons`, `_bannerTitles`, and extend `_bannerBody` with the event's prose key.
-- `app_lifecycle_orchestrator.dart` — one `ref.read(<feature>QueueProvider)` in `bootAfterAuth` for list-route features.
+- `app_lifecycle_orchestrator.dart` — append the feature's queue provider to `realtimeBootHooksProvider` (the registry at the bottom of the file). For list-route features only; detail-route events do not need a wake-up entry.
 - `app_router.dart` — register the `GoRoute` for the screen.
 
 **Reference impl**: `frontend/lib/features/technician/incoming_job_requests/`.
