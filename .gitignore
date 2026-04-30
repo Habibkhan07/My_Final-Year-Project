@@ -5,3 +5,8 @@ venv/
 uiFigmas/
 .claudeignore
 ui hint/
+
+# Firebase service-account credentials — never commit
+backend/firebase_credintials.json
+backend/firebase_credentials.json
+*-firebase-adminsdk-*.json
