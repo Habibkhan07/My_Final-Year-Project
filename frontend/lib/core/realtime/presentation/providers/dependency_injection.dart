@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -92,3 +94,19 @@ FCMHandler fcmHandler(Ref ref) {
     localDataSource: ref.watch(eventLocalDataSourceProvider),
   );
 }
+
+// ─── Shared GlobalKeys ────────────────────────────────────────────────────
+//
+// Plain `Provider` (not `@riverpod`) because `GlobalKey` instances are
+// imperative singletons that don't fit code-gen cleanly. Riverpod's
+// provider-singleton guarantee gives us the "same instance for both
+// consumers" invariant that `EventUrgencyRouter` ↔ `GoRouter` and
+// `EventUrgencyRouter` ↔ `MaterialApp.router` both rely on.
+
+final navigatorKeyProvider = Provider<GlobalKey<NavigatorState>>(
+  (_) => GlobalKey<NavigatorState>(),
+);
+
+final scaffoldMessengerKeyProvider = Provider<GlobalKey<ScaffoldMessengerState>>(
+  (_) => GlobalKey<ScaffoldMessengerState>(),
+);

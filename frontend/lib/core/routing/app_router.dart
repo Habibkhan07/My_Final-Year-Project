@@ -15,12 +15,15 @@ import '../../features/booking/presentation/screens/technician_profile_screen.da
 import '../../features/customer/addresses/presentation/screens/map_picker_screen.dart';
 import '../../features/technician/dashboard/presentation/screens/technician_dashboard_screen.dart';
 import '../../features/technician/incoming_job_requests/presentation/screens/incoming_job_request_screen.dart';
+import '../realtime/presentation/providers/dependency_injection.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   // Accessing the user through the AsyncValue wrapper
   final user = ref.watch(authProvider.select((async) => async.value?.user));
+  final navigatorKey = ref.watch(navigatorKeyProvider);
 
   return GoRouter(
+    navigatorKey: navigatorKey,
     initialLocation: '/login',
     routes: [
       GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
