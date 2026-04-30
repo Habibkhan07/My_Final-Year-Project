@@ -7,7 +7,7 @@
 ## 1. INSTANT BOOKING
 
 ### 1.1 Create Instant Booking
-**Description**: The checkout endpoint. Creates a `CONFIRMED` `JobBooking` after passing the defensive check pipeline: address ownership, technician approval status, catalog consistency, promo firewall, geofence, and an atomic race-condition lock on the technician's schedule. The persisted `price_amount` is server-derived from the resolved catalog references — clients never put a price on the wire. Called immediately after the customer selects a time slot from the Availability endpoint (`/api/customers/technicians/{id}/availability/`).
+**Description**: The checkout endpoint. Creates an `AWAITING` `JobBooking` after passing the defensive check pipeline: address ownership, technician approval status, catalog consistency, promo firewall, geofence, and an atomic race-condition lock on the technician's schedule. The booking transitions to `CONFIRMED` once the dispatched technician accepts within the SLA window; if the SLA fires first, the timeout task flips it to `REJECTED`. The accept endpoint itself is a separate sprint — until it lands, simulating acceptance via Django Admin / shell mutation is the testing path. The persisted `price_amount` is server-derived from the resolved catalog references — clients never put a price on the wire. Called immediately after the customer selects a time slot from the Availability endpoint (`/api/customers/technicians/{id}/availability/`).
 
 **URL**: `/api/bookings/instant-book/`
 **Method**: `POST`
@@ -107,7 +107,7 @@ After step 4 the resolver derives the persisted `price_amount` deterministically
 #### Race Condition Detail
 - Uses `transaction.atomic()` + `SELECT FOR UPDATE` on the technician row to serialize concurrent booking attempts.
 - Overlap check uses **half-open interval semantics**: `existing.scheduled_start < new.scheduled_end AND existing.scheduled_end > new.scheduled_start`. A booking starting exactly when another ends is **not** a conflict.
-- Only `PENDING` and `CONFIRMED` bookings block a slot. `CANCELLED`, `REJECTED`, and `COMPLETED` do not.
+- Only `PENDING`, `AWAITING`, and `CONFIRMED` bookings block a slot. `CANCELLED`, `REJECTED`, and `COMPLETED` do not. (`AWAITING` is included because a dispatched-but-not-yet-accepted booking still reserves the technician's time window.)
 
 ---
 
@@ -293,9 +293,10 @@ When the timer fires, `bookings.tasks.expire_pending_job_booking(booking_id)` ru
 | Booking state when task fires | Outcome |
 | :--- | :--- |
 | Booking not found | no-op |
-| `accepted_at IS NOT NULL` | no-op (technician acknowledged in time) |
-| `status != CONFIRMED` | no-op (already cancelled / completed / rejected) |
-| `status == CONFIRMED` AND `accepted_at IS NULL` | `status = REJECTED`, persisted via `update_fields=["status"]` |
+| `status != AWAITING` | no-op (technician already accepted → CONFIRMED, or another path moved it through cancelled / completed / rejected) |
+| `status == AWAITING` | `status = REJECTED`, persisted via `update_fields=["status"]` |
+
+The `AWAITING` status itself encodes the "still waiting on tech accept" signal — there is no side-field to read.
 
 Customer-facing notification on timeout is **out of scope this sprint** — DB mutation only. The task is idempotent, so re-runs (Celery retries, manual re-fires) cannot double-mutate.
 

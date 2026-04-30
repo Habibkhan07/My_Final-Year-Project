@@ -97,7 +97,9 @@ class TestCreateInstantBooking:
         )
 
         booking.refresh_from_db()
-        assert booking.status == JobBooking.STATUS_CONFIRMED
+        # Newly created bookings sit in AWAITING until the dispatched
+        # technician accepts (separate sprint). Flag #1 closure.
+        assert booking.status == JobBooking.STATUS_AWAITING_TECH_ACCEPT
         assert booking.technician == tech
         assert booking.customer == profile.user
         assert booking.address == address
@@ -279,6 +281,24 @@ class TestCreateInstantBooking:
             scheduled_start=_pkt(10),
             scheduled_end=_pkt(11),
             status=JobBooking.STATUS_PENDING,
+        )
+
+        with pytest.raises(SlotUnavailableError):
+            create_instant_booking(customer_user=profile.user, **_make_booking_kwargs(tech, address))
+
+    def test_awaiting_booking_blocks_overlapping_slot(self):
+        # An AWAITING booking is dispatched but not yet accepted by the tech.
+        # It still reserves the slot — otherwise two parallel bookings could
+        # both be dispatched against the same window.
+        tech = TechnicianProfileFactory(status='APPROVED', base_latitude=31.5204, base_longitude=74.3587, max_travel_radius_km=10)
+        profile = CustomerProfileFactory()
+        address = CustomerAddressFactory(customer=profile, latitude=31.5204, longitude=74.3587)
+
+        JobBookingFactory(
+            technician=tech,
+            scheduled_start=_pkt(10),
+            scheduled_end=_pkt(11),
+            status=JobBooking.STATUS_AWAITING_TECH_ACCEPT,
         )
 
         with pytest.raises(SlotUnavailableError):

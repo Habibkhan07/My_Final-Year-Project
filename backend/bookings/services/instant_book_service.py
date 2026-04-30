@@ -86,7 +86,12 @@ def create_instant_booking(
     promotion_id: Optional[int] = None,
 ):
     """
-    Creates a CONFIRMED JobBooking after passing the defensive check pipeline:
+    Creates an AWAITING JobBooking after passing the defensive check pipeline.
+    The booking transitions to CONFIRMED once the dispatched technician
+    accepts within the SLA window (the accept endpoint is a separate sprint);
+    if the SLA fires first, the timeout task flips it to REJECTED.
+
+    Pipeline:
 
     1. Address ownership — query is scoped to ``customer__user`` so a mismatched
        ``address_id`` raises ``DoesNotExist`` instead of returning another
@@ -114,8 +119,10 @@ def create_instant_booking(
     5. Geofence — Haversine distance must be ≤ ``tech.max_travel_radius_km``.
 
     6. Slot race condition — inside ``transaction.atomic()`` +
-       ``select_for_update()`` we re-check for any PENDING/CONFIRMED booking
-       that overlaps the requested window. Half-open semantics: ``[start, end)``.
+       ``select_for_update()`` we re-check for any PENDING/AWAITING/CONFIRMED
+       booking that overlaps the requested window. Half-open semantics:
+       ``[start, end)``. AWAITING is included because an unaccepted booking
+       still reserves the technician's time window.
 
     Returns the newly created ``JobBooking`` instance.
     """
@@ -204,7 +211,11 @@ def create_instant_booking(
 
         overlap_exists = JobBooking.objects.filter(
             technician=tech,
-            status__in=[JobBooking.STATUS_PENDING, JobBooking.STATUS_CONFIRMED],
+            status__in=[
+                JobBooking.STATUS_PENDING,
+                JobBooking.STATUS_AWAITING_TECH_ACCEPT,
+                JobBooking.STATUS_CONFIRMED,
+            ],
             # Half-open overlap: existing booking overlaps iff it starts before
             # our end AND ends after our start
             scheduled_start__lt=scheduled_end,
@@ -226,7 +237,7 @@ def create_instant_booking(
             promotion=intent.promotion,
             scheduled_start=scheduled_start,
             scheduled_end=scheduled_end,
-            status=JobBooking.STATUS_CONFIRMED,
+            status=JobBooking.STATUS_AWAITING_TECH_ACCEPT,
             # Server-derived figure — single source of truth lives in the
             # pricing resolver, never on the wire.
             price_amount=intent.primary_amount,

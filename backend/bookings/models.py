@@ -12,6 +12,7 @@ class JobBooking(models.Model):
     address is SET_NULL so deleted addresses don't cascade-delete booking history.
     """
     STATUS_PENDING = 'PENDING'
+    STATUS_AWAITING_TECH_ACCEPT = 'AWAITING'
     STATUS_CONFIRMED = 'CONFIRMED'
     STATUS_COMPLETED = 'COMPLETED'
     STATUS_CANCELLED = 'CANCELLED'
@@ -19,6 +20,7 @@ class JobBooking(models.Model):
 
     STATUS_CHOICES = [
         (STATUS_PENDING, 'Pending'),
+        (STATUS_AWAITING_TECH_ACCEPT, 'Awaiting Tech Accept'),
         (STATUS_CONFIRMED, 'Confirmed'),
         (STATUS_COMPLETED, 'Completed'),
         (STATUS_CANCELLED, 'Cancelled'),
@@ -65,15 +67,14 @@ class JobBooking(models.Model):
 
     scheduled_start = models.DateTimeField()
     scheduled_end = models.DateTimeField()
+    # Lifecycle: AWAITING (just created, dispatched to tech) → CONFIRMED (tech
+    # accepted) → COMPLETED. Customer cancellation flips to CANCELLED; SLA
+    # timeout flips AWAITING → REJECTED. The "still awaiting tech accept"
+    # signal is the AWAITING status itself — never recover it from a side field.
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_PENDING)
     price_amount = models.DecimalField(max_digits=10, decimal_places=2)
     price_context = models.CharField(max_length=50, blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)
-
-    # NULL until the assigned technician acknowledges the dispatched job request.
-    # The SLA timeout Celery task uses this to distinguish "still awaiting tech
-    # acknowledgement" from "already accepted" before flipping status.
-    accepted_at = models.DateTimeField(null=True, blank=True, default=None)
 
     class Meta:
         indexes = [

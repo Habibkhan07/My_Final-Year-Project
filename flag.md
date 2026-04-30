@@ -4,39 +4,20 @@ Living list of accepted shortcuts. Each entry has: **what's wrong**, **why we sh
 
 ---
 
-## 1. `JobBooking.accepted_at` — booking state encoded in a side field
+## ~~1. `JobBooking.accepted_at` — booking state encoded in a side field~~ ✅ Resolved (2026-05-01)
 
-**Where**
-- Field: `backend/bookings/models.py` (`JobBooking.accepted_at`, nullable `DateTimeField`)
-- Migration: `backend/bookings/migrations/0004_jobbooking_accepted_at.py`
-- Consumer: `backend/bookings/tasks.py` (`expire_pending_job_booking`)
-- Producer (future, not yet wired): the technician-acceptance endpoint that will set `accepted_at = timezone.now()`.
+Resolved by introducing an explicit `STATUS_AWAITING_TECH_ACCEPT = 'AWAITING'` value and dropping the `accepted_at` column. The "still waiting on tech accept" signal is now the status itself — one source of truth, no coupled-field reasoning at consumer sites.
 
-**What's wrong**
-The "is this booking still awaiting technician acknowledgement?" signal is encoded as **two coupled fields**: `status == CONFIRMED` AND `accepted_at IS NULL`. That's two sources of truth for one piece of state. Future code that checks only `status` will miss the "awaiting accept" case; future code that checks only `accepted_at` will miss bookings cancelled by the customer before the tech responded. Every consumer has to remember to `AND` both.
+**What changed**
+- `JobBooking.STATUS_CHOICES` gains `AWAITING`. `accepted_at` field removed. Migration `bookings/0007_drop_accepted_at_add_awaiting_status.py` is `RemoveField(accepted_at)` + `AlterField(status)` to keep choices in sync. Pre-launch project, no production data → no backfill.
+- `bookings.services.instant_book_service.create_instant_booking` now creates bookings in `AWAITING` (was `CONFIRMED`). The slot-overlap filter widens to `[PENDING, AWAITING, CONFIRMED]` here and in `technicians.selectors.availability_selector` so an unaccepted booking still reserves its window.
+- `bookings.tasks.expire_pending_job_booking` is now a single-status check: flips `AWAITING → REJECTED` and treats every other status as a no-op. The `accepted_at` short-circuit is gone.
+- `bookings.services.ports.JobDispatchScheduler.schedule_sla_timeout` docstring updated to reference the AWAITING status.
+- `BOOKINGS_API.md`: endpoint description, slot-blocking row, and SLA timeout table refreshed. The timeout table collapses from four rows to three.
+- Tests updated across `test_tasks.py`, `test_instant_book_service.py`, `test_instant_book_api.py`, `test_availability_selector.py`, `test_dashboard_selector.py`. New coverage: AWAITING blocks slots in both the service and the availability selector; AWAITING bookings are explicitly excluded from the technician dashboard's Up Next / Later Today widgets.
+- Dashboard filter (`technicians.selectors.dashboard_selector`) deliberately stays `CONFIRMED`-only — AWAITING bookings live in the dispatch/accept event surface, not the daily-plan widget.
 
-**Why we shipped it**
-The pre-existing API contract for `POST /api/bookings/instant-book/` says **"Creates a CONFIRMED JobBooking after passing four sequential defensive checks."** Changing the initial status to a new `AWAITING_TECH_ACCEPT` value would have rippled through:
-
-- `BOOKINGS_API.md` (contract text)
-- The slot-conflict overlap check in `instant_book_service.py` (currently filters `status__in=[PENDING, CONFIRMED]` — would need to add the new state)
-- Frontend Active Job Screen logic (Tier 3 cache shape, status switch in the UI)
-- Any analytics / dashboard selectors that key off status
-
-That ripple was out of scope for the dispatch-event sprint. The additive `accepted_at` column gave us the SLA-task signal we needed without breaking the existing contract.
-
-**The proper fix**
-Introduce an explicit pre-acceptance state and collapse the two fields into one:
-
-1. Add `STATUS_AWAITING_TECH_ACCEPT = 'AWAITING'` (or similar) to `JobBooking.STATUS_CHOICES`.
-2. Change `instant_book_service.create_instant_booking` to create bookings in this state, not `CONFIRMED`.
-3. The technician-acceptance endpoint flips `AWAITING → CONFIRMED`.
-4. The SLA task flips `AWAITING → REJECTED` (or a new `EXPIRED` status if we want to distinguish "tech declined" from "tech timed out").
-5. Drop `accepted_at`. If we want acceptance audit, replace it with a `BookingStatusHistory` table — proper modeling for a state machine.
-6. Update the slot-overlap filter to include the new status.
-7. Update `BOOKINGS_API.md` to describe the new lifecycle.
-
-When picking this up, search the repo for `accepted_at` and `STATUS_CONFIRMED` together — those are the two patterns that need to migrate in lockstep.
+**Out of scope, deferred** — the technician-acceptance endpoint (`AWAITING → CONFIRMED`) is still pending. Until it lands, simulating acceptance via Django Admin or a shell mutation remains the local-testing path (same as before this flag closed). When it ships, it must run under `transaction.atomic()` + `select_for_update()` and short-circuit on any non-AWAITING status. No new flag is warranted today — the endpoint is a normal forthcoming feature, not a shortcut.
 
 ---
 

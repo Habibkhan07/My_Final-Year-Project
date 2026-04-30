@@ -332,7 +332,7 @@ class TestInstantBookView:
         assert 'booking_id' in data
         assert isinstance(data['booking_id'], int)
 
-    def test_201_booking_confirmed_in_db(self):
+    def test_201_booking_persisted_awaiting_in_db(self):
         profile = CustomerProfileFactory()
         self._auth(profile.user)
         tech = TechnicianProfileFactory(
@@ -347,7 +347,9 @@ class TestInstantBookView:
 
         booking_id = response.json()['booking_id']
         booking = JobBooking.objects.get(pk=booking_id)
-        assert booking.status == JobBooking.STATUS_CONFIRMED
+        # Newly created bookings sit in AWAITING until the dispatched
+        # technician accepts (separate sprint). Flag #1 closure.
+        assert booking.status == JobBooking.STATUS_AWAITING_TECH_ACCEPT
         assert booking.customer == profile.user
         assert booking.technician == tech
         assert booking.address == address

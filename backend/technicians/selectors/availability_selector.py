@@ -170,7 +170,11 @@ def get_technician_availability(
             technician_id=tech_id,
             scheduled_start__gte=day_start_pkt,
             scheduled_start__lte=day_end_pkt,
-            status__in=[JobBooking.STATUS_PENDING, JobBooking.STATUS_CONFIRMED],
+            status__in=[
+                JobBooking.STATUS_PENDING,
+                JobBooking.STATUS_AWAITING_TECH_ACCEPT,
+                JobBooking.STATUS_CONFIRMED,
+            ],
         ).values('scheduled_start', 'scheduled_end')
     )
 

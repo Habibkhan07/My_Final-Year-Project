@@ -19,14 +19,16 @@ logger = logging.getLogger(__name__)
 @shared_task(name="bookings.expire_pending_job_booking")
 def expire_pending_job_booking(booking_id: int) -> None:
     """
-    Flip a CONFIRMED booking to REJECTED if the technician failed to
-    acknowledge it within the SLA window.
+    Flip an AWAITING booking to REJECTED if the technician failed to
+    accept it within the SLA window. The AWAITING status itself is the
+    "still waiting" signal — once the technician accepts, status moves to
+    CONFIRMED and this task becomes a no-op.
 
     Idempotent guards (any one short-circuits to a no-op):
         * booking row missing — nothing to mutate
-        * ``accepted_at`` already set — technician acknowledged in time
-        * ``status != CONFIRMED`` — booking already cancelled / completed
-          / rejected by another path
+        * ``status != AWAITING`` — technician already accepted (CONFIRMED),
+          or the booking was cancelled / completed / rejected by another
+          path before the timer fired
 
     SECURITY: ``select_for_update`` serializes against the customer's
     cancellation flow and the technician's accept flow; without it, two
@@ -43,17 +45,9 @@ def expire_pending_job_booking(booking_id: int) -> None:
             logger.info("SLA timeout: booking %s not found, skipping.", booking_id)
             return
 
-        if booking.accepted_at is not None:
+        if booking.status != JobBooking.STATUS_AWAITING_TECH_ACCEPT:
             logger.info(
-                "SLA timeout: booking %s already accepted at %s, skipping.",
-                booking_id,
-                booking.accepted_at,
-            )
-            return
-
-        if booking.status != JobBooking.STATUS_CONFIRMED:
-            logger.info(
-                "SLA timeout: booking %s in status %s (not CONFIRMED), skipping.",
+                "SLA timeout: booking %s in status %s (not AWAITING), skipping.",
                 booking_id,
                 booking.status,
             )
@@ -62,6 +56,6 @@ def expire_pending_job_booking(booking_id: int) -> None:
         booking.status = JobBooking.STATUS_REJECTED
         booking.save(update_fields=["status"])
         logger.info(
-            "SLA timeout fired: booking %s flipped CONFIRMED → REJECTED.",
+            "SLA timeout fired: booking %s flipped AWAITING → REJECTED.",
             booking_id,
         )

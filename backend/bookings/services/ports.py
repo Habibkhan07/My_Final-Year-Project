@@ -29,8 +29,9 @@ class JobDispatchScheduler(Protocol):
         """
         Arrange for the SLA timeout task to run ``delay_seconds`` from now.
 
-        On fire, the task flips the booking's status to REJECTED iff the
-        technician has not acknowledged it (``accepted_at IS NULL``). No
-        customer notification — DB state mutation only.
+        On fire, the task flips the booking's status to REJECTED iff it is
+        still ``AWAITING`` (the technician has not accepted yet). Any other
+        status — CONFIRMED, CANCELLED, COMPLETED, REJECTED — short-circuits
+        to a no-op. No customer notification — DB state mutation only.
         """
         ...

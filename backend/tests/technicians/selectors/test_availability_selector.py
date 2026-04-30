@@ -214,6 +214,30 @@ class TestGetTechnicianAvailability:
         assert '9:00 AM' not in times   # blocked by the PENDING booking
         assert '10:00 AM' in times      # starts at booking end — non-overlapping, survives
 
+    def test_awaiting_booking_also_blocks_slot(self):
+        """
+        AWAITING bookings (dispatched but not yet accepted by the tech)
+        must block the overlapping slot — otherwise we'd dispatch two
+        bookings against the same window. Flag #1 closure.
+        """
+        tech = TechnicianProfileFactory(status='APPROVED')
+        TechnicianScheduleFactory(
+            technician=tech,
+            day_of_week=TODAY.weekday(),
+            start_time=datetime.time(9, 0),
+            end_time=datetime.time(11, 0),
+        )
+        JobBookingFactory(
+            technician=tech,
+            scheduled_start=_pkt(9, 0),
+            scheduled_end=_pkt(10, 0),
+            status=JobBooking.STATUS_AWAITING_TECH_ACCEPT,
+        )
+        slots = get_technician_availability(tech_id=tech.id, date_obj=TODAY)
+        times = [s['time_string'] for s in slots]
+        assert '9:00 AM' not in times
+        assert '10:00 AM' in times
+
     def test_cancelled_booking_does_not_block_slot(self):
         """CANCELLED/REJECTED bookings must NOT remove any slot."""
         tech = TechnicianProfileFactory(status='APPROVED')

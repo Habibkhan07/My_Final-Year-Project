@@ -109,6 +109,28 @@ class TestTechnicianDashboardSelector:
         assert dashboard["later_today_jobs"][0]["job_id"] == job_later.id
         assert dashboard["later_today_jobs"][0]["service_title"] == "Ceiling Fan Repair"
 
+    def test_awaiting_job_does_not_appear_in_up_next(self):
+        """
+        AWAITING bookings are dispatched but not yet accepted by the
+        technician — they belong in the dispatch/accept event surface, not
+        the daily-plan widget. Up Next + Later Today must show only the
+        jobs the tech is committed to (CONFIRMED). Flag #1 closure.
+        """
+        tech = TechnicianProfileFactory()
+        now = timezone.now()
+
+        JobBookingFactory(
+            technician=tech,
+            status=JobBooking.STATUS_AWAITING_TECH_ACCEPT,
+            scheduled_start=now + timezone.timedelta(minutes=30),
+            price_context="AC Deep Wash",
+        )
+
+        dashboard = get_technician_dashboard(tech)
+
+        assert dashboard["up_next_job"] is None
+        assert dashboard["later_today_jobs"] == []
+
     def test_selector_handles_empty_state(self):
         """Test handling of no jobs for today."""
         tech = TechnicianProfileFactory()
