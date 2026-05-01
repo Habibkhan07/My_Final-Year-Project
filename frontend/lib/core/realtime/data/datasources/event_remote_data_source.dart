@@ -28,8 +28,13 @@ class EventRemoteDataSource {
   static const _timeout = Duration(seconds: 10);
 
   static const _tokenKey = 'auth_token';
-  static const _eventsUrl = '${AppConstants.baseUrl}/events';
-  static const _devicesUrl = '${AppConstants.baseUrl}/devices';
+  // Backend mounts realtime under `/api/realtime/` — see
+  // `backend/core/urls.py`. Without the `realtime/` segment, every event
+  // sync, ack, and FCM device-register POST returns 404 and the entire
+  // realtime stack silently degrades to "in-app only" with no system-tray
+  // notifications.
+  static const _eventsUrl = '${AppConstants.baseUrl}/realtime/events';
+  static const _devicesUrl = '${AppConstants.baseUrl}/realtime/devices';
 
   const EventRemoteDataSource({
     required http.Client client,

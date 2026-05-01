@@ -436,3 +436,53 @@ On a Mac with Xcode:
 
 **Severity**
 Blocking for any iOS production rollout. Not blocking for the current Android-only target. Pick up when the project commits to iOS or when a Mac becomes available.
+
+---
+
+## 11. Foreground WebSocket events don't trigger in-app routing
+
+**Where**
+- `frontend/lib/core/realtime/presentation/notifiers/ws_connection_notifier.dart` — WS frame entry point
+- `frontend/lib/core/realtime/presentation/services/ws_frame_dispatcher.dart` — `kind` switch
+- `frontend/lib/core/realtime/presentation/notifiers/system_event_notifier.dart` — single ingestion funnel
+- `frontend/lib/core/realtime/presentation/router/event_urgency_router.dart` — high-urgency route push / low-urgency banner
+- `backend/realtime/events/services/event_dispatch_service.py` — `_push_to_channel_layer`
+
+**What's wrong**
+With the app foregrounded and the WebSocket connected (confirmed via Django runserver `WSCONNECT` log), firing a `job_new_request` event via `EventDispatchService.broadcast_event(...)` from the Django shell produces **no observable effect in the app**:
+
+- No in-app banner
+- No route push to `/technician/incoming-job-request`
+- No visible UI change
+- No exception in `flutter logs` (just Android `BLAST` rendering noise)
+
+The killed-state path works correctly: FCM tray notification arrives, tap routes to the right screen, `getInitialMessage()` resolves the payload. The break is specifically on the foreground WebSocket → in-app routing pipeline.
+
+**Why we shipped it that way**
+Surfaced during Session 3 Tier 2 manual E2E (2026-05-01). The issue is pre-existing — the WS-to-router pipeline was wired in earlier sessions and every isolated unit test (R1/R2 boot-hooks registry, B1/B2 sentinel race, A1–A10 auth bridge, channel/widget tests) passes. But no test pumps the *full* path "WS frame arrives → router pushes the route" because that requires either an integration harness or a real device with logging instrumentation. Tier 2 was the first time anyone exercised it end-to-end against a real backend.
+
+**The proper fix**
+
+1. **Add diagnostic logging** at every link in the chain (use `dart:developer.log` with distinct `name:` per layer):
+   - `WsConnectionNotifier._handleMessage` — log "frame received: <bytes>"
+   - `WsFrameDispatcher.dispatch` — log "dispatching kind=<kind> rawType=<rawType>"
+   - `SystemEventNotifier.processEvent` — log "accepting event id=<id> type=<type>" or "rejecting (dedup/order/null)"
+   - `EventUrgencyRouter.handleEvent` — log "routing event type=<type> urgency=<urgency> action=<push|banner|silent>"
+2. Run `python manage.py shell < dev_send_push.py` with the app foregrounded and trace where the chain breaks. Likely culprits:
+   - WS frame missing the `kind: "event"` field (dispatcher silently drops via `default` branch)
+   - `SystemEventNotifier` dedup-rejecting because the same event id arrived earlier via FCM background queue and is still in the dedup map
+   - `EventUrgencyRouter._highUrgencyRoutes` missing the entry for `job_new_request` (regression check the router map)
+   - Shared `navigatorKeyProvider` isn't actually shared (router push targets a different `GlobalKey<NavigatorState>` than `MaterialApp.router` uses) — Session 3's W5 widget test pins this for `bootApp`, but the production runtime path could still drift
+   - `_listRouteEvents` membership for `job_new_request` causes the nav guard to skip the push when the screen is already mounted, AND the screen isn't mounted, AND the queue notifier isn't woken (even though `realtimeBootHooksProvider` should have woken it)
+3. Once the failing layer is identified, fix at the smallest seam and add a regression test that exercises the full path (probably a widget test that mounts `bootApp` then injects a fake WS frame at the `WsConnectionNotifier` boundary).
+
+**Search hints**
+- `WsConnectionNotifier._handleMessage` — frame entry
+- `WsFrameDispatcher.dispatch` — `kind` switch
+- `SystemEventNotifier.processEvent` — dedup + ingest
+- `EventUrgencyRouter._highUrgencyRoutes` — route map
+- `_listRouteEvents` / `_navGuardPayloadKeys` (in `event_urgency_router.dart`) — nav-guard logic that may swallow pushes
+- `realtimeBootHooksProvider` (in `app_lifecycle_orchestrator.dart`) — queue-notifier wake list
+
+**Severity**
+Medium. Killed/backgrounded delivery via FCM works (users get notifications when the app is closed — the highest-stakes case for missed jobs). Foreground routing is a no-op where it should interrupt with a route push. UX impact: a technician with the app open who receives a job offer sees nothing happen until they background and re-foreground (FCM drain on resume) OR manually navigate. For an Android-only marketplace where technicians plausibly keep the app open while waiting for jobs, this is non-trivial debt — but not a launch blocker because the killed-state path is the dominant real-world case.
