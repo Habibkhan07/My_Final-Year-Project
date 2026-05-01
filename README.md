@@ -192,7 +192,7 @@ This populates:
 python manage.py runserver 0.0.0.0:8000
 ```
 
-This serves both HTTP and WebSocket. Channels patches `runserver` to handle ASGI in dev. (Production would run Daphne directly — `daphne core.asgi:application` — but you don't need that locally.)
+This serves both HTTP and WebSocket. `'daphne'` is registered as the first entry in `INSTALLED_APPS` (`core/settings.py`), which is what causes `runserver` to be replaced with the Daphne ASGI runserver — Channels 4.x dropped its own runserver patch, so Daphne is the only thing that gets `runserver` to speak WebSocket. If you ever see `GET /ws/events/... HTTP/1.1 404` in the runserver logs (instead of `WSCONNECTING /ws/events/`), it means `'daphne'` got dropped from INSTALLED_APPS and `runserver` fell back to plain WSGI. Production typically runs Daphne directly via `daphne core.asgi:application` — that path bypasses `runserver` entirely and works regardless of INSTALLED_APPS ordering.
 
 ### 9. Start the Celery worker (terminal 2)
 
