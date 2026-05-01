@@ -81,6 +81,13 @@ CELERY_TASK_PUBLISH_RETRY = False
 # Application definition
 
 INSTALLED_APPS = [
+    # Daphne MUST be the first entry so its `runserver` command replaces
+    # Django's default WSGI runserver. Channels 4.x removed its own runserver
+    # patch — without `daphne` here, `python manage.py runserver` falls back
+    # to plain WSGI and every WebSocket handshake (`/ws/events/`) returns
+    # HTTP 404 silently. The `daphne <module>` CLI continues to work either
+    # way; this entry just keeps the dev workflow uniform.
+    'daphne',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',

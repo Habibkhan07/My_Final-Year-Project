@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:developer';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -27,7 +26,6 @@ class EventUrgencyRouter {
   final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey;
 
   static const _bannerAutoDismiss = Duration(seconds: 5);
-  static const _logName = 'core.presentation.urgency_router';
 
   const EventUrgencyRouter({
     required this.navigatorKey,
@@ -103,11 +101,6 @@ class EventUrgencyRouter {
     // 1. Role gate — the backend occasionally fans out to the wrong role
     //    during B2B account sharing; drop silently.
     if (event.targetRole != currentUserRole) {
-      log(
-        'dropping event id=${event.id} for role=${event.targetRole.name} '
-        '(current=${currentUserRole.name})',
-        name: _logName,
-      );
       return;
     }
 
@@ -140,17 +133,9 @@ class EventUrgencyRouter {
     if (route == null) return;
 
     final ctx = navigatorKey.currentContext;
-    if (ctx == null) {
-      log('no navigator context — skipping push for ${event.id}',
-          name: _logName);
-      return;
-    }
+    if (ctx == null) return;
 
-    if (_isAlreadyOnEntity(ctx, route, event)) {
-      log('already on $route for the same entity; skipping push',
-          name: _logName);
-      return;
-    }
+    if (_isAlreadyOnEntity(ctx, route, event)) return;
 
     GoRouter.of(ctx).push(route, extra: jsonEncode(event.payload));
   }
@@ -160,7 +145,14 @@ class EventUrgencyRouter {
     String targetRoute,
     SystemEventEntity event,
   ) {
-    final currentLocation = GoRouterState.of(ctx).matchedLocation;
+    // The orchestrator hands us `navigatorKey.currentContext` — that BuildContext
+    // sits *above* the route-builder subtree, so `GoRouterState.of(ctx)` throws
+    // ("There is no GoRouterState above the current context"). Read the current
+    // URI from the GoRouter instance instead, which is available at any context
+    // at or below the GoRouter widget.
+    final currentUri =
+        GoRouter.of(ctx).routerDelegate.currentConfiguration.uri;
+    final currentLocation = currentUri.path;
     if (!currentLocation.startsWith(targetRoute)) return false;
 
     // List-route events: a single screen instance handles every entry, so
@@ -175,7 +167,6 @@ class EventUrgencyRouter {
 
     // Match against path segments — works whether the screen reads the id
     // from the path (`/customer/job-accepted/42`) or query (`?job_id=42`).
-    final currentUri = GoRouterState.of(ctx).uri;
     if (currentUri.pathSegments.contains(incomingId)) return true;
     if (currentUri.queryParameters[key] == incomingId) return true;
     return false;

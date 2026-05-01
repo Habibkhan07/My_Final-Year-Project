@@ -55,6 +55,13 @@ def test_sync_filters_by_since_and_user(authed_client):
     # Sync output must include the ``kind`` discriminator so the frontend
     # dispatcher can use the same switch for replayed events as for live ones.
     assert all(entry["kind"] == "event" for entry in results)
+    # Single-envelope contract: each row's ``payload`` is the *inner* feature
+    # payload, not a re-nested envelope. Pin it here so the doubly-enveloped
+    # regression (flag #12) cannot silently re-land.
+    entry = results[0]
+    assert "kind" not in entry["payload"]
+    assert "payload" not in entry["payload"]
+    assert entry["payload"] == {"job_id": "sample-job"}
 
 
 @pytest.mark.django_db

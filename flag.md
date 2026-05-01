@@ -439,6 +439,14 @@ Blocking for any iOS production rollout. Not blocking for the current Android-on
 
 ---
 
+## ~~11. Foreground WebSocket events don't trigger in-app routing~~ ✅ Resolved (2026-05-01)
+
+Root cause was a single line in `frontend/lib/core/realtime/presentation/router/event_urgency_router.dart`: `_isAlreadyOnEntity` called `GoRouterState.of(navigatorKey.currentContext)`. `navigatorKey.currentContext` sits *above* every route-builder subtree, and `GoRouterState.of` only resolves *inside* one — it threw `GoError: There is no GoRouterState above the current context` before `_handleHigh` could invoke `GoRouter.push(...)`. Fixed by reading the current URI from `GoRouter.of(ctx).routerDelegate.currentConfiguration.uri`, which works at any context at-or-below the GoRouter widget. The throw affected both WS and FCM delivery paths; surfaced during testing because the WS path was incidentally broken (see flag #13). Verified end-to-end via FCM-delivered `job_new_request`: orchestrator's `ref.listenManual` fires, role gate passes, `_handleHigh` issues `GoRouter.push`, `IncomingJobRequestScreen` mounts and renders the queue entry with real data.
+
+The original entry's "Likely culprits" list (missing `kind`, dedup race, list-route guard, navigator-key drift, queue-notifier wake order) was wrong on every count. None of those were the issue. Diagnostic instrumentation ([1/4]…[4/4] `print` statements at four pipeline seams in `ws_connection_notifier.dart`, `ws_frame_dispatcher.dart`, `system_event_notifier.dart`, `event_urgency_router.dart`) was added during debugging and removed after the fix landed. Spun off two adjacent issues that were masked or surfaced by this debugging: flag #12 (EventLog double-envelope) and flag #13 (Daphne missing from INSTALLED_APPS).
+
+**Historical context** (kept per CLAUDE.md "never delete" — original problem statement and proposed fix path):
+
 ## 11. Foreground WebSocket events don't trigger in-app routing
 
 **Where**
@@ -486,3 +494,36 @@ Surfaced during Session 3 Tier 2 manual E2E (2026-05-01). The issue is pre-exist
 
 **Severity**
 Medium. Killed/backgrounded delivery via FCM works (users get notifications when the app is closed — the highest-stakes case for missed jobs). Foreground routing is a no-op where it should interrupt with a route push. UX impact: a technician with the app open who receives a job offer sees nothing happen until they background and re-foreground (FCM drain on resume) OR manually navigate. For an Android-only marketplace where technicians plausibly keep the app open while waiting for jobs, this is non-trivial debt — but not a launch blocker because the killed-state path is the dominant real-world case.
+
+---
+
+## ~~12. `EventLog.payload` stored the entire envelope, doubly-nesting every sync-replayed event~~ ✅ Resolved (2026-05-01)
+
+Resolved by storing the *inner* feature payload only. The serializer rebuilds the envelope shell from row columns plus a `SerializerMethodField`, so `/api/events/sync/` and `/api/events/unacknowledged/` output now matches the §1.2 single-envelope wire contract that the WS path was already producing.
+
+**What changed**
+- `backend/realtime/events/services/event_dispatch_service.py` — `EventLog.objects.create(..., payload=payload, ...)` (was `payload=envelope`). The narrow comment block above the call documents *why* the inner payload is the right thing to persist.
+- `backend/tests/factories/core.py` — `EventLogFactory.payload` is now the inner dict (`{"job_id": "sample-job"}`), not a full envelope.
+- `backend/tests/realtime/test_event_dispatch_service.py` — assertion on the persisted row now checks `row.payload == {"job_id": "abc"}` instead of `row.payload["kind"] == "event"`.
+- `backend/tests/realtime/test_event_api.py` — `test_sync_returns_only_recent_events_for_current_user` gains three lines pinning the single-envelope contract on the wire: `entry["payload"]` contains no `"kind"` key, no nested `"payload"` key, and equals the original inner payload exactly. This is the regression net for any future change that reintroduces double nesting.
+- All 51 tests under `tests/realtime/` and `tests/bookings/services/test_job_request_dispatch.py` pass. No frontend changes needed — every frontend fixture (WS dispatcher tests, FCM handler tests, payload model tests, mapper tests) already used the single-envelope shape because that has always been the documented wire contract; the backend was the side that diverged.
+
+**How it surfaced**
+Found while diagnosing flag #11. The user remembered seeing a doubly-nested `payload{payload{}}` shape in some log; the actual location was `EventLog.payload`, not the WS wire (which was always single-enveloped via `_push_to_channel_layer`). Live foreground events worked fine; only sync replay (cold start, reconnect, `_onResumed`) was broken — every replayed `job_new_request` failed `JobNewRequestPayloadModel.fromJson` because the inner payload's `job_id` was buried at `event.payload['payload']['job_id']` instead of `event.payload['job_id']`. The mapper's silent-drop policy masked the failure — flag #11's GoError was the visible symptom.
+
+**Migration note**
+Existing `EventLog` rows in the dev DB are still doubly enveloped. For development, the cleanest reset is `EventLog.objects.all().delete()` (no production users). For production parity (when it matters), a one-shot migration: `for row in EventLog.objects.iterator(): if isinstance(row.payload, dict) and row.payload.get('kind') == 'event' and 'payload' in row.payload: row.payload = row.payload['payload']; row.save(update_fields=['payload'])`. Idempotent — re-running on already-flat rows is a no-op because the `kind`-key check fails.
+
+---
+
+## ~~13. `daphne` missing from INSTALLED_APPS — `python manage.py runserver` silently 404s every WS handshake~~ ✅ Resolved (2026-05-01)
+
+Resolved by adding `'daphne'` as the very first entry in `INSTALLED_APPS`. Channels 4.x dropped its own `runserver` patch and now requires Daphne to be registered before `django.contrib.staticfiles` for `runserver` to be replaced with the Daphne ASGI runserver. Without it, `runserver` falls back to plain WSGI: HTTP routes work, but every WebSocket upgrade request hits the URL router as an ordinary `GET /ws/events/...` and returns 404 with no obvious diagnostic. The `daphne -b 0.0.0.0 -p 8000 core.asgi:application` CLI invocation continues to work either way (it bypasses `runserver` entirely), which is how the project shipped without anyone noticing — but anyone defaulting to `runserver` (the Django muscle-memory invocation) lost all realtime functionality silently.
+
+**What changed**
+- `backend/core/settings.py` — `'daphne'` inserted at index 0 of `INSTALLED_APPS` with an inline comment explaining the requirement and pointing to the symptom.
+- No test impact (Channels' channel layer is exercised via `InMemoryChannelLayer` in tests, independent of which ASGI runserver is in front).
+- No doc impact — `EVENT_DISPATCH_API.md` describes the wire contract, not the dev-server invocation.
+
+**How it surfaced**
+During flag #11 debugging, the user switched from `daphne -b 0.0.0.0 -p 8000 core.asgi:application` to `python manage.py runserver`. The next test run produced `GET /ws/events/?token=... HTTP/1.1 404` (standard Django WSGI log format) instead of the `WSCONNECTING /ws/events/` line (Daphne's format) seen in the previous run. With WS dead, the orchestrator never received frames over the socket — but the test event still reached the device via FCM (Celery → Firebase → `FirebaseMessaging.onMessage`), which is what produced the `D/FLTFireMsgReceiver: broadcast received for message` log line. That FCM-delivered event is what eventually exposed flag #11's GoError.

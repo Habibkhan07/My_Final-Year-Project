@@ -85,12 +85,19 @@ class EventDispatchService:
         # --- Step 1: Persist first (sacred DB write). ----------------------
         # Any exception here is allowed to bubble — if we cannot record the
         # event, we must not pretend to have dispatched it.
+        #
+        # We store the *inner* payload only. EventLogSerializer rebuilds the
+        # envelope shell (kind/rawType/targetRole/timestamp) from the row's
+        # columns and a SerializerMethodField, so /api/events/sync/ output
+        # matches the §1.2 single-envelope wire contract feature mappers
+        # consume. Storing the full envelope here was a doubly-nested-payload
+        # bug that silently broke every reconnect-replayed event.
         EventLog.objects.create(
             id=envelope["id"],
             user=user,
             event_type=event_type,
             target_role=target_role,
-            payload=envelope,
+            payload=payload,
             is_critical=meta["is_critical"],
         )
 

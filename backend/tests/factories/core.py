@@ -17,13 +17,7 @@ class EventLogFactory(factory.django.DjangoModelFactory):
     is_critical = True
     acknowledged_at = None
 
-    @factory.lazy_attribute
-    def payload(self):
-        return {
-            "kind": "event",
-            "id": str(factory.Faker("uuid4").evaluate(None, None, {"locale": "en"})),
-            "rawType": self.event_type,
-            "targetRole": self.target_role,
-            "timestamp": "2026-04-24T00:00:00Z",
-            "payload": {"job_id": "sample-job"},
-        }
+    # EventLog.payload stores the *inner* feature payload only — the envelope
+    # shell (kind/rawType/targetRole/timestamp) is rebuilt by EventLogSerializer
+    # on read. Matches what EventDispatchService.broadcast_event persists.
+    payload = {"job_id": "sample-job"}

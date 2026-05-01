@@ -45,8 +45,10 @@ def test_event_log_is_written_before_any_dispatch(mocker):
     row = EventLog.objects.get(id=envelope["id"])
     assert row.is_critical is True  # job_accepted is critical in the registry
     assert row.event_type == "job_accepted"
-    # Stored envelope (EventLog.payload) carries kind for sync replay.
-    assert row.payload["kind"] == "event"
+    # EventLog.payload stores the *inner* feature payload only — single-envelope
+    # contract per EVENT_DISPATCH_API.md. The envelope shell is reconstituted by
+    # EventLogSerializer on sync read, so storing it here too would double-nest.
+    assert row.payload == {"job_id": "abc"}
 
 
 @pytest.mark.django_db
