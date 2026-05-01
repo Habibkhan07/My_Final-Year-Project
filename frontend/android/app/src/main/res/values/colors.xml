@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    notification_color — accent applied to the notification body and the
+    small icon's monochrome backdrop. Referenced from AndroidManifest.xml
+    via:
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_color"
+            android:resource="@color/notification_color" />
+
+    Matches Colors.blue's Material seed used by ColorScheme.fromSeed in
+    main.dart. If the brand seed changes there, change here.
+-->
+<resources>
+    <color name="notification_color">#1976D2</color>
+</resources>

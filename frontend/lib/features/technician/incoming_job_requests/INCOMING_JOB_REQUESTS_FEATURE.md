@@ -20,7 +20,7 @@ This feature is the reference implementation of the rule documented in `CLAUDE.m
 - **Audience-first placement**: lives under `features/technician/`, not under `features/booking/` (which is the customer's checkout). The event is *about* a booking but only *received* by the technician.
 - **Subscriber pattern**: `IncomingJobQueueNotifier` (`@Riverpod(keepAlive: true)`) calls `ref.listen(systemEventProvider, …)` and filters by `SystemEventType.jobNewRequest`. Adding a future event = a new notifier in its own feature, never an edit to `core/realtime`'s notifier code.
 - **List-route screen**: `EventUrgencyRouter._listRouteEvents` includes `jobNewRequest`, so subsequent events while the screen is mounted skip the push and update the list in place.
-- **Wake-up at boot is load-bearing**: the notifier MUST subscribe to `systemEventProvider` before the WS connect cascade. `AppLifecycleOrchestrator.bootAfterAuth` performs an eager `ref.read(incomingJobQueueProvider)` for exactly this reason.
+- **Wake-up at boot is load-bearing**: the notifier MUST subscribe to `systemEventProvider` before the WS connect cascade. `incomingJobQueueProvider` is registered in `realtimeBootHooksProvider` (declared at the bottom of `app_lifecycle_orchestrator.dart`); `bootAfterAuth` iterates that registry and reads every entry. Adding a future list-route event = append its queue provider to the registry, never edit `bootAfterAuth`.
 
 ---
 
@@ -148,13 +148,14 @@ job_new_request event arrives over ws/events/  (or FCM, or sync replay)
 ```
 
 **Boot sequence (load-bearing order)**:
-1. `AppLifecycleOrchestrator.bootAfterAuth` is called by the auth feature.
+1. `AppLifecycleOrchestrator.bootAfterAuth` is called fire-and-forget by `AuthNotifier._scheduleBoot` (cold-start `build()` and `verifyOtp` paths).
 2. `eventSyncProvider.notifier.onUnauthorized` is set.
-3. `ref.read(incomingJobQueueProvider)` — wakes the queue subscriber.
+3. The for-loop in `bootAfterAuth` iterates `realtimeBootHooksProvider`, reading every entry. `incomingJobQueueProvider` is in that list — this read wakes the queue subscriber.
 4. FCM initializes (drains background queue, registers token).
-5. `wsConnectionProvider.notifier.connect(token)` — triggers sync cascade; events start flowing.
+5. Sentinel: if teardown ran during step 4 and nulled `onUnauthorized`, `bootAfterAuth` bails. This prevents a stale-token reconnect.
+6. `wsConnectionProvider.notifier.connect(token)` — triggers sync cascade; events start flowing.
 
-If step 3 is skipped or moved after step 5, the very first `job_new_request` of the session is delivered to `SystemEventNotifier` but missed by this feature's listener (because `ref.listen` only fires on transitions *after* subscription).
+If step 3 is skipped or moved after step 6, the very first `job_new_request` of the session is delivered to `SystemEventNotifier` but missed by this feature's listener (because `ref.listen` only fires on transitions *after* subscription). The orchestrator test pins this contract via `realtimeBootHooksProvider registry R1/R2` — R1 asserts the queue provider is in the registry, R2 asserts the for-loop iterates it.
 
 ---
 

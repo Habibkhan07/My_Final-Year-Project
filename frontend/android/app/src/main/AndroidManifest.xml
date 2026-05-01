@@ -1,11 +1,37 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!--
+        Android 13+ runtime permission for notifications. Harmless on
+        targetSdk <33 (auto-granted). Runtime dialog only fires when
+        targetSdk >=33 — see app/build.gradle.kts (currently
+        flutter.targetSdkVersion).
+    -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <application
         android:label="frontend"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true">
+
+        <!--
+            FCM defaults applied to any incoming notification payload that
+            doesn't override channel/icon/color. Channel id MUST match the
+            channel registered at runtime in FCMHandler.initialize() and
+            firebaseMessagingBackgroundHandler. If the channel doesn't exist
+            when the first push arrives, Android routes to a "Miscellaneous"
+            channel that users can't easily mute or unmute — visible-but-
+            uncontrollable, the worst notification UX.
+        -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="@string/default_notification_channel_id" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_notification" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_color"
+            android:resource="@color/notification_color" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

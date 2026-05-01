@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Channel id `job_dispatch` is wire-frozen — changing it after first
+    install would create a second visible channel in OS settings (Android
+    keys channels by id, not by name). To rename, you must call
+    deleteNotificationChannel('job_dispatch') first as a migration step.
+
+    Channel name and description are user-visible in OS Notification
+    settings. English-only for now; Urdu localization is a separate i18n
+    workstream.
+-->
+<resources>
+    <string name="default_notification_channel_id">job_dispatch</string>
+    <string name="notification_channel_job_dispatch_name">Job Requests</string>
+    <string name="notification_channel_job_dispatch_description">New job requests, dispatch updates, and time-critical events for technicians.</string>
+</resources>

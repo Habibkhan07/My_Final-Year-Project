@@ -12,6 +12,7 @@ import '../../data/models/system_event_model.dart';
 import '../../data/repositories/event_repository.dart';
 import '../notifiers/event_sync_notifier.dart';
 import '../notifiers/system_event_notifier.dart';
+import 'notification_channels.dart';
 
 /// Main-isolate companion to [firebaseMessagingBackgroundHandler].
 ///
@@ -59,7 +60,12 @@ class FCMHandler {
 
   /// Idempotent wiring. Call exactly once on app start, after
   /// `Firebase.initializeApp()` has completed in the main isolate.
+  ///
+  /// `ensureJobDispatchChannel` runs FIRST so the OS channel exists
+  /// before any FCM listener can deliver a notification — a race we
+  /// cannot otherwise close cleanly. See `notification_channels.dart`.
   Future<void> initialize() async {
+    await ensureJobDispatchChannel();
     await requestPermission();
     await _registerToken();
     _listenForegroundMessages();

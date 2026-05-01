@@ -5,6 +5,8 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'notification_channels.dart';
+
 /// Top-level entry point invoked by Firebase when an FCM message arrives
 /// while the app is terminated or backgrounded.
 ///
@@ -41,6 +43,18 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     );
     // Continue — SharedPreferences does not depend on Firebase.
   }
+
+  // Defensive channel registration in the BG isolate. The main isolate's
+  // FCMHandler.initialize() is the primary registration site, but on a
+  // fresh-install device that receives a push before ever opening the
+  // app, the BG isolate is the first (and so far only) Dart VM to run.
+  // Without this, the very first notification on a fresh install would
+  // route to Android's default unnamed channel.
+  //
+  // Idempotent on the OS side — same channel id from any isolate
+  // converges on a single OS-level NotificationChannel. The function
+  // itself wraps platform exceptions internally (see notification_channels.dart).
+  await ensureJobDispatchChannel();
 
   try {
     final prefs = await SharedPreferences.getInstance();
