@@ -362,7 +362,7 @@ widget lifecycle.
 
 ---
 
-## 11. FCM Background Isolate Constraint
+## 11. FCM Background Isolate
 
 The `firebaseMessagingBackgroundHandler` top-level function runs in a
 **separate Dart isolate**, where:
@@ -371,7 +371,12 @@ The `firebaseMessagingBackgroundHandler` top-level function runs in a
 - The main isolate's `FirebaseMessaging` instance, `EventLocalDataSource`,
   and `SystemEventNotifier` do not exist.
 
-So the background isolate constructs its **own** `SharedPreferences`
+The BG isolate has two responsibilities — both of which it discharges
+without any shared state from the main isolate.
+
+### 11.1 Pending-event queue (cross-isolate SharedPreferences contract)
+
+The background isolate constructs its **own** `SharedPreferences`
 instance and writes JSON-encoded events directly to a known string key.
 The main-isolate side reads that same key on resume via
 `EventLocalDataSource.consumePendingBackgroundEvents`.
@@ -381,13 +386,54 @@ The literal string of `_keyPendingBackgroundEvents`
 contract between two files in different isolates:
 
 ```
-lib/core/presentation/services/fcm_background_handler.dart   ← writer
-lib/core/data/datasources/event_local_data_source.dart        ← reader
+lib/core/realtime/presentation/services/fcm_background_handler.dart   ← writer
+lib/core/realtime/data/datasources/event_local_data_source.dart       ← reader
 ```
 
 **Future contributors: keep the constant in sync between these two
 files. Renaming one without the other silently loses every background
 event and there is no compile-time check.**
+
+### 11.2 Notification channel registration (Android 8+)
+
+Android 8.0 (API 26) requires every notification to belong to a
+registered channel. The FCM SDK auto-displays the system-tray
+notification when an incoming message has a `notification` payload (the
+backend sends `notification + data` — see `backend/realtime/devices/
+tasks.py`). That auto-display routes through the channel id pinned by
+the manifest meta-data
+(`com.google.firebase.messaging.default_notification_channel_id`).
+
+If the channel doesn't exist when the first notification arrives, Android
+falls back to an OS-managed default channel that's silently muted on some
+OEM skins (Xiaomi/MIUI, Oppo, Huawei) and visible-but-uncontrollable on
+others. To prevent that, the `job_dispatch` channel is registered from
+**both** isolates via the shared
+`presentation/services/notification_channels.dart::ensureJobDispatchChannel()`
+helper:
+
+- **Main isolate**: `FCMHandler.initialize()` calls it as its first step,
+  before `requestPermission()`. Covers the dominant case (user has opened
+  the app at least once).
+- **BG isolate**: `firebaseMessagingBackgroundHandler` calls it at the
+  top, right after `Firebase.initializeApp()`. Covers the edge case of a
+  fresh-install user receiving a push before ever opening the app.
+
+The Android `createNotificationChannel` call is genuinely idempotent on
+the OS side (channels are keyed by id), so dual-isolate registration
+converges on a single OS-level `NotificationChannel`. The Dart-side
+helper is also intentionally **not** memoized; relying on Android's dedup
+keeps the helper trivial and safe under concurrent calls.
+
+The channel definition (`jobDispatchChannel`, `Importance.high`, name
+"Job Requests", description for OS Settings) is `const` and lives in one
+file so the two registrations cannot drift. **Channel id `job_dispatch`
+is wire-frozen** — also referenced from
+`AndroidManifest.xml`'s `default_notification_channel_id` meta-data and
+`res/values/strings.xml`'s `default_notification_channel_id` string
+resource. Renaming requires
+`deleteNotificationChannel('job_dispatch')` first, otherwise every
+existing install ends up with two visible channels in OS Settings.
 
 ---
 
@@ -399,6 +445,8 @@ event and there is no compile-time check.**
 | `KARIGAR_WS_BASE_URL` | `AppConstants.baseWsUrl` | Currently hardcoded to `ws://127.0.0.1:8000`. WS path `/ws/events/` is mounted at root (no `/api` prefix). |
 | `google-services.json` | Firebase Android | Must be present at `frontend/android/app/google-services.json`. |
 | `GoogleService-Info.plist` | Firebase iOS | Must be present at `frontend/ios/Runner/GoogleService-Info.plist`. |
+| `POST_NOTIFICATIONS` permission | Android 13+ system-tray dialog | Declared in `android/app/src/main/AndroidManifest.xml`. `targetSdk` must be ≥33 (currently `flutter.targetSdkVersion`) for `FirebaseMessaging.requestPermission()` to surface the OS dialog; on lower targetSdk the permission is auto-granted and no dialog shows. |
+| FCM defaults meta-data | `AndroidManifest.xml` | Three `<meta-data>` entries (`default_notification_channel_id`, `default_notification_icon`, `default_notification_color`) tell the FCM SDK which channel/icon/color to use for auto-displayed notifications. Backed by `res/drawable/ic_notification.xml` (alpha-only vector), `res/values/colors.xml` (`@color/notification_color`), and `res/values/strings.xml` (`@string/default_notification_channel_id`). |
 
 Token storage: `FlutterSecureStorage` key `auth_token`, set by the auth
 feature. The remote data source reads it per call.
@@ -443,7 +491,7 @@ The auth-side wiring lives in `AuthNotifier` (`features/auth/.../auth_notifier.d
 
 Boot is fire-and-forget for a reason: `bootAfterAuth` can take seconds on slow networks (FCM init + WS handshake). Awaiting it would stall auth state in `AsyncLoading` and the router would route to `/login`. The orchestrator's helpers are idempotent (FCM init guards against double-register; WS connect short-circuits if already connected), so a fast `verifyOtp` → `completeSignup` chain re-firing boot is benign.
 
-Mounting the orchestrator widget itself — covered in the file's dartdoc — is done once in `main.dart` (via `_Bootstrap`), above `MaterialApp.router`, with the shared `navigatorKey` and `scaffoldMessengerKey` resolved through `navigatorKeyProvider` / `scaffoldMessengerKeyProvider`.
+Mounting the orchestrator widget itself — covered in the file's dartdoc — is done once in `main.dart` (via `_Bootstrap`), above `MaterialApp.router`, with the shared `navigatorKey` and `scaffoldMessengerKey` resolved through `navigatorKeyProvider` / `scaffoldMessengerKeyProvider`. `main()` itself is a thin shim around `@visibleForTesting Future<Widget> bootApp({...injectable initializers})` so widget tests can pump the real composition tree with mocked Firebase/FCM/SharedPrefs initializers — see `test/main_app_boot_widget_test.dart` (W1–W8). Production behaviour is byte-identical to a non-extracted `main()`.
 
 The boot ordering is deliberate at every step:
 - Setting `onUnauthorized` *first* means a stale-token 401 from FCM `registerDevice` is recovered, not swallowed.
@@ -472,9 +520,20 @@ The boot ordering is deliberate at every step:
 - **iOS background WebSocket throttling.** iOS aggressively suspends
   background sockets. FCM is the reliable fallback there, and
   `processPendingBackgroundEvents` on resume is what closes the gap.
-- **No widget/integration tests on the orchestrator or background
-  handler.** Per `CLAUDE.md` "Cross-Boundary Integration Testing —
-  Deferred", these are slated for the integration-test phase.
+- **iOS native push not enabled.** The Dart-side wiring is platform-
+  agnostic, but iOS native capabilities (`Info.plist`
+  `UIBackgroundModes`, Push Notifications entitlement, APNs `.p8` key
+  upload) require macOS/Xcode and have not been done. Tracked as
+  `flag.md` #10. Android-only for now.
+- **OEM aggressive task-killing.** Killed-state FCM delivery on Xiaomi
+  (MIUI), Oppo, Vivo, and some Huawei devices may be unreliable without
+  the user manually whitelisting the app in the OEM's autostart /
+  battery-optimisation settings. Platform limitation — not fixable in
+  app code.
+- **No `EventUrgencyRouter` unit tests.** The router's banner/route-push
+  decision logic is exercised end-to-end via the events that flow through
+  it but has no isolated test. Slated for the integration-test phase
+  alongside other UI-coupled coverage.
 
 ---
 
@@ -486,8 +545,13 @@ The boot ordering is deliberate at every step:
 | Data | ✅ complete |
 | Presentation (notifiers, router, FCM) | ✅ complete |
 | Lifecycle (orchestrator + auth boot/teardown wiring) | ✅ complete |
+| Android native (manifest permission, channel, icon, color) | ✅ complete (Session 3, 2026-05-01 — closes flag #7 for Android) |
+| iOS native (Info.plist, entitlements, APNs key) | ⏳ deferred — tracked as `flag.md` #10 (Mac-equipped sprint) |
 | Feature screens consuming these events (per-feature) | n/a — owned by their respective feature directories |
-| Tests (data + state + FCM + orchestrator canary) | ✅ complete (117 tests) |
-| EventUrgencyRouter tests | ⏳ deferred — follow-up |
-| Full AppLifecycleOrchestrator tests (lifecycle observer, _onResumed, listenManual) | ⏳ deferred — follow-up |
+| Tests (data + state + FCM + orchestrator canary) | ✅ complete |
+| Auth ↔ orchestrator bridge tests (A1–A10) | ✅ complete — `test/features/auth/presentation/providers/auth_notifier_realtime_bridge_test.dart` |
+| Notification channel registration tests (C1–C5) | ✅ complete — `test/core/realtime/presentation/services/notification_channels_test.dart` |
+| Boot composition widget tests (W1–W8) | ✅ complete — `test/main_app_boot_widget_test.dart` pumps the real `bootApp` tree; closes the architectural gap that allowed flag #7 to ship |
+| `EventUrgencyRouter` unit tests | ⏳ deferred — see §14 |
+| Integration / E2E | ⏳ deferred per `CLAUDE.md` |
 | Integration / E2E | ⏳ deferred per `CLAUDE.md` |

@@ -11,34 +11,81 @@ import 'core/realtime/presentation/services/fcm_background_handler.dart';
 import 'core/routing/app_router.dart';
 import 'features/technician/onboarding/presentation/providers/dependency_injection.dart';
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+/// Injectable seams used only by `test/main_app_boot_widget_test.dart`.
+/// Production passes the real Firebase / FCM / SharedPreferences entry
+/// points by default, so `main()` behaviour is byte-identical to the
+/// pre-refactor version.
+///
+/// `FirebaseInitializer` returns `Future<void>` (not `Future<FirebaseApp>`)
+/// so test fakes don't have to construct a `FirebaseApp` instance —
+/// `bootApp` discards the return value anyway. The real initializer is
+/// wrapped in `_defaultFirebaseInit` below to match the typedef.
+typedef FirebaseInitializer = Future<void> Function();
+typedef BgHandlerRegistrar = void Function(BackgroundMessageHandler);
+typedef SharedPrefsLoader = Future<SharedPreferences> Function();
 
+Future<void> _defaultFirebaseInit() async {
+  await Firebase.initializeApp();
+}
+
+/// Builds the app's root widget. Extracted from `main()` so the widget
+/// test can pump the real tree with mocked initializers and assert that
+/// each load-bearing initialization step actually runs.
+///
+/// The original flag #7 bug — "realtime stack defined but never mounted
+/// in app boot" — was invisible to every existing test precisely because
+/// they bypassed `runApp` and exercised the stack via `ProviderContainer`.
+/// This seam closes that gap: `test/main_app_boot_widget_test.dart`
+/// passes recording fakes for `firebaseInit` / `bgHandlerRegistrar` /
+/// `sharedPrefsLoader` and asserts each was invoked, so a future refactor
+/// that drops any of them fails the test loudly.
+///
+/// Behaviour in production is identical to the previous main(): Firebase
+/// init → BG handler register → SharedPreferences load → ProviderScope
+/// with the prefs override → `_Bootstrap` (which mounts the orchestrator).
+@visibleForTesting
+Future<Widget> bootApp({
+  FirebaseInitializer firebaseInit = _defaultFirebaseInit,
+  BgHandlerRegistrar bgHandlerRegistrar = FirebaseMessaging.onBackgroundMessage,
+  SharedPrefsLoader sharedPrefsLoader = SharedPreferences.getInstance,
+}) async {
   // Initialize Firebase on the main isolate. Without this, foreground FCM
   // listeners (`onMessage`, `onMessageOpenedApp`, `getInitialMessage`) and
   // `getToken()` would crash on first use. The BG isolate also calls
   // `Firebase.initializeApp()` independently inside
   // `firebaseMessagingBackgroundHandler` — these two initializations are
   // deliberately separate (different isolates).
-  await Firebase.initializeApp();
+  await firebaseInit();
 
   // Register the BG handler so the OS has a Dart-side callback to invoke
   // for FCM data messages while the app is terminated. Must run before
   // `runApp`. `firebaseMessagingBackgroundHandler` is a top-level function
   // (required by FCM — instance methods are not addressable from the BG
   // isolate).
-  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+  bgHandlerRegistrar(firebaseMessagingBackgroundHandler);
 
-  final sharedPreferences = await SharedPreferences.getInstance();
+  final sharedPreferences = await sharedPrefsLoader();
 
-  runApp(
-    ProviderScope(
-      overrides: [
-        sharedPreferencesProvider.overrideWithValue(sharedPreferences),
-      ],
-      child: const _Bootstrap(),
-    ),
+  return ProviderScope(
+    overrides: [
+      sharedPreferencesProvider.overrideWithValue(sharedPreferences),
+    ],
+    child: const _Bootstrap(),
   );
+}
+
+/// Test seam: returns the same root widget that `bootApp` wraps in its
+/// `ProviderScope`. The widget tests in
+/// `test/main_app_boot_widget_test.dart` need to wrap this in their own
+/// `ProviderScope` so they can inject realtime/auth provider overrides
+/// (`flutter_riverpod` 3.x doesn't expose its `Override` type publicly,
+/// so `bootApp` can't accept additional overrides as a parameter).
+@visibleForTesting
+Widget buildAppRootWidget() => const _Bootstrap();
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  runApp(await bootApp());
 }
 
 /// Bridges `ProviderScope` to `AppLifecycleOrchestrator`. The orchestrator

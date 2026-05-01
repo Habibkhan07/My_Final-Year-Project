@@ -113,7 +113,83 @@ When picking this up, also evaluate whether the eviction policy should be aggres
 
 ---
 
-## 7. Realtime stack defined but never mounted in app boot
+## ~~7. Realtime stack defined but never mounted in app boot~~ ✅ Resolved for Android (2026-05-01)
+
+**What changed (Session 3 — Android close-out)**
+
+- `frontend/android/app/src/main/AndroidManifest.xml` declares
+  `POST_NOTIFICATIONS` (Android 13+ runtime permission) plus three FCM
+  meta-data entries that pin the default channel id, status-bar icon, and
+  notification color: `default_notification_channel_id`,
+  `default_notification_icon`, `default_notification_color`. Without these,
+  the system tray would render against an OS-managed unnamed channel
+  (silently muted on some OEMs) with a gray-square icon.
+- `res/drawable/ic_notification.xml` (alpha-only vector, status-bar safe),
+  `res/values/colors.xml` (`@color/notification_color` = brand seed
+  `#1976D2`), `res/values/strings.xml` (`default_notification_channel_id`
+  = `job_dispatch`, plus user-visible channel name and description).
+- `pubspec.yaml` adds `flutter_local_notifications: ^21.0.0` for the
+  channel-creation API (Android `NotificationChannel` is not exposed by
+  `firebase_messaging` directly).
+- New file `core/realtime/presentation/services/notification_channels.dart`
+  is the single source of truth for the `job_dispatch` channel
+  definition (`Importance.high` for heads-up rendering) plus an
+  idempotent `ensureJobDispatchChannel()` registrar. Used by both
+  isolates so the two registrations cannot drift.
+- `FCMHandler.initialize()` calls `ensureJobDispatchChannel()` before
+  `requestPermission()` — the channel must exist before any notification
+  can display.
+- `firebaseMessagingBackgroundHandler` calls the same helper at the top
+  (defensive: covers the fresh-install-killed-state-push edge case where
+  the BG isolate is the only Dart VM that has ever run).
+- `main.dart` refactored: `Future<Widget> bootApp({injectable Firebase /
+  BG handler / SharedPrefs initializers})` extracted from `main()`. Plus
+  `@visibleForTesting Widget buildAppRootWidget()` that returns the
+  internal `_Bootstrap` so the widget test can wrap it in its own
+  `ProviderScope`. Behaviour identical in production.
+- 23 new tests (all green; suite total 491 → 514):
+  - `test/features/auth/presentation/providers/auth_notifier_realtime_bridge_test.dart`
+    — A1–A10 pin the AuthNotifier-side bridge contract: cold-start
+    boot fires with the cached token (A1), no-boot on logged-out (A2)
+    or null/empty token (A3/A4), `verifyOtp` boots with the FRESH
+    token not the stale cached one (A5), `logout()` runs the FULL
+    teardown sequence — `ws.disconnect → fcm.unregister → sysEvent.reset
+    → local.clearLastSyncTimestamp → clearCachedEvents → clearPendingAcks
+    → onUnauthorized=null` — BEFORE `repository.logout()` (A6),
+    `getCachedUser` throwing surfaces AsyncError without ghost-booting
+    (A7), `requestOtp` and `completeSignup` don't re-boot (A8/A9),
+    double-tap logout short-circuits via `state.isLoading` (A10).
+  - `test/core/realtime/presentation/services/notification_channels_test.dart`
+    — C1–C5 pin channel id, `Importance.high`, name+description,
+    Dart-side non-memoization (Android dedups by id), and
+    PlatformException-resilience.
+  - `test/main_app_boot_widget_test.dart` — W1–W8 close the
+    architectural-review gap that allowed flag #7 to ship: W1–W3 assert
+    `bootApp` invokes `firebaseInit`, `bgHandlerRegistrar`, and
+    `sharedPrefsLoader` exactly once (recording fakes); W4–W6 pump the
+    real composition tree and assert `AppLifecycleOrchestrator` is
+    mounted with the SAME `navigatorKey` / `scaffoldMessengerKey`
+    instances that `navigatorKeyProvider` /
+    `scaffoldMessengerKeyProvider` return (catches the "fresh GlobalKey"
+    regression that breaks route pushes and banners); W7–W8 verify the
+    composition mounts cleanly for both unauthenticated and cached-user
+    states, including the cached-user bridge firing through the full
+    composition path.
+
+**Severity (after Session 3)** — Resolved for Android. Only iOS native
+push capability remains; tracked as flag #10. Android tray notifications
+arrive end-to-end (foreground / background / killed-state cold-launch),
+including tap routing via `getInitialMessage()`.
+
+**Out of scope, deferred** — iOS native capabilities (`Info.plist`
+`UIBackgroundModes`, Push Notifications entitlement, APNs `.p8` upload).
+The project is Android-only for now; no Mac in the development
+environment. Tracked as flag #10.
+
+---
+
+**Historical context** (kept per CLAUDE.md "never delete" — original
+problem statement and Session 1/2 progress):
 
 **Where**
 - `frontend/lib/main.dart` (composition root that needs the wiring)
@@ -245,7 +321,9 @@ Session 2 (this session) closes sub-item 4 — the `AuthNotifier` ↔ orchestrat
 - The inline `ref.read(incomingJobQueueProvider)` was extracted into a new `realtimeBootHooksProvider` registry. Adding a new list-route event feature is now an append to that list — no edits to `bootAfterAuth`, no risk of silently dropping the wake-up. Tests R1/R2 in `app_lifecycle_orchestrator_test.dart` pin the contract.
 - New tests: AB1–AB8 in `auth_notifier_test.dart` cover boot fires on cached token / verify success, no-boot on null/empty token, teardown ordering via `verifyInOrder`, and the `isLoading` guard against double-tap logout. R1/R2/B1/B2 in `app_lifecycle_orchestrator_test.dart` cover the registry contract and the sentinel race.
 
-**Remaining**: sub-item 6 (iOS native push capability) is out of scope for this Android-only project. Sub-item 7 (Android `POST_NOTIFICATIONS` permission) plus the widget-level `runApp`-tree integration test remain for Session 3. Severity downgrades from "blocking for any realtime use" to "blocking only for Android 13+ system-tray notifications" — in-app foreground events flow today.
+**Remaining (post-Session-2)**: sub-item 6 (iOS native push capability) is out of scope for this Android-only project. Sub-item 7 (Android `POST_NOTIFICATIONS` permission) plus the widget-level `runApp`-tree integration test remain for Session 3.
+
+**Session 3 outcome (2026-05-01)** — closed the remaining Android items: `POST_NOTIFICATIONS` permission + 3 FCM meta-data entries + `job_dispatch` notification channel (HIGH importance, dual-isolate registration), 23 new tests including the load-bearing widget tests that pump the real `bootApp` tree. iOS sub-item 6 spun out as flag #10. See "What changed (Session 3 — Android close-out)" block at the top of this entry.
 
 ---
 
@@ -315,3 +393,46 @@ Plus a regression test in `ws_connection_notifier_test.dart`: kick off `connect(
 
 **Severity**
 Edge case. Logs noise + wasted backoff cycles after a logout-during-handshake, but no incorrect state — the WS eventually flips to `failed` and stays disconnected. Fix when next touching `WsConnectionNotifier`; do not bundle into auth or orchestrator work.
+
+---
+
+## 10. iOS native realtime push capability
+
+**Where**
+- `frontend/ios/Runner/Info.plist`
+- `frontend/ios/Runner/Runner.xcodeproj/project.pbxproj` (Push Notifications capability toggle)
+- `frontend/ios/Runner/Runner.entitlements` (created when the capability toggle runs in Xcode)
+- Firebase Console → Project Settings → Cloud Messaging → Apple app configuration (APNs `.p8` key upload — out-of-band, not code-tracked)
+
+**What's wrong**
+Flag #7 closed the realtime stack composition for Android. iOS, however, cannot deliver background or terminated-state FCM messages because three things are missing:
+
+1. `Info.plist` has no `UIBackgroundModes` array containing `remote-notification`. Without it, iOS will not wake the app for background data messages — `firebaseMessagingBackgroundHandler` never fires, the BG queue stays empty, and tap-to-route on cold-launch via `getInitialMessage()` never resolves a payload.
+2. The Push Notifications capability is not enabled in `Runner.xcodeproj`. `Info.plist` alone doesn't switch this on; Xcode also needs an `aps-environment` entitlement, which is generated only when you toggle Capabilities → Push Notifications in the Xcode UI.
+3. APNs auth key has not been uploaded to Firebase Console. Without it, FCM cannot translate Cloud Messages to APNs, so even a fully-configured iOS client receives nothing.
+
+The realtime plumbing on the Dart side (orchestrator, FCM handler, BG handler) is platform-agnostic and would work the moment iOS's native side delivers a message. None of it does.
+
+**Why we shipped it that way**
+The development environment is Linux-only — no Mac, no Xcode. The Push Notifications capability toggle, the entitlements file generation, and the build-and-test cycle for iOS push delivery all require macOS. The product is also Android-only for the foreseeable future (Pakistan market, target user demographic), so iOS work is not on the critical path. Spun out of flag #7 (Session 3 close-out) so the Android resolution doesn't pretend to cover both platforms.
+
+**The proper fix**
+
+On a Mac with Xcode:
+
+1. `open frontend/ios/Runner.xcworkspace`.
+2. Select the `Runner` target → Signing & Capabilities → `+ Capability` → Push Notifications. This generates `Runner.entitlements` with `aps-environment`.
+3. `+ Capability` → Background Modes → check `Remote notifications`. Xcode writes the `UIBackgroundModes` array into `Info.plist`.
+4. In Firebase Console → Project Settings → Cloud Messaging → Apple app configuration, upload the APNs auth key (`.p8` file from Apple Developer Portal under Keys → Apple Push Notifications service). Note the Key ID and Team ID.
+5. Build and install on a real iOS device — push delivery does not work in the simulator.
+6. Verification: log in, foreground the app, grant notification permission. Background the app. Trigger a `job_new_request` via `EventDispatchService.broadcast_event(...)` from the Django shell. A system-tray notification should appear within ~2s. Tap it → app foregrounds and routes to `/technician/incoming-job-request`.
+7. Force-kill the app, repeat the trigger. Notification appears, BG handler queues the event into SharedPreferences, tap cold-launches the app, `getInitialMessage()` returns the payload, route push to `/technician/incoming-job-request` fires.
+
+**Search hints**
+- `Runner.entitlements` — should appear at `frontend/ios/Runner/Runner.entitlements` after the capability toggle.
+- `UIBackgroundModes` — search `Info.plist` to confirm the array landed.
+- The `.p8` APNs key never goes in the repo — it lives only in Firebase Console and Apple Developer Portal.
+- `flag #7`'s "What changed (Session 3)" block lists everything that already works platform-agnostically (channel registration, BG handler, manifest equivalents). iOS work is purely the native-capability gap.
+
+**Severity**
+Blocking for any iOS production rollout. Not blocking for the current Android-only target. Pick up when the project commits to iOS or when a Mac becomes available.
