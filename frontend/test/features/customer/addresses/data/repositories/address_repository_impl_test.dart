@@ -5,7 +5,7 @@ import 'package:frontend/core/common/errors/http_failure.dart';
 import 'package:frontend/features/customer/addresses/data/data_sources/address_local_data_source.dart';
 import 'package:frontend/features/customer/addresses/data/data_sources/address_location_data_source.dart';
 import 'package:frontend/features/customer/addresses/data/data_sources/address_remote_data_source.dart';
-import 'package:frontend/features/customer/addresses/data/data_sources/google_maps_remote_data_source.dart';
+import 'package:frontend/features/customer/addresses/data/data_sources/geocoding_data_source.dart';
 import 'package:frontend/features/customer/addresses/data/models/address_model.dart';
 import 'package:frontend/features/customer/addresses/data/repositories/address_repository_impl.dart';
 import 'package:frontend/features/customer/addresses/domain/failures/address_failure.dart';
@@ -13,26 +13,26 @@ import 'package:frontend/features/customer/addresses/domain/failures/address_fai
 class MockRemoteDataSource extends Mock implements AddressRemoteDataSource {}
 class MockLocalDataSource extends Mock implements AddressLocalDataSource {}
 class MockLocationDataSource extends Mock implements AddressLocationDataSource {}
-class MockGoogleMapsRemoteDataSource extends Mock implements GoogleMapsRemoteDataSource {}
+class MockGeocodingDataSource extends Mock implements GeocodingDataSource {}
 
 void main() {
   late AddressRepositoryImpl repository;
   late MockRemoteDataSource mockRemote;
   late MockLocalDataSource mockLocal;
   late MockLocationDataSource mockLocation;
-  late MockGoogleMapsRemoteDataSource mockGoogleRemote;
+  late MockGeocodingDataSource mockGeocoding;
 
   setUp(() {
     mockRemote = MockRemoteDataSource();
     mockLocal = MockLocalDataSource();
     mockLocation = MockLocationDataSource();
-    mockGoogleRemote = MockGoogleMapsRemoteDataSource();
-    
+    mockGeocoding = MockGeocodingDataSource();
+
     repository = AddressRepositoryImpl(
       mockRemote,
       mockLocal,
       mockLocation,
-      mockGoogleRemote,
+      mockGeocoding,
     );
     
     registerFallbackValue(const CreateAddressRequest(

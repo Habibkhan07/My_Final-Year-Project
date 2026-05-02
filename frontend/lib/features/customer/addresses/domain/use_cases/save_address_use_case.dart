@@ -15,6 +15,13 @@ class SaveAddressUseCase {
     required double latitude,
     required double longitude,
     required bool isDefault,
+    String? neighborhood,
+    String? suburb,
+    String? city,
+    String? state,
+    String? country,
+    String? postalCode,
+    String? localityLabel,
   }) =>
       repository.saveAddress(
         label: label,
@@ -22,5 +29,12 @@ class SaveAddressUseCase {
         latitude: latitude,
         longitude: longitude,
         isDefault: isDefault,
+        neighborhood: neighborhood,
+        suburb: suburb,
+        city: city,
+        state: state,
+        country: country,
+        postalCode: postalCode,
+        localityLabel: localityLabel,
       );
 }

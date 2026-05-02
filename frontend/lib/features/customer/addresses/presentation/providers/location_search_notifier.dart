@@ -82,12 +82,10 @@ class LocationSearchNotifier extends _$LocationSearchNotifier {
       final getDetails = ref.read(getPlaceDetailsUseCaseProvider);
       final details = await getDetails(place.placeId, state.sessionToken);
       
-      // Tell MapPicker to move to this location
-      ref.read(mapPickerProvider.notifier).updateLocation(
-        details.latitude,
-        details.longitude,
-        details.streetAddress,
-      );
+      // Tell MapPicker to move to this location. The full PlaceDetails carries
+      // the structured locality fields that the map picker will forward to the
+      // backend on save.
+      ref.read(mapPickerProvider.notifier).updateLocation(details);
 
       // Reset the session token for the next full search session
       state = state.copyWith(

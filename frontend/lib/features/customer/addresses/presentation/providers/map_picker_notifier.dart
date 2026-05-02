@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../data/models/place_details.dart';
 import 'dependency_injection.dart';
 import 'map_picker_state.dart';
 
@@ -22,13 +23,14 @@ class MapPickerNotifier extends _$MapPickerNotifier {
   FutureOr<MapPickerState> build() async {
     ref.onDispose(() => _debounce?.cancel());
 
-    final location =
+    final details =
         await ref.read(getCurrentLocationUseCaseProvider).call();
 
     return MapPickerState(
-      latitude: location.latitude,
-      longitude: location.longitude,
-      streetAddress: location.streetAddress,
+      latitude: details.latitude,
+      longitude: details.longitude,
+      streetAddress: details.formattedAddress,
+      details: details,
     );
   }
 
@@ -47,23 +49,31 @@ class MapPickerNotifier extends _$MapPickerNotifier {
 
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 600), () async {
-      final address =
+      final details =
           await ref.read(reverseGeocodeUseCaseProvider).call(lat, lng);
 
       final s = state.value;
       if (s == null) return;
-      state = AsyncData(s.copyWith(streetAddress: address, isGeocoding: false));
+      state = AsyncData(s.copyWith(
+        streetAddress: details.formattedAddress,
+        details: details,
+        isGeocoding: false,
+      ));
     });
   }
 
-  void updateLocation(double lat, double lng, String address) {
+  /// Called by the search-flow / place-details path to overwrite the map state
+  /// from a chosen prediction. [details] carries the structured fields that
+  /// will be sent to the backend on save.
+  void updateLocation(PlaceDetails details) {
     final current = state.value;
     if (current == null) return;
-    
+
     state = AsyncData(current.copyWith(
-      latitude: lat,
-      longitude: lng,
-      streetAddress: address,
+      latitude: details.latitude,
+      longitude: details.longitude,
+      streetAddress: details.formattedAddress,
+      details: details,
       isGeocoding: false,
     ));
   }
@@ -79,6 +89,7 @@ class MapPickerNotifier extends _$MapPickerNotifier {
   /// react without touching the map state. On AsyncData the screen pops.
   Future<void> save({required bool isDefault}) async {
     final current = state.requireValue;
+    final details = current.details;
 
     state = AsyncData(
       current.copyWith(saveState: const AsyncLoading()),
@@ -91,6 +102,13 @@ class MapPickerNotifier extends _$MapPickerNotifier {
             latitude: current.latitude,
             longitude: current.longitude,
             isDefault: isDefault,
+            neighborhood: details?.neighborhood,
+            suburb: details?.suburb,
+            city: details?.city,
+            state: details?.state,
+            country: details?.country,
+            postalCode: details?.postalCode,
+            localityLabel: details?.localityLabel,
           ),
     );
 

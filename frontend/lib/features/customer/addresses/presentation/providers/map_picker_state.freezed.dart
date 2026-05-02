@@ -14,7 +14,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$MapPickerState {
 
- double get latitude; double get longitude; String get streetAddress; bool get isGeocoding; String get selectedLabel; AsyncValue<CustomerAddressEntity?> get saveState;
+ double get latitude; double get longitude; String get streetAddress; PlaceDetails? get details; bool get isGeocoding; String get selectedLabel; AsyncValue<CustomerAddressEntity?> get saveState;
 /// Create a copy of MapPickerState
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -25,16 +25,16 @@ $MapPickerStateCopyWith<MapPickerState> get copyWith => _$MapPickerStateCopyWith
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is MapPickerState&&(identical(other.latitude, latitude) || other.latitude == latitude)&&(identical(other.longitude, longitude) || other.longitude == longitude)&&(identical(other.streetAddress, streetAddress) || other.streetAddress == streetAddress)&&(identical(other.isGeocoding, isGeocoding) || other.isGeocoding == isGeocoding)&&(identical(other.selectedLabel, selectedLabel) || other.selectedLabel == selectedLabel)&&(identical(other.saveState, saveState) || other.saveState == saveState));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is MapPickerState&&(identical(other.latitude, latitude) || other.latitude == latitude)&&(identical(other.longitude, longitude) || other.longitude == longitude)&&(identical(other.streetAddress, streetAddress) || other.streetAddress == streetAddress)&&(identical(other.details, details) || other.details == details)&&(identical(other.isGeocoding, isGeocoding) || other.isGeocoding == isGeocoding)&&(identical(other.selectedLabel, selectedLabel) || other.selectedLabel == selectedLabel)&&(identical(other.saveState, saveState) || other.saveState == saveState));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,latitude,longitude,streetAddress,isGeocoding,selectedLabel,saveState);
+int get hashCode => Object.hash(runtimeType,latitude,longitude,streetAddress,details,isGeocoding,selectedLabel,saveState);
 
 @override
 String toString() {
-  return 'MapPickerState(latitude: $latitude, longitude: $longitude, streetAddress: $streetAddress, isGeocoding: $isGeocoding, selectedLabel: $selectedLabel, saveState: $saveState)';
+  return 'MapPickerState(latitude: $latitude, longitude: $longitude, streetAddress: $streetAddress, details: $details, isGeocoding: $isGeocoding, selectedLabel: $selectedLabel, saveState: $saveState)';
 }
 
 
@@ -45,11 +45,11 @@ abstract mixin class $MapPickerStateCopyWith<$Res>  {
   factory $MapPickerStateCopyWith(MapPickerState value, $Res Function(MapPickerState) _then) = _$MapPickerStateCopyWithImpl;
 @useResult
 $Res call({
- double latitude, double longitude, String streetAddress, bool isGeocoding, String selectedLabel, AsyncValue<CustomerAddressEntity?> saveState
+ double latitude, double longitude, String streetAddress, PlaceDetails? details, bool isGeocoding, String selectedLabel, AsyncValue<CustomerAddressEntity?> saveState
 });
 
 
-
+$PlaceDetailsCopyWith<$Res>? get details;
 
 }
 /// @nodoc
@@ -62,18 +62,31 @@ class _$MapPickerStateCopyWithImpl<$Res>
 
 /// Create a copy of MapPickerState
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? latitude = null,Object? longitude = null,Object? streetAddress = null,Object? isGeocoding = null,Object? selectedLabel = null,Object? saveState = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? latitude = null,Object? longitude = null,Object? streetAddress = null,Object? details = freezed,Object? isGeocoding = null,Object? selectedLabel = null,Object? saveState = null,}) {
   return _then(_self.copyWith(
 latitude: null == latitude ? _self.latitude : latitude // ignore: cast_nullable_to_non_nullable
 as double,longitude: null == longitude ? _self.longitude : longitude // ignore: cast_nullable_to_non_nullable
 as double,streetAddress: null == streetAddress ? _self.streetAddress : streetAddress // ignore: cast_nullable_to_non_nullable
-as String,isGeocoding: null == isGeocoding ? _self.isGeocoding : isGeocoding // ignore: cast_nullable_to_non_nullable
+as String,details: freezed == details ? _self.details : details // ignore: cast_nullable_to_non_nullable
+as PlaceDetails?,isGeocoding: null == isGeocoding ? _self.isGeocoding : isGeocoding // ignore: cast_nullable_to_non_nullable
 as bool,selectedLabel: null == selectedLabel ? _self.selectedLabel : selectedLabel // ignore: cast_nullable_to_non_nullable
 as String,saveState: null == saveState ? _self.saveState : saveState // ignore: cast_nullable_to_non_nullable
 as AsyncValue<CustomerAddressEntity?>,
   ));
 }
+/// Create a copy of MapPickerState
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$PlaceDetailsCopyWith<$Res>? get details {
+    if (_self.details == null) {
+    return null;
+  }
 
+  return $PlaceDetailsCopyWith<$Res>(_self.details!, (value) {
+    return _then(_self.copyWith(details: value));
+  });
+}
 }
 
 
@@ -155,10 +168,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( double latitude,  double longitude,  String streetAddress,  bool isGeocoding,  String selectedLabel,  AsyncValue<CustomerAddressEntity?> saveState)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( double latitude,  double longitude,  String streetAddress,  PlaceDetails? details,  bool isGeocoding,  String selectedLabel,  AsyncValue<CustomerAddressEntity?> saveState)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _MapPickerState() when $default != null:
-return $default(_that.latitude,_that.longitude,_that.streetAddress,_that.isGeocoding,_that.selectedLabel,_that.saveState);case _:
+return $default(_that.latitude,_that.longitude,_that.streetAddress,_that.details,_that.isGeocoding,_that.selectedLabel,_that.saveState);case _:
   return orElse();
 
 }
@@ -176,10 +189,10 @@ return $default(_that.latitude,_that.longitude,_that.streetAddress,_that.isGeoco
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( double latitude,  double longitude,  String streetAddress,  bool isGeocoding,  String selectedLabel,  AsyncValue<CustomerAddressEntity?> saveState)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( double latitude,  double longitude,  String streetAddress,  PlaceDetails? details,  bool isGeocoding,  String selectedLabel,  AsyncValue<CustomerAddressEntity?> saveState)  $default,) {final _that = this;
 switch (_that) {
 case _MapPickerState():
-return $default(_that.latitude,_that.longitude,_that.streetAddress,_that.isGeocoding,_that.selectedLabel,_that.saveState);case _:
+return $default(_that.latitude,_that.longitude,_that.streetAddress,_that.details,_that.isGeocoding,_that.selectedLabel,_that.saveState);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -196,10 +209,10 @@ return $default(_that.latitude,_that.longitude,_that.streetAddress,_that.isGeoco
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( double latitude,  double longitude,  String streetAddress,  bool isGeocoding,  String selectedLabel,  AsyncValue<CustomerAddressEntity?> saveState)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( double latitude,  double longitude,  String streetAddress,  PlaceDetails? details,  bool isGeocoding,  String selectedLabel,  AsyncValue<CustomerAddressEntity?> saveState)?  $default,) {final _that = this;
 switch (_that) {
 case _MapPickerState() when $default != null:
-return $default(_that.latitude,_that.longitude,_that.streetAddress,_that.isGeocoding,_that.selectedLabel,_that.saveState);case _:
+return $default(_that.latitude,_that.longitude,_that.streetAddress,_that.details,_that.isGeocoding,_that.selectedLabel,_that.saveState);case _:
   return null;
 
 }
@@ -211,12 +224,13 @@ return $default(_that.latitude,_that.longitude,_that.streetAddress,_that.isGeoco
 
 
 class _MapPickerState extends MapPickerState {
-  const _MapPickerState({required this.latitude, required this.longitude, required this.streetAddress, this.isGeocoding = false, this.selectedLabel = 'Home', this.saveState = const AsyncValue<CustomerAddressEntity?>.data(null)}): super._();
+  const _MapPickerState({required this.latitude, required this.longitude, required this.streetAddress, this.details, this.isGeocoding = false, this.selectedLabel = 'Home', this.saveState = const AsyncValue<CustomerAddressEntity?>.data(null)}): super._();
   
 
 @override final  double latitude;
 @override final  double longitude;
 @override final  String streetAddress;
+@override final  PlaceDetails? details;
 @override@JsonKey() final  bool isGeocoding;
 @override@JsonKey() final  String selectedLabel;
 @override@JsonKey() final  AsyncValue<CustomerAddressEntity?> saveState;
@@ -231,16 +245,16 @@ _$MapPickerStateCopyWith<_MapPickerState> get copyWith => __$MapPickerStateCopyW
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _MapPickerState&&(identical(other.latitude, latitude) || other.latitude == latitude)&&(identical(other.longitude, longitude) || other.longitude == longitude)&&(identical(other.streetAddress, streetAddress) || other.streetAddress == streetAddress)&&(identical(other.isGeocoding, isGeocoding) || other.isGeocoding == isGeocoding)&&(identical(other.selectedLabel, selectedLabel) || other.selectedLabel == selectedLabel)&&(identical(other.saveState, saveState) || other.saveState == saveState));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _MapPickerState&&(identical(other.latitude, latitude) || other.latitude == latitude)&&(identical(other.longitude, longitude) || other.longitude == longitude)&&(identical(other.streetAddress, streetAddress) || other.streetAddress == streetAddress)&&(identical(other.details, details) || other.details == details)&&(identical(other.isGeocoding, isGeocoding) || other.isGeocoding == isGeocoding)&&(identical(other.selectedLabel, selectedLabel) || other.selectedLabel == selectedLabel)&&(identical(other.saveState, saveState) || other.saveState == saveState));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,latitude,longitude,streetAddress,isGeocoding,selectedLabel,saveState);
+int get hashCode => Object.hash(runtimeType,latitude,longitude,streetAddress,details,isGeocoding,selectedLabel,saveState);
 
 @override
 String toString() {
-  return 'MapPickerState(latitude: $latitude, longitude: $longitude, streetAddress: $streetAddress, isGeocoding: $isGeocoding, selectedLabel: $selectedLabel, saveState: $saveState)';
+  return 'MapPickerState(latitude: $latitude, longitude: $longitude, streetAddress: $streetAddress, details: $details, isGeocoding: $isGeocoding, selectedLabel: $selectedLabel, saveState: $saveState)';
 }
 
 
@@ -251,11 +265,11 @@ abstract mixin class _$MapPickerStateCopyWith<$Res> implements $MapPickerStateCo
   factory _$MapPickerStateCopyWith(_MapPickerState value, $Res Function(_MapPickerState) _then) = __$MapPickerStateCopyWithImpl;
 @override @useResult
 $Res call({
- double latitude, double longitude, String streetAddress, bool isGeocoding, String selectedLabel, AsyncValue<CustomerAddressEntity?> saveState
+ double latitude, double longitude, String streetAddress, PlaceDetails? details, bool isGeocoding, String selectedLabel, AsyncValue<CustomerAddressEntity?> saveState
 });
 
 
-
+@override $PlaceDetailsCopyWith<$Res>? get details;
 
 }
 /// @nodoc
@@ -268,19 +282,32 @@ class __$MapPickerStateCopyWithImpl<$Res>
 
 /// Create a copy of MapPickerState
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? latitude = null,Object? longitude = null,Object? streetAddress = null,Object? isGeocoding = null,Object? selectedLabel = null,Object? saveState = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? latitude = null,Object? longitude = null,Object? streetAddress = null,Object? details = freezed,Object? isGeocoding = null,Object? selectedLabel = null,Object? saveState = null,}) {
   return _then(_MapPickerState(
 latitude: null == latitude ? _self.latitude : latitude // ignore: cast_nullable_to_non_nullable
 as double,longitude: null == longitude ? _self.longitude : longitude // ignore: cast_nullable_to_non_nullable
 as double,streetAddress: null == streetAddress ? _self.streetAddress : streetAddress // ignore: cast_nullable_to_non_nullable
-as String,isGeocoding: null == isGeocoding ? _self.isGeocoding : isGeocoding // ignore: cast_nullable_to_non_nullable
+as String,details: freezed == details ? _self.details : details // ignore: cast_nullable_to_non_nullable
+as PlaceDetails?,isGeocoding: null == isGeocoding ? _self.isGeocoding : isGeocoding // ignore: cast_nullable_to_non_nullable
 as bool,selectedLabel: null == selectedLabel ? _self.selectedLabel : selectedLabel // ignore: cast_nullable_to_non_nullable
 as String,saveState: null == saveState ? _self.saveState : saveState // ignore: cast_nullable_to_non_nullable
 as AsyncValue<CustomerAddressEntity?>,
   ));
 }
 
+/// Create a copy of MapPickerState
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$PlaceDetailsCopyWith<$Res>? get details {
+    if (_self.details == null) {
+    return null;
+  }
 
+  return $PlaceDetailsCopyWith<$Res>(_self.details!, (value) {
+    return _then(_self.copyWith(details: value));
+  });
+}
 }
 
 // dart format on

@@ -94,7 +94,12 @@ class TestGetAddresses:
         response = self.client.get(LIST_URL)
         assert response.status_code == 200
         item = response.json()[0]
-        assert set(item.keys()) == {'id', 'label', 'street_address', 'latitude', 'longitude', 'is_default', 'created_at'}
+        assert set(item.keys()) == {
+            'id', 'label', 'street_address', 'latitude', 'longitude',
+            'is_default', 'created_at',
+            'neighborhood', 'suburb', 'city', 'state', 'country',
+            'postal_code', 'locality_label',
+        }
 
 
 class TestPostAddress:
@@ -124,7 +129,12 @@ class TestPostAddress:
         response = self.client.post(LIST_URL, self._valid_payload(), format='json')
         assert response.status_code == 201
         data = response.json()
-        assert set(data.keys()) == {'id', 'label', 'street_address', 'latitude', 'longitude', 'is_default', 'created_at'}
+        assert set(data.keys()) == {
+            'id', 'label', 'street_address', 'latitude', 'longitude',
+            'is_default', 'created_at',
+            'neighborhood', 'suburb', 'city', 'state', 'country',
+            'postal_code', 'locality_label',
+        }
         assert data['label'] == 'Home'
         assert data['street_address'] == '123 Main St, Lahore'
 
@@ -192,6 +202,119 @@ class TestPostAddress:
         assert set(data.keys()) >= {'status', 'code', 'message', 'errors'}
         assert data['code'] == 'validation_error'
         assert data['status'] == 400
+
+
+class TestStructuredLocalityFields:
+    """
+    Client-supplied structured locality fields (neighborhood, suburb, city,
+    state, country, postal_code, locality_label) are produced by the Flutter
+    map-picker's reverse-geocode (Google in prod, OSM in dev) and POSTed
+    alongside lat/lng. Backend stores verbatim.
+    """
+
+    def setup_method(self):
+        self.client = APIClient()
+
+    def _payload_with_locality(self, **overrides):
+        payload = {
+            'label': 'Home',
+            'street_address': 'Block 4, Gulshan-e-Iqbal, Karachi, Pakistan',
+            'latitude': '24.917000',
+            'longitude': '67.097000',
+            'is_default': False,
+            'neighborhood': None,
+            'suburb': 'Gulshan-e-Iqbal',
+            'city': 'Karachi',
+            'state': 'Sindh',
+            'country': 'PK',
+            'postal_code': '75300',
+            'locality_label': 'Gulshan-e-Iqbal, Karachi',
+        }
+        payload.update(overrides)
+        return payload
+
+    def test_post_persists_all_structured_fields(self):
+        profile = CustomerProfileFactory()
+        self.client.force_authenticate(user=profile.user)
+
+        response = self.client.post(LIST_URL, self._payload_with_locality(), format='json')
+        assert response.status_code == 201
+
+        data = response.json()
+        assert data['suburb'] == 'Gulshan-e-Iqbal'
+        assert data['city'] == 'Karachi'
+        assert data['state'] == 'Sindh'
+        assert data['country'] == 'PK'
+        assert data['postal_code'] == '75300'
+        assert data['locality_label'] == 'Gulshan-e-Iqbal, Karachi'
+        assert data['neighborhood'] is None
+
+        row = CustomerAddress.objects.get(id=data['id'])
+        assert row.suburb == 'Gulshan-e-Iqbal'
+        assert row.city == 'Karachi'
+        assert row.locality_label == 'Gulshan-e-Iqbal, Karachi'
+
+    def test_post_without_structured_fields_still_succeeds(self):
+        """Back-compat during rollout: older Flutter clients send only the
+        original 5 fields. Row is created with structured fields null."""
+        profile = CustomerProfileFactory()
+        self.client.force_authenticate(user=profile.user)
+
+        payload = {
+            'label': 'Home',
+            'street_address': '123 Main St, Lahore',
+            'latitude': '31.520400',
+            'longitude': '74.358700',
+            'is_default': False,
+        }
+        response = self.client.post(LIST_URL, payload, format='json')
+        assert response.status_code == 201
+
+        data = response.json()
+        for field in ('neighborhood', 'suburb', 'city', 'state', 'country',
+                      'postal_code', 'locality_label'):
+            assert data[field] is None
+
+    def test_patch_updates_structured_fields_when_user_repicks_location(self):
+        profile = CustomerProfileFactory()
+        address = CustomerAddressFactory(customer=profile)
+        self.client.force_authenticate(user=profile.user)
+
+        response = self.client.patch(
+            _detail_url(address.id),
+            {
+                'street_address': 'F-7 Markaz, Islamabad, Pakistan',
+                'latitude': '33.716700',
+                'longitude': '73.058800',
+                'suburb': 'F-7',
+                'city': 'Islamabad',
+                'state': 'Islamabad Capital Territory',
+                'country': 'PK',
+                'postal_code': '44000',
+                'locality_label': 'F-7, Islamabad',
+            },
+            format='json',
+        )
+        assert response.status_code == 200
+
+        address.refresh_from_db()
+        assert address.suburb == 'F-7'
+        assert address.city == 'Islamabad'
+        assert address.locality_label == 'F-7, Islamabad'
+
+    def test_get_returns_null_for_legacy_rows(self):
+        """Pre-rollout rows in the DB have null structured fields; serializer
+        must surface them as null, not omit them."""
+        profile = CustomerProfileFactory()
+        CustomerAddressFactory(customer=profile)  # locality fields default null
+        self.client.force_authenticate(user=profile.user)
+
+        response = self.client.get(LIST_URL)
+        assert response.status_code == 200
+        item = response.json()[0]
+        assert item['suburb'] is None
+        assert item['city'] is None
+        assert item['locality_label'] is None
 
 
 class TestUpdateAddress:

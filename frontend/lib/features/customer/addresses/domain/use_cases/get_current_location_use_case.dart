@@ -1,15 +1,15 @@
+import '../../data/models/place_details.dart';
 import '../repositories/i_address_repository.dart';
 
-/// Resolves the device's current GPS position and reverse-geocodes it to a
-/// human-readable street address.
+/// Resolves the device's current GPS position and reverse-geocodes it.
 ///
-/// Returns a named record so the save-address form can pre-fill all three
-/// fields (lat, lng, streetAddress) in a single call.
+/// Returns a [PlaceDetails] so the save-address form can pre-fill lat/lng,
+/// the formatted street address, AND the structured locality fields in a
+/// single call.
 /// Throws [AddressLocationPermissionDenied] or [AddressLocationServiceDisabled].
 class GetCurrentLocationUseCase {
   final IAddressRepository repository;
   const GetCurrentLocationUseCase(this.repository);
 
-  Future<({double latitude, double longitude, String streetAddress})> call() =>
-      repository.getCurrentLocation();
+  Future<PlaceDetails> call() => repository.getCurrentLocation();
 }

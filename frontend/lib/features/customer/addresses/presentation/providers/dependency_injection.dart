@@ -1,10 +1,13 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../data/data_sources/address_local_data_source.dart';
 import '../../data/data_sources/address_location_data_source.dart';
 import '../../data/data_sources/address_remote_data_source.dart';
-import '../../data/data_sources/google_maps_remote_data_source.dart';
+import '../../data/data_sources/geocoding_data_source.dart';
+import '../../data/data_sources/google_maps_geocoding_data_source.dart';
+import '../../data/data_sources/nominatim_geocoding_data_source.dart';
 import '../../data/repositories/address_repository_impl.dart';
 import '../../domain/repositories/i_address_repository.dart';
 import '../../domain/entities/address_entity.dart';
@@ -42,9 +45,31 @@ AddressRemoteDataSource addressRemoteDataSource(Ref ref) =>
       secureStorage: ref.watch(addressSecureStorageProvider),
     );
 
+/// Geocoding-provider switch.
+///
+/// Production: pass `--dart-define=GOOGLE_MAPS_API_KEY=<key>` at build time.
+///   → [GoogleMapsGeocodingDataSource] (paid, accurate, in-policy for production)
+/// Development: omit the dart-define.
+///   → [NominatimGeocodingDataSource] (OSM, dev only — Nominatim's public
+///     endpoint forbids production-scale use)
+///
+/// Switching is intentional and one-line. Repository code is unaware.
 @Riverpod(keepAlive: true)
-GoogleMapsRemoteDataSource googleMapsRemoteDataSource(Ref ref) =>
-    GoogleMapsRemoteDataSource(ref.watch(addressHttpClientProvider));
+GeocodingDataSource geocodingDataSource(Ref ref) {
+  const apiKey = String.fromEnvironment('GOOGLE_MAPS_API_KEY');
+  final client = ref.watch(addressHttpClientProvider);
+  if (apiKey.isEmpty) {
+    if (kDebugMode) {
+      // ignore: avoid_print
+      print(
+        '[geocodingDataSource] GOOGLE_MAPS_API_KEY not set — using OSM Nominatim. '
+        'This is for DEV ONLY. Set GOOGLE_MAPS_API_KEY for production builds.',
+      );
+    }
+    return NominatimGeocodingDataSource(client);
+  }
+  return GoogleMapsGeocodingDataSource(client, apiKey);
+}
 
 @Riverpod(keepAlive: true)
 AddressLocalDataSource addressLocalDataSource(Ref ref) {
@@ -65,7 +90,7 @@ IAddressRepository addressRepository(Ref ref) => AddressRepositoryImpl(
       ref.watch(addressRemoteDataSourceProvider),
       ref.watch(addressLocalDataSourceProvider),
       ref.watch(addressLocationDataSourceProvider),
-      ref.watch(googleMapsRemoteDataSourceProvider),
+      ref.watch(geocodingDataSourceProvider),
     );
 
 // ---------------------------------------------------------------------------

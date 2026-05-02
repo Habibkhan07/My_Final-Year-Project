@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
+import 'package:frontend/features/customer/addresses/data/models/place_details.dart';
 import 'package:frontend/features/customer/addresses/domain/entities/address_entity.dart';
 import 'package:frontend/features/customer/addresses/domain/failures/address_failure.dart';
 import 'package:frontend/features/customer/addresses/domain/use_cases/get_current_location_use_case.dart';
@@ -22,10 +23,23 @@ void main() {
   late MockReverseGeocodeUseCase mockGeocoder;
   late MockSaveAddressUseCase mockSaver;
 
-  const tLocation = (
+  const tLocation = PlaceDetails(
+    formattedAddress: 'Gulberg III, Lahore',
     latitude: 31.5,
     longitude: 74.3,
-    streetAddress: 'Gulberg III, Lahore',
+    suburb: 'Gulberg III',
+    city: 'Lahore',
+    state: 'Punjab',
+    country: 'PK',
+  );
+
+  const tDhaDetails = PlaceDetails(
+    formattedAddress: 'DHA Phase 5, Lahore',
+    latitude: 31.4,
+    longitude: 74.2,
+    suburb: 'DHA Phase 5',
+    city: 'Lahore',
+    country: 'PK',
   );
 
   const tEntity = CustomerAddressEntity(
@@ -80,7 +94,7 @@ void main() {
     test('immediately updates coordinates and sets isGeocoding=true', () async {
       when(() => mockGps.call()).thenAnswer((_) async => tLocation);
       when(() => mockGeocoder.call(any(), any()))
-          .thenAnswer((_) async => 'DHA Phase 5, Lahore');
+          .thenAnswer((_) async => tDhaDetails);
 
       final container = makeContainer();
       await container.read(mapPickerProvider.future);
@@ -132,6 +146,13 @@ void main() {
           latitude: any(named: 'latitude'),
           longitude: any(named: 'longitude'),
           isDefault: any(named: 'isDefault'),
+          neighborhood: any(named: 'neighborhood'),
+          suburb: any(named: 'suburb'),
+          city: any(named: 'city'),
+          state: any(named: 'state'),
+          country: any(named: 'country'),
+          postalCode: any(named: 'postalCode'),
+          localityLabel: any(named: 'localityLabel'),
         ),
       ).thenAnswer((_) async => tEntity);
 
@@ -157,6 +178,13 @@ void main() {
           latitude: any(named: 'latitude'),
           longitude: any(named: 'longitude'),
           isDefault: any(named: 'isDefault'),
+          neighborhood: any(named: 'neighborhood'),
+          suburb: any(named: 'suburb'),
+          city: any(named: 'city'),
+          state: any(named: 'state'),
+          country: any(named: 'country'),
+          postalCode: any(named: 'postalCode'),
+          localityLabel: any(named: 'localityLabel'),
         ),
       ).thenAnswer((_) async => tEntity);
 
@@ -172,6 +200,13 @@ void main() {
           latitude: 31.5,
           longitude: 74.3,
           isDefault: false,
+          neighborhood: null,
+          suburb: 'Gulberg III',
+          city: 'Lahore',
+          state: 'Punjab',
+          country: 'PK',
+          postalCode: null,
+          localityLabel: 'Gulberg III, Lahore',
         ),
       ).called(1);
     });
@@ -185,6 +220,13 @@ void main() {
           latitude: any(named: 'latitude'),
           longitude: any(named: 'longitude'),
           isDefault: any(named: 'isDefault'),
+          neighborhood: any(named: 'neighborhood'),
+          suburb: any(named: 'suburb'),
+          city: any(named: 'city'),
+          state: any(named: 'state'),
+          country: any(named: 'country'),
+          postalCode: any(named: 'postalCode'),
+          localityLabel: any(named: 'localityLabel'),
         ),
       ).thenThrow(const AddressServerFailure('Network unreachable'));
 
@@ -206,6 +248,13 @@ void main() {
           latitude: any(named: 'latitude'),
           longitude: any(named: 'longitude'),
           isDefault: any(named: 'isDefault'),
+          neighborhood: any(named: 'neighborhood'),
+          suburb: any(named: 'suburb'),
+          city: any(named: 'city'),
+          state: any(named: 'state'),
+          country: any(named: 'country'),
+          postalCode: any(named: 'postalCode'),
+          localityLabel: any(named: 'localityLabel'),
         ),
       ).thenThrow(const AddressServerFailure('fail'));
 

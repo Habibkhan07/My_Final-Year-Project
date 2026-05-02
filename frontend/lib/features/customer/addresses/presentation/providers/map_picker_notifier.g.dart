@@ -54,7 +54,7 @@ final class MapPickerNotifierProvider
   MapPickerNotifier create() => MapPickerNotifier();
 }
 
-String _$mapPickerNotifierHash() => r'4598aacd30807838138f456558ee0d8206e7ee81';
+String _$mapPickerNotifierHash() => r'419da549706d632e2aaa8b7f865fafb8bd9cd9b4';
 
 /// Drives the Uber-style map picker screen.
 ///

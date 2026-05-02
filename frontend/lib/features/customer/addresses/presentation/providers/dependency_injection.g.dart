@@ -146,54 +146,82 @@ final class AddressRemoteDataSourceProvider
 String _$addressRemoteDataSourceHash() =>
     r'34bacb6b4c45d6cdf9dc5e82c40db65717fdc29c';
 
-@ProviderFor(googleMapsRemoteDataSource)
-final googleMapsRemoteDataSourceProvider =
-    GoogleMapsRemoteDataSourceProvider._();
+/// Geocoding-provider switch.
+///
+/// Production: pass `--dart-define=GOOGLE_MAPS_API_KEY=<key>` at build time.
+///   → [GoogleMapsGeocodingDataSource] (paid, accurate, in-policy for production)
+/// Development: omit the dart-define.
+///   → [NominatimGeocodingDataSource] (OSM, dev only — Nominatim's public
+///     endpoint forbids production-scale use)
+///
+/// Switching is intentional and one-line. Repository code is unaware.
 
-final class GoogleMapsRemoteDataSourceProvider
+@ProviderFor(geocodingDataSource)
+final geocodingDataSourceProvider = GeocodingDataSourceProvider._();
+
+/// Geocoding-provider switch.
+///
+/// Production: pass `--dart-define=GOOGLE_MAPS_API_KEY=<key>` at build time.
+///   → [GoogleMapsGeocodingDataSource] (paid, accurate, in-policy for production)
+/// Development: omit the dart-define.
+///   → [NominatimGeocodingDataSource] (OSM, dev only — Nominatim's public
+///     endpoint forbids production-scale use)
+///
+/// Switching is intentional and one-line. Repository code is unaware.
+
+final class GeocodingDataSourceProvider
     extends
         $FunctionalProvider<
-          GoogleMapsRemoteDataSource,
-          GoogleMapsRemoteDataSource,
-          GoogleMapsRemoteDataSource
+          GeocodingDataSource,
+          GeocodingDataSource,
+          GeocodingDataSource
         >
-    with $Provider<GoogleMapsRemoteDataSource> {
-  GoogleMapsRemoteDataSourceProvider._()
+    with $Provider<GeocodingDataSource> {
+  /// Geocoding-provider switch.
+  ///
+  /// Production: pass `--dart-define=GOOGLE_MAPS_API_KEY=<key>` at build time.
+  ///   → [GoogleMapsGeocodingDataSource] (paid, accurate, in-policy for production)
+  /// Development: omit the dart-define.
+  ///   → [NominatimGeocodingDataSource] (OSM, dev only — Nominatim's public
+  ///     endpoint forbids production-scale use)
+  ///
+  /// Switching is intentional and one-line. Repository code is unaware.
+  GeocodingDataSourceProvider._()
     : super(
         from: null,
         argument: null,
         retry: null,
-        name: r'googleMapsRemoteDataSourceProvider',
+        name: r'geocodingDataSourceProvider',
         isAutoDispose: false,
         dependencies: null,
         $allTransitiveDependencies: null,
       );
 
   @override
-  String debugGetCreateSourceHash() => _$googleMapsRemoteDataSourceHash();
+  String debugGetCreateSourceHash() => _$geocodingDataSourceHash();
 
   @$internal
   @override
-  $ProviderElement<GoogleMapsRemoteDataSource> $createElement(
+  $ProviderElement<GeocodingDataSource> $createElement(
     $ProviderPointer pointer,
   ) => $ProviderElement(pointer);
 
   @override
-  GoogleMapsRemoteDataSource create(Ref ref) {
-    return googleMapsRemoteDataSource(ref);
+  GeocodingDataSource create(Ref ref) {
+    return geocodingDataSource(ref);
   }
 
   /// {@macro riverpod.override_with_value}
-  Override overrideWithValue(GoogleMapsRemoteDataSource value) {
+  Override overrideWithValue(GeocodingDataSource value) {
     return $ProviderOverride(
       origin: this,
-      providerOverride: $SyncValueProvider<GoogleMapsRemoteDataSource>(value),
+      providerOverride: $SyncValueProvider<GeocodingDataSource>(value),
     );
   }
 }
 
-String _$googleMapsRemoteDataSourceHash() =>
-    r'd3264956bddbbc30062a04a5d6a1feeb7b9dc1e4';
+String _$geocodingDataSourceHash() =>
+    r'5176adf8a05ea046361e21caeca0ff0725ba7c1f';
 
 @ProviderFor(addressLocalDataSource)
 final addressLocalDataSourceProvider = AddressLocalDataSourceProvider._();
@@ -336,7 +364,7 @@ final class AddressRepositoryProvider
   }
 }
 
-String _$addressRepositoryHash() => r'e5334c53e8cdbc274a002ee76dd5d000b991722f';
+String _$addressRepositoryHash() => r'd1586911862767b696987d1897bce312fcadbbb5';
 
 @ProviderFor(getAddressesUseCase)
 final getAddressesUseCaseProvider = GetAddressesUseCaseProvider._();

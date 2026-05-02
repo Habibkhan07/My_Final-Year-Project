@@ -8,20 +8,21 @@ import '../../domain/repositories/i_address_repository.dart';
 import '../data_sources/address_local_data_source.dart';
 import '../data_sources/address_location_data_source.dart';
 import '../data_sources/address_remote_data_source.dart';
-import '../data_sources/google_maps_remote_data_source.dart';
+import '../data_sources/geocoding_data_source.dart';
 import '../models/address_model.dart';
+import '../models/place_details.dart';
 
 class AddressRepositoryImpl implements IAddressRepository {
   final AddressRemoteDataSource remoteDataSource;
   final AddressLocalDataSource localDataSource;
   final AddressLocationDataSource locationDataSource;
-  final GoogleMapsRemoteDataSource googleMapsDataSource;
+  final GeocodingDataSource geocodingDataSource;
 
   const AddressRepositoryImpl(
     this.remoteDataSource,
     this.localDataSource,
     this.locationDataSource,
-    this.googleMapsDataSource,
+    this.geocodingDataSource,
   );
 
   @override
@@ -50,6 +51,13 @@ class AddressRepositoryImpl implements IAddressRepository {
     required double latitude,
     required double longitude,
     required bool isDefault,
+    String? neighborhood,
+    String? suburb,
+    String? city,
+    String? state,
+    String? country,
+    String? postalCode,
+    String? localityLabel,
   }) async {
     try {
       final request = CreateAddressRequest(
@@ -58,6 +66,13 @@ class AddressRepositoryImpl implements IAddressRepository {
         latitude: latitude,
         longitude: longitude,
         isDefault: isDefault,
+        neighborhood: neighborhood,
+        suburb: suburb,
+        city: city,
+        state: state,
+        country: country,
+        postalCode: postalCode,
+        localityLabel: localityLabel,
       );
       final model = await remoteDataSource.saveAddress(request);
       return model.toEntity();
@@ -87,6 +102,13 @@ class AddressRepositoryImpl implements IAddressRepository {
     String? streetAddress,
     double? latitude,
     double? longitude,
+    String? neighborhood,
+    String? suburb,
+    String? city,
+    String? state,
+    String? country,
+    String? postalCode,
+    String? localityLabel,
   }) async {
     try {
       final data = {
@@ -95,6 +117,13 @@ class AddressRepositoryImpl implements IAddressRepository {
         if (streetAddress != null) 'street_address': streetAddress,
         if (latitude != null) 'latitude': latitude.toStringAsFixed(6),
         if (longitude != null) 'longitude': longitude.toStringAsFixed(6),
+        if (neighborhood != null) 'neighborhood': neighborhood,
+        if (suburb != null) 'suburb': suburb,
+        if (city != null) 'city': city,
+        if (state != null) 'state': state,
+        if (country != null) 'country': country,
+        if (postalCode != null) 'postal_code': postalCode,
+        if (localityLabel != null) 'locality_label': localityLabel,
       };
       final model = await remoteDataSource.updateAddress(id, data);
       return model.toEntity();
@@ -129,23 +158,19 @@ class AddressRepositoryImpl implements IAddressRepository {
   }
 
   @override
-  Future<({double latitude, double longitude, String streetAddress})>
-      getCurrentLocation() async {
+  Future<PlaceDetails> getCurrentLocation() async {
     try {
-      // The location data source uses geolocator to get position.
-      // We will intercept the reverse-geocoding to use Google Maps instead.
-      final locResult = await locationDataSource.getCurrentLocation();
+      // Resolve the device GPS first (native, offline-capable). Then layer
+      // the HTTP geocoder on top to get structured fields. If the HTTP call
+      // fails (no network, rate-limited), fall back to the native placemark
+      // which still gives a usable streetAddress + partial structured data.
+      final native = await locationDataSource.getCurrentLocation();
       try {
-        final address = await googleMapsDataSource.reverseGeocode(
-            locResult.latitude, locResult.longitude);
-        return (
-          latitude: locResult.latitude,
-          longitude: locResult.longitude,
-          streetAddress: address,
-        );
+        final details = await geocodingDataSource.reverseGeocode(
+            native.latitude, native.longitude);
+        return details;
       } catch (_) {
-        // Fallback to what locationDataSource resolved (or 'lat, lng')
-        return locResult;
+        return native;
       }
     } on LocationServiceDisabledException {
       throw const AddressLocationServiceDisabled();
@@ -157,28 +182,24 @@ class AddressRepositoryImpl implements IAddressRepository {
   }
 
   @override
-  Future<String> reverseGeocode(double lat, double lng) async {
+  Future<PlaceDetails> reverseGeocode(double lat, double lng) async {
     try {
-      return await googleMapsDataSource.reverseGeocode(lat, lng);
+      return await geocodingDataSource.reverseGeocode(lat, lng);
     } catch (_) {
-      // Fallback
-      return '$lat, $lng';
+      // Contract: never block the UI. Synthesise a coord-only PlaceDetails so
+      // callers can still display *something* and persist the row.
+      return PlaceDetails(
+        formattedAddress: '$lat, $lng',
+        latitude: lat,
+        longitude: lng,
+      );
     }
   }
 
   @override
   Future<List<PlaceSearchEntity>> searchPlaces(String query, String sessionToken) async {
     try {
-      final results = await googleMapsDataSource.searchPlaces(query, sessionToken);
-      return results.map((r) {
-        final struct = r['structured_formatting'] ?? {};
-        return PlaceSearchEntity(
-          placeId: r['place_id'] as String,
-          description: r['description'] as String,
-          mainText: struct['main_text'] as String? ?? r['description'] as String,
-          secondaryText: struct['secondary_text'] as String? ?? '',
-        );
-      }).toList();
+      return await geocodingDataSource.searchPlaces(query, sessionToken);
     } on SocketException {
       throw const AddressNetworkFailure();
     } on FormatException catch (e) {
@@ -189,17 +210,9 @@ class AddressRepositoryImpl implements IAddressRepository {
   }
 
   @override
-  Future<({double latitude, double longitude, String streetAddress})> getPlaceDetails(String placeId, String sessionToken) async {
+  Future<PlaceDetails> getPlaceDetails(String placeId, String sessionToken) async {
     try {
-      final details = await googleMapsDataSource.getPlaceDetails(placeId, sessionToken);
-      final geometry = details['geometry']?['location'];
-      if (geometry == null) throw const FormatException('No geometry in place details');
-
-      return (
-        latitude: (geometry['lat'] as num).toDouble(),
-        longitude: (geometry['lng'] as num).toDouble(),
-        streetAddress: details['formatted_address'] as String? ?? '',
-      );
+      return await geocodingDataSource.getPlaceDetails(placeId, sessionToken);
     } on SocketException {
       throw const AddressNetworkFailure();
     } on FormatException catch (e) {
@@ -209,4 +222,3 @@ class AddressRepositoryImpl implements IAddressRepository {
     }
   }
 }
-

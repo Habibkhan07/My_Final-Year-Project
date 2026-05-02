@@ -344,7 +344,7 @@ The slot end-time and end-of-day truncation depend on the estimated job length, 
 ---
 
 ### 1.5 Saved Addresses
-**Description**: Returns a list of all saved addresses for the authenticated customer. Used by the checkout flow to determine the job location.
+**Description**: Returns a list of all saved addresses for the authenticated customer. Used by the checkout flow to determine the job location. The full schema is documented in `ADDRESSES_API.md` — the snippet below shows only the fields the discovery/checkout flow consumes.
 **URL**: `/api/customers/addresses/`
 **Method**: `GET`
 **Auth**: Required (`IsAuthenticated`). Send token in `Authorization: Token <token>` header.
@@ -355,9 +355,11 @@ The slot end-time and end-of-day truncation depend on the estimated job length, 
   {
     "id": 1,
     "label": "Home",
-    "address_text": "Lahore, Pakistan (Default)",
+    "street_address": "Block 4, Gulshan-e-Iqbal, Karachi, Pakistan",
     "latitude": "31.520400",
-    "longitude": "74.358700"
+    "longitude": "74.358700",
+    "is_default": true,
+    "locality_label": "Gulshan-e-Iqbal, Karachi"
   }
 ]
 ```
@@ -367,9 +369,13 @@ The slot end-time and end-of-day truncation depend on the estimated job length, 
 | :--- | :--- | :--- |
 | `id` | Number (Int) | Primary key — pass this as `address_id` to the booking endpoint. |
 | `label` | String | Friendly name (e.g. "Home", "Office"). |
-| `address_text` | String | Human-readable address. |
-| `latitude` | String (Decimal) | GPS latitude. |
-| `longitude` | String (Decimal) | GPS longitude. |
+| `street_address` | String | Geocoder's `formatted_address` (display string). |
+| `latitude` | String (Decimal) | GPS latitude — trusted source for distance/matchmaking. |
+| `longitude` | String (Decimal) | GPS longitude — trusted source for distance/matchmaking. |
+| `is_default` | Boolean | True iff this is the user's default address. |
+| `locality_label` | String \| null | Composed display label, e.g. `"Gulshan-e-Iqbal, Karachi"`. Null on legacy rows; UI falls back to `street_address`. |
+
+> The full response also includes `created_at`, `neighborhood`, `suburb`, `city`, `state`, `country`, `postal_code`. See `ADDRESSES_API.md` for the complete contract.
 
 #### Error Envelopes
 *   **401 Unauthorized**: User is not logged in.

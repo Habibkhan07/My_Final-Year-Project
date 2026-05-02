@@ -13,6 +13,13 @@ class UpdateAddressUseCase {
     String? streetAddress,
     double? latitude,
     double? longitude,
+    String? neighborhood,
+    String? suburb,
+    String? city,
+    String? state,
+    String? country,
+    String? postalCode,
+    String? localityLabel,
   }) {
     return repository.updateAddress(
       id: id,
@@ -21,6 +28,13 @@ class UpdateAddressUseCase {
       streetAddress: streetAddress,
       latitude: latitude,
       longitude: longitude,
+      neighborhood: neighborhood,
+      suburb: suburb,
+      city: city,
+      state: state,
+      country: country,
+      postalCode: postalCode,
+      localityLabel: localityLabel,
     );
   }
 }

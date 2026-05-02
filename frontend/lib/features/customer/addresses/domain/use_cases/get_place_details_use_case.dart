@@ -1,3 +1,4 @@
+import '../../data/models/place_details.dart';
 import '../repositories/i_address_repository.dart';
 
 class GetPlaceDetailsUseCase {
@@ -5,8 +6,7 @@ class GetPlaceDetailsUseCase {
 
   GetPlaceDetailsUseCase(this.repository);
 
-  Future<({double latitude, double longitude, String streetAddress})> call(
-      String placeId, String sessionToken) {
+  Future<PlaceDetails> call(String placeId, String sessionToken) {
     return repository.getPlaceDetails(placeId, sessionToken);
   }
 }

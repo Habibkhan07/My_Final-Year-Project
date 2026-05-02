@@ -27,11 +27,22 @@ Freezed immutable. Fed by `GET /api/customers/addresses/` (list items) and `POST
 | :--- | :--- | :--- |
 | `id` | `int` | Backend primary key. Used as the `address_id` in `POST /api/bookings/instant-book/`. |
 | `label` | `String` | User-facing name (e.g. "Home", "Office"). |
-| `streetAddress` | `String` | Human-readable address string. |
-| `latitude` | `double` | WGS-84 latitude. Used by the booking geofence check. |
-| `longitude` | `double` | WGS-84 longitude. |
+| `streetAddress` | `String` | Geocoder's `formatted_address` (display string). |
+| `latitude` | `double` | WGS-84 latitude. **Trusted source for distance/matchmaking.** |
+| `longitude` | `double` | WGS-84 longitude. **Trusted source for distance/matchmaking.** |
 | `isDefault` | `bool` | Source of truth for which address pre-fills on booking. **Never compute locally** — always read from backend. |
 | `createdAt` | `String` | ISO 8601 creation timestamp (display only). |
+| `neighborhood` | `String?` | Reverse-geocoded structured field (display-only). |
+| `suburb` | `String?` | Reverse-geocoded structured field. Wins over `neighborhood` in `localityLabel`. |
+| `city` | `String?` | Reverse-geocoded structured field. |
+| `state` | `String?` | Reverse-geocoded structured field. |
+| `country` | `String?` | ISO-3166 alpha-2 (e.g. `"PK"`). |
+| `postalCode` | `String?` | Reverse-geocoded structured field. |
+| `localityLabel` | `String?` | Composed display label, e.g. `"Gulshan-e-Iqbal, Karachi"`. |
+
+**Trust boundary**: the 7 nullable structured fields are produced client-side by the configured `GeocodingDataSource` and POSTed to the backend, which stores them verbatim. `latitude`/`longitude` remain the trusted source for distance/matchmaking. See `flag.md #15` for the rationale and the proper-fix path if abuse appears.
+
+**Legacy rows**: addresses created before this rollout have `null` for all 7 structured fields. UI must fall back to `streetAddress` when `localityLabel` is null.
 
 ---
 
@@ -57,17 +68,17 @@ All repository methods throw a subclass of `AddressFailure`. The presentation la
 | Method | Returns | Throws |
 | :--- | :--- | :--- |
 | `getAddresses()` | `List<CustomerAddressEntity>` | `AddressNetworkFailure`, `AddressServerFailure`, `AddressParsingFailure` |
-| `saveAddress({label, streetAddress, latitude, longitude, isDefault})` | `CustomerAddressEntity` | `AddressNetworkFailure`, `AddressServerFailure`, `AddressParsingFailure` |
-| `updateAddress({id, label, streetAddress, latitude, longitude, isDefault})` | `CustomerAddressEntity` | `AddressNetworkFailure`, `AddressServerFailure`, `AddressParsingFailure`, `AddressNotFoundFailure` |
+| `saveAddress({label, streetAddress, latitude, longitude, isDefault, neighborhood?, suburb?, city?, state?, country?, postalCode?, localityLabel?})` | `CustomerAddressEntity` | `AddressNetworkFailure`, `AddressServerFailure`, `AddressParsingFailure` |
+| `updateAddress({id, label?, streetAddress?, latitude?, longitude?, isDefault?, neighborhood?, suburb?, city?, state?, country?, postalCode?, localityLabel?})` | `CustomerAddressEntity` | `AddressNetworkFailure`, `AddressServerFailure`, `AddressParsingFailure`, `AddressNotFoundFailure` |
 | `deleteAddress(int id)` | `void` | `AddressNotFoundFailure`, `AddressNetworkFailure`, `AddressServerFailure` |
-| `getCurrentLocation()` | `({double latitude, double longitude, String streetAddress})` | `AddressLocationPermissionDenied`, `AddressLocationServiceDisabled` |
-| `reverseGeocode(double lat, double lng)` | `String` | never throws — falls back to `"lat, lng"` string on geocoding failure |
+| `getCurrentLocation()` | `PlaceDetails` | `AddressLocationPermissionDenied`, `AddressLocationServiceDisabled` |
+| `reverseGeocode(double lat, double lng)` | `PlaceDetails` | never throws — falls back to a coord-only `PlaceDetails` on failure |
 | `searchPlaces(String query, String sessionToken)` | `List<PlaceSearchEntity>` | `AddressNetworkFailure`, `AddressServerFailure` |
-| `getPlaceDetails(String placeId, String sessionToken)` | `({double latitude, double longitude, String streetAddress})` | `AddressNetworkFailure`, `AddressServerFailure` |
+| `getPlaceDetails(String placeId, String sessionToken)` | `PlaceDetails` | `AddressNetworkFailure`, `AddressServerFailure` |
 
-`getCurrentLocation()` returns a named record so the save-address form can pre-fill all three GPS fields in a single call.
+`getCurrentLocation()` and `reverseGeocode()` both return `PlaceDetails` — a Freezed model carrying `formattedAddress`, `latitude`, `longitude`, and the 7 nullable structured fields. The save-address form forwards the structured fields untouched to the backend on `saveAddress(...)`.
 
-`reverseGeocode()` is used by `MapPickerNotifier` to resolve arbitrary map-pin coordinates to a human-readable string. Failures are silently swallowed and replaced with the raw coordinate string so the Confirm button is never blocked.
+`reverseGeocode()` is used by `MapPickerNotifier` after every map-pan gesture. Failures are silently swallowed and replaced with a coord-only `PlaceDetails` so the Confirm button is never blocked.
 
 ---
 
@@ -90,16 +101,20 @@ All are thin delegates — they add no logic, they exist to keep the presentatio
 ## Data Layer
 
 ### Models
-`lib/features/customer/addresses/data/models/address_model.dart`
+`lib/features/customer/addresses/data/models/address_model.dart` and `place_details.dart`
 
 **`CustomerAddressModel`** — JSON ↔ Dart mapping for list and creation responses.
-- `fromJson()` handles backend snake_case keys (`street_address`, `is_default`, `created_at`).
+- `fromJson()` handles backend snake_case keys (`street_address`, `is_default`, `created_at`, plus the 7 structured fields).
 - `_parseDouble()` helper safely coerces backend decimal strings or nums to Dart `double` (backend sends coordinates as strings).
 - `toEntity()` produces the clean `CustomerAddressEntity` — the only conversion point.
 
 **`CreateAddressRequest`** — outgoing POST body.
-- `toJson()` maps Dart camelCase back to backend snake_case.
+- `toJson()` maps Dart camelCase back to backend snake_case (including all 7 structured fields, sent as null when absent).
 - **Precision Guard**: formats `latitude` and `longitude` to 6 decimal places via `toStringAsFixed(6)` to satisfy backend `DecimalField` constraints.
+
+**`PlaceDetails`** — Freezed model returned by every `GeocodingDataSource` call.
+- Carries `formattedAddress`, `latitude`, `longitude`, plus the 7 nullable structured fields.
+- `localityLabel` getter is the **single source of truth** for the compose rule (`suburb || neighborhood, city`). If product wants a different rule, change it here only — the backend caches whatever the client sends.
 
 ---
 
@@ -128,10 +143,22 @@ Non-2xx responses are parsed into `HttpFailure(statusCode, code, message, errors
 `lib/features/customer/addresses/data/data_sources/address_location_data_source.dart`
 
 - Uses `geolocator` for device GPS (`LocationAccuracy.high`).
-- Uses `geocoding` (`placemarkFromCoordinates`) for reverse geocoding to a street string.
-- `reverseGeocode(lat, lng)` is the public entry-point used by `MapPickerNotifier`.
-- **Empty Guard**: If geocoding returns an empty/null assembled address string, it falls back to raw `"lat, lng"` coordinates to ensure `street_address` is never blank.
+- Uses `geocoding` (`placemarkFromCoordinates`) for reverse geocoding via the **platform-native** geocoder (Apple/Android), which works offline using cached map data.
+- Returns a `PlaceDetails` populated with structured fields extracted from the native `Placemark` (`subLocality`, `locality`, `administrativeArea`, `isoCountryCode`, `postalCode`).
+- **Empty Guard**: If geocoding returns nothing, falls back to a coord-only `PlaceDetails`.
 - Throws `LocationServiceDisabledException` / `PermissionDeniedException` (geolocator types) — the repository maps these to domain failures.
+
+#### `GeocodingDataSource` (port) + adapters
+`lib/features/customer/addresses/data/data_sources/geocoding_data_source.dart`
+
+Abstract port for the HTTP-based geocoder used by the map-picker drag and the search flow. Two adapters live behind it:
+
+| Adapter | Used when | Notes |
+| :--- | :--- | :--- |
+| `GoogleMapsGeocodingDataSource` | `--dart-define=GOOGLE_MAPS_API_KEY=<key>` is set | Production. Parses Google's `address_components` array into the 7 structured fields. Pakistan-relevant type mapping: `locality`→city, `sublocality_level_1`→suburb, `administrative_area_level_1`→state. |
+| `NominatimGeocodingDataSource` | dart-define omitted | Dev only. OSM Nominatim — usage policy forbids prod-scale traffic. See `flag.md #16`. |
+
+The factory in `dependency_injection.dart::geocodingDataSource(Ref ref)` selects the adapter at build time. **Switching to Google in prod is a one-line dart-define change** — no code edit.
 
 ---
 
@@ -205,12 +232,21 @@ addressHttpClient / addressSecureStorage
     ↓
 addressRemoteDataSource / addressLocalDataSource / addressLocationDataSource
     ↓
+geocodingDataSource          ← factory: Google (key set) | Nominatim (dev)
+    ↓
 addressRepository
     ↓
 getAddressesUseCase / saveAddressUseCase / updateAddressUseCase
 deleteAddressUseCase / getCurrentLocationUseCase / reverseGeocodeUseCase
+searchPlacesUseCase / getPlaceDetailsUseCase
     ↓
 addressesProvider       ← list fetch
 defaultAddressProvider  ← derived filter
 mapPickerProvider       ← AsyncNotifier
+locationSearchProvider  ← search overlay state
 ```
+
+### Production swap
+- Dev: `flutter run` (no key) → OSM Nominatim, no setup friction.
+- Prod: `flutter build ... --dart-define=GOOGLE_MAPS_API_KEY=<key>` → Google Maps Platform.
+- See `flag.md #16` for the silent-fallback footgun that should be hardened before first prod build.

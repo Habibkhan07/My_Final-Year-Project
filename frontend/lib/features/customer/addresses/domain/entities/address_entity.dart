@@ -7,6 +7,12 @@ part 'address_entity.freezed.dart';
 ///
 /// [isDefault] is the source of truth for which address pre-fills on booking.
 /// Flutter must never compute this locally — always read from backend.
+///
+/// The 7 nullable structured locality fields are populated client-side at save
+/// time via the configured [GeocodingDataSource] (Google in prod, OSM in dev).
+/// Backend stores them verbatim. Legacy rows created before this rollout have
+/// `null` for every structured field — UI must fall back to [streetAddress]
+/// when [localityLabel] is null.
 @freezed
 abstract class CustomerAddressEntity with _$CustomerAddressEntity {
   const factory CustomerAddressEntity({
@@ -17,5 +23,12 @@ abstract class CustomerAddressEntity with _$CustomerAddressEntity {
     required double longitude,
     required bool isDefault,
     required String createdAt,
+    String? neighborhood,
+    String? suburb,
+    String? city,
+    String? state,
+    String? country,
+    String? postalCode,
+    String? localityLabel,
   }) = _CustomerAddressEntity;
 }
