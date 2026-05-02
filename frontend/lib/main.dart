@@ -10,6 +10,7 @@ import 'core/realtime/presentation/providers/dependency_injection.dart'
 import 'core/realtime/presentation/services/fcm_background_handler.dart';
 import 'core/routing/app_router.dart';
 import 'features/technician/onboarding/presentation/providers/dependency_injection.dart';
+import 'firebase_options.dart';
 
 /// Injectable seams used only by `test/main_app_boot_widget_test.dart`.
 /// Production passes the real Firebase / FCM / SharedPreferences entry
@@ -25,7 +26,9 @@ typedef BgHandlerRegistrar = void Function(BackgroundMessageHandler);
 typedef SharedPrefsLoader = Future<SharedPreferences> Function();
 
 Future<void> _defaultFirebaseInit() async {
-  await Firebase.initializeApp();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
 }
 
 /// Builds the app's root widget. Extracted from `main()` so the widget
