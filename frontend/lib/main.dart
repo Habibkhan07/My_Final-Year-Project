@@ -9,6 +9,7 @@ import 'core/realtime/presentation/providers/dependency_injection.dart'
     as realtime_di;
 import 'core/realtime/presentation/services/fcm_background_handler.dart';
 import 'core/routing/app_router.dart';
+import 'features/technician/incoming_job_requests/presentation/widgets/incoming_job_sheet_host.dart';
 import 'features/technician/onboarding/presentation/providers/dependency_injection.dart';
 import 'firebase_options.dart';
 
@@ -124,6 +125,14 @@ class MyApp extends ConsumerWidget {
         useMaterial3: true,
       ),
       routerConfig: router,
+      // Wraps the entire navigator with the incoming-job sheet overlay so
+      // real-time job offers slide up over whatever screen the technician
+      // is currently on. Mounted once at the app shell — never per-route.
+      // The host is a no-op for non-technician users (their event queue
+      // never receives `job_new_request` events).
+      builder: (context, child) {
+        return IncomingJobSheetHost(child: child ?? const SizedBox.shrink());
+      },
     );
   }
 }

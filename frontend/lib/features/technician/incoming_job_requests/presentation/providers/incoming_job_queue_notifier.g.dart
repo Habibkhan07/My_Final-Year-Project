@@ -78,7 +78,7 @@ final class IncomingJobQueueNotifierProvider
 }
 
 String _$incomingJobQueueNotifierHash() =>
-    r'01a614e5bf74267a60a8cfc87f6692d64d1a4cad';
+    r'75bda49c3b69ffda931289049183bcf2b7c02aee';
 
 /// Holds every `job_new_request` event observed since wake-up.
 ///

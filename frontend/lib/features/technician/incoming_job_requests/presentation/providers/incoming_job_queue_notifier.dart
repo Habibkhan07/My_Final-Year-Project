@@ -12,6 +12,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../../../../core/realtime/domain/entities/system_event_type.dart';
 import '../../../../../core/realtime/presentation/notifiers/system_event_notifier.dart';
 import '../../data/mappers/job_new_request_mapper.dart';
+import '../../domain/entities/job_new_request.dart';
 import 'incoming_job_queue_state.dart';
 
 part 'incoming_job_queue_notifier.g.dart';
@@ -69,5 +70,19 @@ class IncomingJobQueueNotifier extends _$IncomingJobQueueNotifier {
     final next = state.queue.where((j) => j.jobId != jobId).toList();
     if (next.length == state.queue.length) return;
     state = state.copyWith(queue: next);
+  }
+
+  /// **Preview-only.** Injects a fully-formed [JobNewRequest] into the queue,
+  /// bypassing the wire mapper. Used by `lib/preview/incoming_job_preview.dart`
+  /// to demo the sheet without standing up the full backend → WS → mapper
+  /// pipeline. Mirrors the dedup behavior of the real ingest path so seeding
+  /// the same `jobId` twice is a no-op.
+  ///
+  /// Do NOT call this from production code — it does not represent a real
+  /// realtime event and will not produce ACK/sync side effects. Real events
+  /// flow through `ref.listen(systemEventProvider, ...)` above.
+  void debugSeedRequest(JobNewRequest request) {
+    if (state.queue.any((j) => j.jobId == request.jobId)) return;
+    state = state.copyWith(queue: [...state.queue, request]);
   }
 }

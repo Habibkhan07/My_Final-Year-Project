@@ -132,9 +132,11 @@ void main() {
       final hooks = container.read(realtimeBootHooksProvider);
 
       expect(hooks, contains(incomingJobQueueProvider),
-          reason: 'list-route event features must be registered here so '
-              'their queue notifier wakes before WS connect; missing entry '
-              'silently drops the first event after every login');
+          reason: 'queue notifiers that subscribe to systemEventProvider '
+              'must be registered here so they wake before WS connect; '
+              'missing entry silently drops the first event after every '
+              'login (true regardless of whether the feature presents as '
+              'a route, a sheet overlay, or otherwise).');
     });
 
     test('R2 — bootAfterAuth reads every entry in the registry', () async {

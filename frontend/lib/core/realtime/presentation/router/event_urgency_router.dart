@@ -34,8 +34,13 @@ class EventUrgencyRouter {
 
   // ─── Route tables ──────────────────────────────────────────────────────
 
+  // `SystemEventType.jobNewRequest` is intentionally absent. It is presented
+  // by `IncomingJobSheetHost` (a global bottom-sheet overlay mounted at the
+  // app shell) — a queue-state-driven surface, not a route push. Dropping it
+  // from this map removes the previous list-route plumbing entirely; the
+  // queue notifier's `ref.listen(systemEventProvider, ...)` is now the only
+  // thing that reacts to a `job_new_request` event on the presentation side.
   static const _highUrgencyRoutes = <SystemEventType, String>{
-    SystemEventType.jobNewRequest: '/technician/incoming-job-request',
     SystemEventType.jobAccepted: '/customer/job-accepted',
     SystemEventType.quoteGenerated: '/customer/incoming-quote',
     SystemEventType.quoteApproved: '/technician/quote-approved',
@@ -87,9 +92,14 @@ class EventUrgencyRouter {
   ///
   /// Detail-route events use [_navGuardPayloadKeys] for entity-id matching;
   /// list-route events bypass that mechanism entirely.
-  static const _listRouteEvents = <SystemEventType>{
-    SystemEventType.jobNewRequest,
-  };
+  ///
+  /// Currently empty: `jobNewRequest` previously lived here as a list-route
+  /// because the technician's offers screen was a router-pushed full-screen.
+  /// The screen has since been replaced by `IncomingJobSheetHost` (a global
+  /// queue-state-driven overlay), so the list-route plumbing is no longer
+  /// needed for that event. The mechanism is kept for any future event type
+  /// that targets a list-style screen (batched chat history, e.g.).
+  static const _listRouteEvents = <SystemEventType>{};
 
   // ─── Entry point ───────────────────────────────────────────────────────
 
