@@ -92,24 +92,16 @@ When picking this up, the technician's on-site UX is the design-heavy part — t
 
 ---
 
-## 6. `IncomingJobQueueNotifier` — append-only queue, no expiry sweep
+## ~~6. `IncomingJobQueueNotifier` — append-only queue, no expiry sweep~~ ✅ Resolved (2026-05-02)
 
-**Where**
-- `frontend/lib/features/technician/incoming_job_requests/presentation/providers/incoming_job_queue_notifier.dart`
+Resolved by the serialized one-offer pivot. The pivot's swipe-to-accept widget owns the wall-clock countdown for the head offer; when its drain reaches zero it fires `onExpire`, the host calls `removeRequest(headId)`, and the head pops — exactly the eviction event the proposed sweep timer would have produced. For tail entries, `removeRequest` now filters out already-expired entries before promoting the next head, so an expired tail entry is dropped at the moment of head resolution rather than briefly promoting → firing onExpire → popping (a visible flicker).
 
-**What's wrong**
-The queue notifier is append-only this sprint. Entries are never auto-evicted when `expiresAt` passes, and there is no periodic sweep timer. ASAP-tier requests linger in memory for 60 seconds past their server SLA; scheduled-tier for 15 minutes past. With no UI consuming or dismissing entries (the real card widget hasn't shipped yet), a long-running technician session can accumulate stale entries until app restart. The bound is loose — the dispatch volume is low and `keepAlive: true` survives navigation but not process death — so memory pressure is not realistic, but the in-memory state misrepresents truth: the queue can hold "pending" requests that the server already flipped to `REJECTED` via the SLA timeout Celery task.
+**What changed**
+- `frontend/lib/features/technician/incoming_job_requests/presentation/widgets/incoming_job_swipe_to_accept.dart` — new widget. Owns the head's drain via a 250ms wall-clock `Timer.periodic` (wall-clock, not frame count, so backgrounding mid-drain still produces correct remaining-time on resume). Calls the host's `onExpire` callback once when remaining reaches zero; freezes thereafter.
+- `frontend/lib/features/technician/incoming_job_requests/presentation/widgets/incoming_job_sheet_host.dart` — adds `_handleExpire(jobId)`, semantically distinct from `_handleDecline` so the future accept-endpoint sprint can wire different remote behavior (decline POSTs `/decline`; expire is a no-op because the server's SLA-timeout Celery task fires authoritative).
+- `frontend/lib/features/technician/incoming_job_requests/presentation/providers/incoming_job_queue_notifier.dart` — `removeRequest` now (a) filters expired tail entries out before promoting the next head, and (b) re-sorts surviving tail entries by current urgency (`remaining/slaWindow` ascending) before promotion. Pinned by new `incoming_job_queue_notifier_test.dart` cases under "head-sticky priority ordering".
 
-**Why we shipped it that way**
-The widget that would naturally drive eviction (accept / decline / dismiss → `removeRequest(jobId)`, already wired) is intentionally deferred to the UI sprint. Adding a sweep timer now without the UI consuming it is premature; the bound is loose enough to be safe in normal use; and the on-disk state of truth is the backend (server-side `JobBooking.status`), so a stale entry in memory is a UX nuisance, not a data-integrity bug.
-
-**The proper fix**
-1. Inside `IncomingJobQueueNotifier.build()`, add a `Timer.periodic(const Duration(seconds: 10), _sweepExpired)` and register `ref.onDispose(timer.cancel)` so the sweep dies with the notifier.
-2. `_sweepExpired` filters `state.queue` by `entry.expiresAt.isAfter(DateTime.now())` and reassigns state only if the resulting list shrank (avoids spurious rebuilds).
-3. Make sure the widget cancels its per-entry countdown UI atomically with the sweep so the technician never sees a card flicker between "5s left" and gone.
-4. Search hint: grep for `removeRequest` to find the existing manual-eviction surface; the sweep helper should sit alongside it.
-
-When picking this up, also evaluate whether the eviction policy should be aggressive (drop the moment `expiresAt` passes) or grace-period (keep showing for ~3s with a visual fade) — either is fine, but the choice should be conscious and documented in `INCOMING_JOB_REQUESTS_FEATURE.md`'s "Known limitations" section.
+**Out of scope, still deferred** — a periodic sweep that runs even when no UI consumer is mounted is not added. The new bound on stale memory is: head is evicted exactly when its drain hits zero (250ms granularity); tail entries that expired while waiting are dropped on the next head resolution. For an Android-only app where the sheet is mounted whenever the technician is online, this is tighter than the original "stale until app restart" bound by orders of magnitude. If a sweep that survives sheet-unmounted-but-app-foregrounded ever proves necessary, the place to add it is `IncomingJobQueueNotifier.build()` with `Timer.periodic` and `ref.onDispose(timer.cancel)` — but not pre-emptively.
 
 ---
 
@@ -622,3 +614,34 @@ If a release build forgets `--dart-define=GOOGLE_MAPS_API_KEY=...`, the app sile
 **Search hints**
 - `geocodingDataSource(Ref ref)` in `dependency_injection.dart`
 - `NominatimGeocodingDataSource` and `GoogleMapsGeocodingDataSource` in `data/data_sources/`
+
+---
+
+## 17. `expires_in_seconds` has no server-side floor — swipe-to-accept drain assumes ≥ 5 minutes
+
+**Where**
+- `backend/bookings/services/job_request_dispatch.py` — dispatch payload construction.
+- `backend/bookings/tasks.py` — Celery SLA-timeout task (must arm off the same constant).
+- `backend/bookings/api/BOOKINGS_API.md` §1.2 — wire docs need to advertise the floor.
+
+**What's wrong**
+The technician's incoming-job UI was rebuilt around the assumption that `expires_in_seconds` on every `job_new_request` payload is at least 5 minutes (300s). The pivot's `IncomingJobSwipeToAccept` widget encodes the SLA into a horizontal pill that drains from the right edge as time elapses; the user has to notice the offer arrived, read the four blocks of detail, decide, and then physically swipe a thumb across the colored runway. With anything less than ~5 minutes that whole sequence becomes impossible for the target user (low-literacy technician, budget Android, often holding tools or in transit). The frontend trusts the wire value verbatim — no clamping, no minimum — so a sub-5-minute `expires_in_seconds` would produce a too-fast drain in production. There is no server-side enforcement of the floor today; the value is computed by whatever `dispatch_job_new_request_event` decides per-booking-type without consulting a minimum.
+
+This is a single-tech dispatch model — the customer chooses a specific technician and slot, then books — so there is no parallel-fanout race or shortlist concern. The 5-minute window is the time that one chosen tech has to swipe-accept; if it elapses, `JobBooking.STATUS_AWAITING_TECH_ACCEPT` flips to `REJECTED` via the existing Celery task (flag #1) and the customer goes back to the discovery flow to pick someone else.
+
+**Why we shipped it anyway**
+The technician-side pivot was scoped to the presentation layer (replacing the deck/peek/list multi-offer surfaces with the serialized swipe-to-accept model). The dispatch service was untouched. The 5-minute floor is a backend contract on the wire — it should live at the source, not be papered over with a frontend clamp that would (a) hide the wire-shape lie from anyone debugging end-to-end and (b) let any non-Flutter client desync from the technician's actual swipe budget.
+
+**The proper fix**
+1. **Constant.** Add `MIN_DISPATCH_SLA = timedelta(minutes=5)` near the top of `backend/bookings/services/job_request_dispatch.py`. Single source of truth for both the dispatch and the timeout task.
+2. **Dispatch floor.** In `dispatch_job_new_request_event`, after computing whatever `expires_in_seconds` the current per-booking-type policy produces, floor it: `expires_in_seconds = max(int(MIN_DISPATCH_SLA.total_seconds()), expires_in_seconds)`.
+3. **Celery timeout.** `backend/bookings/tasks.py`'s `expire_pending_job_booking` (or the scheduling site that arms it) must use the SAME constant when the SLA timer is registered. Drift between the two would produce a server-side `AWAITING → REJECTED` flip that fires before the frontend's drain visually reaches zero — accept-just-past-expiry would 409 silently.
+4. **API doc.** Update `BOOKINGS_API.md` §1.2 row for `expires_in_seconds` to call out the 5-minute floor as a hard wire contract. Any future caller of the dispatch service knows to respect it; any future technician client (web admin, second-app) knows the budget.
+
+**Search hints**
+- `compute_technician_payout` (`bookings/services/job_request_dispatch.py`) — same module that builds the payload; the floor goes here.
+- `expire_pending_job_booking` (`bookings/tasks.py`) — the Celery task; arm it off the same constant.
+- `BOOKINGS_API.md` §1.2 row for `expires_in_seconds`.
+
+**Severity**
+Medium-high. The frontend ships fine in isolation (every test passes) and a developer running against a backend that happens to send a 5+-minute `expires_in_seconds` will not notice. But once a per-booking-type policy is added that drops below 5 minutes — or if a future code path computes the expiry from data that produces a small value — the swipe widget becomes unusable for the target user with no obvious diagnostic. Pick this up before any production rollout of the technician UI; ideally bundle with the accept/decline endpoint sprint (flag #14) since both touch `bookings/services/` and the same dispatch payload contract.

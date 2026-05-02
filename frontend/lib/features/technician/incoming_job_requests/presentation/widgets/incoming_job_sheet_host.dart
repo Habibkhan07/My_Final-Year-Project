@@ -144,19 +144,12 @@ class _IncomingJobSheetHostState extends ConsumerState<IncomingJobSheetHost>
     }
   }
 
-  // ── Display ordering ────────────────────────────────────────────────────
-
-  /// Returns the queue head-first by urgency (soonest expiry at index 0).
-  ///
-  /// Today the queue notifier is still FIFO append-only; this sort gives the
-  /// technician the most-urgent offer at the head until the notifier rewrite
-  /// in the next pass moves the priority logic into state. Once that lands
-  /// this helper collapses to `queue` directly.
-  List<JobNewRequest> _orderForRender(List<JobNewRequest> queue) {
-    return [...queue]..sort((a, b) => a.expiresAt.compareTo(b.expiresAt));
-  }
-
   // ── Action handlers ─────────────────────────────────────────────────────
+  //
+  // No display-ordering helper — the queue notifier guarantees `queue.first`
+  // is the head (locked once chosen, promoted by urgency on resolution).
+  // The host renders the head directly; tail order is the notifier's
+  // concern, not presentation's.
 
   void _handleAccept(int jobId) {
     HapticFeedback.selectionClick();
@@ -167,6 +160,14 @@ class _IncomingJobSheetHostState extends ConsumerState<IncomingJobSheetHost>
   }
 
   void _handleDecline(int jobId) {
+    ref.read(incomingJobQueueProvider.notifier).removeRequest(jobId);
+  }
+
+  void _handleExpire(int jobId) {
+    // Same end-state as decline (offer leaves the queue) — distinct only so
+    // the host can wire different remote semantics later: decline will POST
+    // /decline once that endpoint exists; expire will be a no-op because the
+    // server's SLA-timeout Celery task fires authoritative.
     ref.read(incomingJobQueueProvider.notifier).removeRequest(jobId);
   }
 
@@ -200,8 +201,9 @@ class _IncomingJobSheetHostState extends ConsumerState<IncomingJobSheetHost>
             child: AnimatedBuilder(
               animation: _draggableController,
               builder: (context, _) {
-                final ordered = _orderForRender(_displayQueue);
-                if (ordered.isEmpty) return const SizedBox.shrink();
+                final queue = _displayQueue;
+                if (queue.isEmpty) return const SizedBox.shrink();
+                final headId = queue.first.jobId;
 
                 return DraggableScrollableSheet(
                   controller: _draggableController,
@@ -215,9 +217,10 @@ class _IncomingJobSheetHostState extends ConsumerState<IncomingJobSheetHost>
                   builder: (context, scrollController) {
                     return IncomingJobSheet(
                       scrollController: scrollController,
-                      queue: ordered,
-                      onAccept: () => _handleAccept(ordered.first.jobId),
-                      onDecline: () => _handleDecline(ordered.first.jobId),
+                      queue: queue,
+                      onAccept: () => _handleAccept(headId),
+                      onDecline: () => _handleDecline(headId),
+                      onExpire: () => _handleExpire(headId),
                     );
                   },
                 );

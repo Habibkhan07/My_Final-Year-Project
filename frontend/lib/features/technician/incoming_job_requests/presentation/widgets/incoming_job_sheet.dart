@@ -35,6 +35,7 @@ class IncomingJobSheet extends StatelessWidget {
     required this.queue,
     required this.onAccept,
     required this.onDecline,
+    required this.onExpire,
   });
 
   /// The DraggableScrollableSheet's scroll controller. Threaded into the
@@ -45,12 +46,16 @@ class IncomingJobSheet extends StatelessWidget {
   /// Live queue. Order is head-sticky priority (head = `queue.first`).
   final List<JobNewRequest> queue;
 
-  /// Accept tapped on the head card (swipe threshold reached, or — until the
-  /// swipe widget lands in the next pass — the legacy tap-to-accept button).
+  /// Fired once when the technician completes the swipe-to-accept gesture
+  /// on the head card.
   final VoidCallback onAccept;
 
-  /// Decline tapped on the head card.
+  /// Fired when Decline is tapped on the head card.
   final VoidCallback onDecline;
+
+  /// Fired once when the head card's drain reaches zero (SLA elapsed and
+  /// the technician didn't act in time).
+  final VoidCallback onExpire;
 
   @override
   Widget build(BuildContext context) {
@@ -65,6 +70,7 @@ class IncomingJobSheet extends StatelessWidget {
                 request: queue.first,
                 onAccept: onAccept,
                 onDecline: onDecline,
+                onExpire: onExpire,
               ),
             ],
           );

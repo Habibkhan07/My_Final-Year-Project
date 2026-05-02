@@ -3,9 +3,9 @@ import 'package:intl/intl.dart';
 
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/theme/app_shapes.dart';
-import '../../../../../core/theme/app_spacing.dart';
 import '../../domain/entities/booking_type.dart';
 import '../../domain/entities/job_new_request.dart';
+import 'incoming_job_swipe_to_accept.dart';
 
 /// Default-snap content for [IncomingJobSheet]. Five blocks, top to bottom:
 ///
@@ -22,11 +22,9 @@ import '../../domain/entities/job_new_request.dart';
 /// only by one line of payout subtext; everything else is identical across
 /// types.
 ///
-/// **No countdown ring on the card.** The earlier ring was removed when the
-/// pivot to a serialized one-offer model with a draining swipe-to-accept
-/// button absorbed time-pressure into the action surface itself. A separate
-/// ring + a draining button would compete for the same role; the button
-/// drains, full stop.
+/// **No countdown ring on the card.** Time-pressure lives entirely inside
+/// the swipe-to-accept widget's draining track — a separate ring would
+/// compete with the action surface for the same role.
 ///
 /// **No multi-request indicator.** No "+N pending" pill, no peek strip
 /// rendered above. The host shows ONE offer at a time; subsequent offers
@@ -37,17 +35,24 @@ class IncomingJobCard extends StatelessWidget {
     required this.request,
     required this.onAccept,
     required this.onDecline,
+    required this.onExpire,
   });
 
   /// The head offer rendered as the four-block card.
   final JobNewRequest request;
 
-  /// Tapped on the Accept button. Until the swipe-to-accept widget lands in
-  /// the next pass, this is the legacy tap path.
+  /// Fired once when the technician completes the swipe-to-accept gesture.
   final VoidCallback onAccept;
 
-  /// Tapped on the Decline button.
+  /// Fired when the technician taps Decline.
   final VoidCallback onDecline;
+
+  /// Fired once when the swipe-track's drain reaches zero — the offer's SLA
+  /// has elapsed and the technician didn't act in time. Same end-state as
+  /// decline (offer leaves the queue) but distinct semantically: when the
+  /// accept endpoint lands the host will decline-POST on user decline and
+  /// no-op on expire (server-side Celery task fires authoritative).
+  final VoidCallback onExpire;
 
   @override
   Widget build(BuildContext context) {
@@ -60,7 +65,12 @@ class IncomingJobCard extends StatelessWidget {
         _ServiceTitleRow(request: request),
         if (locationLabel != null) _AddressRow(label: locationLabel),
         _ExpectedPayoutBlock(request: request),
-        _ActionStack(onAccept: onAccept, onDecline: onDecline),
+        _ActionStack(
+          request: request,
+          onAccept: onAccept,
+          onDecline: onDecline,
+          onExpire: onExpire,
+        ),
       ],
     );
   }
@@ -348,10 +358,20 @@ String _payoutSubtext(BookingType type) {
 
 // ─── 5. Action stack ───────────────────────────────────────────────────────
 
+/// Swipe-to-accept (primary, 72dp) over Decline (secondary tap, 48dp).
+/// Asymmetric: accept = commitment = swipe; decline = reversible = tap.
 class _ActionStack extends StatelessWidget {
-  const _ActionStack({required this.onAccept, required this.onDecline});
+  const _ActionStack({
+    required this.request,
+    required this.onAccept,
+    required this.onDecline,
+    required this.onExpire,
+  });
+
+  final JobNewRequest request;
   final VoidCallback onAccept;
   final VoidCallback onDecline;
+  final VoidCallback onExpire;
 
   @override
   Widget build(BuildContext context) {
@@ -359,53 +379,16 @@ class _ActionStack extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
       child: Column(
         children: [
-          _PrimaryAcceptButton(onTap: onAccept),
+          IncomingJobSwipeToAccept(
+            expiresAt: request.expiresAt,
+            slaWindow: request.slaWindow,
+            payoutRupees: request.payoutRupees,
+            onAccept: onAccept,
+            onExpire: onExpire,
+          ),
           const SizedBox(height: 8),
           _SecondaryDeclineButton(onTap: onDecline),
         ],
-      ),
-    );
-  }
-}
-
-class _PrimaryAcceptButton extends StatelessWidget {
-  const _PrimaryAcceptButton({required this.onTap});
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        height: AppSpacing.buttonHeight,
-        width: double.infinity,
-        decoration: BoxDecoration(
-          gradient: AppColors.ctaGradient,
-          borderRadius: BorderRadius.circular(AppShapes.radiusXL),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.primaryContainer.withValues(alpha: 0.20),
-              blurRadius: 16,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: const Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.check_rounded, color: Colors.white, size: 20),
-            SizedBox(width: 8),
-            Text(
-              'Accept Request',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: Colors.white,
-                letterSpacing: 0.2,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

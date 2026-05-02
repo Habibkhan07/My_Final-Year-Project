@@ -478,13 +478,24 @@ class _Tips extends StatelessWidget {
   Widget build(BuildContext context) {
     const lines = [
       'Seed one offer → the sheet slides up at the single fixed snap and '
-          'shows the four-block card.',
+          'shows the four-block card with the swipe-to-accept pill.',
+      'Watch the colored fill recede from the right as the SLA elapses. '
+          'Green > 50%, amber 20–50%, red < 20%. The thumb shifts color to '
+          'match the band.',
+      'Drag the thumb right past ~80% of the colored runway → onAccept '
+          'fires, the thumb morphs to a check, and the offer leaves the '
+          'queue. Release short of 80% → the thumb springs back.',
+      'Let the colored fill fully drain → onExpire fires automatically and '
+          'the offer leaves the queue (no swipe required).',
+      'Tap Decline → the offer leaves the queue. Decline stays a tap '
+          '(reversible action); accept is a swipe (commitment).',
       'Drag the sheet down past 30% → the scrim lifts and the dashboard '
           'becomes visible. Release: the sheet snaps back to the snap.',
-      'Tap the scrim → does nothing. Decline must be an explicit button so '
-          'a stray tap can\'t dismiss a high-payout offer.',
-      'Seed two offers → only the most-urgent shows. The second is queued; '
-          'it surfaces only if the first is accepted, declined, or expires.',
+      'Tap the scrim → does nothing. A stray tap must not dismiss a '
+          'high-payout offer.',
+      'Seed two offers → only the head shows. The second is queued; head-'
+          'sticky priority means a more-urgent newcomer does NOT swap with '
+          'the visible card mid-decision.',
       'Tap "Reset queue" → the sheet slides out and the scrim fades.',
     ];
     return Column(

@@ -5,6 +5,35 @@
 // envelopes become `JobNewRequest` domain entries. `core/realtime` stays
 // audience-agnostic; the screen reads typed state from this provider rather
 // than parsing GoRouter `extra`.
+//
+// **Queue ordering — head-sticky priority.**
+//
+// `state.queue` is a list whose contract is:
+//
+//   * `queue.first` is the HEAD — the offer the technician is currently
+//     looking at. Once an offer becomes the head it CANNOT be displaced by
+//     a newer, more-urgent arrival. This is load-bearing for the swipe
+//     widget — a swap mid-decision would mean the user's finger lands on a
+//     different offer than the one they intended to accept, which is the
+//     dominant footgun the serialized one-offer pivot exists to prevent.
+//
+//   * `queue.skip(1)` is the TAIL. Order in the tail is not maintained on
+//     every event arrival (newcomers are appended) because the only time
+//     the tail's order matters is when the head resolves and the next head
+//     must be picked. At that moment, [removeRequest] re-sorts the tail by
+//     current urgency (`remaining / slaWindow` ascending) before promoting
+//     the most-urgent to the new head.
+//
+// **Why fraction-of-SLA, not absolute remaining seconds.** A 60-second
+// remaining out of a 5-minute SLA window is more urgent (20% left) than a
+// 60-second remaining out of a 60-minute SLA window (1.7% left? — wait,
+// actually that's *less* urgent in the second case). The point is: an
+// absolute-seconds comparison would mis-rank an ASAP offer with a tight
+// SLA against a long-scheduled offer with a wide SLA. The fraction is the
+// honest urgency metric across heterogeneous SLA windows. With the
+// backend's 5-minute floor (see flag.md), all SLAs are at least 5 min,
+// but the fraction comparison still matters when SLAs differ within the
+// queue.
 import 'dart:developer';
 
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -56,20 +85,57 @@ class IncomingJobQueueNotifier extends _$IncomingJobQueueNotifier {
         return;
       }
 
+      // Head-sticky append: if the queue was empty this becomes the head;
+      // otherwise the head at queue[0] stays and this joins the tail. The
+      // tail is not pre-sorted on arrival because [removeRequest] does the
+      // sort lazily at the only moment it matters — when the head resolves
+      // and the next head is picked.
       state = state.copyWith(queue: [...state.queue, request]);
     });
 
     return const IncomingJobQueueState();
   }
 
-  /// Removes a request from the queue. Called by the screen when the
-  /// technician dismisses, declines, or accepts a request. Accept/decline
-  /// remote calls land in a separate sprint — until then, this is the only
-  /// way an entry leaves the queue.
+  /// Removes a request from the queue. Called when the technician accepts,
+  /// declines, or lets the offer expire.
+  ///
+  /// If the removed request is the HEAD, the next head is selected by
+  /// re-sorting the tail by current urgency (smallest `remaining/slaWindow`
+  /// first) and promoting the most-urgent. If the removed request is in the
+  /// tail, the head stays put and the tail loses one entry.
+  ///
+  /// Unknown jobId → silent no-op (matches the prior contract; defensive
+  /// against double-remove from accept-then-expire-races).
   void removeRequest(int jobId) {
-    final next = state.queue.where((j) => j.jobId != jobId).toList();
-    if (next.length == state.queue.length) return;
-    state = state.copyWith(queue: next);
+    final queue = state.queue;
+    if (queue.isEmpty) return;
+
+    if (queue.first.jobId == jobId) {
+      // Head removal — drop any already-expired tail entries first, then
+      // promote the most-urgent of what remains. Without the filter, an
+      // expired tail entry would have fraction = 0 (most urgent under the
+      // ascending sort) and briefly promote to head before the swipe
+      // widget's onExpire callback popped it again — a visible flicker.
+      final now = DateTime.now();
+      final alive = queue
+          .skip(1)
+          .where((j) => j.expiresAt.isAfter(now))
+          .toList();
+      if (alive.isEmpty) {
+        state = state.copyWith(queue: const []);
+        return;
+      }
+      alive.sort(
+        (a, b) => _urgencyFraction(a, now).compareTo(_urgencyFraction(b, now)),
+      );
+      state = state.copyWith(queue: alive);
+      return;
+    }
+
+    // Non-head removal — just filter.
+    final filtered = queue.where((j) => j.jobId != jobId).toList();
+    if (filtered.length == queue.length) return;
+    state = state.copyWith(queue: filtered);
   }
 
   /// **Preview-only.** Injects a fully-formed [JobNewRequest] into the queue,
@@ -84,5 +150,19 @@ class IncomingJobQueueNotifier extends _$IncomingJobQueueNotifier {
   void debugSeedRequest(JobNewRequest request) {
     if (state.queue.any((j) => j.jobId == request.jobId)) return;
     state = state.copyWith(queue: [...state.queue, request]);
+  }
+
+  /// Urgency metric — smaller is more urgent. The fraction of the SLA window
+  /// still remaining: 0.0 at expiry, 1.0 at fresh dispatch. A non-positive
+  /// `slaWindow` (which the backend's 5-min floor prevents) returns 0.0
+  /// (most-urgent) defensively rather than silently degrading to "least
+  /// urgent" via a divide-by-zero NaN.
+  static double _urgencyFraction(JobNewRequest r, DateTime now) {
+    final span = r.slaWindow.inMilliseconds;
+    if (span <= 0) return 0.0;
+    final remainingMs = r.expiresAt.difference(now).inMilliseconds;
+    if (remainingMs <= 0) return 0.0;
+    final f = remainingMs / span;
+    return f.clamp(0.0, 1.0);
   }
 }

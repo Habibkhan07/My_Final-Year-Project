@@ -1,5 +1,5 @@
 # Incoming Job Requests Feature
-**Layer status**: Domain ✅ · Data ✅ (parse-side only) · Presentation ✅ (serialized one-offer bottom sheet + four-block card; swipe-to-accept widget pending — see commit 2 of the pivot) · Repository ⏳ (accept/decline endpoint not yet built backend-side)
+**Layer status**: Domain ✅ · Data ✅ (parse-side only) · Presentation ✅ (serialized one-offer bottom sheet + four-block card with swipe-to-accept) · Repository ⏳ (accept/decline endpoint not yet built backend-side)
 
 ---
 
@@ -108,7 +108,9 @@ See above.
 ### State — `IncomingJobQueueState`
 `lib/features/technician/incoming_job_requests/presentation/providers/incoming_job_queue_state.dart`
 
-Freezed. Single field: `List<JobNewRequest> queue`. FIFO arrival order today; the host applies a display sort by `expiresAt` so the head is the most-urgent. Commit 2 of the pivot moves that priority logic into the notifier so the queue is intrinsically head-sticky priority and the host's sort can be deleted.
+Freezed. Single field: `List<JobNewRequest> queue`. The list's contract is:
+* `queue.first` is the **head** — the offer the technician is currently looking at. Once an offer becomes the head it is **locked** and cannot be displaced by a later, more-urgent arrival. This is load-bearing for the swipe widget — a swap mid-decision would mean the user's finger lands on a different offer than the one they intended to accept.
+* `queue.skip(1)` is the **tail**, in insertion (FIFO) order. The tail is *not* re-sorted on every event arrival because tail order only matters at one moment: when the head resolves and the next head must be picked. At that moment, `removeRequest` re-sorts the tail by current urgency before promoting the most-urgent.
 
 ### Notifier — `IncomingJobQueueNotifier`
 `lib/features/technician/incoming_job_requests/presentation/providers/incoming_job_queue_notifier.dart`
@@ -119,9 +121,14 @@ Freezed. Single field: `List<JobNewRequest> queue`. FIFO arrival order today; th
 3. Filters by `SystemEventType.jobNewRequest`.
 4. Maps via `JobNewRequestMapper.fromSystemEvent`; null → silent drop (mapper logged).
 5. Defensive per-`jobId` dedup (system-level dedup already covers same-event-id dups; this guard covers a re-broadcast with a fresh event id for the same booking).
-6. Appends to the queue.
+6. **Head-sticky append**: the new request joins the tail in arrival order. If the queue was empty it becomes the head; otherwise the head at `queue.first` stays.
 
-Exposes `removeRequest(int jobId)` for the sheet to call when the technician declines / accepts an offer. Exposes `debugSeedRequest(JobNewRequest)` for the preview only — production must never call it.
+`removeRequest(int jobId)`:
+* If `jobId` is the head, the tail is re-sorted by current urgency (`(remaining / slaWindow)` ascending — smallest fraction = most urgent) and the most-urgent entry is promoted to the new head. The fraction is the right metric across heterogeneous SLA windows (a 60-second remaining out of a 5-minute window is more urgent than a 60-second remaining out of a 60-minute window).
+* If `jobId` is in the tail (a defensive case — the user-facing flow only ever resolves the head today), the head stays put and the tail loses one entry.
+* Unknown jobId → silent no-op (defensive against double-remove, e.g. an accept-then-expire race).
+
+`debugSeedRequest(JobNewRequest)` — preview only. Mirrors the dedup behavior of the real ingest path. Production code must never call it.
 
 ### Sheet host — `IncomingJobSheetHost`
 `lib/features/technician/incoming_job_requests/presentation/widgets/incoming_job_sheet_host.dart`
@@ -150,7 +157,24 @@ Five blocks, top to bottom:
 2. **Service title** — what the customer asked for (e.g. "AC general wash"). The card never names the engagement model; behavioural difference is carried only by the payout subtext below.
 3. **Address row** — pin icon + `"Locality, City"` from `request.locationLabel`. The locality reads heavy and the city tail recedes (split on the first comma). Mounted only when non-null.
 4. **Expected Payout** — `EXPECTED PAYOUT` eyebrow + hero rupee number + italic floor-condition subtext (one of three copies, picked from `bookingType`).
-5. **Action stack** — Accept primary CTA over Decline secondary button. Today these are tap buttons; commit 2 of the pivot replaces the primary tap with a swipe-to-accept widget whose track drains as time runs out (the time-pressure signal absorbed into the action surface itself, with no separate countdown ring needed).
+5. **Action stack** — `IncomingJobSwipeToAccept` (primary, 72dp) over `Decline` (secondary tap, 48dp). Asymmetric: accept = commitment = swipe; decline = reversible = tap.
+
+### Swipe-to-accept — `IncomingJobSwipeToAccept`
+`lib/features/technician/incoming_job_requests/presentation/widgets/incoming_job_swipe_to_accept.dart`
+
+A draining pill the technician slides right to accept the head offer. Replaces the prior tap-accept + separate-countdown-ring pair. **Two roles in one widget:**
+
+1. **Action surface.** A 60dp circular thumb sits on the left of the pill and follows the user's finger horizontally. Releasing past 80% of the colored runway fires `onAccept` once and the thumb morphs into a check. Releasing short of 80% snaps the thumb back to the start with a `Curves.easeOutCubic` animation. The 80% threshold (rather than 100%) is intentional — a confident swipe shouldn't have to nudge into the very last pixel on a budget Android.
+
+2. **Time-pressure signal.** A colored fill anchored at the left of the track recedes from the right edge as the SLA elapses. The fill width is `(remaining / slaWindow) × innerWidth`, computed every 250ms from a wall-clock `Timer.periodic` (not frame count — survives backgrounding correctly). When the fill shrinks below the thumb diameter, the swipe runway is gone and the offer is moments from auto-expiry. When the fill reaches zero the widget fires `onExpire` once and freezes red.
+
+Color comes from `urgency_palette.urgencyAccent`: green > 50% remaining, amber 20–50%, red < 20%. The thumb tracks the same color so the band assignment reads at a single glance.
+
+The idle thumb has a subtle shimmer animation on the chevron icon — a 0–3px horizontal nudge looping over 1.6s. The animation teaches the swipe-to-the-right affordance without moving the thumb itself (which would change the perceived swipe distance). It freezes the moment the user starts dragging.
+
+**Why a swipe, not a tap.** Field testing showed taps fired by accident from a phone in a tool belt pocket. The horizontal-swipe affordance maps to the iPhone-call-answer metaphor most users in this market have absorbed from years of mobile-phone use, and it requires deliberate physical motion that pockets don't reproduce. Accept is the heaviest action the technician can take (driving to a location, taking the work) — the gesture should match.
+
+**Why a drain, not a separate ring.** A separate countdown ring competes with content for the eye and forces the user to decode two surfaces. The drain encodes time pressure into the action surface itself with no second visual.
 
 ---
 
@@ -204,11 +228,9 @@ If step 3 is skipped or moved after step 6, the very first `job_new_request` of 
 
 | Item | Reason | Tracked |
 | :--- | :--- | :--- |
-| Swipe-to-accept widget | Pivot in progress | Commit 1 retains the legacy tap accept; commit 2 replaces it with a draining swipe widget. |
-| Head-sticky priority queue | Pivot in progress | Commit 1 keeps FIFO + display sort in the host; commit 2 moves priority into the notifier and removes the host's sort. |
-| Backend SLA floor (5 min) | Pivot in progress | Frontend trusts wire `slaWindow` verbatim. A new flag.md entry (commit 2) tracks the backend obligation: `MIN_DISPATCH_SLA = timedelta(minutes=5)`, Celery timeout task armed off the same constant, parallel-fanout dispatch model so customer wait isn't `5min × N techs` serial. |
+| Backend SLA floor (5 min) + parallel-fanout dispatch | Cross-side obligation | Frontend trusts wire `slaWindow` verbatim and the swipe widget's drain assumes a humane span. A flag.md entry tracks: `MIN_DISPATCH_SLA = timedelta(minutes=5)` constant, Celery SLA-timeout task armed off the same constant, dispatch model is parallel-fanout (not serial-per-tech) so customer wait isn't `5min × N techs`. |
 | Accept / decline data layer | Backend endpoint not built (BOOKINGS_API.md §1.1) | Add when endpoint lands. See flag.md #14. |
-| Queue eviction sweep | Sprint scope | Today the queue is append-only; the swipe widget's auto-expire callback in commit 2 will pop the head when its drain hits zero, addressing the case the sweep would have covered. flag.md #6 to be revisited then. |
+| Queue eviction sweep | Closed by the swipe widget | The swipe widget's `onExpire` callback pops the head when its drain hits zero. flag.md #6 (the "no eviction sweep" entry) can be marked resolved by this commit. |
 | Receipt-time vs envelope-time `expiresAt` | Sprint scope | Anchor is on envelope `timestamp` (server-time). Slight skew vs receipt time is fine for now; will revisit when accept endpoint lands and a tap-just-past-expiry could 409. |
 | Backwards-compat tightening | Mid-rollout | `bookingType`, `payoutContext`, and `locationLabel` are all nullable on the wire model. Once historical EventLog rows have aged out (two acceptance-window cycles after each rollout), they can be tightened to required (BOOKINGS_API.md §2.5). |
 | Address row null fallback | Cross-feature dependency | Bookings created against `CustomerAddress` rows that pre-date session 4 (no `locality_label` populated) and bookings whose address has been detached (`SET_NULL`) emit `null` for `ui_location_label`. The card hides the address row entirely — no placeholder string. The backfill plan for legacy addresses lives outside this feature; see `flag.md` and the customer-side address feature doc. |
@@ -217,7 +239,12 @@ If step 3 is skipped or moved after step 6, the very first `job_new_request` of 
 
 ## Testing
 
-⏳ Test plan pending approval. With the pivot, the meaningful new pins are:
-- The eyebrow's `eyebrowTimeParts` helper across the four branches (ASAP / Today / Tomorrow / dated).
-- The (commit 2) swipe-to-accept widget across drain over mocked time, color band transitions at the 50% / 20% thresholds, threshold-not-reached snap-back, threshold-reached fires `onAccept`, auto-expire on drain to zero.
-- The (commit 2) priority insertion + head-sticky behavior of `IncomingJobQueueNotifier`.
+The feature ships with the following pinned contracts:
+
+- **Wire model + mapper** (`data/models/`, `data/mappers/`): §1.2 round-trip, §2.5 backwards-compat defaulting (missing `booking_type` → `laborGig`, missing `payout_context` / `ui_location_label` → null on entity), malformed payouts return null without throwing.
+- **Eyebrow `eyebrowTimeParts`** (`presentation/widgets/incoming_job_card_test.dart`): ASAP / Today / Tomorrow / dated branches; ASAP detection sourced from `scheduledStart` (regression net for the slaWindow proxy that broke when the 5-min SLA floor landed).
+- **Swipe-to-accept widget** (`presentation/widgets/incoming_job_swipe_to_accept_test.dart`): caption renders the formatted payout, drag past 80% fires `onAccept` exactly once, drag short of 80% does not fire (snap-back), already-expired widget fires `onExpire` exactly once on the next ticker fire, post-expire drags cannot re-fire `onAccept`.
+- **Queue notifier** (`presentation/providers/incoming_job_queue_notifier_test.dart`): basic ingest + dedup + filter; head-sticky behavior — head doesn't swap on a more-urgent newcomer; on head removal, the most-urgent of the tail is promoted (NOT FIFO arrival order); single-entry queue empties cleanly on head remove; non-head removal preserves head + remaining tail; `debugSeedRequest` mirrors real-event dedup.
+- **Urgency palette** (`presentation/utils/urgency_palette_test.dart`): green/amber/red band thresholds at the documented fractions, defensive expiry / zero-window handling, `urgencyIsRed` agrees with `urgencyAccent` 1:1.
+
+Cross-feature integration (the `IncomingJobSheetHost` overlay rendering against the queue notifier through to the rendered card) is not yet pinned — it would require a widget test that mounts the host with a fake queue and asserts the whole DOM, which is good follow-up but out of scope for the pivot.
