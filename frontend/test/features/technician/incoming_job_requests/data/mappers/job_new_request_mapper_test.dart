@@ -17,6 +17,7 @@ SystemEventEntity _event({
     'payout': '1200',
     'payout_context': 'Fixed-price gig — full payout',
     'expires_in_seconds': 60,
+    'ui_location_label': 'Gulberg, Lahore',
   };
   if (payloadOverrides != null) base.addAll(payloadOverrides);
   if (payloadRemovals != null) {
@@ -36,7 +37,7 @@ SystemEventEntity _event({
 void main() {
   group('JobNewRequestMapper.fromSystemEvent', () {
     test('fresh event → typed entity with parsed payout, UTC scheduledStart, '
-        'envelope-anchored expiresAt', () {
+        'envelope-anchored expiresAt, propagated locationLabel', () {
       final ts = DateTime.utc(2026, 4, 27, 20, 14, 42);
       final entity = JobNewRequestMapper.fromSystemEvent(_event(timestamp: ts));
 
@@ -50,6 +51,7 @@ void main() {
       // Anchored on envelope timestamp, NOT receipt time. Critical for SLA
       // alignment with the server's Celery timeout task.
       expect(entity.expiresAt, ts.add(const Duration(seconds: 60)));
+      expect(entity.locationLabel, 'Gulberg, Lahore');
     });
 
     test('§2.5 replay (null booking_type) → defaults to BookingType.laborGig',
@@ -87,6 +89,31 @@ void main() {
 
       expect(entity, isNotNull);
       expect(entity!.bookingType, BookingType.inspection);
+    });
+
+    test('null ui_location_label on wire → entity.locationLabel == null', () {
+      // Backend sends null when the customer's address row has no
+      // structured locality (legacy / pre-session-4 row, or address
+      // detached via SET_NULL).
+      final entity = JobNewRequestMapper.fromSystemEvent(
+        _event(payloadOverrides: const {'ui_location_label': null}),
+      );
+
+      expect(entity, isNotNull);
+      expect(entity!.locationLabel, isNull);
+    });
+
+    test('§2.5 replay (ui_location_label key absent) → locationLabel null',
+        () {
+      // Pre-rollout EventLog rows replayed via /api/events/sync/ never had
+      // ui_location_label on the wire at all. The deserializer must treat
+      // the absent key as null without throwing.
+      final entity = JobNewRequestMapper.fromSystemEvent(
+        _event(payloadRemovals: const {'ui_location_label': null}),
+      );
+
+      expect(entity, isNotNull);
+      expect(entity!.locationLabel, isNull);
     });
 
     test('non-numeric payout → returns null (mapper logs, no throw)', () {

@@ -204,6 +204,7 @@ class TestDispatchJobNewRequestEvent:
             "payout",
             "payout_context",
             "expires_in_seconds",
+            "ui_location_label",
         }
         assert payload["job_id"] == booking.id
         # service_name derived from the parent Service when no sub_service.
@@ -288,3 +289,73 @@ class TestDispatchJobNewRequestEvent:
         dispatch_job_new_request_event(booking)  # no scheduler kwarg
         assert len(fake.calls) == 1
         assert fake.calls[0]["booking_id"] == booking.id
+
+
+# =====================================================================
+# ui_location_label — locality echoed onto the technician's job card
+# =====================================================================
+
+class TestUiLocationLabel:
+    """The pre-composed `CustomerAddress.locality_label` rides the
+    `job_new_request` payload as `ui_location_label` so the technician's
+    card can render the locality verbatim (Dumb-UI). Three null paths must
+    all serialize as JSON null without exploding:
+      1. address row has a populated `locality_label` → string echoed
+      2. address row has `locality_label = None` (legacy / pre-session-4)
+      3. booking's `address` FK is None (SET_NULL on address delete)
+    """
+
+    def _build_booking(self, **overrides):
+        tech = TechnicianProfileFactory(status="APPROVED")
+        profile = CustomerProfileFactory()
+        address = CustomerAddressFactory(customer=profile)
+        kwargs = dict(
+            technician=tech,
+            customer=profile.user,
+            address=address,
+            price_amount=decimal.Decimal("1500.00"),
+            price_context="Inspection Fee",
+        )
+        kwargs.update(overrides)
+        return JobBookingFactory(**kwargs)
+
+    def test_populated_locality_label_appears_in_payload(self, mocker):
+        profile = CustomerProfileFactory()
+        address = CustomerAddressFactory(
+            customer=profile,
+            locality_label="Gulberg, Lahore",
+        )
+        booking = self._build_booking(customer=profile.user, address=address)
+
+        broadcast = mocker.patch.object(
+            dispatch_module.EventDispatchService, "broadcast_event"
+        )
+        dispatch_job_new_request_event(booking, scheduler=_FakeScheduler())
+
+        payload = broadcast.call_args.kwargs["payload"]
+        assert payload["ui_location_label"] == "Gulberg, Lahore"
+
+    def test_null_locality_label_serializes_as_null(self, mocker):
+        # Default factory leaves locality_label as None (legacy / pre-rollout).
+        booking = self._build_booking()
+
+        broadcast = mocker.patch.object(
+            dispatch_module.EventDispatchService, "broadcast_event"
+        )
+        dispatch_job_new_request_event(booking, scheduler=_FakeScheduler())
+
+        payload = broadcast.call_args.kwargs["payload"]
+        assert payload["ui_location_label"] is None
+
+    def test_detached_address_fk_serializes_as_null(self, mocker):
+        # `address` FK is `on_delete=SET_NULL` — bookings can outlive the
+        # address row. Dispatcher must not blow up when address_id is None.
+        booking = self._build_booking(address=None)
+
+        broadcast = mocker.patch.object(
+            dispatch_module.EventDispatchService, "broadcast_event"
+        )
+        dispatch_job_new_request_event(booking, scheduler=_FakeScheduler())
+
+        payload = broadcast.call_args.kwargs["payload"]
+        assert payload["ui_location_label"] is None

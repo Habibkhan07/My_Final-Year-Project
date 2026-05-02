@@ -14,7 +14,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$JobNewRequest {
 
- int get jobId; String get serviceName; BookingType get bookingType; int get payoutRupees; String? get payoutContext; DateTime get scheduledStart; DateTime get expiresAt;
+ int get jobId; String get serviceName; BookingType get bookingType; int get payoutRupees; String? get payoutContext; DateTime get scheduledStart; DateTime get expiresAt; Duration get slaWindow; String? get locationLabel;
 /// Create a copy of JobNewRequest
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -25,16 +25,16 @@ $JobNewRequestCopyWith<JobNewRequest> get copyWith => _$JobNewRequestCopyWithImp
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is JobNewRequest&&(identical(other.jobId, jobId) || other.jobId == jobId)&&(identical(other.serviceName, serviceName) || other.serviceName == serviceName)&&(identical(other.bookingType, bookingType) || other.bookingType == bookingType)&&(identical(other.payoutRupees, payoutRupees) || other.payoutRupees == payoutRupees)&&(identical(other.payoutContext, payoutContext) || other.payoutContext == payoutContext)&&(identical(other.scheduledStart, scheduledStart) || other.scheduledStart == scheduledStart)&&(identical(other.expiresAt, expiresAt) || other.expiresAt == expiresAt));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is JobNewRequest&&(identical(other.jobId, jobId) || other.jobId == jobId)&&(identical(other.serviceName, serviceName) || other.serviceName == serviceName)&&(identical(other.bookingType, bookingType) || other.bookingType == bookingType)&&(identical(other.payoutRupees, payoutRupees) || other.payoutRupees == payoutRupees)&&(identical(other.payoutContext, payoutContext) || other.payoutContext == payoutContext)&&(identical(other.scheduledStart, scheduledStart) || other.scheduledStart == scheduledStart)&&(identical(other.expiresAt, expiresAt) || other.expiresAt == expiresAt)&&(identical(other.slaWindow, slaWindow) || other.slaWindow == slaWindow)&&(identical(other.locationLabel, locationLabel) || other.locationLabel == locationLabel));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,jobId,serviceName,bookingType,payoutRupees,payoutContext,scheduledStart,expiresAt);
+int get hashCode => Object.hash(runtimeType,jobId,serviceName,bookingType,payoutRupees,payoutContext,scheduledStart,expiresAt,slaWindow,locationLabel);
 
 @override
 String toString() {
-  return 'JobNewRequest(jobId: $jobId, serviceName: $serviceName, bookingType: $bookingType, payoutRupees: $payoutRupees, payoutContext: $payoutContext, scheduledStart: $scheduledStart, expiresAt: $expiresAt)';
+  return 'JobNewRequest(jobId: $jobId, serviceName: $serviceName, bookingType: $bookingType, payoutRupees: $payoutRupees, payoutContext: $payoutContext, scheduledStart: $scheduledStart, expiresAt: $expiresAt, slaWindow: $slaWindow, locationLabel: $locationLabel)';
 }
 
 
@@ -45,7 +45,7 @@ abstract mixin class $JobNewRequestCopyWith<$Res>  {
   factory $JobNewRequestCopyWith(JobNewRequest value, $Res Function(JobNewRequest) _then) = _$JobNewRequestCopyWithImpl;
 @useResult
 $Res call({
- int jobId, String serviceName, BookingType bookingType, int payoutRupees, String? payoutContext, DateTime scheduledStart, DateTime expiresAt
+ int jobId, String serviceName, BookingType bookingType, int payoutRupees, String? payoutContext, DateTime scheduledStart, DateTime expiresAt, Duration slaWindow, String? locationLabel
 });
 
 
@@ -62,7 +62,7 @@ class _$JobNewRequestCopyWithImpl<$Res>
 
 /// Create a copy of JobNewRequest
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? jobId = null,Object? serviceName = null,Object? bookingType = null,Object? payoutRupees = null,Object? payoutContext = freezed,Object? scheduledStart = null,Object? expiresAt = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? jobId = null,Object? serviceName = null,Object? bookingType = null,Object? payoutRupees = null,Object? payoutContext = freezed,Object? scheduledStart = null,Object? expiresAt = null,Object? slaWindow = null,Object? locationLabel = freezed,}) {
   return _then(_self.copyWith(
 jobId: null == jobId ? _self.jobId : jobId // ignore: cast_nullable_to_non_nullable
 as int,serviceName: null == serviceName ? _self.serviceName : serviceName // ignore: cast_nullable_to_non_nullable
@@ -71,7 +71,9 @@ as BookingType,payoutRupees: null == payoutRupees ? _self.payoutRupees : payoutR
 as int,payoutContext: freezed == payoutContext ? _self.payoutContext : payoutContext // ignore: cast_nullable_to_non_nullable
 as String?,scheduledStart: null == scheduledStart ? _self.scheduledStart : scheduledStart // ignore: cast_nullable_to_non_nullable
 as DateTime,expiresAt: null == expiresAt ? _self.expiresAt : expiresAt // ignore: cast_nullable_to_non_nullable
-as DateTime,
+as DateTime,slaWindow: null == slaWindow ? _self.slaWindow : slaWindow // ignore: cast_nullable_to_non_nullable
+as Duration,locationLabel: freezed == locationLabel ? _self.locationLabel : locationLabel // ignore: cast_nullable_to_non_nullable
+as String?,
   ));
 }
 
@@ -156,10 +158,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int jobId,  String serviceName,  BookingType bookingType,  int payoutRupees,  String? payoutContext,  DateTime scheduledStart,  DateTime expiresAt)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int jobId,  String serviceName,  BookingType bookingType,  int payoutRupees,  String? payoutContext,  DateTime scheduledStart,  DateTime expiresAt,  Duration slaWindow,  String? locationLabel)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _JobNewRequest() when $default != null:
-return $default(_that.jobId,_that.serviceName,_that.bookingType,_that.payoutRupees,_that.payoutContext,_that.scheduledStart,_that.expiresAt);case _:
+return $default(_that.jobId,_that.serviceName,_that.bookingType,_that.payoutRupees,_that.payoutContext,_that.scheduledStart,_that.expiresAt,_that.slaWindow,_that.locationLabel);case _:
   return orElse();
 
 }
@@ -177,10 +179,10 @@ return $default(_that.jobId,_that.serviceName,_that.bookingType,_that.payoutRupe
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int jobId,  String serviceName,  BookingType bookingType,  int payoutRupees,  String? payoutContext,  DateTime scheduledStart,  DateTime expiresAt)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int jobId,  String serviceName,  BookingType bookingType,  int payoutRupees,  String? payoutContext,  DateTime scheduledStart,  DateTime expiresAt,  Duration slaWindow,  String? locationLabel)  $default,) {final _that = this;
 switch (_that) {
 case _JobNewRequest():
-return $default(_that.jobId,_that.serviceName,_that.bookingType,_that.payoutRupees,_that.payoutContext,_that.scheduledStart,_that.expiresAt);case _:
+return $default(_that.jobId,_that.serviceName,_that.bookingType,_that.payoutRupees,_that.payoutContext,_that.scheduledStart,_that.expiresAt,_that.slaWindow,_that.locationLabel);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -197,10 +199,10 @@ return $default(_that.jobId,_that.serviceName,_that.bookingType,_that.payoutRupe
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int jobId,  String serviceName,  BookingType bookingType,  int payoutRupees,  String? payoutContext,  DateTime scheduledStart,  DateTime expiresAt)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int jobId,  String serviceName,  BookingType bookingType,  int payoutRupees,  String? payoutContext,  DateTime scheduledStart,  DateTime expiresAt,  Duration slaWindow,  String? locationLabel)?  $default,) {final _that = this;
 switch (_that) {
 case _JobNewRequest() when $default != null:
-return $default(_that.jobId,_that.serviceName,_that.bookingType,_that.payoutRupees,_that.payoutContext,_that.scheduledStart,_that.expiresAt);case _:
+return $default(_that.jobId,_that.serviceName,_that.bookingType,_that.payoutRupees,_that.payoutContext,_that.scheduledStart,_that.expiresAt,_that.slaWindow,_that.locationLabel);case _:
   return null;
 
 }
@@ -212,7 +214,7 @@ return $default(_that.jobId,_that.serviceName,_that.bookingType,_that.payoutRupe
 
 
 class _JobNewRequest implements JobNewRequest {
-  const _JobNewRequest({required this.jobId, required this.serviceName, required this.bookingType, required this.payoutRupees, required this.payoutContext, required this.scheduledStart, required this.expiresAt});
+  const _JobNewRequest({required this.jobId, required this.serviceName, required this.bookingType, required this.payoutRupees, required this.payoutContext, required this.scheduledStart, required this.expiresAt, required this.slaWindow, required this.locationLabel});
   
 
 @override final  int jobId;
@@ -222,6 +224,8 @@ class _JobNewRequest implements JobNewRequest {
 @override final  String? payoutContext;
 @override final  DateTime scheduledStart;
 @override final  DateTime expiresAt;
+@override final  Duration slaWindow;
+@override final  String? locationLabel;
 
 /// Create a copy of JobNewRequest
 /// with the given fields replaced by the non-null parameter values.
@@ -233,16 +237,16 @@ _$JobNewRequestCopyWith<_JobNewRequest> get copyWith => __$JobNewRequestCopyWith
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _JobNewRequest&&(identical(other.jobId, jobId) || other.jobId == jobId)&&(identical(other.serviceName, serviceName) || other.serviceName == serviceName)&&(identical(other.bookingType, bookingType) || other.bookingType == bookingType)&&(identical(other.payoutRupees, payoutRupees) || other.payoutRupees == payoutRupees)&&(identical(other.payoutContext, payoutContext) || other.payoutContext == payoutContext)&&(identical(other.scheduledStart, scheduledStart) || other.scheduledStart == scheduledStart)&&(identical(other.expiresAt, expiresAt) || other.expiresAt == expiresAt));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _JobNewRequest&&(identical(other.jobId, jobId) || other.jobId == jobId)&&(identical(other.serviceName, serviceName) || other.serviceName == serviceName)&&(identical(other.bookingType, bookingType) || other.bookingType == bookingType)&&(identical(other.payoutRupees, payoutRupees) || other.payoutRupees == payoutRupees)&&(identical(other.payoutContext, payoutContext) || other.payoutContext == payoutContext)&&(identical(other.scheduledStart, scheduledStart) || other.scheduledStart == scheduledStart)&&(identical(other.expiresAt, expiresAt) || other.expiresAt == expiresAt)&&(identical(other.slaWindow, slaWindow) || other.slaWindow == slaWindow)&&(identical(other.locationLabel, locationLabel) || other.locationLabel == locationLabel));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,jobId,serviceName,bookingType,payoutRupees,payoutContext,scheduledStart,expiresAt);
+int get hashCode => Object.hash(runtimeType,jobId,serviceName,bookingType,payoutRupees,payoutContext,scheduledStart,expiresAt,slaWindow,locationLabel);
 
 @override
 String toString() {
-  return 'JobNewRequest(jobId: $jobId, serviceName: $serviceName, bookingType: $bookingType, payoutRupees: $payoutRupees, payoutContext: $payoutContext, scheduledStart: $scheduledStart, expiresAt: $expiresAt)';
+  return 'JobNewRequest(jobId: $jobId, serviceName: $serviceName, bookingType: $bookingType, payoutRupees: $payoutRupees, payoutContext: $payoutContext, scheduledStart: $scheduledStart, expiresAt: $expiresAt, slaWindow: $slaWindow, locationLabel: $locationLabel)';
 }
 
 
@@ -253,7 +257,7 @@ abstract mixin class _$JobNewRequestCopyWith<$Res> implements $JobNewRequestCopy
   factory _$JobNewRequestCopyWith(_JobNewRequest value, $Res Function(_JobNewRequest) _then) = __$JobNewRequestCopyWithImpl;
 @override @useResult
 $Res call({
- int jobId, String serviceName, BookingType bookingType, int payoutRupees, String? payoutContext, DateTime scheduledStart, DateTime expiresAt
+ int jobId, String serviceName, BookingType bookingType, int payoutRupees, String? payoutContext, DateTime scheduledStart, DateTime expiresAt, Duration slaWindow, String? locationLabel
 });
 
 
@@ -270,7 +274,7 @@ class __$JobNewRequestCopyWithImpl<$Res>
 
 /// Create a copy of JobNewRequest
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? jobId = null,Object? serviceName = null,Object? bookingType = null,Object? payoutRupees = null,Object? payoutContext = freezed,Object? scheduledStart = null,Object? expiresAt = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? jobId = null,Object? serviceName = null,Object? bookingType = null,Object? payoutRupees = null,Object? payoutContext = freezed,Object? scheduledStart = null,Object? expiresAt = null,Object? slaWindow = null,Object? locationLabel = freezed,}) {
   return _then(_JobNewRequest(
 jobId: null == jobId ? _self.jobId : jobId // ignore: cast_nullable_to_non_nullable
 as int,serviceName: null == serviceName ? _self.serviceName : serviceName // ignore: cast_nullable_to_non_nullable
@@ -279,7 +283,9 @@ as BookingType,payoutRupees: null == payoutRupees ? _self.payoutRupees : payoutR
 as int,payoutContext: freezed == payoutContext ? _self.payoutContext : payoutContext // ignore: cast_nullable_to_non_nullable
 as String?,scheduledStart: null == scheduledStart ? _self.scheduledStart : scheduledStart // ignore: cast_nullable_to_non_nullable
 as DateTime,expiresAt: null == expiresAt ? _self.expiresAt : expiresAt // ignore: cast_nullable_to_non_nullable
-as DateTime,
+as DateTime,slaWindow: null == slaWindow ? _self.slaWindow : slaWindow // ignore: cast_nullable_to_non_nullable
+as Duration,locationLabel: freezed == locationLabel ? _self.locationLabel : locationLabel // ignore: cast_nullable_to_non_nullable
+as String?,
   ));
 }
 

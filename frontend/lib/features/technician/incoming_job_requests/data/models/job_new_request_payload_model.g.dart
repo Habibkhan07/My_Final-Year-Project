@@ -16,6 +16,7 @@ _JobNewRequestPayloadModel _$JobNewRequestPayloadModelFromJson(
   payout: json['payout'] as String,
   payoutContext: json['payout_context'] as String?,
   expiresInSeconds: (json['expires_in_seconds'] as num).toInt(),
+  locationLabel: json['ui_location_label'] as String?,
 );
 
 Map<String, dynamic> _$JobNewRequestPayloadModelToJson(
@@ -28,4 +29,5 @@ Map<String, dynamic> _$JobNewRequestPayloadModelToJson(
   'payout': instance.payout,
   'payout_context': instance.payoutContext,
   'expires_in_seconds': instance.expiresInSeconds,
+  'ui_location_label': instance.locationLabel,
 };

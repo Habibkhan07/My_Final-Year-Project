@@ -75,8 +75,8 @@ class JobNewRequestMapper {
     // time would give the technician slightly more time than the server's
     // Celery SLA task allows; once the accept endpoint lands a tap-just-past-
     // expiry would 409 against the server's earlier-fired timeout.
-    final expiresAt =
-        event.timestamp.add(Duration(seconds: model.expiresInSeconds));
+    final slaWindow = Duration(seconds: model.expiresInSeconds);
+    final expiresAt = event.timestamp.add(slaWindow);
 
     return JobNewRequest(
       jobId: model.jobId,
@@ -86,6 +86,8 @@ class JobNewRequestMapper {
       payoutContext: model.payoutContext,
       scheduledStart: scheduledStart,
       expiresAt: expiresAt,
+      slaWindow: slaWindow,
+      locationLabel: model.locationLabel,
     );
   }
 

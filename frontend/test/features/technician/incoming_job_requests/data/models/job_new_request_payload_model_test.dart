@@ -12,9 +12,10 @@ void main() {
       'payout': '1200',
       'payout_context': 'Fixed-price gig — full payout',
       'expires_in_seconds': 900,
+      'ui_location_label': 'Gulberg, Lahore',
     };
 
-    test('fromJson — fresh §1.2 payload round-trips all 7 fields', () {
+    test('fromJson — fresh §1.2 payload round-trips all 8 fields', () {
       final model = JobNewRequestPayloadModel.fromJson(freshPayload);
 
       expect(model.jobId, 99482);
@@ -24,25 +25,39 @@ void main() {
       expect(model.payout, '1200');
       expect(model.payoutContext, 'Fixed-price gig — full payout');
       expect(model.expiresInSeconds, 900);
+      expect(model.locationLabel, 'Gulberg, Lahore');
     });
 
     test(
-      'fromJson — §2.5 replayed payload (no booking_type, no payout_context) '
-      'leaves both fields null without throwing',
+      'fromJson — §2.5 replayed payload (no booking_type, no payout_context, '
+      'no ui_location_label) leaves all three fields null without throwing',
       () {
         final replay = Map<String, dynamic>.from(freshPayload)
           ..remove('booking_type')
-          ..remove('payout_context');
+          ..remove('payout_context')
+          ..remove('ui_location_label');
 
         final model = JobNewRequestPayloadModel.fromJson(replay);
 
         expect(model.bookingType, isNull);
         expect(model.payoutContext, isNull);
+        expect(model.locationLabel, isNull);
         // The other five fields remain populated; the model is still usable.
         expect(model.jobId, 99482);
         expect(model.expiresInSeconds, 900);
       },
     );
+
+    test('fromJson — explicit null ui_location_label deserializes to null', () {
+      // Backend echoes null when CustomerAddress.locality_label is null
+      // (legacy address) or when the booking's address FK is detached.
+      final withNullLocality = Map<String, dynamic>.from(freshPayload)
+        ..['ui_location_label'] = null;
+
+      final model = JobNewRequestPayloadModel.fromJson(withNullLocality);
+
+      expect(model.locationLabel, isNull);
+    });
 
     test('fromJson — missing required job_id throws', () {
       final broken = Map<String, dynamic>.from(freshPayload)..remove('job_id');

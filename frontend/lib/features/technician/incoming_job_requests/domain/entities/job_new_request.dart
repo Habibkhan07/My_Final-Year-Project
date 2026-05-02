@@ -29,6 +29,21 @@ part 'job_new_request.freezed.dart';
 ///     plus `expires_in_seconds`. Receipt-time would skew slightly *later* than
 ///     the server SLA on slow delivery; anchoring on the server timestamp keeps
 ///     the technician's countdown in sync with the SLA-timeout Celery task.
+///
+///   * [slaWindow] — the original SLA span (`expires_in_seconds` from the wire
+///     payload, rendered as a [Duration]). Required for the countdown ring's
+///     color bands (proportion remaining = `(expiresAt - now) / slaWindow`),
+///     which need to work for both 60-second ASAP and 15-minute scheduled
+///     offers without a hardcoded reference span. Distinct from
+///     `expiresAt - scheduledStart` because the SLA window is the technician's
+///     decision window, not the time until the booking starts.
+///
+///   * [locationLabel] — pre-composed locality (e.g. `"Gulberg, Lahore"`)
+///     sourced server-side from `CustomerAddress.locality_label`. Null when
+///     the booking's address has no structured locality (legacy / pre-rollout
+///     row, or address detached via SET_NULL). Widgets render the row only
+///     when non-null — no placeholder text. Full street address is never on
+///     the wire pre-accept (privacy + anti-poach).
 @freezed
 abstract class JobNewRequest with _$JobNewRequest {
   const factory JobNewRequest({
@@ -39,5 +54,7 @@ abstract class JobNewRequest with _$JobNewRequest {
     required String? payoutContext,
     required DateTime scheduledStart,
     required DateTime expiresAt,
+    required Duration slaWindow,
+    required String? locationLabel,
   }) = _JobNewRequest;
 }

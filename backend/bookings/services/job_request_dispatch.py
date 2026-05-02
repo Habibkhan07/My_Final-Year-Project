@@ -143,6 +143,16 @@ def dispatch_job_new_request_event(
         booking.sub_service.name if booking.sub_service_id else booking.service.name
     )
 
+    # Pre-composed locality string sourced from `CustomerAddress.locality_label`
+    # (populated client-side at address creation; see session 4 / flag #15).
+    # Null-safe on two axes: the address FK is SET_NULL, and legacy addresses
+    # created before the locality columns existed have null `locality_label`.
+    # The technician card hides the row when this is null rather than rendering
+    # a placeholder.
+    ui_location_label = (
+        booking.address.locality_label if booking.address_id else None
+    )
+
     payload = {
         "job_id": booking.id,
         "service_name": service_name,
@@ -151,6 +161,7 @@ def dispatch_job_new_request_event(
         "payout": compute_technician_payout(booking.price_amount),
         "payout_context": _PAYOUT_CONTEXT_BY_TYPE[booking_type],
         "expires_in_seconds": expires_in,
+        "ui_location_label": ui_location_label,
     }
 
     EventDispatchService.broadcast_event(

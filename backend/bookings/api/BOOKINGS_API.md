@@ -255,7 +255,8 @@ Neither side effect runs on any error path. A rolled-back transaction produces n
     "scheduled_start_iso": "2026-04-08T05:00:00Z",
     "payout": "1200",
     "payout_context": "Fixed-price gig — full payout",
-    "expires_in_seconds": 900
+    "expires_in_seconds": 900,
+    "ui_location_label": "Gulberg, Lahore"
   }
 }
 ```
@@ -269,6 +270,7 @@ Neither side effect runs on any error path. A rolled-back transaction produces n
 | `payout` | string (integer rupees) | `JobBooking.price_amount × 0.80`, rounded half-up to the nearest rupee, returned as a string for parse-fidelity on Flutter |
 | `payout_context` | string | Short prose the technician card renders verbatim under the payout. One of three values keyed by `booking_type`: `"Inspection visit — quote built on-site"`, `"Fixed-price gig — full payout"`, `"Labor agreed up front"`. Prevents the reject-from-confusion failure mode where a Rs. 400 inspection fee looks indistinguishable from a Rs. 400 fixed gig. |
 | `expires_in_seconds` | int | Two-tier dispatch SLA — see below |
+| `ui_location_label` | string \| null | Pre-composed locality (e.g. `"Gulberg, Lahore"`) sourced from `JobBooking.address.locality_label` — populated client-side at address creation (session 4) and stored on `CustomerAddress`. Dumb-UI: technician's card renders the string verbatim and hides the row when null. Null on two paths: (a) the booking's `address` FK is SET_NULL (deleted address row), (b) the address pre-dates the locality columns and has not been backfilled. The full street address is never broadcast pre-accept (privacy + anti-poach). |
 
 #### Commission rule (`payout`)
 
@@ -358,7 +360,7 @@ Both return HTTP 400 with `code: "validation_error"`. Flutter maps the field-lev
 
 Implementation lives in `frontend/lib/features/booking/presentation/widgets/review_booking_sheet.dart` (`_resolveErrorPresentation`). The previous `price_amount` mismatch envelope was retired alongside the field itself — the server is now end-to-end authoritative on the figure, so a mismatch is impossible.
 
-### 2.3 Technician job-card model — two new fields
+### 2.3 Technician job-card model — three new fields
 
 The `job_new_request` payload (received over the WS event pipeline, also returned by `/api/events/sync/` on reconnect) now carries:
 
@@ -368,18 +370,19 @@ class JobNewRequestPayload with _$JobNewRequestPayload {
   const factory JobNewRequestPayload({
     required int jobId,
     required String serviceName,
-    required BookingType bookingType,           // NEW
+    required BookingType bookingType,           // added in earlier rollout
     required DateTime scheduledStartIso,
     required String payout,
-    required String payoutContext,              // NEW
+    required String payoutContext,              // added in earlier rollout
     required int expiresInSeconds,
+    required String? locationLabel,             // NEW — `ui_location_label`
   }) = _JobNewRequestPayload;
 }
 
 enum BookingType { inspection, fixedGig, laborGig }
 ```
 
-`bookingType` and `payoutContext` are **always present** on freshly dispatched events. Older `EventLog` rows replayed via `/api/events/sync/` predate the rollout — defensive parsing should treat both fields as optional on the deserialization model and fall back gracefully (see §2.5).
+`bookingType` and `payoutContext` are **always present** on freshly dispatched events. `locationLabel` is **always present** on the wire (the field is always sent, value may be null). Older `EventLog` rows replayed via `/api/events/sync/` predate these rollouts — defensive parsing should treat all three as optional on the deserialization model and fall back gracefully (see §2.5).
 
 ### 2.4 Technician on-site flow — route on `bookingType`
 
@@ -408,12 +411,17 @@ Render `payoutContext` verbatim under the `payout` figure (Dumb-UI principle —
 
 ### 2.5 Backwards compatibility for replayed events
 
-`EventLog` rows persisted before this rollout contain the old payload shape (`service_name`, `scheduled_start_iso`, `payout`, `expires_in_seconds` — no `booking_type` or `payout_context`). On reconnect, `/api/events/sync/` returns these alongside fresh ones.
+`EventLog` rows persisted before successive rollouts contain older payload shapes:
+- Pre-`booking_type` rollout rows lack `booking_type` and `payout_context`.
+- Pre-`ui_location_label` rollout rows additionally lack `ui_location_label`.
+
+On reconnect, `/api/events/sync/` returns these alongside fresh ones.
 
 Flutter's deserializer should:
-- Treat `bookingType` and `payoutContext` as **nullable** on the Freezed model.
+- Treat `bookingType`, `payoutContext`, and `locationLabel` as **nullable** on the Freezed model.
 - When `bookingType` is null, default the card to a neutral layout (treat as `LABOR_GIG`-style: Mark Complete + optional upsell) and hide the `payoutContext` line.
-- Once historical `EventLog` rows have aged out (two acceptance-window cycles after the backend rollout), the fields can be tightened to required.
+- When `locationLabel` is null, hide the address row entirely (no placeholder).
+- Once historical `EventLog` rows have aged out (two acceptance-window cycles after each backend rollout), the corresponding fields can be tightened to required.
 
 ### 2.6 Frontend test coverage
 
