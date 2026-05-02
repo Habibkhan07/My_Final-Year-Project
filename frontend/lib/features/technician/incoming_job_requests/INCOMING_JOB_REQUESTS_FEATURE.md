@@ -133,14 +133,43 @@ Freezed. Single field: `List<JobNewRequest> queue`. The list's contract is:
 ### Sheet host — `IncomingJobSheetHost`
 `lib/features/technician/incoming_job_requests/presentation/widgets/incoming_job_sheet_host.dart`
 
-Global overlay mounted once at the app shell via `MaterialApp.router.builder` (see `lib/main.dart`). Watches `incomingJobQueueProvider` and:
+Global overlay mounted once at the app shell via `MaterialApp.router.builder` (see `lib/main.dart`). Watches `incomingJobQueueProvider` and orchestrates four state transitions in `_onQueueChanged`:
 
-- mounts a `DraggableScrollableSheet` (with a fade-in scrim) on the empty → non-empty transition; runs the reverse animation on non-empty → empty;
-- pins the sheet to a single snap fraction (≈0.68 of screen height). The technician can drag the sheet down to peek at what was behind it; on release the controller snaps back to the single fraction. There is no peek snap and no expanded snap — they were removed when the multi-offer surfaces were retired;
-- fires a soft `HapticFeedback.lightImpact` when a new offer arrives while the sheet is already showing — the visible card does NOT swap (head-sticky principle), the haptic is just an acknowledgement that the queue grew;
-- routes Accept / Decline taps to `removeRequest(jobId)` (the real backend call lands when the accept endpoint ships — see `flag.md` #14).
+1. **Empty → first arrival.** Mount the sheet, slide it up (~280ms), fade the scrim in.
+2. **Non-empty → empty.** Slide the sheet down (~220ms), unmount, clear `_displayQueue`.
+3. **Head changed (both states non-empty).** Run the **vanish-reappear ceremony** — see below.
+4. **Head unchanged, tail grew.** Soft `HapticFeedback.lightImpact` only. The visible card does NOT swap (head-sticky principle); the haptic acknowledges that the queue grew.
 
-Tapping the scrim does nothing — Decline is always an explicit button to prevent a fat-finger dismissal of a high-payout offer.
+The sheet is pinned to a single snap fraction (≈0.68 of screen height). The technician can drag the sheet down past 30% to peek behind it; on release the `DraggableScrollableController` snaps back. Tapping the scrim is intentionally a no-op — accept is a swipe and decline is an explicit button so a stray tap can't dismiss a high-payout offer.
+
+#### Head-change vanish-reappear ceremony
+
+When the head resolves (accept / decline / expire) AND there's another offer in the tail to promote, the host runs a deliberate "this is a new offer" ceremony in `_runHeadChangeCeremony`:
+
+| Phase | Duration | What happens |
+| :--- | ---: | :--- |
+| Confirm hold (accept only) | ~260ms | The swipe widget plays its confirm animation (thumb → right edge, "Accepted" check). `_handleAccept` defers `removeRequest` for this duration so the user sees the action register before the sheet starts moving. Decline / expire skip this phase. |
+| Slide out | ~220ms | The current sheet slides down off-screen with the OLD head still visible. `_displayQueue` is *not* updated yet — the listener freezes on the previous content during the slide-out so the user sees what they're saying goodbye to. |
+| Pause | ~250ms | Sheet is off-screen. `_displayQueue` is swapped silently to the new head. Brief silence with the underlying screen visible — the deliberate gap that makes the new offer read as new. |
+| Cue | (instant) | `IncomingJobSoundPlayer.playNewOfferSound()` fires + `HapticFeedback.heavyImpact()`. Redundant on purpose: sound for a tech who's looking away, haptic for one who can't hear (silent mode, noisy environment), visual (next phase) for one whose phone is muted in a pocket. |
+| Slide in | ~280ms | The sheet slides up with the new head visible. The swipe widget rebuilds fresh — thumb at the left edge, drain at full. |
+
+Total: ~1010ms accept-to-next-offer (including confirm hold), ~750ms decline/expire-to-next-offer. Slow if the technician is in rapid-fire mode, but the clarity gain over an instant content swap is the whole point.
+
+Action handlers route to `removeRequest(jobId)` — the real backend call lands when the accept endpoint ships (see `flag.md` #14). Today's three handlers are deliberately separate methods (not a single `_resolveHead`) so the future endpoint sprint can wire different remote semantics: decline POSTs `/decline`; expire is a no-op (the server's SLA-timeout Celery task fires authoritative); accept POSTs `/accept`.
+
+#### Sound — `IncomingJobSoundPlayer`
+`lib/features/technician/incoming_job_requests/presentation/services/incoming_job_sound_player.dart`
+
+Abstract interface with one method, `playNewOfferSound()`. Today's binding (in `dependency_injection.dart`) is `SystemSoundIncomingJobSoundPlayer` which delegates to Flutter's built-in `SystemSound.play(SystemSoundType.alert)` — no dependency, no asset, respects device silent / vibrate mode. The trade-off is that the audible output is the device's stock alert tone, not distinct from a regular system notification.
+
+Treated as a deliberate placeholder. The swap-path to a custom chime (see `flag.md` #18):
+1. Add `audioplayers` (or similar) to `pubspec.yaml`.
+2. Drop a chime asset (e.g. `assets/sounds/incoming_job_chime.wav`) into the project, register in pubspec.
+3. Add an `AssetIncomingJobSoundPlayer` implementation.
+4. Override `incomingJobSoundPlayerProvider` in `dependency_injection.dart`.
+
+No host changes. No widget changes. The host calls `ref.read(incomingJobSoundPlayerProvider).playNewOfferSound()` and gets whatever's bound.
 
 ### Sheet body — `IncomingJobSheet`
 `lib/features/technician/incoming_job_requests/presentation/widgets/incoming_job_sheet.dart`

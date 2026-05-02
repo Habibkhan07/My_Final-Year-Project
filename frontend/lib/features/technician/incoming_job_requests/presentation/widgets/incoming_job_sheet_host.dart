@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../domain/entities/job_new_request.dart';
+import '../providers/dependency_injection.dart';
 import '../providers/incoming_job_queue_notifier.dart';
 import '../providers/incoming_job_queue_state.dart';
 import 'incoming_job_sheet.dart';
@@ -18,26 +21,19 @@ import 'incoming_job_sheet.dart';
 /// to decode multiplicity (a "+N more" count, a stack of layered cards) — an
 /// abstraction they didn't reliably interpret in field testing.
 ///
-/// What the host still owns:
+/// **Four cases the listener handles** (`_onQueueChanged`):
 ///
-///   * The slide-up entrance and slide-down exit animation, gated on the
-///     queue empty ↔ non-empty transitions. Animation duration is short on
-///     purpose so the SLA timer is never visually obscured for long.
-///   * The scrim (40% alpha at the single snap; tap does nothing — decline
-///     must be an explicit action so a stray tap can't dismiss a high-payout
-///     offer).
-///   * Drag-down-to-dismiss. `DraggableScrollableSheet` stays — it's the
-///     reason yesterday's discussion landed where it did. The technician can
-///     swipe the sheet down to peek at what was behind it; releasing snaps
-///     back to the single fixed fraction.
-///   * A soft haptic when a new offer arrives while the sheet is already
-///     showing. The card itself updates to the new head only when the current
-///     head resolves (head-sticky principle); the haptic acknowledges that
-///     more work is queued.
-///   * Accept / decline routing to `removeRequest(jobId)`. Per `flag.md` #14
-///     the remote acceptance endpoint is a future sprint — the host's
-///     contract is "remove from queue" today, "POST + remove on success"
-///     tomorrow.
+///   1. Empty → first arrival. Slide in.
+///   2. Non-empty → empty (last offer resolved). Slide out, unmount.
+///   3. Head changed (both states non-empty, `queue.first.jobId` differs).
+///      Run the **vanish-reappear ceremony**: slide out → 250ms pause →
+///      sound + heavy haptic → slide in with the new head. The pause and
+///      audio cue make the new offer unmistakably *new* — without the
+///      ceremony, the card content swap could be missed entirely if the
+///      new request's service name resembles the previous one.
+///   4. Head unchanged, tail grew. Soft haptic only — the visible card does
+///      NOT swap (head-sticky principle); the haptic acknowledges that
+///      more work is queued.
 ///
 /// **Architectural note.** Presentation is driven entirely by the queue
 /// notifier's state. `EventUrgencyRouter` does not push a route for
@@ -66,6 +62,18 @@ class _IncomingJobSheetHostState extends ConsumerState<IncomingJobSheetHost>
   /// dismissal of a high-payout offer would be catastrophic UX.
   static const double _minDragFraction = 0.18;
 
+  /// Time the swipe-to-accept widget needs for its confirm animation
+  /// (thumb → right edge, "Accepted" check) before we start sliding the
+  /// sheet out. If we removed the head from the queue too quickly, the
+  /// user would see the slide-out begin before they could register that
+  /// their swipe registered.
+  static const Duration _acceptConfirmHold = Duration(milliseconds: 260);
+
+  /// Pause between the slide-out and slide-in halves of the head-change
+  /// ceremony. Long enough to read as "the sheet went away — something
+  /// new is happening" rather than as a single slow swap.
+  static const Duration _ceremonyPause = Duration(milliseconds: 250);
+
   // ── Animation: slide-up entry, slide-down exit ──────────────────────────
   late final AnimationController _showController;
   late final Animation<double> _showCurve;
@@ -77,8 +85,12 @@ class _IncomingJobSheetHostState extends ConsumerState<IncomingJobSheetHost>
   // ── State ───────────────────────────────────────────────────────────────
   bool _sheetMounted = false;
 
-  /// Last non-empty queue. Retained during the slide-down exit animation so
-  /// the sheet doesn't blank out before it has finished sliding off-screen.
+  /// What the sheet is currently rendering. Managed *exclusively* by
+  /// `_onQueueChanged` (and the ceremony method) — we deliberately do NOT
+  /// mirror the live provider queue inside `build()` because that would
+  /// swap the visible card content the moment the queue updates, robbing
+  /// the slide-out half of the head-change ceremony of its reason to
+  /// exist.
   List<JobNewRequest> _displayQueue = const [];
 
   ProviderSubscription<IncomingJobQueueState>? _subscription;
@@ -119,15 +131,24 @@ class _IncomingJobSheetHostState extends ConsumerState<IncomingJobSheetHost>
     IncomingJobQueueState? previous,
     IncomingJobQueueState next,
   ) {
-    final prevLen = previous?.queue.length ?? 0;
-    final nextLen = next.queue.length;
+    final prevHeadId = previous == null || previous.queue.isEmpty
+        ? null
+        : previous.queue.first.jobId;
+    final nextHeadId =
+        next.queue.isEmpty ? null : next.queue.first.jobId;
 
-    if (prevLen == 0 && nextLen > 0) {
-      // First arrival in an empty queue → mount + slide in.
-      setState(() => _sheetMounted = true);
+    // Case 1 — empty → first arrival.
+    if (prevHeadId == null && nextHeadId != null) {
+      setState(() {
+        _displayQueue = next.queue;
+        _sheetMounted = true;
+      });
       _showController.forward(from: 0.0);
-    } else if (prevLen > 0 && nextLen == 0) {
-      // Queue emptied (head resolved, no successor) → slide out then unmount.
+      return;
+    }
+
+    // Case 2 — non-empty → empty.
+    if (prevHeadId != null && nextHeadId == null) {
       _showController.reverse().then((_) {
         if (!mounted) return;
         setState(() {
@@ -135,13 +156,58 @@ class _IncomingJobSheetHostState extends ConsumerState<IncomingJobSheetHost>
           _displayQueue = const [];
         });
       });
-    } else if (nextLen > prevLen && _sheetMounted) {
-      // New offer arrived while the sheet is already showing. The head-sticky
-      // contract means the visible card does not swap — the new offer joins
-      // the tail in priority order and will only become visible when the
-      // current head resolves. The haptic acknowledges the queue grew.
+      return;
+    }
+
+    // Case 3 — head changed; both states non-empty. Vanish-reappear ceremony.
+    if (prevHeadId != null && nextHeadId != null && prevHeadId != nextHeadId) {
+      // Pass the new queue snapshot in so the ceremony can swap content
+      // silently (while the sheet is off-screen) without racing against
+      // further state updates.
+      unawaited(_runHeadChangeCeremony(List<JobNewRequest>.from(next.queue)));
+      return;
+    }
+
+    // Case 4 — head unchanged. Tail-only change. Soft haptic if the queue
+    // grew (a new offer just joined the tail); update _displayQueue silently
+    // so future ceremonies see the latest snapshot.
+    if (next.queue.length > (previous?.queue.length ?? 0) && _sheetMounted) {
       HapticFeedback.lightImpact();
     }
+    setState(() => _displayQueue = next.queue);
+  }
+
+  /// The vanish-reappear ceremony: slide the sheet out, swap the rendered
+  /// queue silently, pause briefly, fire the audio + haptic cue, and slide
+  /// in with the new head visible.
+  ///
+  /// Total duration: ~220ms (slide out) + 250ms (pause) + 280ms (slide in) ≈
+  /// 750ms. Add the 260ms swipe-confirm hold that precedes this from
+  /// `_handleAccept`, and the full accept → next-offer ceremony lands at
+  /// roughly 1 second — slow enough to register the change, fast enough not
+  /// to feel like dead time.
+  Future<void> _runHeadChangeCeremony(List<JobNewRequest> nextQueue) async {
+    await _showController.reverse();
+    if (!mounted) return;
+
+    // Sheet is off-screen. Swap the rendered queue silently — the visible
+    // card content updates while no one can see it, so the slide-in
+    // surfaces the new head with no perceptible content flash.
+    setState(() => _displayQueue = nextQueue);
+
+    await Future<void>.delayed(_ceremonyPause);
+    if (!mounted) return;
+
+    // Audio cue + heavy haptic on slide-in. Redundant signals on purpose:
+    // sound for a tech who's looking away, haptic for one who can't hear
+    // it (silent mode, noisy environment), visual for one whose phone is
+    // muted and in a pocket. Any one of the three reaches them.
+    unawaited(
+      ref.read(incomingJobSoundPlayerProvider).playNewOfferSound(),
+    );
+    HapticFeedback.heavyImpact();
+
+    await _showController.forward(from: 0.0);
   }
 
   // ── Action handlers ─────────────────────────────────────────────────────
@@ -153,10 +219,19 @@ class _IncomingJobSheetHostState extends ConsumerState<IncomingJobSheetHost>
 
   void _handleAccept(int jobId) {
     HapticFeedback.selectionClick();
-    // TODO(accept-endpoint): wire to the bookings repository when the
-    //   accept/decline endpoint lands. Until then, removeRequest is the
-    //   only effect — see flag.md #14 (Accept button asymmetry).
-    ref.read(incomingJobQueueProvider.notifier).removeRequest(jobId);
+    // The swipe widget plays a confirm animation (thumb → right edge, then
+    // morphs into a check) for ~260ms after the user releases past the
+    // threshold. We hold removeRequest until the animation has played so
+    // the user sees their swipe register before the sheet slides out. If
+    // the host unmounts during the hold (route changes, app teardown), the
+    // mounted check below short-circuits.
+    Future<void>.delayed(_acceptConfirmHold, () {
+      if (!mounted) return;
+      // TODO(accept-endpoint): wire to the bookings repository when the
+      //   accept/decline endpoint lands. Until then, removeRequest is the
+      //   only effect — see flag.md #14 (Accept button asymmetry).
+      ref.read(incomingJobQueueProvider.notifier).removeRequest(jobId);
+    });
   }
 
   void _handleDecline(int jobId) {
@@ -175,13 +250,11 @@ class _IncomingJobSheetHostState extends ConsumerState<IncomingJobSheetHost>
 
   @override
   Widget build(BuildContext context) {
-    final liveQueue = ref.watch(incomingJobQueueProvider).queue;
-    if (liveQueue.isNotEmpty) {
-      // Refresh the retained snapshot whenever the queue is non-empty. The
-      // snapshot survives the slide-down exit so the sheet body doesn't
-      // blank out while sliding off-screen.
-      _displayQueue = liveQueue;
-    }
+    // Watch the provider so this widget rebuilds on state transitions, but
+    // don't read the queue directly here — `_displayQueue` is the source of
+    // truth for what's rendered (managed by the listener so the slide-out
+    // half of the ceremony renders the OLD head's data).
+    ref.watch(incomingJobQueueProvider);
 
     return Stack(
       children: [

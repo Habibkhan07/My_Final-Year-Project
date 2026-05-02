@@ -645,3 +645,34 @@ The technician-side pivot was scoped to the presentation layer (replacing the de
 
 **Severity**
 Medium-high. The frontend ships fine in isolation (every test passes) and a developer running against a backend that happens to send a 5+-minute `expires_in_seconds` will not notice. But once a per-booking-type policy is added that drops below 5 minutes — or if a future code path computes the expiry from data that produces a small value — the swipe widget becomes unusable for the target user with no obvious diagnostic. Pick this up before any production rollout of the technician UI; ideally bundle with the accept/decline endpoint sprint (flag #14) since both touch `bookings/services/` and the same dispatch payload contract.
+
+---
+
+## 18. New-offer audio cue is a placeholder system sound
+
+**Where**
+- `frontend/lib/features/technician/incoming_job_requests/presentation/services/incoming_job_sound_player.dart` — interface + placeholder implementation.
+- `frontend/lib/features/technician/incoming_job_requests/presentation/providers/dependency_injection.dart` — provider binding.
+- `frontend/lib/features/technician/incoming_job_requests/presentation/widgets/incoming_job_sheet_host.dart` — call site inside `_runHeadChangeCeremony`.
+
+**What's wrong**
+The vanish-reappear ceremony fires an audio cue when the new head's sheet slides in — one of three redundant signals (sound + heavy haptic + slide-in animation) that together make a new offer unmistakable to a technician who might be looking away, in a pocket, in a noisy environment, or with the device silenced. The cue today is `SystemSound.play(SystemSoundType.alert)`: Flutter's built-in stock alert tone. It works (zero dependency, respects silent / vibrate mode), but the audible output is the device's standard alert sound — not distinct from any other system notification the technician might already be receiving. A custom chime tuned for "incoming job offer" would read more clearly as an in-app event and reduce the chance of a tech tuning it out alongside background notifications.
+
+**Why we shipped it that way**
+The vanish-reappear ceremony was scoped to land in one frontend session — wiring the four cases of `_onQueueChanged`, the slide-out / pause / slide-in choreography, plus haptic + sound. Adding a real audio asset alongside that scope would have required an `audioplayers` (or similar) dependency, an asset added to `pubspec.yaml`, sound design / sourcing, and a license check on the chosen file. The placeholder gets the architecture right (interface + injectable provider) so the swap is trivial when the chime is ready; doing it inline would have stretched the session.
+
+**The proper fix**
+1. Pick a chime — short (≤1s), pleasant, distinct from common system notification sounds. Sources: `freesound.org` (CC0 / CC-BY), `mixkit.co` (royalty-free, no account), `pixabay.com/sound-effects` (royalty-free, no account). Candidate search terms: `notification`, `chime`, `bell`, `incoming`. Verify the license; for any non-CC0 source, record attribution in the project README or a `THIRD_PARTY.md`.
+2. Add `audioplayers: ^X.Y.Z` to `frontend/pubspec.yaml`. Drop the file at `frontend/assets/sounds/incoming_job_chime.wav` (or `.mp3`); register the directory under `flutter.assets`.
+3. Implement `AssetIncomingJobSoundPlayer` in the same file as the abstract `IncomingJobSoundPlayer`. Cache the `AudioPlayer` instance per app-level singleton (creating one per call leaks file handles); preload the asset on construction so the first cue doesn't lag.
+4. In `dependency_injection.dart`, swap the `incomingJobSoundPlayerProvider` binding from `SystemSoundIncomingJobSoundPlayer()` to the new asset implementation. Verify the existing host code doesn't change at all — it reads through the provider.
+5. Test: in the preview lab (`flutter run -t lib/preview/incoming_job_preview.dart`), seed two offers and accept the first; the chime should play during the slide-in. If `audioplayers` requires platform setup (Android `<uses-permission>` or iOS `Info.plist` keys for media playback), confirm those before merging.
+
+**Search hints**
+- `IncomingJobSoundPlayer` abstract class — the seam.
+- `SystemSoundIncomingJobSoundPlayer` — the placeholder to delete (or keep behind a debug flag for testing).
+- `_runHeadChangeCeremony` in `incoming_job_sheet_host.dart` — the call site, which doesn't change.
+- `incomingJobSoundPlayerProvider` in `presentation/providers/dependency_injection.dart` — single line to swap.
+
+**Severity**
+Low. The placeholder is functional — the cue plays, respects silent mode, and combined with the heavy haptic + slide-in animation the new-offer signal is already redundant. The upgrade is a polish step, not a correctness fix. Pick up when the team commits to a sound design pass for the technician app.
