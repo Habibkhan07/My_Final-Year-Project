@@ -527,3 +527,98 @@ Resolved by adding `'daphne'` as the very first entry in `INSTALLED_APPS`. Chann
 
 **How it surfaced**
 During flag #11 debugging, the user switched from `daphne -b 0.0.0.0 -p 8000 core.asgi:application` to `python manage.py runserver`. The next test run produced `GET /ws/events/?token=... HTTP/1.1 404` (standard Django WSGI log format) instead of the `WSCONNECTING /ws/events/` line (Daphne's format) seen in the previous run. With WS dead, the orchestrator never received frames over the socket — but the test event still reached the device via FCM (Celery → Firebase → `FirebaseMessaging.onMessage`), which is what produced the `D/FLTFireMsgReceiver: broadcast received for message` log line. That FCM-delivered event is what eventually exposed flag #11's GoError.
+
+---
+
+## 14. `Accept` / `Decline` buttons render real UI but make no remote call
+
+**Where**
+- `frontend/lib/features/technician/incoming_job_requests/presentation/widgets/incoming_job_sheet_host.dart` — `_handleAccept` and `_handleDecline` both delegate only to `incomingJobQueueProvider.notifier.removeRequest(jobId)`.
+- `frontend/lib/features/technician/incoming_job_requests/INCOMING_JOB_REQUESTS_FEATURE.md` — Repository / Use Cases / Data Sources still marked `⏳ pending`.
+- Backend: no `POST /api/bookings/{id}/accept` or `/decline` endpoint exists (per `BOOKINGS_API.md` §1.1).
+
+**What's wrong**
+The technician sees a polished bottom-sheet UI with `Accept Request` and `Decline` buttons. Tapping either only removes the offer from the local Riverpod queue — there is no HTTP call, no server-side state transition, no SLA-task cancellation, and no customer-facing notification fires. From the server's perspective, the offer simply expires when its SLA timer fires regardless of which button the technician tapped (or whether they tapped at all). This is the technician's most-seen post-online surface shipping without its remote counterpart.
+
+**Why we shipped it anyway**
+- The backend acceptance endpoint is its own sprint — the customer-facing `job_accepted` event, payout-stamping at acceptance, and the dispatch-cancel side-effects all need to land together. Holding the visual UI hostage to that sprint blocks the design and UX testing that the sheet's snap behavior, countdown, and queue list need today.
+- The visual design is independently load-bearing and is correct in isolation regardless of what the buttons do server-side.
+- The local `removeRequest` matches the queue notifier's existing documented stub contract, keeping dev/QA's felt experience coherent.
+
+**The proper fix (lockstep)**
+1. **Backend**: add `POST /api/bookings/{id}/accept` and `/decline` endpoints under `bookings/api/`. Both run inside `transaction.atomic()` + `select_for_update()` and short-circuit on any non-`AWAITING` status. Accept transitions to `CONFIRMED`, cancels the dispatch SLA Celery task, and emits `job_accepted` to the customer via `EventDispatchService.broadcast_event(...)` in the same transaction. Decline transitions to `REJECTED` and either re-broadcasts to the next-best technician or expires.
+2. **Frontend domain**: `AcceptJobRequestUseCase` / `DeclineJobRequestUseCase` + a `JobRequestRepository` interface in `domain/repositories/`. Extend `IncomingJobFailure` (already a sealed hierarchy) with network / server / conflict variants — the `409 already-actioned` path must be modeled because an SLA timeout can fire between the user's tap and the server's processing.
+3. **Frontend data**: `JobRequestRemoteDataSource` (Dio) + `JobRequestRepositoryImpl` mapping HTTP failures through the four-step error pipeline in CLAUDE.md.
+4. **Sheet host**: `_handleAccept` / `_handleDecline` invoke the use case via Riverpod, surface a SnackBar on failure, and only call `removeRequest` on success (or on a 409 — the offer is already not-actionable from the server's POV either way).
+5. **Tests**: new widget tests covering the failure-path UI (Snackbar surfaces, the offer remains in the queue so the technician can retry).
+
+**Search hints**
+- `_handleAccept`, `_handleDecline` in `incoming_job_sheet_host.dart`
+- `removeRequest` in `incoming_job_queue_notifier.dart`
+- `BOOKINGS_API.md` §1.1
+- `IncomingJobFailure` sealed class in `frontend/lib/features/technician/incoming_job_requests/domain/failures/`
+
+---
+
+## 15. `CustomerAddress` structured locality fields are client-supplied — backend trusts them verbatim
+
+**Where**
+- `backend/customers/api/addresses/serializers.py` — `CustomerAddressWriteSerializer.Meta.fields` whitelists `neighborhood`, `suburb`, `city`, `state`, `country`, `postal_code`, `locality_label` as optional client-writable fields.
+- `backend/customers/services/address_service.py` — `create_customer_address` / `update_customer_address` pass `**validated_data` straight to `CustomerAddress.objects.create`/`setattr` with no verification.
+- `backend/customers/api/ADDRESSES_API.md` — documents the client-supplied contract.
+- `frontend/lib/features/customer/addresses/data/models/place_details.dart:localityLabel` — the only place the compose rule (`"{suburb}, {city}"`) lives; backend doesn't know it.
+
+**What's wrong**
+CLAUDE.md mandates *"All incoming data sanitized at Serializer level. Never trust Flutter app input."* This work deliberately departs from that rule for the 7 structured locality fields. The Flutter map-picker reverse-geocodes via Google (prod) or OSM Nominatim (dev), then POSTs the structured pieces to the backend, which stores them verbatim. A modified client could send `city = "Karachi"` while picking a Lahore coordinate — the backend would persist the lie.
+
+**Why we shipped it anyway**
+- These fields are **display-only**. `latitude`/`longitude` remain the trusted source of truth for distance, matchmaking, and dispatch decisions — none of which read the structured strings.
+- The session decision was "client-side reverse-geocoding entirely; backend is dumb storage" (the alternative was an in-process server-side OSM/Google call on every POST/PATCH, which adds latency, cost, rate-limit complexity, and a second provider that can disagree with the client's answer).
+- The threat model is "user lies about their own neighborhood string for vanity," not a security boundary. No payment, dispatch, or auth flow depends on these strings.
+- Compose rule lives client-side (one source of truth with the geocoder). Future consumers (e.g. `job_new_request` payload) read the cached `locality_label` column rather than re-composing.
+
+**The proper fix (only if abuse appears or a non-display consumer needs structured trust)**
+1. Add a server-side `verify_locality_consistency(lat, lng, claimed_country, claimed_state)` selector in `customers/selectors/` that calls Google Geocode with admin credentials and rejects writes whose claimed country/state don't match the lat/lng. The granularity stops at country/state — neighborhood-level verification is too noisy for both providers.
+2. Wire it into the service via `transaction.on_commit` async work (Celery task + Port-and-Adapter, mirroring `bookings/services/job_request_dispatch.py`) so the API response stays fast.
+3. Move the `localityLabel` compose rule to the backend (a `_compose_locality_label` helper in `address_service.py`) and stop accepting it from the wire. Frontend stops sending it; mapper drops the field.
+
+**Search hints**
+- `_LOCALITY_FIELDS` in `customers/api/addresses/serializers.py`
+- `class PlaceDetails` and `String? get localityLabel` in `frontend/lib/features/customer/addresses/data/models/place_details.dart`
+- `TestStructuredLocalityFields` in `tests/customers/api/addresses/test_api.py`
+
+---
+
+## 16. `GOOGLE_MAPS_API_KEY` absent silently falls back to Nominatim — TOS-violation footgun in prod
+
+**Where**
+- `frontend/lib/features/customer/addresses/presentation/providers/dependency_injection.dart` — `geocodingDataSource(Ref ref)` factory.
+
+**What's wrong**
+The factory chooses the geocoding adapter at build time:
+```dart
+const apiKey = String.fromEnvironment('GOOGLE_MAPS_API_KEY');
+return apiKey.isEmpty ? NominatimGeocodingDataSource(client) : GoogleMapsGeocodingDataSource(client, apiKey);
+```
+If a release build forgets `--dart-define=GOOGLE_MAPS_API_KEY=...`, the app silently uses OSM Nominatim. OSM's [public tile/Nominatim usage policy](https://operations.osmfoundation.org/policies/nominatim/) **forbids production-scale use** — 1 req/sec hard cap, mandatory descriptive User-Agent, free-tier IPs get banned for sustained traffic. The trap is asymmetric: dev works, the release ships, the IP eventually gets rate-limited or banned, customers can't save addresses, root cause is invisible from logs (no exception, just slow/empty geocode results).
+
+**Why we shipped it anyway**
+- The factory pattern was the cleanest swap mechanism for "dev uses OSM, prod uses Google" — the alternative (paid Google key in dev) would force every contributor to obtain billing credentials before they could run the app.
+- We aren't shipping to prod yet, so the trap isn't sprung today.
+- A `kDebugMode` warning is logged when the OSM fallback fires, so dev-time visibility exists.
+
+**The proper fix (before first prod build)**
+1. Replace the silent fallback with a hard release-mode assertion in `geocodingDataSource`:
+   ```dart
+   if (apiKey.isEmpty) {
+     assert(!kReleaseMode, 'GOOGLE_MAPS_API_KEY required for release builds — Nominatim is dev-only.');
+     return NominatimGeocodingDataSource(client);
+   }
+   ```
+   `assert` is no-op in release, so we'd actually need `if (kReleaseMode && apiKey.isEmpty) throw StateError(...);` — pick one and stick to it.
+2. Alternative: gate the choice on a separate `--dart-define=GEOCODING_PROVIDER=google|osm` so the selection is intentional rather than inferred from key-presence. Defaults to `google` in release, `osm` in debug.
+3. Either way: add a CI check that release builds carry the dart-define (grep the build args).
+
+**Search hints**
+- `geocodingDataSource(Ref ref)` in `dependency_injection.dart`
+- `NominatimGeocodingDataSource` and `GoogleMapsGeocodingDataSource` in `data/data_sources/`
