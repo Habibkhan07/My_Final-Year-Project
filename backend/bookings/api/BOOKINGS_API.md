@@ -281,12 +281,14 @@ Neither side effect runs on any error path. A rolled-back transaction produces n
 
 Computed at broadcast time from `scheduled_start − timezone.now()`:
 
-| Tier | Condition | `expires_in_seconds` |
+| Tier | Condition | `expires_in_seconds` (raw) |
 | :--- | :--- | :--- |
 | ASAP | `delta ≤ 2h` (incl. past — defensive against stale slots) | `60` |
 | Scheduled | `delta > 2h` | `900` (15 min) |
 
-The same value is sent in the payload (so the technician's UI counts down in sync) **and** passed to `JobDispatchScheduler.schedule_sla_timeout(...)` as the Celery `countdown`.
+**Hard wire floor**: every emitted `expires_in_seconds` is then `max(value, 300)` — a 5-minute minimum required by the technician swipe-to-accept UI (low-literacy user, budget Android, often holding tools or in transit). In practice the ASAP tier's raw `60` is lifted to `300` on the wire; the Scheduled tier's `900` is unchanged. Floor lives at the dispatch site (`bookings/services/job_request_dispatch.py::MIN_DISPATCH_SLA`); any future caller of the dispatch service or per-booking-type policy must respect it.
+
+The same (post-floor) value is sent in the payload (so the technician's UI counts down in sync) **and** passed to `JobDispatchScheduler.schedule_sla_timeout(...)` as the Celery `countdown` — flooring once before both calls keeps the wire and the server-side SLA timer locked together. Drift would let `AWAITING → REJECTED` fire before the frontend's drain visually reaches zero, surfacing accept-just-past-expiry as a silent 409.
 
 #### SLA timeout — DB state mutation
 

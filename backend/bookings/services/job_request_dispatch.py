@@ -34,6 +34,17 @@ ASAP_THRESHOLD = timedelta(hours=2)
 ASAP_TIMER_SECONDS = 60
 SCHEDULED_TIMER_SECONDS = 15 * 60
 
+# --- Wire-contract floor on the dispatch SLA -------------------------------
+# The technician swipe-to-accept UI (low-literacy user, budget Android, often
+# holding tools or in transit) needs at least 5 minutes between the offer
+# arriving and the SLA expiring — enough time to notice the push, read the
+# four blocks of detail, decide, and physically swipe across the runway.
+# Applied at the dispatch site (NOT inside compute_dispatch_timer_seconds, so
+# the pure tier function stays readable on its own). Single source of truth
+# for both the wire payload and the Celery SLA countdown — flooring once
+# before both calls keeps them locked together.
+MIN_DISPATCH_SLA = timedelta(minutes=5)
+
 # --- Technician-card prose -------------------------------------------------
 # One short string per booking type. Keeps the Flutter card Dumb-UI: the
 # technician's app renders payout_context verbatim and switches layout /
@@ -132,6 +143,10 @@ def dispatch_job_new_request_event(
         scheduler = get_default_scheduler()
 
     expires_in = compute_dispatch_timer_seconds(booking.scheduled_start)
+    # Floor to the swipe-to-accept minimum. A future per-booking-type
+    # policy that drops below 5 minutes would silently make the
+    # technician UI unusable; enforce the wire contract at the source.
+    expires_in = max(int(MIN_DISPATCH_SLA.total_seconds()), expires_in)
     booking_type = _derive_booking_type(booking)
 
     # Prefer the more specific catalog name. sub_service is set for fixed

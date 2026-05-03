@@ -28,6 +28,7 @@ from bookings.selectors import (
 from bookings.services import job_request_dispatch as dispatch_module
 from bookings.services.job_request_dispatch import (
     ASAP_TIMER_SECONDS,
+    MIN_DISPATCH_SLA,
     SCHEDULED_TIMER_SECONDS,
     _to_iso_utc,
     compute_dispatch_timer_seconds,
@@ -269,7 +270,10 @@ class TestDispatchJobNewRequestEvent:
         assert len(scheduler.calls) == 1
         assert scheduler.calls[0]["booking_id"] == booking.id
         assert scheduler.calls[0]["delay_seconds"] == wire_value
-        assert wire_value == ASAP_TIMER_SECONDS  # within-2h booking
+        # Within-2h booking → ASAP tier (60s raw) lifted to the 5-minute
+        # swipe-to-accept floor on the wire. The matching-equality check
+        # above already proves wire and Celery countdown stay locked.
+        assert wire_value == int(MIN_DISPATCH_SLA.total_seconds())
 
     def test_default_scheduler_resolved_lazily_when_none_passed(self, mocker):
         # Verify the lazy-import wiring: when no scheduler is injected,
@@ -289,6 +293,108 @@ class TestDispatchJobNewRequestEvent:
         dispatch_job_new_request_event(booking)  # no scheduler kwarg
         assert len(fake.calls) == 1
         assert fake.calls[0]["booking_id"] == booking.id
+
+
+# =====================================================================
+# MIN_DISPATCH_SLA — 5-minute wire-contract floor (flag #17)
+# =====================================================================
+
+class TestMinDispatchSlaFloor:
+    """The technician swipe-to-accept UI is unusable below ~5 minutes:
+    the user has to notice the offer, read the four blocks of detail,
+    decide, and physically swipe across the runway. The dispatcher
+    enforces a hard wire floor so any future per-booking-type policy
+    can't silently break the technician UI. The floor is applied at the
+    dispatch site, NOT inside `compute_dispatch_timer_seconds` — the
+    pure tier function still reports the raw tier value for callers
+    that want it; the dispatcher is the one with the wire contract.
+    """
+
+    def _build_booking(self, **overrides):
+        tech = TechnicianProfileFactory(status="APPROVED")
+        profile = CustomerProfileFactory()
+        address = CustomerAddressFactory(customer=profile)
+        kwargs = dict(
+            technician=tech,
+            customer=profile.user,
+            address=address,
+            price_amount=decimal.Decimal("1500.00"),
+            price_context="Inspection Fee",
+        )
+        kwargs.update(overrides)
+        return JobBookingFactory(**kwargs)
+
+    def test_asap_tier_is_floored_to_minimum_dispatch_sla(self, mocker):
+        # Within-2h booking: raw tier value is 60s, well below the
+        # 5-minute floor. Wire payload must report the floored value
+        # so the technician's countdown UI has enough runway.
+        from django.utils import timezone
+        booking = self._build_booking(
+            scheduled_start=timezone.now() + datetime.timedelta(minutes=30),
+        )
+        broadcast = mocker.patch.object(
+            dispatch_module.EventDispatchService, "broadcast_event"
+        )
+        dispatch_job_new_request_event(booking, scheduler=_FakeScheduler())
+
+        floored = int(MIN_DISPATCH_SLA.total_seconds())
+        assert floored == 300
+        assert ASAP_TIMER_SECONDS < floored  # documents the lift
+        assert broadcast.call_args.kwargs["payload"]["expires_in_seconds"] == floored
+        # The envelope-level top-level expires_in_seconds (used to derive
+        # envelope.expires_at) must match the floored payload value;
+        # otherwise the EventLog row would expire on a different clock
+        # than the wire countdown the technician sees.
+        assert broadcast.call_args.kwargs["expires_in_seconds"] == floored
+
+    def test_scheduled_tier_above_floor_is_unchanged(self, mocker):
+        # Far-future booking: raw tier value is 900s (15 min), above the
+        # 5-minute floor. max() is a no-op — the scheduled tier survives
+        # untouched so customers booking days out still get the longer
+        # acceptance window.
+        from django.utils import timezone
+        booking = self._build_booking(
+            scheduled_start=timezone.now() + datetime.timedelta(days=1),
+        )
+        broadcast = mocker.patch.object(
+            dispatch_module.EventDispatchService, "broadcast_event"
+        )
+        dispatch_job_new_request_event(booking, scheduler=_FakeScheduler())
+
+        assert SCHEDULED_TIMER_SECONDS > int(MIN_DISPATCH_SLA.total_seconds())
+        assert (
+            broadcast.call_args.kwargs["payload"]["expires_in_seconds"]
+            == SCHEDULED_TIMER_SECONDS
+        )
+
+    def test_scheduler_armed_with_floored_value_for_asap_tier(self, mocker):
+        # Single source of truth: the same floored `expires_in` feeds
+        # both the broadcast payload AND the Celery SLA countdown.
+        # If they drifted, AWAITING → REJECTED would fire before the
+        # tech's drain visually reached zero — accept-just-past-expiry
+        # would surface as a silent 409.
+        from django.utils import timezone
+        booking = self._build_booking(
+            scheduled_start=timezone.now() + datetime.timedelta(minutes=30),
+        )
+        mocker.patch.object(dispatch_module.EventDispatchService, "broadcast_event")
+        scheduler = _FakeScheduler()
+        dispatch_job_new_request_event(booking, scheduler=scheduler)
+
+        floored = int(MIN_DISPATCH_SLA.total_seconds())
+        assert len(scheduler.calls) == 1
+        assert scheduler.calls[0]["delay_seconds"] == floored
+
+    def test_compute_dispatch_timer_seconds_pure_function_unaffected(self):
+        # The floor lives at the dispatch site, not in the tier function.
+        # This is intentional: callers that want the raw tier value (for
+        # logging, analytics, or a future per-booking-type policy) still
+        # see the unfloored result. Dispatcher is the wire boundary;
+        # tier function is a pure helper.
+        from django.utils import timezone
+        scheduled_asap = timezone.now() + datetime.timedelta(hours=1)
+        assert compute_dispatch_timer_seconds(scheduled_asap) == ASAP_TIMER_SECONDS
+        assert ASAP_TIMER_SECONDS < int(MIN_DISPATCH_SLA.total_seconds())
 
 
 # =====================================================================
