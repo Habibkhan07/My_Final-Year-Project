@@ -19,8 +19,8 @@ exact JSON shape. The Flutter client has ONE parser.
   "rawType": "job_accepted",
   "targetRole": "customer",
   "timestamp": "2026-04-24T07:12:33.102000Z",
-  "expires_at": null,
-  "recipient_user_id": null,
+  "recipient_user_id": 42,
+  "expires_at": "2026-04-24T07:17:33.102000Z",
   "payload": { "job_id": "abc-123", "technician_name": "Ali R." }
 }
 ```
@@ -32,8 +32,8 @@ exact JSON shape. The Flutter client has ONE parser.
 | `rawType`           | string           | Registered key in `core.constants.event_types.EventType`.             |
 | `targetRole`        | enum             | `"customer"` \| `"technician"`. Drives client-side routing.           |
 | `timestamp`         | ISO-8601         | UTC with trailing `Z`. Server-authoritative.                          |
-| `expires_at`        | ISO-8601 \| null | UTC absolute expiry for SLA-bounded events. Frontend pipeline drops past-expiry frames at `SystemEventNotifier` ingress (server-anchored clock). Null for events without an SLA. **Backend emission is pending — see flag #19.** |
-| `recipient_user_id` | int \| null      | Numeric `User.id` of the intended recipient. Frontend pipeline drops frames whose recipient does not match the authenticated user (defence-in-depth against multi-account device FCM tap races). Null defers to channel-layer routing. **Backend emission is pending — see flag #19.** |
+| `recipient_user_id` | int              | Numeric `User.id` of the intended recipient. Always set. Frontend pipeline drops frames whose recipient does not match the authenticated user (defence-in-depth against multi-account device FCM tap races, on top of channel-layer routing). |
+| `expires_at`        | ISO-8601 \| null | UTC absolute expiry for SLA-bounded events. Pinned to the same instant as `timestamp` (envelope and `EventLog.expires_at` reference one server-side `now`, so /sync/ replay never drifts from the original WS frame). Frontend pipeline drops past-expiry frames at `SystemEventNotifier` ingress (server-anchored clock). `null` when the dispatcher caller passed no `expires_in_seconds` (event has no SLA). |
 | `payload`           | object           | Feature-specific dict. JSON-serializable.                             |
 
 `is_critical` is **not** sent on the wire — it lives server-side in the
@@ -42,13 +42,13 @@ registry and controls whether the Flutter client must call `/ack/`.
 Stream frames travel on the same socket but use a different envelope
 shape (`kind: "stream"`). See `STREAM_DISPATCH_API.md` for the contract.
 
-**Forward-compat contract.** The frontend already accepts `expires_at`
-and `recipient_user_id` as optional fields on `SystemEventModel`
-(`frontend/lib/core/realtime/data/models/system_event_model.dart`).
-Both halves of each filter gate must be non-null for the filter to fire,
-so the frontend tolerates a phased rollout: backend ships the fields,
-frontend filters activate without a redeploy. Until then the filters
-are dormant. See `flag.md` #19 for the migration plan.
+**Backwards compatibility.** Both fields are tolerated as null on the
+client side (`SystemEventModel` declares them optional), which kept the
+phased rollout safe: the frontend pipeline filters shipped first and
+stayed dormant until the backend started emitting non-null values.
+The filters are now live. Pre-flag-#19 `EventLog` rows (created before
+the migration) keep `expires_at = null` and replay through /sync/
+unchanged.
 
 ---
 
@@ -181,18 +181,31 @@ ws://<host>/ws/events/?token=<drf_auth_token>
 ```python
 from realtime.events.services import EventDispatchService
 
+# Event with no SLA — expires_at on the wire is null.
 EventDispatchService.broadcast_event(
     user=job.customer,
     target_role="customer",
     event_type="job_accepted",
     payload={"job_id": str(job.id), "technician_name": technician.full_name},
 )
+
+# SLA-bounded event — expires_at = now + delta, denormalized onto EventLog.
+EventDispatchService.broadcast_event(
+    user=technician.user,
+    target_role="technician",
+    event_type="job_new_request",
+    payload={"job_id": str(job.id), ...},
+    expires_in_seconds=300,
+)
 ```
+
+`recipient_user_id` is set automatically from the `user` argument — there
+is no per-call kwarg for it. `expires_in_seconds` is the only knob.
 
 This single call atomically:
 
 1. Writes an `EventLog` row (so the event survives outages).
-2. Pushes the envelope into the customer's WebSocket group.
+2. Pushes the envelope into the recipient's WebSocket group.
 3. Queues `send_fcm_notification` on Celery for their active devices.
 
 Channels down? FCM down? Broker down? Each barrel is wrapped in its

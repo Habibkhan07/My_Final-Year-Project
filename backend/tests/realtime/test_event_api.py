@@ -62,6 +62,32 @@ def test_sync_filters_by_since_and_user(authed_client):
     assert "kind" not in entry["payload"]
     assert "payload" not in entry["payload"]
     assert entry["payload"] == {"job_id": "sample-job"}
+    # Flag #19: every replayed envelope must carry recipient_user_id + expires_at.
+    assert entry["recipient_user_id"] == user.id
+    # Factory rows have no SLA, so expires_at replays as null.
+    assert entry["expires_at"] is None
+
+
+@pytest.mark.django_db
+def test_sync_replay_preserves_expires_at_instant(authed_client):
+    """
+    Flag #19: ``expires_at`` is denormalized onto EventLog so /sync/ replay
+    surfaces the exact same UTC instant the original WS frame carried. No
+    recomputation, no clock drift between dispatch and replay.
+    """
+    client, user = authed_client
+    sla_at = timezone.now() + timedelta(minutes=5)
+    event = EventLogFactory(user=user, expires_at=sla_at)
+
+    cutoff = (timezone.now() - timedelta(hours=1)).isoformat()
+    response = client.get(reverse("realtime:events_sync"), {"since": cutoff})
+
+    assert response.status_code == 200
+    entry = next(e for e in response.data["results"] if e["id"] == str(event.id))
+    # DRF serializes DateTimeField to ISO-8601; parse and compare instants.
+    from datetime import datetime as _dt
+    replayed = _dt.fromisoformat(entry["expires_at"].replace("Z", "+00:00"))
+    assert replayed == sla_at
 
 
 @pytest.mark.django_db
