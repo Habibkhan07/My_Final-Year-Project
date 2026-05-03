@@ -46,7 +46,13 @@ def test_event_log_is_written_before_any_dispatch(mocker):
     # that drops the field surfaces as a test failure, not a UI bug.
     assert envelope["kind"] == "event"
     row = EventLog.objects.get(id=envelope["id"])
-    assert row.is_critical is True  # job_accepted is critical in the registry
+    # ``job_accepted`` is informational (flag #25 flipped is_critical=False
+    # to drop the per-event ACK contract — EventLog persistence + sync-replay
+    # already cover the offline case for "your tech accepted"). The assertion
+    # here pins that the dispatch service auto-reads the value from the
+    # registry rather than hardcoding True; flipping the registry will keep
+    # this test passing as long as the read path is honest.
+    assert row.is_critical is False
     assert row.event_type == "job_accepted"
     # EventLog.payload stores the *inner* feature payload only — single-envelope
     # contract per EVENT_DISPATCH_API.md. The envelope shell is reconstituted by
@@ -217,3 +223,31 @@ def test_broadcast_to_multiple_propagates_expires_in_seconds(mocker):
         assert exp - ts == timedelta(seconds=120)
     # Each recipient sees their own user.id on the wire.
     assert {env["recipient_user_id"] for env in envelopes} == {u.id for u in users}
+
+
+# ---------------------------------------------------------------------------
+# flag #25 — JOB_ACCEPTED is informational, not critical
+# ---------------------------------------------------------------------------
+
+
+def test_job_accepted_registry_entry_is_informational():
+    """
+    ``EVENT_REGISTRY[JOB_ACCEPTED].is_critical`` is False.
+
+    Flag #25 flipped this from True. Pinning it directly (not just via the
+    auto-set assertion in test_event_log_is_written_before_any_dispatch)
+    means a future thoughtless toggle back to True surfaces as a focused
+    test name rather than a generic dispatch-ordering test failure. Same
+    reasoning applied to BOOKING_REJECTED at flag #22 — both events share
+    the rationale ("customer-side informational, EventLog + sync-replay
+    cover offline").
+    """
+    from realtime.constants.event_types import EVENT_REGISTRY, EventType
+
+    meta = EVENT_REGISTRY[EventType.JOB_ACCEPTED]
+    assert meta["is_critical"] is False
+    # ``display_name`` is consumed by the FCM tray push — "Booking confirmed"
+    # is the customer-facing string. The earlier "Job Accepted" was a
+    # technician-centric leak from the technician-side ``JOB_NEW_REQUEST``
+    # registry shape.
+    assert meta["display_name"] == "Booking confirmed"

@@ -47,12 +47,18 @@ class EventMeta(TypedDict):
 
 EVENT_REGISTRY: dict[EventType, EventMeta] = {
     EventType.JOB_NEW_REQUEST:    {"is_critical": True,  "display_name": "New Job Available"},
-    EventType.JOB_ACCEPTED:       {"is_critical": True,  "display_name": "Job Accepted"},
-    # `booking_rejected` is informational — no money/service-delivery flow
-    # gates on the customer ACK'ing it. EventLog persistence + sync-replay
-    # cover the offline case; the per-event ACK contract that ``is_critical``
-    # opts into would only add steady-state delivery telemetry, which is
-    # overkill for "your dispatch was unsuccessful, pick again."
+    # `job_accepted` and `booking_rejected` are both informational — no money
+    # or service-delivery flow gates on the customer ACK'ing them. EventLog
+    # persistence + sync-replay cover the offline case; the per-event ACK
+    # contract that ``is_critical`` opts into would only add steady-state
+    # delivery telemetry, which is overkill for "your tech accepted" /
+    # "your dispatch was unsuccessful." Both started life as `True` from a
+    # thoughtless mirror of the technician-side `JOB_NEW_REQUEST` registry
+    # entry; the corrections landed with flag #22 (booking_rejected) and
+    # flag #25 (job_accepted). `display_name` for JOB_ACCEPTED reads
+    # "Booking confirmed" rather than the technician-centric "Job Accepted"
+    # because the customer is the audience.
+    EventType.JOB_ACCEPTED:       {"is_critical": False, "display_name": "Booking confirmed"},
     EventType.BOOKING_REJECTED:   {"is_critical": False, "display_name": "Booking unavailable"},
     EventType.QUOTE_GENERATED:    {"is_critical": True,  "display_name": "New Quote Ready"},
     EventType.QUOTE_APPROVED:     {"is_critical": True,  "display_name": "Quote Approved"},

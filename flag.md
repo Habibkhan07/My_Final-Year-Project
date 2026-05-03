@@ -828,7 +828,25 @@ Low today, latent. The current call graph has no retry loops, so duplicates can'
 
 ---
 
-## 25. Customer-side `job_accepted` handler is missing
+## ~~25. Customer-side `job_accepted` handler is missing~~ ✅ Resolved (2026-05-04)
+
+**What changed.** Customer now gets a `MaterialBanner` ("Booking confirmed — `<technician>` is on the way") + FCM tray push the moment their tech accepts. Scope-minimal — no new feature directory, no per-event notifier, no new route — mirroring the flag #22 resolution shape exactly.
+- **Backend registry:** `EVENT_REGISTRY[JOB_ACCEPTED]` flipped to `is_critical=False` and `display_name="Booking confirmed"` (was `"Job Accepted"`). Same rationale as flag #22's `BOOKING_REJECTED` flip — `is_critical=True` had been a thoughtless mirror of the technician-side `JOB_NEW_REQUEST` shape; the customer doesn't need to ACK an informational confirmation, and `EventLog` persistence + sync-replay cover offline. The `display_name` rename drops technician-centric language from the customer-facing FCM tray title.
+- **Frontend urgency tier:** `event_urgency.dart` flipped `SystemEventType.jobAccepted` from `highUrgency` to `lowUrgency`. The `highUrgency` classification was a stale inheritance from the original event-types modeling that targeted a `/customer/job-accepted` route which never existed in `app_router.dart` — every `job_accepted` arriving today silently no-ops at the router layer. `lowUrgency` matches the doctrine the proper-fix below described as "recommended default": the customer is implicitly waiting; a banner respects whatever else they were doing while a high-urgency push would yank them into a screen they can self-navigate to.
+- **Frontend criticality:** `event_criticality.dart` removed `jobAccepted` from `criticalTypes`. The set mirrors the backend `EVENT_REGISTRY` and would have stayed out of sync (the dispatch service auto-reads `is_critical` from the registry, but the frontend's own check is a separate hardcoded set used by `EventUrgencyRouter._handleEvent` to decide whether to ACK). Without this edit the router would have called `eventSyncProvider.notifier.acknowledge(event.id)` for an event the backend treats as non-critical — wasted ACK round-trips.
+- **Frontend router:** `EventUrgencyRouter` extended end-to-end:
+  - Removed `jobAccepted` from `_highUrgencyRoutes` and `_navGuardPayloadKeys` (its high-urgency wiring was vestigial — pointed at a non-existent route).
+  - Added to `_lowUrgencyTapRoutes` (`/customer/booking/:job_id`, reusing the placeholder shipped at flag #22), `_lowUrgencyTapPayloadKeys` (`'job_id'`), `_bannerIcons` (`Icons.event_available`), `_bannerTitles` (`'Booking confirmed'`).
+  - `_bannerBody` extended with a `case SystemEventType.jobAccepted:` that uses `payload['technician_display_name']` to render `"<tech> is on the way — tap to view."`, falling through to a generic `"Your technician is on the way — tap to view."` when the field is missing (defensive — the same shape `bookingRejected` uses for unknown reasons).
+- **Frontend route:** no change — the `/customer/booking/:job_id` route shipped at flag #22 now serves both events. The placeholder `CustomerBookingDetailScreen` continues to be flag #26's deferred sprint.
+- **Tests.** Backend: existing `test_event_log_is_written_before_any_dispatch` assertion flipped to `is_critical is False` (the dispatch service auto-reads from the registry, so the assertion still pins the read-path honesty); new `test_job_accepted_registry_entry_is_informational` directly pins the registry shape so a future toggle-back surfaces as a focused failure. Frontend: 3 new tests — banner copy with `technician_display_name`, banner copy fallback when missing, tap-target substitution into `/customer/booking/<id>`. All 82 backend + 9 router-suite frontend tests pass.
+- **Decisions deferred.** The "Per-event feature wiring" doctrine (payload model + mapper + `JobAcceptedNotifier`) was NOT applied here — there is no in-app surface for a notifier to drive (the customer's post-booking flow currently `Navigator.pop`s the review sheet and shows a one-shot snackbar; `review_booking_sheet.dart:39-42`). When flag #26 lands the real `CustomerBookingDetailScreen`, the screen can `ref.watch(systemEventProvider)` and apply `payload` directly, OR a `JobAcceptedNotifier` can be added then to drive richer in-screen state. Either path is additive — the banner ships value today.
+
+**Cross-flag note.** The proper-fix below was written before flag #22 resolved, and it overstates the scope: it called for a fresh `features/customer/active_booking/` feature stack with payload model, mapper, queue notifier, and `realtimeBootHooksProvider` registration. Flag #22's resolution showed that the router-banner surface alone delivers the user-visible win; we mirrored that shape here. The doctrine still applies for future events that need to update durable in-app state — it is not a blanket mandate.
+
+---
+
+> **Original entry preserved below for context. The proper-fix section is partially superseded — flag.md is append-only after resolution.**
 
 **Where**
 - `backend/bookings/services/job_request_action.py::accept_job_booking` — emits `job_accepted` to the customer on commit (flag #14 close).

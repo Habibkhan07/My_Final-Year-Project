@@ -353,7 +353,7 @@ class TestAcceptOnCommitSemantics:
     def test_outer_rollback_suppresses_broadcast(self, mocker):
         # Real-world analogue: an outer caller rolls back after our
         # service stamped CONFIRMED. on_commit must NOT fire — otherwise
-        # the customer would see "Job Accepted" while the row is back
+        # the customer would see "Booking confirmed" while the row is back
         # to AWAITING.
         broadcast = mocker.patch.object(
             action_module.EventDispatchService, "broadcast_event"

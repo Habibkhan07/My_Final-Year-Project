@@ -6,7 +6,9 @@ import 'system_event_type.dart';
 abstract class EventCriticality {
   static const criticalTypes = <SystemEventType>{
     SystemEventType.jobNewRequest,
-    SystemEventType.jobAccepted,
+    // `jobAccepted` deliberately not in this set — flag #25 flipped its
+    // backend `is_critical` to False (informational; EventLog persistence
+    // + sync-replay cover offline). Mirrors `bookingRejected` (flag #22).
     SystemEventType.quoteGenerated,
     SystemEventType.quoteApproved,
     SystemEventType.jobCompleted,

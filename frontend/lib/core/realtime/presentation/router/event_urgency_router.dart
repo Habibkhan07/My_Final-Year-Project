@@ -41,7 +41,6 @@ class EventUrgencyRouter {
   // queue notifier's `ref.listen(systemEventProvider, ...)` is now the only
   // thing that reacts to a `job_new_request` event on the presentation side.
   static const _highUrgencyRoutes = <SystemEventType, String>{
-    SystemEventType.jobAccepted: '/customer/job-accepted',
     SystemEventType.quoteGenerated: '/customer/incoming-quote',
     SystemEventType.quoteApproved: '/technician/quote-approved',
     SystemEventType.jobCompleted: '/shared/job-completed',
@@ -55,6 +54,12 @@ class EventUrgencyRouter {
     SystemEventType.chatMessage: '/shared/chat',
     SystemEventType.paymentReceived: '/shared/wallet',
     SystemEventType.walletLowBalance: '/shared/wallet',
+    // `jobAccepted` and `bookingRejected` share the customer-side booking
+    // detail surface — both events are about the same booking, just at
+    // different outcomes. The placeholder route shipped with flag #22
+    // (`CustomerBookingDetailScreen`) will be replaced by the real detail
+    // UI in flag #26's sprint.
+    SystemEventType.jobAccepted: '/customer/booking/:job_id',
     SystemEventType.bookingRejected: '/customer/booking/:job_id',
   };
 
@@ -67,6 +72,7 @@ class EventUrgencyRouter {
   /// raw template path is pushed unchanged (the existing static-path
   /// behavior is preserved).
   static const _lowUrgencyTapPayloadKeys = <SystemEventType, String>{
+    SystemEventType.jobAccepted: 'job_id',
     SystemEventType.bookingRejected: 'job_id',
   };
 
@@ -76,6 +82,7 @@ class EventUrgencyRouter {
     SystemEventType.techArrived: Icons.location_on,
     SystemEventType.paymentReceived: Icons.account_balance_wallet,
     SystemEventType.walletLowBalance: Icons.account_balance_wallet_outlined,
+    SystemEventType.jobAccepted: Icons.event_available,
     SystemEventType.bookingRejected: Icons.event_busy,
   };
 
@@ -85,6 +92,7 @@ class EventUrgencyRouter {
     SystemEventType.techArrived: 'Technician Arrived',
     SystemEventType.paymentReceived: 'Payment Received',
     SystemEventType.walletLowBalance: 'Low Wallet Balance',
+    SystemEventType.jobAccepted: 'Booking confirmed',
     SystemEventType.bookingRejected: 'Booking unavailable',
   };
 
@@ -92,7 +100,6 @@ class EventUrgencyRouter {
   /// entity" for the nav guard. Types not in the map skip the guard and
   /// always push — the guard is an optimization, not a correctness gate.
   static const _navGuardPayloadKeys = <SystemEventType, String>{
-    SystemEventType.jobAccepted: 'job_id',
     SystemEventType.quoteGenerated: 'quote_id',
     SystemEventType.quoteApproved: 'quote_id',
     SystemEventType.jobCompleted: 'job_id',
@@ -191,7 +198,7 @@ class EventUrgencyRouter {
     if (incomingId == null) return false;
 
     // Match against path segments — works whether the screen reads the id
-    // from the path (`/customer/job-accepted/42`) or query (`?job_id=42`).
+    // from the path (`/customer/incoming-quote/42`) or query (`?quote_id=42`).
     if (currentUri.pathSegments.contains(incomingId)) return true;
     if (currentUri.queryParameters[key] == incomingId) return true;
     return false;
@@ -255,6 +262,17 @@ class EventUrgencyRouter {
       case SystemEventType.walletLowBalance:
         final balance = p['balance']?.toString();
         return balance != null ? 'Balance: PKR $balance' : null;
+      case SystemEventType.jobAccepted:
+        // `technician_display_name` is the customer-facing string built
+        // server-side from `user.get_full_name()` (BOOKINGS_API.md §1.3).
+        // Defensively fall through when missing — replayed pre-flag-#25
+        // EventLog rows are not expected (this surface ships in lockstep
+        // with the registry change), but keeping the fallback symmetrical
+        // with the other banner-body cases costs nothing.
+        final tech = p['technician_display_name']?.toString();
+        return tech != null
+            ? '$tech is on the way — tap to view.'
+            : 'Your technician is on the way — tap to view.';
       case SystemEventType.bookingRejected:
         // `reason` discriminator is sent by both the technician-decline arm
         // (`technician_declined`) and the SLA-expiry arm (`sla_timeout`);

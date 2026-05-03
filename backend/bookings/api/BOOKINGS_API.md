@@ -414,9 +414,9 @@ On successful transition (not idempotent retry), the service registers a `transa
 | `scheduled_start_iso` | string (ISO-8601 UTC, `Z`) | Same wire format as `job_new_request`. |
 | `service_name` | string | Sub-service name when set, else parent service — mirrors `job_new_request`. |
 
-`expires_at` is `null` — `job_accepted` is informational, no SLA. `is_critical=true` in the registry, so the event lands on the critical FCM channel and is replayable via `/api/events/sync/`.
+`expires_at` is `null` — `job_accepted` is informational, no SLA. `is_critical=false` in the registry (flipped at flag #25 close, mirroring `booking_rejected`): the customer doesn't need to ACK an informational confirmation, and `EventLog` persistence + `/api/events/sync/` replay cover the offline case. `display_name="Booking confirmed"` (was `"Job Accepted"`) — customer-facing string for the FCM tray push.
 
-> ⚠️ Customer-side handler is not yet wired in the Flutter app. See the corresponding entry in `flag.md` for the lockstep customer-side feature work; the backend emit is correct and durable in `EventLog` regardless.
+The customer-side Flutter surface (flag #25 close) is a `lowUrgency` `MaterialBanner` reading `"Booking confirmed — <technician_display_name> is on the way"`, tapping into the same `/customer/booking/:job_id` placeholder route that `booking_rejected` lands on. The rich detail screen is deferred (flag #26).
 
 ---
 

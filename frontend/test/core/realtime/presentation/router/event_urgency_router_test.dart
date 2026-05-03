@@ -95,6 +95,21 @@ SystemEventEntity _bookingRejectedEvent({
   );
 }
 
+SystemEventEntity _jobAcceptedEvent({
+  required Map<String, dynamic> payload,
+}) {
+  // Production-equivalent derivation: flag #25 flipped jobAccepted to
+  // lowUrgency + isCritical=false. The route fans out the same banner
+  // surface as bookingRejected.
+  return SystemEventEntity.fromComponents(
+    id: 'evt-${payload.hashCode}',
+    rawType: 'job_accepted',
+    targetRoleStr: 'customer',
+    timestamp: DateTime.now().toUtc(),
+    payload: payload,
+  );
+}
+
 void main() {
   group('booking_rejected banner copy', () {
     Future<void> expectBannerBody({
@@ -213,6 +228,102 @@ void main() {
         // (URL-decoded). The captor sees the literal rather than a
         // real id, which is what we want — the failure is visible.
         expect(harness.capturedBookingId, ':job_id');
+      } finally {
+        await tester.pump(const Duration(seconds: 6));
+        ref.dispose();
+      }
+    });
+  });
+
+  group('job_accepted banner copy (flag #25)', () {
+    Future<void> expectJobAcceptedBody({
+      required WidgetTester tester,
+      required Map<String, dynamic> payload,
+      required String expectedSubstring,
+    }) async {
+      final harness = _RouterTestHarness();
+      await tester.pumpWidget(harness.build());
+      await tester.pumpAndSettle();
+
+      final ref = await harness.overlayRef(tester);
+      try {
+        final event = _jobAcceptedEvent(payload: payload);
+        harness.router.handleEvent(event, TargetRole.customer, ref.ref);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+
+        expect(
+          find.textContaining(expectedSubstring, findRichText: true),
+          findsOneWidget,
+          reason: 'banner body should mention "$expectedSubstring" '
+              'for payload=$payload',
+        );
+        // Title should also surface — this guards against a future
+        // regression where the title map gets pruned.
+        expect(
+          find.textContaining('Booking confirmed', findRichText: true),
+          findsOneWidget,
+        );
+      } finally {
+        await tester.pump(const Duration(seconds: 6));
+        ref.dispose();
+      }
+    }
+
+    testWidgets('with technician_display_name → personalised copy',
+        (tester) async {
+      await expectJobAcceptedBody(
+        tester: tester,
+        payload: {
+          'job_id': 99482,
+          'technician_display_name': 'Ali Khan',
+        },
+        expectedSubstring: 'Ali Khan is on the way',
+      );
+    });
+
+    testWidgets('without technician_display_name → generic fallback',
+        (tester) async {
+      // Defensive case: if a replayed pre-flag-#25 EventLog row landed
+      // without the field, the surface should still be useful — generic
+      // copy beats an empty banner body.
+      await expectJobAcceptedBody(
+        tester: tester,
+        payload: {'job_id': 99482},
+        expectedSubstring: 'Your technician is on the way',
+      );
+    });
+  });
+
+  group('job_accepted tap target (flag #25)', () {
+    testWidgets(
+        'tapping "View" navigates to /customer/booking/<job_id>',
+        (tester) async {
+      final harness = _RouterTestHarness();
+      await tester.pumpWidget(harness.build());
+      await tester.pumpAndSettle();
+
+      final ref = await harness.overlayRef(tester);
+      try {
+        final event = _jobAcceptedEvent(
+          payload: {
+            'job_id': 7777,
+            'technician_display_name': 'Ali Khan',
+          },
+        );
+        harness.router.handleEvent(event, TargetRole.customer, ref.ref);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+
+        expect(find.text('View'), findsOneWidget);
+        await tester.tap(find.text('View'));
+        await tester.pumpAndSettle();
+
+        // job_accepted reuses the same /customer/booking/:job_id route
+        // as booking_rejected (placeholder; flag #26 will swap in the
+        // real customer detail screen).
+        expect(harness.capturedBookingId, '7777');
+        expect(find.text('booking-7777'), findsOneWidget);
       } finally {
         await tester.pump(const Duration(seconds: 6));
         ref.dispose();
