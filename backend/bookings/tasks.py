@@ -2,9 +2,7 @@
 Bookings Celery tasks.
 
 Tasks operate on primitive IDs (never ORM instances) and re-fetch under
-``select_for_update`` so they remain idempotent and safe to retry. Customer
-notification on SLA timeout is intentionally out of scope this sprint —
-DB state mutation only.
+``select_for_update`` so they remain idempotent and safe to retry.
 """
 from __future__ import annotations
 
@@ -24,11 +22,17 @@ def expire_pending_job_booking(booking_id: int) -> None:
     "still waiting" signal — once the technician accepts, status moves to
     CONFIRMED and this task becomes a no-op.
 
+    On a successful flip, emit ``booking_rejected`` to the customer with
+    ``reason="sla_timeout"`` — same wire envelope the technician-decline
+    arm emits with ``reason="technician_declined"`` (see
+    ``bookings.services.job_request_action._emit_booking_rejected``). The
+    customer surface is a single subscriber for both pathways.
+
     Idempotent guards (any one short-circuits to a no-op):
-        * booking row missing — nothing to mutate
+        * booking row missing — nothing to mutate, no emit
         * ``status != AWAITING`` — technician already accepted (CONFIRMED),
           or the booking was cancelled / completed / rejected by another
-          path before the timer fired
+          path before the timer fired; no emit
 
     SECURITY: ``select_for_update`` serializes against the customer's
     cancellation flow and the technician's accept flow; without it, two
@@ -37,10 +41,16 @@ def expire_pending_job_booking(booking_id: int) -> None:
     # Imported inside the task to keep model load off the Celery worker
     # boot path (and to avoid app-loading order surprises).
     from bookings.models import JobBooking
+    from bookings.services.job_request_action import _emit_booking_rejected
 
     with transaction.atomic():
         try:
-            booking = JobBooking.objects.select_for_update().get(pk=booking_id)
+            booking = (
+                JobBooking.objects
+                .select_for_update()
+                .select_related("customer", "service", "sub_service")
+                .get(pk=booking_id)
+            )
         except JobBooking.DoesNotExist:
             logger.info("SLA timeout: booking %s not found, skipping.", booking_id)
             return
@@ -55,6 +65,14 @@ def expire_pending_job_booking(booking_id: int) -> None:
 
         booking.status = JobBooking.STATUS_REJECTED
         booking.save(update_fields=["status"])
+
+        # Emit on commit — registering inside the atomic block guarantees
+        # a rolled-back transaction never produces a phantom WS frame /
+        # FCM push / EventLog row.
+        transaction.on_commit(
+            lambda: _emit_booking_rejected(booking, reason="sla_timeout")
+        )
+
         logger.info(
             "SLA timeout fired: booking %s flipped AWAITING → REJECTED.",
             booking_id,

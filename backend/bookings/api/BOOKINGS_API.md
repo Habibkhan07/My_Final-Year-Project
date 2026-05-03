@@ -298,11 +298,11 @@ When the timer fires, `bookings.tasks.expire_pending_job_booking(booking_id)` ru
 | :--- | :--- |
 | Booking not found | no-op |
 | `status != AWAITING` | no-op (technician already accepted → CONFIRMED, or another path moved it through cancelled / completed / rejected) |
-| `status == AWAITING` | `status = REJECTED`, persisted via `update_fields=["status"]` |
+| `status == AWAITING` | `status = REJECTED`, persisted via `update_fields=["status"]` + `booking_rejected` event emitted to the customer on commit (see §1.4 below) |
 
 The `AWAITING` status itself encodes the "still waiting on tech accept" signal — there is no side-field to read.
 
-Customer-facing notification on timeout is **out of scope this sprint** — DB mutation only. The task is idempotent, so re-runs (Celery retries, manual re-fires) cannot double-mutate.
+On a successful flip the task emits `booking_rejected` to the customer with `reason="sla_timeout"` via `transaction.on_commit`, reusing the same wire envelope the technician-decline arm uses with `reason="technician_declined"` (see §1.4). The task is idempotent — re-runs short-circuit on the non-AWAITING guard before mutating or emitting.
 
 #### Architecture — Port and Adapter
 
@@ -464,9 +464,14 @@ On successful transition, the service emits `booking_rejected` to the customer v
 }
 ```
 
-`reason` discriminates the pathway. The SLA-expiry path (flag #22) reuses this same envelope with `reason: "sla_timeout"` — keeping the discriminator on the payload (instead of forking the event type) means the customer-side surface is a single subscriber regardless of which pathway flipped the booking to `REJECTED`. Registry display name is `Booking unavailable`; `is_critical=true`.
+`reason` discriminates the emit pathway:
 
-> ⚠️ Customer-side handler is not yet wired — see `flag.md` (extension to flag #22).
+| `reason` value | Emitter | Meaning |
+| :--- | :--- | :--- |
+| `technician_declined` | `bookings/services/job_request_action.py::decline_job_booking` | Assigned technician explicitly declined the offer. |
+| `sla_timeout` | `bookings/tasks.py::expire_pending_job_booking` | Technician did not respond within the dispatch SLA window; the task flipped the row to `REJECTED`. |
+
+Both arms route through the shared `_emit_booking_rejected(booking, reason=...)` helper so the wire envelope is identical — the customer-side surface is a single subscriber regardless of which pathway flipped the booking to `REJECTED`. Registry display name is `Booking unavailable`; `is_critical=false` (informational — `EventLog` persistence + sync-replay cover offline cases without the per-event ACK contract).
 
 ---
 

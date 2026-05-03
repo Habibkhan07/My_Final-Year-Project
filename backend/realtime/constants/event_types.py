@@ -24,9 +24,9 @@ class EventType(str, Enum):
     JOB_ACCEPTED = "job_accepted"
     # `booking_rejected` covers BOTH the technician-decline path
     # (`reason: "technician_declined"`) and the SLA-expiry path
-    # (`reason: "sla_timeout"`, future — see flag #22). One event-type with
-    # a payload discriminator keeps the customer-side surface a single
-    # subscriber instead of forking the registry per pathway.
+    # (`reason: "sla_timeout"`). One event-type with a payload
+    # discriminator keeps the customer-side surface a single subscriber
+    # instead of forking the registry per pathway.
     BOOKING_REJECTED = "booking_rejected"
     QUOTE_GENERATED = "quote_generated"
     QUOTE_APPROVED = "quote_approved"
@@ -48,7 +48,12 @@ class EventMeta(TypedDict):
 EVENT_REGISTRY: dict[EventType, EventMeta] = {
     EventType.JOB_NEW_REQUEST:    {"is_critical": True,  "display_name": "New Job Available"},
     EventType.JOB_ACCEPTED:       {"is_critical": True,  "display_name": "Job Accepted"},
-    EventType.BOOKING_REJECTED:   {"is_critical": True,  "display_name": "Booking unavailable"},
+    # `booking_rejected` is informational — no money/service-delivery flow
+    # gates on the customer ACK'ing it. EventLog persistence + sync-replay
+    # cover the offline case; the per-event ACK contract that ``is_critical``
+    # opts into would only add steady-state delivery telemetry, which is
+    # overkill for "your dispatch was unsuccessful, pick again."
+    EventType.BOOKING_REJECTED:   {"is_critical": False, "display_name": "Booking unavailable"},
     EventType.QUOTE_GENERATED:    {"is_critical": True,  "display_name": "New Quote Ready"},
     EventType.QUOTE_APPROVED:     {"is_critical": True,  "display_name": "Quote Approved"},
     EventType.TECH_EN_ROUTE:      {"is_critical": False, "display_name": "Technician On The Way"},

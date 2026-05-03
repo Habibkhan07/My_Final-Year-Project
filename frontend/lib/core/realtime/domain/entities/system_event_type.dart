@@ -1,6 +1,7 @@
 enum SystemEventType {
   jobNewRequest,
   jobAccepted,
+  bookingRejected,
   quoteGenerated,
   quoteApproved,
   techEnRoute,
@@ -16,6 +17,7 @@ enum SystemEventType {
   static const Map<String, SystemEventType> _lookup = {
     'job_new_request': SystemEventType.jobNewRequest,
     'job_accepted': SystemEventType.jobAccepted,
+    'booking_rejected': SystemEventType.bookingRejected,
     'quote_generated': SystemEventType.quoteGenerated,
     'quote_approved': SystemEventType.quoteApproved,
     'tech_en_route': SystemEventType.techEnRoute,

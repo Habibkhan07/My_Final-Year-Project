@@ -55,6 +55,19 @@ class EventUrgencyRouter {
     SystemEventType.chatMessage: '/shared/chat',
     SystemEventType.paymentReceived: '/shared/wallet',
     SystemEventType.walletLowBalance: '/shared/wallet',
+    SystemEventType.bookingRejected: '/customer/booking/:job_id',
+  };
+
+  /// Per-event-type payload key whose value should be substituted into
+  /// the matching `:<key>` token in the low-urgency tap route. Mirrors
+  /// the high-urgency [_navGuardPayloadKeys] mechanism but for path
+  /// templating instead of "already viewing this entity" detection.
+  ///
+  /// Entries are optional — events without a key fall through and the
+  /// raw template path is pushed unchanged (the existing static-path
+  /// behavior is preserved).
+  static const _lowUrgencyTapPayloadKeys = <SystemEventType, String>{
+    SystemEventType.bookingRejected: 'job_id',
   };
 
   static const _bannerIcons = <SystemEventType, IconData>{
@@ -63,6 +76,7 @@ class EventUrgencyRouter {
     SystemEventType.techArrived: Icons.location_on,
     SystemEventType.paymentReceived: Icons.account_balance_wallet,
     SystemEventType.walletLowBalance: Icons.account_balance_wallet_outlined,
+    SystemEventType.bookingRejected: Icons.event_busy,
   };
 
   static const _bannerTitles = <SystemEventType, String>{
@@ -71,6 +85,7 @@ class EventUrgencyRouter {
     SystemEventType.techArrived: 'Technician Arrived',
     SystemEventType.paymentReceived: 'Payment Received',
     SystemEventType.walletLowBalance: 'Low Wallet Balance',
+    SystemEventType.bookingRejected: 'Booking unavailable',
   };
 
   /// Per-event-type payload key used to detect "already viewing this exact
@@ -206,7 +221,8 @@ class EventUrgencyRouter {
             final tapRoute = _lowUrgencyTapRoutes[event.eventType];
             final ctx = navigatorKey.currentContext;
             if (tapRoute != null && ctx != null) {
-              GoRouter.of(ctx).push(tapRoute, extra: jsonEncode(event.payload));
+              final resolved = _resolveLowUrgencyPath(tapRoute, event);
+              GoRouter.of(ctx).push(resolved, extra: jsonEncode(event.payload));
             }
           },
           child: const Text('View'),
@@ -239,8 +255,39 @@ class EventUrgencyRouter {
       case SystemEventType.walletLowBalance:
         final balance = p['balance']?.toString();
         return balance != null ? 'Balance: PKR $balance' : null;
+      case SystemEventType.bookingRejected:
+        // `reason` discriminator is sent by both the technician-decline arm
+        // (`technician_declined`) and the SLA-expiry arm (`sla_timeout`);
+        // any other value falls through to a generic copy so a future
+        // backend `reason` doesn't crash the surface.
+        switch (p['reason']?.toString()) {
+          case 'technician_declined':
+            return 'Technician declined — tap to view.';
+          case 'sla_timeout':
+            return 'No technician responded in time — tap to view.';
+          default:
+            return 'Your booking is no longer available — tap to view.';
+        }
       default:
         return null;
     }
+  }
+
+  /// Substitute the `:<payload-key>` token in [template] with the
+  /// stringified payload value, when [event]'s type has an entry in
+  /// [_lowUrgencyTapPayloadKeys] and the payload carries the key.
+  ///
+  /// Returns [template] unchanged when:
+  ///   * the event type has no payload-key entry (existing static-path
+  ///     low-urgency events), or
+  ///   * the payload is missing the named key (defensive — push the raw
+  ///     template so the failure is visible at the route layer rather
+  ///     than masked by a silent home-screen fallback).
+  String _resolveLowUrgencyPath(String template, SystemEventEntity event) {
+    final key = _lowUrgencyTapPayloadKeys[event.eventType];
+    if (key == null) return template;
+    final value = event.payload[key]?.toString();
+    if (value == null) return template;
+    return template.replaceFirst(':$key', value);
   }
 }

@@ -515,7 +515,8 @@ class TestCustomerEventPayloadShape:
             "service_name",
             "reason",
         }
-        # Forward-compat discriminator; SLA-expiry path will reuse this
-        # shape with reason="sla_timeout" once flag #22 lands.
+        # Discriminator: technician-decline arm. The SLA-expiry arm
+        # reuses this same envelope with reason="sla_timeout" — see
+        # tests/bookings/services/test_tasks.py.
         assert payload["reason"] == "technician_declined"
         assert payload["service_name"] == "Faucet Repair"

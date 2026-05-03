@@ -713,7 +713,20 @@ Low today, latent. Track it before adding any feature whose payload is realistic
 
 ---
 
-## 22. Customer is not notified when their booking is rejected (SLA arm pending; customer-side handler missing)
+## ~~22. Customer is not notified when their booking is rejected (SLA arm pending; customer-side handler missing)~~ ✅ Resolved (2026-05-04)
+
+**What changed.** Both arms now lit up end-to-end.
+- Backend: `expire_pending_job_booking` (`bookings/tasks.py`) now emits `booking_rejected` on commit with `reason="sla_timeout"`, reusing the shared `_emit_booking_rejected(booking, reason=...)` helper that the technician-decline arm also calls. Helper signature refactored: `reason` is now a required kwarg, single source of truth across both pathways. SLA task gained `select_related("customer", "service", "sub_service")` so the FK accesses inside the helper don't fire extra queries.
+- Backend registry: `EVENT_REGISTRY[BOOKING_REJECTED]` flipped to `is_critical=False`. The customer notification is informational — `EventLog` persistence + sync-replay cover offline cases without the per-event ACK contract that `is_critical=True` would have demanded. The `True` was a thoughtless mirror of the other booking events when flag #14 shipped; this corrects it.
+- Frontend: `SystemEventType.bookingRejected` enum case + `_lookup` entry. `event_urgency.dart` maps it to `lowUrgency`. `event_criticality.dart` deliberately does NOT include it (matches backend flip).
+- Frontend router: `EventUrgencyRouter` extended with `_lowUrgencyTapPayloadKeys: Map<SystemEventType, String>` mirroring the existing high-urgency `_navGuardPayloadKeys` shape. `_resolveLowUrgencyPath` substitutes `:<payload-key>` tokens in the route template. `bookingRejected` entry: `'job_id'` → `/customer/booking/:job_id`. Banner icon (`event_busy`), title (`Booking unavailable`), and reason-discriminated body copy added (`technician_declined`, `sla_timeout`, fallback for unknown future reasons).
+- Frontend route: `/customer/booking/:job_id` registered in `app_router.dart`, pointing at `CustomerBookingDetailScreen` — a placeholder that displays the booking id with a "Detail screen coming soon" note. The rich detail UI is deferred to a new sprint (see new flag #26).
+- Tests: backend SLA emit (5 new tests in `test_tasks.py::TestExpireEmitOnCommitSemantics` covering payload shape with `reason="sla_timeout"`, non-emit on non-AWAITING / missing booking, idempotency, on_commit rollback suppression). Frontend banner copy (3 reason variants), tap-target substitution (with + without payload key), regression for existing static-path low-urgency events (6 tests in new `event_urgency_router_test.dart`).
+- Docs: `BOOKINGS_API.md` §1.4 now lists both `reason` values in a per-arm table; `is_critical=false` documented. `INCOMING_JOB_REQUESTS_FEATURE.md` "Known limitations" updated — `booking_rejected` removed from the unmounted-customer-handler line.
+
+---
+
+> **Original entry preserved below for context. The proper-fix section is partially superseded — flag.md is append-only after resolution.**
 
 > **Updated 2026-05-03 (flag #14 close).** The technician-decline arm of `booking_rejected` is now shipped (see flag #14 resolution). The wire string, event-type registry entry, payload shape, and `display_name` listed in the proper-fix below are now live. **Two arms still pending:** (a) the SLA-expiry path (`expire_pending_job_booking`) does not emit, and (b) the customer-side Flutter handler doesn't subscribe — so even the now-emitted technician-decline event lands in the customer's `SystemEventNotifier` unobserved (FCM tray push will fire generically; in-app surface does nothing).
 
@@ -861,3 +874,32 @@ Holding the technician-side accept flow (flag #14) hostage to the customer-side 
 
 **Severity**
 Medium. The "I confirmed but the customer doesn't know" silence is a real conversion drag — the customer is most anxious in the window between booking and confirmation, and the absence of a confirmation push that does anything useful in-app is exactly the kind of friction that drives manual refresh / abandonment. Pair with flag #22 in a single customer-status sprint.
+
+---
+
+## 26. Customer booking-detail screen is a placeholder (`/customer/booking/:job_id` stub)
+
+**Where**
+- `frontend/lib/features/customer/bookings/presentation/screens/customer_booking_detail_screen.dart` — stub `StatelessWidget` that displays the booking id and a "Detail screen coming soon" note.
+- `frontend/lib/core/routing/app_router.dart` — route `/customer/booking/:job_id` registered against the stub.
+
+**What's wrong**
+The route slot is shipped (the `booking_rejected` MaterialBanner taps land on a real route, the path-param plumbing works end-to-end, GoRouter resolves cleanly) but the destination screen has no real content. There is no `bookings` feature stack — no domain entities, no repository, no data source, no notifier. A customer arriving here sees only "Booking #99482 • Detail screen coming soon."
+
+**Why we shipped it anyway**
+Flag #22's customer-side surface needed *somewhere* to land taps so the realtime → router → screen wiring could close end-to-end and ship its tests. Building a real customer booking-detail UI (status timeline, re-pick CTA, cancellation history, polling/refresh, offline cache) is its own sprint. Bundling it into flag #22 would have either delayed the rejection-notification user-visible win or shipped a half-done screen we'd later rewrite.
+
+**The proper fix**
+1. Build the `features/customer/bookings/` feature stack: domain entities (`CustomerBooking` with status enum), repository interface, sealed failure hierarchy, use cases (`GetCustomerBookingById`), data models, remote + local data sources, repository impl with offline-first pattern.
+2. Reuse the existing `GET /api/bookings/<id>/` endpoint if it exists, else add one (customer-scoped, IDOR-safe).
+3. Replace the stub with a real `CustomerBookingDetailScreen` that fetches by `bookingId`, renders the booking with its current status and a primary CTA appropriate to the status (re-pick on REJECTED, track-tech on CONFIRMED, etc.).
+4. Add a customer "Your bookings" list screen as the natural sibling so users have a non-tap entry point.
+5. Tests: notifier state transitions, repository data-source-failure pipeline, widget render permutations per status.
+
+**Search hints**
+- `customer_booking_detail_screen.dart` — the placeholder
+- `/customer/booking/:job_id` in `app_router.dart` — the route slot
+- `EventUrgencyRouter._lowUrgencyTapRoutes` — the realtime entry point landing on this route
+
+**Severity**
+Low. The destination today is informational-stub; the user can read "Booking #N — coming soon" and back out. Real damage would be if the realtime surface became more chatty (e.g. bookings list with multiple historical rejections) before the detail screen lands. Pick up before adding any other route that lands customers on a detail-by-id screen.

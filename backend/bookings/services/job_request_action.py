@@ -75,15 +75,18 @@ def _build_job_accepted_payload(booking: JobBooking) -> dict[str, Any]:
     }
 
 
-def _build_booking_rejected_payload(booking: JobBooking) -> dict[str, Any]:
+def _build_booking_rejected_payload(
+    booking: JobBooking, *, reason: str
+) -> dict[str, Any]:
     """
-    Customer-facing ``booking_rejected`` payload — technician-decline arm.
+    Customer-facing ``booking_rejected`` payload.
 
-    ``reason`` discriminates the pathway. The SLA-expiry path (flag #22)
-    will reuse this same wire shape with ``reason: "sla_timeout"`` —
-    keeping the discriminator on the payload rather than on the event
-    type means the customer-side surface is a single subscriber regardless
-    of which pathway flipped the booking to REJECTED.
+    ``reason`` discriminates the pathway: ``"technician_declined"`` for the
+    technician-decline arm (``decline_job_booking``) and ``"sla_timeout"``
+    for the SLA-expiry arm (``bookings.tasks.expire_pending_job_booking``).
+    A single event type with a payload discriminator means the customer
+    surface is one subscriber regardless of which pathway flipped the
+    booking to REJECTED.
     """
     service_name = (
         booking.sub_service.name if booking.sub_service_id else booking.service.name
@@ -93,7 +96,7 @@ def _build_booking_rejected_payload(booking: JobBooking) -> dict[str, Any]:
         "technician_id": booking.technician_id,
         "scheduled_start_iso": _to_iso_utc(booking.scheduled_start),
         "service_name": service_name,
-        "reason": "technician_declined",
+        "reason": reason,
     }
 
 
@@ -109,13 +112,18 @@ def _emit_job_accepted(booking: JobBooking) -> None:
     )
 
 
-def _emit_booking_rejected(booking: JobBooking) -> None:
-    """Captured in ``transaction.on_commit`` — see callers."""
+def _emit_booking_rejected(booking: JobBooking, *, reason: str) -> None:
+    """Captured in ``transaction.on_commit`` — see callers.
+
+    ``reason`` is required and propagated into the payload discriminator —
+    see ``_build_booking_rejected_payload``. Both the technician-decline
+    arm and the SLA-expiry arm import this helper.
+    """
     EventDispatchService.broadcast_event(
         user=booking.customer,
         target_role="customer",
         event_type=EventType.BOOKING_REJECTED.value,
-        payload=_build_booking_rejected_payload(booking),
+        payload=_build_booking_rejected_payload(booking, reason=reason),
         expires_in_seconds=None,
     )
 
@@ -210,8 +218,9 @@ def decline_job_booking(*, booking_id: int, technician_user) -> JobBooking:
     Transition a dispatched booking from AWAITING → REJECTED on behalf of
     the assigned technician and emit ``booking_rejected`` to the customer
     (with ``reason: "technician_declined"``). Shares the wire envelope with
-    the SLA-expiry path (flag #22) — single customer-side subscriber
-    regardless of which pathway flipped the booking to REJECTED.
+    the SLA-expiry path (``bookings.tasks.expire_pending_job_booking``,
+    which emits with ``reason: "sla_timeout"``) — single customer-side
+    subscriber regardless of which pathway flipped the booking to REJECTED.
 
     Idempotency
     -----------
@@ -251,6 +260,8 @@ def decline_job_booking(*, booking_id: int, technician_user) -> JobBooking:
         booking.status = JobBooking.STATUS_REJECTED
         booking.save(update_fields=["status"])
 
-        transaction.on_commit(lambda: _emit_booking_rejected(booking))
+        transaction.on_commit(
+            lambda: _emit_booking_rejected(booking, reason="technician_declined")
+        )
 
     return booking

@@ -5,6 +5,7 @@ import '../../features/auth/presentation/providers/auth_notifier.dart';
 import '../../features/auth/presentation/screens/login_screen.dart';
 import '../../features/auth/presentation/screens/otp_screen.dart';
 import '../../features/auth/presentation/screens/profile_setup_screen.dart';
+import '../../features/customer/bookings/presentation/screens/customer_booking_detail_screen.dart';
 import '../../features/customer/home/presentation/screens/home_screen.dart';
 import '../../features/customer/search/presentation/pages/search_page.dart';
 import '../../features/customer/discovery/presentation/screens/discovery_results_screen.dart';
@@ -91,6 +92,17 @@ final routerProvider = Provider<GoRouter>((ref) {
             lat: lat,
             lng: lng,
           );
+        },
+      ),
+      // `booking_rejected` low-urgency banner taps land here
+      // (`EventUrgencyRouter._lowUrgencyTapPayloadKeys` substitutes
+      // `:job_id` from the event payload). Rich detail UI is deferred —
+      // see `CustomerBookingDetailScreen` and flag #26.
+      GoRoute(
+        path: '/customer/booking/:job_id',
+        builder: (context, state) {
+          final id = int.tryParse(state.pathParameters['job_id'] ?? '') ?? 0;
+          return CustomerBookingDetailScreen(bookingId: id);
         },
       ),
       GoRoute(
