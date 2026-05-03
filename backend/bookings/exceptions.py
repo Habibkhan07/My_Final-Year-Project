@@ -46,3 +46,31 @@ class PromoFirewallError(Exception):
     sub-service. Discount stacking on fixed gigs is forbidden by product
     rule (mirrors the read-side firewall in the pricing resolver).
     """
+
+
+class BookingNotFoundForTechnicianError(Exception):
+    """
+    Raised by accept/decline when no JobBooking matches both the supplied
+    primary key AND the requesting user as its assigned technician. The
+    service deliberately collapses two cases — "booking does not exist"
+    and "booking belongs to a different technician" — into the same
+    exception so the API cannot leak booking-id existence to a non-owning
+    technician (IDOR-safe enumeration defense).
+    """
+
+
+class BookingNotActionableError(Exception):
+    """
+    Raised by accept/decline when the booking has already left AWAITING and
+    the request is therefore not the idempotent same-tech repeat (CONFIRMED
+    for accept, REJECTED for decline). Carries ``current_status`` so the
+    view can echo it in the error envelope for client-side debugging.
+
+    Example transitions that raise this:
+        - SLA timeout fired first  →  status == REJECTED, accept attempted
+        - Customer cancelled first →  status == CANCELLED, either attempted
+        - Booking already accepted →  status == CONFIRMED, decline attempted
+    """
+    def __init__(self, current_status: str):
+        self.current_status = current_status
+        super().__init__(f"Booking is no longer actionable (status={current_status}).")

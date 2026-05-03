@@ -12,6 +12,9 @@ import 'package:frontend/core/realtime/domain/entities/system_event_entity.dart'
 import 'package:frontend/core/realtime/presentation/notifiers/system_event_notifier.dart';
 import 'package:frontend/core/realtime/presentation/providers/dependency_injection.dart'
     as realtime_di;
+import 'package:frontend/features/technician/incoming_job_requests/domain/repositories/incoming_job_repository.dart';
+import 'package:frontend/features/technician/incoming_job_requests/domain/use_cases/accept_job_request_use_case.dart';
+import 'package:frontend/features/technician/incoming_job_requests/domain/use_cases/decline_job_request_use_case.dart';
 import 'package:frontend/features/technician/incoming_job_requests/presentation/providers/dependency_injection.dart';
 import 'package:frontend/features/technician/incoming_job_requests/presentation/providers/incoming_job_queue_notifier.dart';
 import 'package:frontend/features/technician/incoming_job_requests/presentation/services/incoming_job_sound_player.dart';
@@ -20,6 +23,17 @@ import 'package:frontend/features/technician/incoming_job_requests/presentation/
 import 'package:mocktail/mocktail.dart';
 
 class _MockLocal extends Mock implements EventLocalDataSource {}
+
+/// No-op repository for tests that don't care about wire effects.
+/// Returns success immediately so the host's `_handleAccept` /
+/// `_handleDecline` pipelines complete normally and the queue mutates
+/// the same way the production "happy path" would.
+class _NoopRepository implements IIncomingJobRepository {
+  @override
+  Future<void> acceptJobRequest(int jobId) async {}
+  @override
+  Future<void> declineJobRequest(int jobId) async {}
+}
 
 /// Captures every call to `playNewOfferSound`. Used as an override of
 /// `incomingJobSoundPlayerProvider` so the host's ceremony fires through a
@@ -74,12 +88,21 @@ Future<_HostHarness> _pumpHost(WidgetTester tester) async {
   final sound = _CapturingSoundPlayer();
   final local = _MockLocal();
   when(() => local.getLastSyncTimestamp()).thenReturn(null);
+  // Inject a no-op repo so the host's wired _handleAccept / _handleDecline
+  // pipelines resolve as success (matches the prior contract: the head
+  // leaves the queue post-action).
+  final repo = _NoopRepository();
 
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
         realtime_di.eventLocalDataSourceProvider.overrideWithValue(local),
         incomingJobSoundPlayerProvider.overrideWithValue(sound),
+        incomingJobRepositoryProvider.overrideWithValue(repo),
+        acceptJobRequestUseCaseProvider
+            .overrideWithValue(AcceptJobRequestUseCase(repo)),
+        declineJobRequestUseCaseProvider
+            .overrideWithValue(DeclineJobRequestUseCase(repo)),
       ],
       child: const MaterialApp(
         home: Scaffold(

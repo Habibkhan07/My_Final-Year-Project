@@ -107,8 +107,9 @@ class JobNewRequestMapper {
     // Anchor the countdown on the server's envelope timestamp (the time the
     // backend broadcast the event) plus the SLA window. Anchoring on receipt
     // time would give the technician slightly more time than the server's
-    // Celery SLA task allows; once the accept endpoint lands a tap-just-past-
-    // expiry would 409 against the server's earlier-fired timeout.
+    // Celery SLA task allows; a tap-just-past-expiry would 409 against the
+    // server's earlier-fired timeout (BOOKINGS_API.md §1.3 → 409
+    // `booking_no_longer_available` → `OfferNoLongerAvailable` failure).
     final slaWindow = Duration(seconds: model.expiresInSeconds);
     final expiresAt = event.timestamp.add(slaWindow);
 

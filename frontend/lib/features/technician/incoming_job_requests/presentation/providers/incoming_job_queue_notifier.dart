@@ -42,6 +42,9 @@ import '../../../../../core/realtime/domain/entities/system_event_type.dart';
 import '../../../../../core/realtime/presentation/notifiers/system_event_notifier.dart';
 import '../../data/mappers/job_new_request_mapper.dart';
 import '../../domain/entities/job_new_request.dart';
+import '../../domain/failures/incoming_job_failure.dart';
+import '../state/job_action_result.dart';
+import 'dependency_injection.dart';
 import 'incoming_job_queue_state.dart';
 
 part 'incoming_job_queue_notifier.g.dart';
@@ -136,6 +139,113 @@ class IncomingJobQueueNotifier extends _$IncomingJobQueueNotifier {
     final filtered = queue.where((j) => j.jobId != jobId).toList();
     if (filtered.length == queue.length) return;
     state = state.copyWith(queue: filtered);
+  }
+
+  /// Accept the offer with [jobId] via the remote endpoint.
+  ///
+  /// Concurrency contract:
+  ///   * Adds [jobId] to `inFlightJobIds` for the duration of the request.
+  ///   * A second concurrent call for the same [jobId] short-circuits with
+  ///     [JobActionAlreadyInFlight] and does NOT dispatch a second HTTP call.
+  ///     The host gates button taps on the same set, so this guard is
+  ///     defense-in-depth.
+  ///   * On [JobActionSuccess] / [JobActionConflict], the offer is removed
+  ///     from the local queue (the server is the source of truth — the
+  ///     offer is gone either way).
+  ///   * On retryable failures ([JobActionNetworkFailure] /
+  ///     [JobActionUnexpectedFailure]), the offer stays in the queue.
+  ///
+  /// The `try/finally` clears the in-flight entry even on unexpected
+  /// throws — the host renders button-enabled state from the in-flight set,
+  /// so a leaked entry would lock the offer permanently.
+  Future<JobActionResult> accept(int jobId) =>
+      _runAction(jobId, ref.read(acceptJobRequestUseCaseProvider).call);
+
+  /// Decline the offer with [jobId]. Same contract as [accept] — the
+  /// server's idempotent same-tech retry on REJECTED also covers the
+  /// SLA-fired-first race (end state matches intent → success, no
+  /// removal-from-queue surprise).
+  Future<JobActionResult> decline(int jobId) =>
+      _runAction(jobId, ref.read(declineJobRequestUseCaseProvider).call);
+
+  Future<JobActionResult> _runAction(
+    int jobId,
+    Future<void> Function(int) call,
+  ) async {
+    if (state.inFlightJobIds.contains(jobId)) {
+      return const JobActionAlreadyInFlight();
+    }
+    state = state.copyWith(
+      inFlightJobIds: {...state.inFlightJobIds, jobId},
+    );
+
+    try {
+      await call(jobId);
+      _removeJobAndClearInFlight(jobId);
+      return const JobActionSuccess();
+    } on OfferNoLongerAvailable catch (e) {
+      _removeJobAndClearInFlight(jobId);
+      return JobActionConflict(e);
+    } on IncomingJobNetworkFailure catch (e) {
+      _clearInFlight(jobId);
+      return JobActionNetworkFailure(e);
+    } on IncomingJobFailure catch (e) {
+      _clearInFlight(jobId);
+      return JobActionUnexpectedFailure(e);
+    } catch (e) {
+      // Any non-IncomingJobFailure throw — should be rare since the
+      // repository wraps everything, but defend against an interceptor
+      // that throws an untyped exception.
+      _clearInFlight(jobId);
+      return JobActionUnexpectedFailure(
+        UnknownIncomingJobFailure(e.toString()),
+      );
+    }
+  }
+
+  /// Removes [jobId] from the queue (using the same head-promotion logic
+  /// as [removeRequest]) and clears the in-flight entry in a single state
+  /// mutation so a Riverpod listener never observes "removed but still
+  /// in-flight" or "still queued but no longer in-flight".
+  void _removeJobAndClearInFlight(int jobId) {
+    final nextInFlight = {...state.inFlightJobIds}..remove(jobId);
+    final queue = state.queue;
+    if (queue.isEmpty) {
+      state = state.copyWith(inFlightJobIds: nextInFlight);
+      return;
+    }
+
+    if (queue.first.jobId == jobId) {
+      final now = DateTime.now();
+      final alive = queue
+          .skip(1)
+          .where((j) => j.expiresAt.isAfter(now))
+          .toList();
+      if (alive.isEmpty) {
+        state = state.copyWith(
+          queue: const [],
+          inFlightJobIds: nextInFlight,
+        );
+        return;
+      }
+      alive.sort(
+        (a, b) => _urgencyFraction(a, now).compareTo(_urgencyFraction(b, now)),
+      );
+      state = state.copyWith(queue: alive, inFlightJobIds: nextInFlight);
+      return;
+    }
+
+    final filtered = queue.where((j) => j.jobId != jobId).toList();
+    state = state.copyWith(
+      queue: filtered.length == queue.length ? queue : filtered,
+      inFlightJobIds: nextInFlight,
+    );
+  }
+
+  void _clearInFlight(int jobId) {
+    if (!state.inFlightJobIds.contains(jobId)) return;
+    final next = {...state.inFlightJobIds}..remove(jobId);
+    state = state.copyWith(inFlightJobIds: next);
   }
 
   /// **Preview-only.** Injects a fully-formed [JobNewRequest] into the queue,

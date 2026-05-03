@@ -1,5 +1,5 @@
 # Incoming Job Requests Feature
-**Layer status**: Domain ✅ · Data ✅ (parse-side only) · Presentation ✅ (serialized one-offer bottom sheet + four-block card with swipe-to-accept) · Repository ⏳ (accept/decline endpoint not yet built backend-side)
+**Layer status**: Domain ✅ · Data ✅ · Presentation ✅ (serialized one-offer bottom sheet + four-block card with swipe-to-accept) · Repository ✅ (accept / decline wired against `POST /api/bookings/<id>/{accept,decline}/` — flag #14 close)
 
 ---
 
@@ -66,13 +66,34 @@ Three cases: `inspection`, `fixedGig`, `laborGig`. Wire enum strings (`INSPECTIO
 ### Failures — `IncomingJobFailure` (sealed class)
 `lib/features/technician/incoming_job_requests/domain/failures/incoming_job_failure.dart`
 
-Sparse this sprint — accept/decline endpoints don't exist yet. Only `MalformedJobPayload` is modeled. Network / validation / server failures will land alongside the repository when the accept flow ships.
+Five concrete subtypes covering both axes (parse-side + action-side):
 
-### Repository Interface — `⏳ pending`
-Will be added when the backend accept endpoint lands (BOOKINGS_API.md §1.1 marks it as a separate sprint).
+| Subtype | Meaning | UX outcome |
+| :--- | :--- | :--- |
+| `MalformedJobPayload` | The `job_new_request` payload couldn't be mapped. The mapper logs and the queue notifier silently drops. | None (silent). |
+| `OfferNoLongerAvailable` | Server reported the booking is no longer in `AWAITING` (409) or doesn't exist for this technician (404 IDOR collapse). Carries optional `currentStatus` echoed from the 409 envelope. | "This job is no longer available." snackbar, no Retry. Offer removed from queue. |
+| `IncomingJobNetworkFailure` | `SocketException` / device offline. | Snackbar with Retry. Offer stays in queue. |
+| `IncomingJobServerFailure` | HTTP 5xx. | Snackbar with Retry. Offer stays in queue. |
+| `UnknownIncomingJobFailure` | Catch-all for unclassified errors. | Snackbar with Retry. Offer stays in queue. |
 
-### Use Cases — `⏳ pending`
-None this sprint. Accept/decline use cases will land alongside the repository.
+A pinning test (`incoming_job_failure_test.dart`) materializes every subtype and routes it through an exhaustive switch — adding or removing a subtype breaks compilation, which is the load-bearing signal that the repository's `_mapFailure` and the host's `_surfaceResult` need to update too.
+
+### Repository Interface — `IIncomingJobRepository`
+`lib/features/technician/incoming_job_requests/domain/repositories/incoming_job_repository.dart`
+
+```dart
+abstract class IIncomingJobRepository {
+  Future<void> acceptJobRequest(int jobId);
+  Future<void> declineJobRequest(int jobId);
+}
+```
+
+Both methods document the typed exception set they can throw (the four action-side `IncomingJobFailure` subtypes).
+
+### Use Cases — `AcceptJobRequestUseCase` / `DeclineJobRequestUseCase`
+`lib/features/technician/incoming_job_requests/domain/use_cases/{accept,decline}_job_request_use_case.dart`
+
+Thin wrappers — kept as distinct types so the notifier depends on single-purpose objects rather than the broader repository interface (per CLAUDE.md Clean Architecture rules).
 
 ---
 
@@ -95,11 +116,28 @@ Single boundary where wire strings become typed values:
 
 Returns `null` on any malformed payload — the dispatcher's policy is "drop and log", and matching that policy here keeps the queue notifier's filter loop simple.
 
-### Data Sources — `⏳ pending`
-Realtime events ingest through `core/realtime`'s `EventRemoteDataSource` (WebSocket + REST sync). No feature-specific data source this sprint. Accept/decline `RemoteDataSource` will land with the repository.
+### Data Sources — `IncomingJobRemoteDataSource`
+`lib/features/technician/incoming_job_requests/data/datasources/incoming_job_remote_data_source.dart`
 
-### Repository Implementation — `⏳ pending`
-See above.
+POST wrapper for the technician-side endpoints. Uses `package:http` + `flutter_secure_storage` (key: `auth_token`) — same conventions as `BookingRemoteDataSource`. Both endpoints have empty request bodies (booking id rides the URL; technician identity comes from auth), so a single private `_postEmpty` helper covers them.
+
+Non-2xx responses are parsed into `HttpFailure` from the standard envelope (`{status, code, message, errors}`). `SocketException` is allowed to propagate so the repository can map it to `IncomingJobNetworkFailure`.
+
+Realtime events still ingest through `core/realtime`'s `EventRemoteDataSource` (WebSocket + REST sync) — they are read-side and unrelated to the action-side data source above.
+
+### Repository Implementation — `IncomingJobRepositoryImpl`
+`lib/features/technician/incoming_job_requests/data/repositories/incoming_job_repository_impl.dart`
+
+Step 2 of the 4-step error pipeline (CLAUDE.md). Both `acceptJobRequest` and `declineJobRequest` route through a private `_execute` helper so the failure switch lives in exactly one place. The `_mapFailure` switch:
+
+| Wire | Typed |
+| :--- | :--- |
+| `409 booking_no_longer_available` | `OfferNoLongerAvailable(currentStatus: <echoed>)` |
+| `404 not_found` | `OfferNoLongerAvailable()` (IDOR-safe collapse — server can't disclose row state, so `currentStatus` is null) |
+| `>= 500` | `IncomingJobServerFailure` |
+| anything else with a `code` | `UnknownIncomingJobFailure(<message>)` |
+| `SocketException` | `IncomingJobNetworkFailure` |
+| anything else | `UnknownIncomingJobFailure(<toString>)` |
 
 ---
 
@@ -108,9 +146,14 @@ See above.
 ### State — `IncomingJobQueueState`
 `lib/features/technician/incoming_job_requests/presentation/providers/incoming_job_queue_state.dart`
 
-Freezed. Single field: `List<JobNewRequest> queue`. The list's contract is:
-* `queue.first` is the **head** — the offer the technician is currently looking at. Once an offer becomes the head it is **locked** and cannot be displaced by a later, more-urgent arrival. This is load-bearing for the swipe widget — a swap mid-decision would mean the user's finger lands on a different offer than the one they intended to accept.
-* `queue.skip(1)` is the **tail**, in insertion (FIFO) order. The tail is *not* re-sorted on every event arrival because tail order only matters at one moment: when the head resolves and the next head must be picked. At that moment, `removeRequest` re-sorts the tail by current urgency before promoting the most-urgent.
+Freezed. Two fields:
+
+* `List<JobNewRequest> queue` — the head-sticky priority queue.
+  * `queue.first` is the **head** — the offer the technician is currently looking at. Once an offer becomes the head it is **locked** and cannot be displaced by a later, more-urgent arrival. This is load-bearing for the swipe widget — a swap mid-decision would mean the user's finger lands on a different offer than the one they intended to accept.
+  * `queue.skip(1)` is the **tail**, in insertion (FIFO) order. The tail is *not* re-sorted on every event arrival because tail order only matters at one moment: when the head resolves and the next head must be picked. At that moment, `removeRequest` re-sorts the tail by current urgency before promoting the most-urgent.
+* `Set<int> inFlightJobIds` — offers whose accept/decline HTTP request is currently in flight. The host gates two things on this set:
+  * Accept/Decline button taps are no-ops while the offer is in flight (prevents double-tap from queuing a second HTTP call).
+  * The local SLA expiry callback (`_handleExpire`) is suppressed for in-flight offers so the card does not pop out from under the user mid-request — the server's response is the only thing that resolves an offer once a tap has landed.
 
 ### Notifier — `IncomingJobQueueNotifier`
 `lib/features/technician/incoming_job_requests/presentation/providers/incoming_job_queue_notifier.dart`
@@ -129,6 +172,24 @@ Freezed. Single field: `List<JobNewRequest> queue`. The list's contract is:
 * Unknown jobId → silent no-op (defensive against double-remove, e.g. an accept-then-expire race).
 
 `debugSeedRequest(JobNewRequest)` — preview only. Mirrors the dedup behavior of the real ingest path. Production code must never call it.
+
+`accept(int jobId)` / `decline(int jobId)` — the action methods. Both:
+1. Short-circuit with `JobActionAlreadyInFlight` if the jobId is already in `inFlightJobIds` (defensive — the host also gates).
+2. Add the jobId to `inFlightJobIds`.
+3. `await` the corresponding use case.
+4. Map the outcome to a sealed `JobActionResult`:
+
+| Outcome | Result | Queue effect |
+| :--- | :--- | :--- |
+| `await` succeeds | `JobActionSuccess` | offer removed (head-promotion logic, same as `removeRequest`) |
+| `OfferNoLongerAvailable` | `JobActionConflict(failure)` | offer removed |
+| `IncomingJobNetworkFailure` | `JobActionNetworkFailure(failure)` | offer kept (retryable) |
+| any other `IncomingJobFailure` | `JobActionUnexpectedFailure(failure)` | offer kept (retryable) |
+| any non-`IncomingJobFailure` throw | `JobActionUnexpectedFailure(UnknownIncomingJobFailure)` | offer kept |
+
+5. Clear the in-flight entry in the SAME state mutation as the queue update, so a Riverpod listener never observes "removed but still in-flight" or "still queued but no longer in-flight".
+
+The result type itself is the sealed `JobActionResult` in `presentation/state/job_action_result.dart` — the host's `_surfaceResult` switch keys on it for snackbar UX.
 
 ### Sheet host — `IncomingJobSheetHost`
 `lib/features/technician/incoming_job_requests/presentation/widgets/incoming_job_sheet_host.dart`
@@ -156,7 +217,17 @@ When the head resolves (accept / decline / expire) AND there's another offer in 
 
 Total: ~1010ms accept-to-next-offer (including confirm hold), ~750ms decline/expire-to-next-offer. Slow if the technician is in rapid-fire mode, but the clarity gain over an instant content swap is the whole point.
 
-Action handlers route to `removeRequest(jobId)` — the real backend call lands when the accept endpoint ships (see `flag.md` #14). Today's three handlers are deliberately separate methods (not a single `_resolveHead`) so the future endpoint sprint can wire different remote semantics: decline POSTs `/decline`; expire is a no-op (the server's SLA-timeout Celery task fires authoritative); accept POSTs `/accept`.
+Action handlers (`_handleAccept` / `_handleDecline`) call `notifier.accept(jobId)` / `notifier.decline(jobId)` and route the returned `JobActionResult` through `_surfaceResult`:
+
+| Result | Haptic | Snackbar | Retry button |
+| :--- | :--- | :--- | :--- |
+| `JobActionSuccess` | (none — queue listener handles ceremony) | none | — |
+| `JobActionAlreadyInFlight` | none | none | — |
+| `JobActionConflict` | `mediumImpact` | "This job is no longer available." | no |
+| `JobActionNetworkFailure` | `mediumImpact` | failure.message ("Network unavailable…") | yes — re-invokes the same handler |
+| `JobActionUnexpectedFailure` | `mediumImpact` | failure.message | yes |
+
+`_handleExpire` stays as the third handler — it is purely local (the server's SLA-timeout Celery task is authoritative on the backend, no `/expire` endpoint exists). It is gated on `inFlightJobIds` so the card does not pop out from under the user mid-request; if the SLA fires while a tap is in flight, the offer remains visible (countdown pinned at 00:00) until the response resolves it.
 
 #### Sound — `IncomingJobSoundPlayer`
 `lib/features/technician/incoming_job_requests/presentation/services/incoming_job_sound_player.dart`
@@ -258,9 +329,9 @@ If step 3 is skipped or moved after step 6, the very first `job_new_request` of 
 | Item | Reason | Tracked |
 | :--- | :--- | :--- |
 | Backend SLA floor (5 min) + parallel-fanout dispatch | Cross-side obligation | Frontend trusts wire `slaWindow` verbatim and the swipe widget's drain assumes a humane span. A flag.md entry tracks: `MIN_DISPATCH_SLA = timedelta(minutes=5)` constant, Celery SLA-timeout task armed off the same constant, dispatch model is parallel-fanout (not serial-per-tech) so customer wait isn't `5min × N techs`. |
-| Accept / decline data layer | Backend endpoint not built (BOOKINGS_API.md §1.1) | Add when endpoint lands. See flag.md #14. |
+| Customer-side `job_accepted` / `booking_rejected` handlers | Cross-side obligation | The technician-side accept/decline flow now emits these events server-side (BOOKINGS_API.md §1.3 / §1.4), but the customer's Flutter app doesn't subscribe to either yet. See flag.md (extension to flag #22 for `booking_rejected`; new flag for `job_accepted`). |
 | Queue eviction sweep | Closed by the swipe widget | The swipe widget's `onExpire` callback pops the head when its drain hits zero. flag.md #6 (the "no eviction sweep" entry) can be marked resolved by this commit. |
-| Receipt-time vs envelope-time `expiresAt` | Sprint scope | Anchor is on envelope `timestamp` (server-time). Slight skew vs receipt time is fine for now; will revisit when accept endpoint lands and a tap-just-past-expiry could 409. |
+| Receipt-time vs envelope-time `expiresAt` | Sprint scope | Anchor is on envelope `timestamp` (server-time). Slight skew vs receipt time is fine for now; the 409 path is now wired (BOOKINGS_API.md §1.3) so a tap-just-past-expiry surfaces as `OfferNoLongerAvailable` rather than a silent drop. |
 | Backwards-compat tightening | Mid-rollout | `bookingType`, `payoutContext`, and `locationLabel` are all nullable on the wire model. Once historical EventLog rows have aged out (two acceptance-window cycles after each rollout), they can be tightened to required (BOOKINGS_API.md §2.5). |
 | Address row null fallback | Cross-feature dependency | Bookings created against `CustomerAddress` rows that pre-date session 4 (no `locality_label` populated) and bookings whose address has been detached (`SET_NULL`) emit `null` for `ui_location_label`. The card hides the address row entirely — no placeholder string. The backfill plan for legacy addresses lives outside this feature; see `flag.md` and the customer-side address feature doc. |
 

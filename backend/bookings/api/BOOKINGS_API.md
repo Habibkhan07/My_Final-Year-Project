@@ -7,7 +7,7 @@
 ## 1. INSTANT BOOKING
 
 ### 1.1 Create Instant Booking
-**Description**: The checkout endpoint. Creates an `AWAITING` `JobBooking` after passing the defensive check pipeline: address ownership, technician approval status, catalog consistency, promo firewall, geofence, and an atomic race-condition lock on the technician's schedule. The booking transitions to `CONFIRMED` once the dispatched technician accepts within the SLA window; if the SLA fires first, the timeout task flips it to `REJECTED`. The accept endpoint itself is a separate sprint — until it lands, simulating acceptance via Django Admin / shell mutation is the testing path. The persisted `price_amount` is server-derived from the resolved catalog references — clients never put a price on the wire. Called immediately after the customer selects a time slot from the Availability endpoint (`/api/customers/technicians/{id}/availability/`).
+**Description**: The checkout endpoint. Creates an `AWAITING` `JobBooking` after passing the defensive check pipeline: address ownership, technician approval status, catalog consistency, promo firewall, geofence, and an atomic race-condition lock on the technician's schedule. The booking transitions to `CONFIRMED` once the dispatched technician accepts within the SLA window (see §1.3); a tap to decline (§1.4) or an SLA-timeout flips it to `REJECTED`. The persisted `price_amount` is server-derived from the resolved catalog references — clients never put a price on the wire. Called immediately after the customer selects a time slot from the Availability endpoint (`/api/customers/technicians/{id}/availability/`).
 
 **URL**: `/api/bookings/instant-book/`
 **Method**: `POST`
@@ -332,6 +332,141 @@ bookings/tasks.py                     (@shared_task expire_pending_job_booking)
 | Celery broker down for SLA queue | Booking still committed; SLA simply will not auto-expire. The technician accept/decline flow is still authoritative; missing the timer cannot create double-bookings (existing bookings keep their slot lock). |
 
 Cross-reference: realtime envelope + `EventDispatchService` semantics live in [`backend/realtime/api/EVENT_DISPATCH_API.md`](../../realtime/api/EVENT_DISPATCH_API.md).
+
+---
+
+### 1.3 Accept Job Booking
+
+**URL** — `POST /api/bookings/<int:booking_id>/accept/`
+**Auth** — JWT (`IsAuthenticated`). Anonymous → `401 unauthorized`.
+**Body** — empty. The booking id rides the URL; the acting technician is taken from the authenticated user.
+
+#### Success — `200 OK`
+
+```json
+{ "booking_id": 99482, "status": "CONFIRMED" }
+```
+
+The `status` string echoes the persisted column verbatim so the Flutter client can reuse the same constant as the rest of its booking model.
+
+#### Errors (standard envelope)
+
+| Status | `code` | When |
+| :--- | :--- | :--- |
+| `401` | `unauthorized` | Anonymous request — DRF default envelope. |
+| `404` | `not_found` | Booking does not exist **OR** is assigned to a different technician. The two cases are deliberately collapsed (IDOR-safe — caller cannot enumerate other technicians' booking ids). A logged-in customer hitting this endpoint also receives `404`. |
+| `409` | `booking_no_longer_available` | Booking has left `AWAITING` and the request is not the same-tech idempotent `CONFIRMED` repeat. The live row state is echoed back as `errors.current_status` for client-side debugging. |
+
+```json
+// 409 example — SLA fired before the technician's tap landed
+{
+  "status": 409,
+  "code": "booking_no_longer_available",
+  "message": "This job is no longer available.",
+  "errors": { "current_status": ["REJECTED"] }
+}
+```
+
+#### Idempotency
+
+Re-calling accept on a booking that is **already `CONFIRMED` for the same technician** returns `200` with the same body and emits **no second** customer event. Protects against retries (network blip, double-tap, FCM-driven repeat tap).
+
+#### Race semantics
+
+The service runs inside `transaction.atomic()` + `select_for_update()`, serializing against:
+
+| Concurrent path | Outcome on accept |
+| :--- | :--- |
+| SLA-timeout Celery task fires first | accept observes `status=REJECTED` → `409 booking_no_longer_available` (`current_status: REJECTED`) |
+| Customer cancels first | `409` (`current_status: CANCELLED`) |
+| Same-tech idempotent retry | `200` (no re-emit) |
+
+The SLA Celery task is **not** explicitly revoked. Once status moves out of `AWAITING`, the task's existing idempotent guard (`status != AWAITING → no-op` in `bookings/tasks.py`) makes it a harmless no-op when it eventually fires. Adding a Port-level revoke would buy nothing functional and would couple the Port to a queue-library primitive.
+
+#### Customer-facing event — `job_accepted`
+
+On successful transition (not idempotent retry), the service registers a `transaction.on_commit` callback that broadcasts a `job_accepted` event to the booking's customer. A rolled-back transaction never produces a phantom event.
+
+```json
+{
+  "kind": "event",
+  "id": "<uuid4>",
+  "rawType": "job_accepted",
+  "targetRole": "customer",
+  "timestamp": "2026-05-03T08:14:42.000Z",
+  "recipient_user_id": 42,
+  "expires_at": null,
+  "payload": {
+    "job_id": 99482,
+    "technician_id": 17,
+    "technician_display_name": "Ali Khan",
+    "scheduled_start_iso": "2026-04-08T05:00:00Z",
+    "service_name": "AC Deep Wash"
+  }
+}
+```
+
+| Payload field | Type | Source / notes |
+| :--- | :--- | :--- |
+| `job_id` | int | `JobBooking.id` |
+| `technician_id` | int | `TechnicianProfile.id` (tech-profile id, not user id) — the customer's surface uses this to nav to the technician's profile. |
+| `technician_display_name` | string | `user.get_full_name()`, falling back to `user.username` when both name fields are blank. |
+| `scheduled_start_iso` | string (ISO-8601 UTC, `Z`) | Same wire format as `job_new_request`. |
+| `service_name` | string | Sub-service name when set, else parent service — mirrors `job_new_request`. |
+
+`expires_at` is `null` — `job_accepted` is informational, no SLA. `is_critical=true` in the registry, so the event lands on the critical FCM channel and is replayable via `/api/events/sync/`.
+
+> ⚠️ Customer-side handler is not yet wired in the Flutter app. See the corresponding entry in `flag.md` for the lockstep customer-side feature work; the backend emit is correct and durable in `EventLog` regardless.
+
+---
+
+### 1.4 Decline Job Booking
+
+**URL** — `POST /api/bookings/<int:booking_id>/decline/`
+**Auth** — JWT (`IsAuthenticated`).
+**Body** — empty.
+
+#### Success — `200 OK`
+
+```json
+{ "booking_id": 99482, "status": "REJECTED" }
+```
+
+#### Errors
+
+Identical envelope shape and codes as accept (`401` / `404` / `409`).
+
+| `current_status` on 409 | Meaning |
+| :--- | :--- |
+| `CONFIRMED` | The technician already accepted this booking — declining after accept is not allowed. |
+| `CANCELLED` | Customer cancelled before the decline landed. |
+| `COMPLETED` / `PENDING` | Booking is in a state that cannot be declined. |
+
+#### Idempotency
+
+Re-calling decline on a booking that is **already `REJECTED`** returns `200`. This **also** covers the SLA-fired-first race: the technician's intent (decline) and the system's outcome (rejected) are the same end state, so reporting success is correct. No second event is emitted.
+
+#### Customer-facing event — `booking_rejected`
+
+On successful transition, the service emits `booking_rejected` to the customer via `transaction.on_commit`.
+
+```json
+{
+  "rawType": "booking_rejected",
+  "targetRole": "customer",
+  "payload": {
+    "job_id": 99482,
+    "technician_id": 17,
+    "scheduled_start_iso": "2026-04-08T05:00:00Z",
+    "service_name": "AC Deep Wash",
+    "reason": "technician_declined"
+  }
+}
+```
+
+`reason` discriminates the pathway. The SLA-expiry path (flag #22) reuses this same envelope with `reason: "sla_timeout"` — keeping the discriminator on the payload (instead of forking the event type) means the customer-side surface is a single subscriber regardless of which pathway flipped the booking to `REJECTED`. Registry display name is `Booking unavailable`; `is_critical=true`.
+
+> ⚠️ Customer-side handler is not yet wired — see `flag.md` (extension to flag #22).
 
 ---
 

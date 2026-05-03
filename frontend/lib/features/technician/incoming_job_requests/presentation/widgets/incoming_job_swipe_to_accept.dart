@@ -56,15 +56,15 @@ import '../utils/urgency_palette.dart';
 /// `connected`, the gesture handlers early-out and the caption switches to
 /// `"Reconnecting…"`. Without this gate, a technician on the metro could
 /// physically swipe accept while offline and the host's accept REST call
-/// (once the endpoint lands per flag #14) would fire into a void — they'd
-/// see the confirm animation play, the sheet slide out, and then nothing
-/// would happen because the server never received the accept. Worse: the
-/// SLA Celery task would expire the booking server-side, the customer
-/// would re-dispatch to a different technician, and the offline technician
-/// would arrive at the address to find the job already taken. Disabling
-/// at the gesture level keeps the offer visible (technician can still see
-/// the payout / location / countdown) but physically prevents the
-/// destructive action until connectivity returns.
+/// (`POST /api/bookings/<id>/accept/`) would fail with a network error —
+/// the user would see a Retry snackbar but the underlying booking might
+/// have SLA-expired by then. Worse on a sustained outage: the SLA Celery
+/// task would expire the booking server-side, the customer would
+/// re-dispatch to a different technician, and the offline technician would
+/// arrive at the address to find the job already taken. Disabling at the
+/// gesture level keeps the offer visible (technician can still see the
+/// payout / location / countdown) but physically prevents the destructive
+/// action until connectivity returns.
 class IncomingJobSwipeToAccept extends ConsumerStatefulWidget {
   const IncomingJobSwipeToAccept({
     super.key,

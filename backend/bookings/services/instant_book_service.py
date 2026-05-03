@@ -88,8 +88,10 @@ def create_instant_booking(
     """
     Creates an AWAITING JobBooking after passing the defensive check pipeline.
     The booking transitions to CONFIRMED once the dispatched technician
-    accepts within the SLA window (the accept endpoint is a separate sprint);
-    if the SLA fires first, the timeout task flips it to REJECTED.
+    accepts via ``POST /api/bookings/<id>/accept/`` within the SLA window
+    (see ``bookings/services/job_request_action.py`` and
+    ``BOOKINGS_API.md`` §1.3); a decline POST or the SLA-timeout Celery
+    task flips it to REJECTED.
 
     Pipeline:
 

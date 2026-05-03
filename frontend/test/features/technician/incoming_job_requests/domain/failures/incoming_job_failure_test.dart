@@ -1,5 +1,5 @@
-// Pins the sealed-hierarchy contract that the repository's `_mapFailures`
-// switch and the UI's failure-to-Snackbar switch expressions depend on.
+// Pins the sealed-hierarchy contract that the repository's `_mapFailure`
+// switch and the host's `_surfaceResult` switch expressions depend on.
 // If a subtype is added or removed, the exhaustive-switch test below fails
 // to compile — that's the load-bearing pin (compile-time, not runtime).
 import 'package:flutter_test/flutter_test.dart';
@@ -13,6 +13,8 @@ import 'package:frontend/features/technician/incoming_job_requests/domain/failur
 List<IncomingJobFailure> _allFailureCases() => const [
       MalformedJobPayload(),
       OfferNoLongerAvailable(),
+      IncomingJobNetworkFailure(),
+      IncomingJobServerFailure(),
       UnknownIncomingJobFailure(),
     ];
 
@@ -22,6 +24,8 @@ List<IncomingJobFailure> _allFailureCases() => const [
 String _identify(IncomingJobFailure f) => switch (f) {
       MalformedJobPayload() => 'malformed',
       OfferNoLongerAvailable() => 'gone',
+      IncomingJobNetworkFailure() => 'offline',
+      IncomingJobServerFailure() => 'server',
       UnknownIncomingJobFailure() => 'unknown',
     };
 
@@ -36,7 +40,10 @@ void main() {
         // Each identifier must be unique — otherwise two subtypes would map
         // to the same Snackbar in the UI and the technician would see
         // identical copy for distinct error states.
-        expect(identifiers, {'malformed', 'gone', 'unknown'});
+        expect(
+          identifiers,
+          {'malformed', 'gone', 'offline', 'server', 'unknown'},
+        );
       },
     );
 
@@ -60,11 +67,27 @@ void main() {
       () {
         // The string is part of the UX contract: "This job is no longer
         // available." reads as "the offer is gone, move on" — distinct from
-        // UnknownIncomingJobFailure's retry-friendly copy. If a future
-        // refactor changes this string, the test forces a deliberate
-        // decision rather than a silent copy-drift.
+        // UnknownIncomingJobFailure's retry-friendly copy.
         const failure = OfferNoLongerAvailable();
         expect(failure.message, 'This job is no longer available.');
+      },
+    );
+
+    test(
+      'OfferNoLongerAvailable carries currentStatus when supplied — preserved '
+      'from the 409 envelope for client-side debugging',
+      () {
+        const failure = OfferNoLongerAvailable(currentStatus: 'REJECTED');
+        expect(failure.currentStatus, 'REJECTED');
+      },
+    );
+
+    test(
+      'OfferNoLongerAvailable currentStatus defaults to null on the 404 '
+      'collapse path (server can\'t leak missing-vs-wrong-owner)',
+      () {
+        const failure = OfferNoLongerAvailable();
+        expect(failure.currentStatus, isNull);
       },
     );
   });

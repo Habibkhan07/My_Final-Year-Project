@@ -14,7 +14,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$IncomingJobQueueState {
 
- List<JobNewRequest> get queue;
+ List<JobNewRequest> get queue; Set<int> get inFlightJobIds;
 /// Create a copy of IncomingJobQueueState
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -25,16 +25,16 @@ $IncomingJobQueueStateCopyWith<IncomingJobQueueState> get copyWith => _$Incoming
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is IncomingJobQueueState&&const DeepCollectionEquality().equals(other.queue, queue));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is IncomingJobQueueState&&const DeepCollectionEquality().equals(other.queue, queue)&&const DeepCollectionEquality().equals(other.inFlightJobIds, inFlightJobIds));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(queue));
+int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(queue),const DeepCollectionEquality().hash(inFlightJobIds));
 
 @override
 String toString() {
-  return 'IncomingJobQueueState(queue: $queue)';
+  return 'IncomingJobQueueState(queue: $queue, inFlightJobIds: $inFlightJobIds)';
 }
 
 
@@ -45,7 +45,7 @@ abstract mixin class $IncomingJobQueueStateCopyWith<$Res>  {
   factory $IncomingJobQueueStateCopyWith(IncomingJobQueueState value, $Res Function(IncomingJobQueueState) _then) = _$IncomingJobQueueStateCopyWithImpl;
 @useResult
 $Res call({
- List<JobNewRequest> queue
+ List<JobNewRequest> queue, Set<int> inFlightJobIds
 });
 
 
@@ -62,10 +62,11 @@ class _$IncomingJobQueueStateCopyWithImpl<$Res>
 
 /// Create a copy of IncomingJobQueueState
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? queue = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? queue = null,Object? inFlightJobIds = null,}) {
   return _then(_self.copyWith(
 queue: null == queue ? _self.queue : queue // ignore: cast_nullable_to_non_nullable
-as List<JobNewRequest>,
+as List<JobNewRequest>,inFlightJobIds: null == inFlightJobIds ? _self.inFlightJobIds : inFlightJobIds // ignore: cast_nullable_to_non_nullable
+as Set<int>,
   ));
 }
 
@@ -150,10 +151,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( List<JobNewRequest> queue)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( List<JobNewRequest> queue,  Set<int> inFlightJobIds)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _IncomingJobQueueState() when $default != null:
-return $default(_that.queue);case _:
+return $default(_that.queue,_that.inFlightJobIds);case _:
   return orElse();
 
 }
@@ -171,10 +172,10 @@ return $default(_that.queue);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( List<JobNewRequest> queue)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( List<JobNewRequest> queue,  Set<int> inFlightJobIds)  $default,) {final _that = this;
 switch (_that) {
 case _IncomingJobQueueState():
-return $default(_that.queue);case _:
+return $default(_that.queue,_that.inFlightJobIds);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -191,10 +192,10 @@ return $default(_that.queue);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( List<JobNewRequest> queue)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( List<JobNewRequest> queue,  Set<int> inFlightJobIds)?  $default,) {final _that = this;
 switch (_that) {
 case _IncomingJobQueueState() when $default != null:
-return $default(_that.queue);case _:
+return $default(_that.queue,_that.inFlightJobIds);case _:
   return null;
 
 }
@@ -206,7 +207,7 @@ return $default(_that.queue);case _:
 
 
 class _IncomingJobQueueState implements IncomingJobQueueState {
-  const _IncomingJobQueueState({final  List<JobNewRequest> queue = const <JobNewRequest>[]}): _queue = queue;
+  const _IncomingJobQueueState({final  List<JobNewRequest> queue = const <JobNewRequest>[], final  Set<int> inFlightJobIds = const <int>{}}): _queue = queue,_inFlightJobIds = inFlightJobIds;
   
 
  final  List<JobNewRequest> _queue;
@@ -214,6 +215,13 @@ class _IncomingJobQueueState implements IncomingJobQueueState {
   if (_queue is EqualUnmodifiableListView) return _queue;
   // ignore: implicit_dynamic_type
   return EqualUnmodifiableListView(_queue);
+}
+
+ final  Set<int> _inFlightJobIds;
+@override@JsonKey() Set<int> get inFlightJobIds {
+  if (_inFlightJobIds is EqualUnmodifiableSetView) return _inFlightJobIds;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableSetView(_inFlightJobIds);
 }
 
 
@@ -227,16 +235,16 @@ _$IncomingJobQueueStateCopyWith<_IncomingJobQueueState> get copyWith => __$Incom
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _IncomingJobQueueState&&const DeepCollectionEquality().equals(other._queue, _queue));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _IncomingJobQueueState&&const DeepCollectionEquality().equals(other._queue, _queue)&&const DeepCollectionEquality().equals(other._inFlightJobIds, _inFlightJobIds));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_queue));
+int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_queue),const DeepCollectionEquality().hash(_inFlightJobIds));
 
 @override
 String toString() {
-  return 'IncomingJobQueueState(queue: $queue)';
+  return 'IncomingJobQueueState(queue: $queue, inFlightJobIds: $inFlightJobIds)';
 }
 
 
@@ -247,7 +255,7 @@ abstract mixin class _$IncomingJobQueueStateCopyWith<$Res> implements $IncomingJ
   factory _$IncomingJobQueueStateCopyWith(_IncomingJobQueueState value, $Res Function(_IncomingJobQueueState) _then) = __$IncomingJobQueueStateCopyWithImpl;
 @override @useResult
 $Res call({
- List<JobNewRequest> queue
+ List<JobNewRequest> queue, Set<int> inFlightJobIds
 });
 
 
@@ -264,10 +272,11 @@ class __$IncomingJobQueueStateCopyWithImpl<$Res>
 
 /// Create a copy of IncomingJobQueueState
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? queue = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? queue = null,Object? inFlightJobIds = null,}) {
   return _then(_IncomingJobQueueState(
 queue: null == queue ? _self._queue : queue // ignore: cast_nullable_to_non_nullable
-as List<JobNewRequest>,
+as List<JobNewRequest>,inFlightJobIds: null == inFlightJobIds ? _self._inFlightJobIds : inFlightJobIds // ignore: cast_nullable_to_non_nullable
+as Set<int>,
   ));
 }
 

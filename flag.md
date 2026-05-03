@@ -522,33 +522,17 @@ During flag #11 debugging, the user switched from `daphne -b 0.0.0.0 -p 8000 cor
 
 ---
 
-## 14. `Accept` / `Decline` buttons render real UI but make no remote call
+## ~~14. `Accept` / `Decline` buttons render real UI but make no remote call~~ ✅ Resolved (2026-05-03)
 
-**Where**
-- `frontend/lib/features/technician/incoming_job_requests/presentation/widgets/incoming_job_sheet_host.dart` — `_handleAccept` and `_handleDecline` both delegate only to `incomingJobQueueProvider.notifier.removeRequest(jobId)`.
-- `frontend/lib/features/technician/incoming_job_requests/INCOMING_JOB_REQUESTS_FEATURE.md` — Repository / Use Cases / Data Sources still marked `⏳ pending`.
-- Backend: no `POST /api/bookings/{id}/accept` or `/decline` endpoint exists (per `BOOKINGS_API.md` §1.1).
+**What changed**
+- **Backend**: `POST /api/bookings/<id>/accept/` and `/decline/` shipped under `backend/bookings/api/job_actions/{views,serializers}.py` + service `backend/bookings/services/job_request_action.py`. Both run inside `transaction.atomic()` + `select_for_update()`, scope by `(pk, technician__user)` (IDOR-safe 404 collapse), and treat same-tech retries on the terminal status as idempotent success (no duplicate event emit). Accept → `CONFIRMED` + emits `job_accepted` to the customer on commit. Decline → `REJECTED` + emits `booking_rejected` (`reason: "technician_declined"`) on commit. Contract documented as §1.3 / §1.4 in `BOOKINGS_API.md`.
+- **SLA cancellation**: no explicit revoke. The Celery SLA task's existing `status != AWAITING → no-op` guard makes it a harmless no-op once accept/decline commits (decision logged in service-layer docstring).
+- **Frontend**: full 4-step error pipeline. `IIncomingJobRepository` + `Accept` / `Decline` use cases (`domain/`), `IncomingJobRemoteDataSource` + `IncomingJobRepositoryImpl` with `_mapFailure` switch (`data/`), `JobActionResult` sealed type + `inFlightJobIds` queue state + `accept` / `decline` notifier methods + sheet-host `_surfaceResult` switch (`presentation/`). `IncomingJobFailure` extended with `IncomingJobNetworkFailure` / `IncomingJobServerFailure`, `OfferNoLongerAvailable` carries `currentStatus` echoed from the 409 envelope. In-flight set gates double-tap and `_handleExpire`.
+- **Tests**: 59 backend (service + API), 28 new frontend (datasource + repo + notifier actions + host wiring snackbar/Retry/in-flight).
+- **Wire-name reconciliation with flag #22**: the technician-decline path emits `booking_rejected` (matching #22's prescribed event-type) with `payload.reason = "technician_declined"`. The SLA-expiry arm of #22 will reuse the same envelope with `reason: "sla_timeout"`.
 
-**What's wrong**
-The technician sees a polished bottom-sheet UI with `Accept Request` and `Decline` buttons. Tapping either only removes the offer from the local Riverpod queue — there is no HTTP call, no server-side state transition, no SLA-task cancellation, and no customer-facing notification fires. From the server's perspective, the offer simply expires when its SLA timer fires regardless of which button the technician tapped (or whether they tapped at all). This is the technician's most-seen post-online surface shipping without its remote counterpart.
-
-**Why we shipped it anyway**
-- The backend acceptance endpoint is its own sprint — the customer-facing `job_accepted` event, payout-stamping at acceptance, and the dispatch-cancel side-effects all need to land together. Holding the visual UI hostage to that sprint blocks the design and UX testing that the sheet's snap behavior, countdown, and queue list need today.
-- The visual design is independently load-bearing and is correct in isolation regardless of what the buttons do server-side.
-- The local `removeRequest` matches the queue notifier's existing documented stub contract, keeping dev/QA's felt experience coherent.
-
-**The proper fix (lockstep)**
-1. **Backend**: add `POST /api/bookings/{id}/accept` and `/decline` endpoints under `bookings/api/`. Both run inside `transaction.atomic()` + `select_for_update()` and short-circuit on any non-`AWAITING` status. Accept transitions to `CONFIRMED`, cancels the dispatch SLA Celery task, and emits `job_accepted` to the customer via `EventDispatchService.broadcast_event(...)` in the same transaction. Decline transitions to `REJECTED` and either re-broadcasts to the next-best technician or expires.
-2. **Frontend domain**: `AcceptJobRequestUseCase` / `DeclineJobRequestUseCase` + a `JobRequestRepository` interface in `domain/repositories/`. Extend `IncomingJobFailure` (already a sealed hierarchy) with network / server / conflict variants — the `409 already-actioned` path must be modeled because an SLA timeout can fire between the user's tap and the server's processing.
-3. **Frontend data**: `JobRequestRemoteDataSource` (Dio) + `JobRequestRepositoryImpl` mapping HTTP failures through the four-step error pipeline in CLAUDE.md.
-4. **Sheet host**: `_handleAccept` / `_handleDecline` invoke the use case via Riverpod, surface a SnackBar on failure, and only call `removeRequest` on success (or on a 409 — the offer is already not-actionable from the server's POV either way).
-5. **Tests**: new widget tests covering the failure-path UI (Snackbar surfaces, the offer remains in the queue so the technician can retry).
-
-**Search hints**
-- `_handleAccept`, `_handleDecline` in `incoming_job_sheet_host.dart`
-- `removeRequest` in `incoming_job_queue_notifier.dart`
-- `BOOKINGS_API.md` §1.1
-- `IncomingJobFailure` sealed class in `frontend/lib/features/technician/incoming_job_requests/domain/failures/`
+**Carry-over (not closed by this commit)**
+- The customer-side handler for `job_accepted` and `booking_rejected` is missing — see flag #22 (extended below) and the new `job_accepted`-handler entry that follows.
 
 ---
 
@@ -687,40 +671,14 @@ Resolved by emitting both fields from `EventDispatchService.broadcast_event` and
 
 ---
 
-## 20. No specific error code for "booking is no longer available" — accept-just-past-expiry surfaces as a generic validation error
+## ~~20. No specific error code for "booking is no longer available" — accept-just-past-expiry surfaces as a generic validation error~~ ✅ Resolved (2026-05-03)
 
-**Where**
-- `backend/bookings/services/instant_book_service.py` (or wherever the future accept handler lives) — the booking-state validation path that runs when the technician's accept arrives but the booking is already `REJECTED` (SLA fired) or `CANCELLED` (customer pulled out between dispatch and accept).
-- `backend/bookings/api/BOOKINGS_API.md` — error envelope contract.
-- `frontend/lib/features/technician/incoming_job_requests/domain/failures/incoming_job_failure.dart` — `OfferNoLongerAvailable` already scaffolded (flag #19 family), waiting for the wire code to flip the switch.
+**What changed**
+Closed alongside flag #14. The accept and decline views (`backend/bookings/api/job_actions/views.py`) return `409 booking_no_longer_available` when the booking is no longer in `AWAITING` and the request is not the same-tech idempotent repeat. Two intentional tweaks vs the original prescription:
+- **Status code is 409, not 400.** The error is a state-conflict on the server, not a malformed-request issue — `409 Conflict` is the more REST-correct mapping. The frontend's `_mapFailure` keys on `code` not status, so the wire-code stays the agreed-upon `"booking_no_longer_available"`.
+- **`errors.current_status` carries the live row state**, not `errors.booking`. Cleaner shape for client mapping (`["REJECTED"]` / `["CANCELLED"]` / `["CONFIRMED"]` etc.), still useful for telemetry/debugging. Documented in `BOOKINGS_API.md` §1.3.
 
-**What's wrong**
-When the accept endpoint lands (flag #14) and the technician taps swipe-accept on an offer the server has already moved out of `AWAITING`, the standard error envelope returns `code: "validation_error"` with a field-error string like `"Status is REJECTED"`. The frontend's `_mapFailures` switch can't distinguish "this offer is gone, move on" from any other validation failure, so the user sees a generic "Couldn't accept the offer. Try again." Snackbar — exactly the wrong copy for an unrecoverable state.
-
-**Why we shipped it anyway**
-The accept endpoint isn't built yet (flag #14). When that endpoint ships, the natural shape is: validate booking status → return generic 400. Surfacing a specific code requires deciding on the wire string and threading it through the error envelope. Cheaper to do once, deliberately, alongside the endpoint.
-
-**The proper fix (alongside flag #14)**
-1. **Backend.** When the accept handler validates booking status and finds anything other than `AWAITING`, raise a domain error that maps (via the project's DRF custom exception handler in `core/exception.py`) to:
-   ```json
-   {
-     "status": 400,
-     "code": "booking_no_longer_available",
-     "message": "This job is no longer available.",
-     "errors": {"booking": ["Status is <REJECTED|CANCELLED|...>"]}
-   }
-   ```
-   The user-facing `message` is the copy the frontend will surface; `errors.booking[0]` keeps the server-side reason for telemetry / debugging.
-2. **Frontend.** The `OfferNoLongerAvailable` Failure subtype is already in place (flag #19 family). When the accept repo lands, its `_mapFailures` switch adds `case 'booking_no_longer_available' → throw const OfferNoLongerAvailable()`. The host's `_handleAccept` catches it and surfaces a Snackbar with the failure's default message.
-3. **Tests.** Backend unit test on the accept service; frontend repository test on the wire-code → Failure mapping; widget test on Snackbar copy.
-
-**Search hints**
-- `core/exception.py` — DRF custom exception handler that produces the envelope.
-- `OfferNoLongerAvailable` in `incoming_job_failure.dart`.
-- `_handleAccept` in `incoming_job_sheet_host.dart` — call site once the repo lands.
-
-**Severity**
-Low/medium. Once flag #19's `expires_at` filter is active, the late-accept path is mostly unreachable from the frontend — the pipeline drops stale events before they reach the queue. This flag is the defense-in-depth layer for the residual race (an offer that's fresh when the queue accepts it but flips REJECTED server-side between the swipe and the REST call). Pick up alongside flag #14.
+Frontend side: `OfferNoLongerAvailable` carries the optional `currentStatus` field echoed from the envelope. `_mapFailure` in `incoming_job_repository_impl.dart` handles both the 409 path and the IDOR-collapsed 404. Pinned by `incoming_job_failure_test.dart` and `incoming_job_repository_impl_test.dart`.
 
 ---
 
@@ -755,32 +713,46 @@ Low today, latent. Track it before adding any feature whose payload is realistic
 
 ---
 
-## 22. Customer is not notified when the technician's SLA expires
+## 22. Customer is not notified when their booking is rejected (SLA arm pending; customer-side handler missing)
+
+> **Updated 2026-05-03 (flag #14 close).** The technician-decline arm of `booking_rejected` is now shipped (see flag #14 resolution). The wire string, event-type registry entry, payload shape, and `display_name` listed in the proper-fix below are now live. **Two arms still pending:** (a) the SLA-expiry path (`expire_pending_job_booking`) does not emit, and (b) the customer-side Flutter handler doesn't subscribe — so even the now-emitted technician-decline event lands in the customer's `SystemEventNotifier` unobserved (FCM tray push will fire generically; in-app surface does nothing).
 
 **Where**
-- `backend/bookings/tasks.py` line ~6 — the `expire_pending_job_booking` task notes "notification on SLA timeout is intentionally out of scope" for the current sprint.
+- `backend/bookings/tasks.py` — `expire_pending_job_booking` flips `AWAITING → REJECTED` but does not call `EventDispatchService.broadcast_event(...)`. (The technician-decline twin in `backend/bookings/services/job_request_action.py::decline_job_booking` *does* emit, as of flag #14.)
+- `frontend/lib/core/realtime/domain/entities/system_event_type.dart` — no `bookingRejected` enum case yet (only `jobAccepted` and the rest of the pre-flag-#14 set).
+- `frontend/lib/features/customer/` — no `BookingRejectedNotifier` or equivalent customer-status feature consuming the event.
 - Cross-references flag #1 (booking acceptance model) and flag #19 (wire envelope contract).
 
 **What's wrong**
 When the technician's accept SLA fires server-side and the booking flips `AWAITING → REJECTED`, no event is dispatched to the customer. The customer's UI sits on "Waiting for technician…" indefinitely until they navigate away or refresh the booking detail manually. In the worst case the customer waits 5 minutes (current SLA) for a confirmation that's never coming, then has to re-enter the discovery flow without any prompt that something went wrong.
 
-**Why we shipped it anyway**
-This is one half of a lockstep migration. The customer-side surface that consumes the `booking_rejected` event doesn't exist yet — adding the backend dispatch alone would emit an event into the void. The session that builds the customer "Waiting for technician → Job rejected → re-pick" UI is the natural pair.
+When the technician explicitly declines (the case shipped by flag #14), `booking_rejected` IS emitted but the customer's frontend has no subscriber — so the FCM tray notification surfaces with the registry's generic `display_name="Booking unavailable"`, the in-app socket frame is dropped silently into `SystemEventNotifier`, and the customer's "Waiting for technician…" surface still sits there until they manually refresh.
 
-**The proper fix (lockstep with the customer-side waiting UI)**
-1. **Backend.** In `expire_pending_job_booking`, after flipping status to `REJECTED`, call `EventDispatchService.broadcast_event(user=booking.customer, target_role='customer', event_type='booking_rejected', payload={'booking_id': str(booking.id), 'reason': 'sla_timeout'})`. Inside the same `transaction.atomic()` so the event is only emitted if the status flip committed.
-2. **Backend.** Add `booking_rejected` to `EVENT_REGISTRY` with `display_name='Booking unavailable'`, `is_critical=True` (the customer needs to act).
-3. **Frontend.** Per-event feature wiring (CLAUDE.md → "Per-event feature wiring"): a `BookingRejectedNotifier` under `features/customer/booking_status/` (or wherever the waiting UI lives) listens via `ref.listen(systemEventProvider, ...)`, filters by `SystemEventType.bookingRejected`, and surfaces a modal: "This technician is no longer available. Choose someone else." with a button back into discovery.
-4. **Frontend.** `EventUrgencyRouter`: `booking_rejected` → `EventUrgency.highUrgency`, route to the booking detail screen (or a dedicated rejected modal). Add to `_navGuardPayloadKeys`.
-5. **Tests.** Backend test on the timeout task's event emission; frontend test on the notifier's filter + UI surfaces.
+**Why we shipped it anyway**
+The customer-side surface that consumes `booking_rejected` ("Waiting for technician → Job rejected → re-pick") is its own design problem. Holding the technician-decline backend emit hostage to that sprint blocked flag #14, so we shipped the emit alone — durable in `EventLog`, FCM still fires, customer-side will catch up when its handler lands. The SLA-expiry emit was deferred to bundle with the customer-side handler so the lockstep happens once.
+
+**The proper fix (remaining arms)**
+1. **Backend (SLA arm).** In `expire_pending_job_booking`, after flipping status to `REJECTED`, call `EventDispatchService.broadcast_event(user=booking.customer, target_role='customer', event_type=EventType.BOOKING_REJECTED.value, payload={**_build_rejected_payload(booking), 'reason': 'sla_timeout'})`. Reuse the payload shape from `bookings/services/job_request_action.py::_build_booking_rejected_payload` (refactor it into a shared helper or duplicate the five fields — both are small). Use `transaction.on_commit` to mirror the technician-decline emit's ordering. ✅ The registry entry (`EventType.BOOKING_REJECTED`, `display_name='Booking unavailable'`, `is_critical=True`) is already live from flag #14 — no registry edit needed.
+2. **Frontend.** Per-event feature wiring (CLAUDE.md → "Per-event feature wiring"):
+   - Add `bookingRejected` to `SystemEventType` enum + `_lookup` map in `frontend/lib/core/realtime/domain/entities/system_event_type.dart`.
+   - Build `features/customer/booking_status/` (or wherever the waiting UI lives) with payload model, mapper, `BookingRejectedNotifier` (`@Riverpod(keepAlive: true)`) listening via `ref.listen(systemEventProvider, ...)`, filtering by `SystemEventType.bookingRejected`. Surface a modal: "This technician is no longer available. Choose someone else." with a button back into discovery. The `payload.reason` discriminates copy (`technician_declined` vs `sla_timeout`).
+   - Register the queue notifier in `realtimeBootHooksProvider` (bottom of `app_lifecycle_orchestrator.dart`) so it wakes before the WS connect cascade.
+3. **Frontend (urgency tier — open question).** Add `booking_rejected` to the `EventUrgency` map in `event_urgency.dart`. The natural primary surface is the in-place update on the customer's "Waiting for technician…" screen via the per-event subscriber from step 2 — that handles the common case (customer is already on the relevant screen) regardless of urgency tier. The urgency tier only governs the fallback when the customer is **not** on that screen (backgrounded the app, navigated to another feature, tapped a stale FCM push later). Trade-off:
+   - **`lowUrgency` (`MaterialBanner`, recommended default).** "Your booking is no longer available — tap to find someone else." Closest analog in the existing map is `paymentReceived` — informational status the user wants to know about but doesn't strictly need to be yanked into. Polite; respects whatever the customer was doing.
+   - **`highUrgency` (`GoRouter.push`).** Force-pushes the customer to the booking detail / re-pick surface. Defensible — they DO need to act — but feels punitive when they didn't do anything wrong (the tech declined). Closer to `jobCompleted`'s "you must rate" semantics, which may be the wrong analog here.
+   The implementing sprint should pick one and add to the corresponding map (`_lowUrgencyTapRoutes` + `_bannerIcons` + `_bannerTitles` + `_bannerBody`, OR `_highUrgencyRoutes` + `_navGuardPayloadKeys`). The `payload.reason` discriminator should drive copy regardless of tier.
+4. **Tests.** Backend test on the timeout task's event emission; frontend test on the notifier's filter + UI surfaces. The `reason` discriminator branching needs coverage for both `technician_declined` and `sla_timeout`.
 
 **Search hints**
 - `expire_pending_job_booking` in `backend/bookings/tasks.py`
-- `EVENT_REGISTRY` in `realtime/constants/event_types.py`
+- `decline_job_booking` in `backend/bookings/services/job_request_action.py` — the canonical emit shape to mirror
+- `EventType.BOOKING_REJECTED` in `realtime/constants/event_types.py` — registry entry is live
+- `SystemEventType` enum in `frontend/lib/core/realtime/domain/entities/system_event_type.dart`
 - `EventUrgencyRouter._highUrgencyRoutes` in `event_urgency_router.dart`
+- `realtimeBootHooksProvider` at the bottom of `app_lifecycle_orchestrator.dart`
 
 **Severity**
-Medium. Until this lands, the customer's only recovery path on a tech timeout is to navigate manually. For a marketplace where the SLA window is short (5 minutes) and the next dispatch needs to happen quickly to maintain a high acceptance rate, the silence is a real conversion drag.
+Medium. Until this lands, the customer's only recovery path on a tech timeout OR a tech decline is to navigate manually. For a marketplace where the SLA window is short (5 minutes) and the next dispatch needs to happen quickly to maintain a high acceptance rate, the silence is a real conversion drag.
 
 ---
 
@@ -840,3 +812,52 @@ No production caller retries today, so the bug is invisible. Adding an idempoten
 
 **Severity**
 Low today, latent. The current call graph has no retry loops, so duplicates can't be produced in production. Track it before adding (a) any Celery `@shared_task` that produces events with `autoretry_for=...`, (b) any service-layer retry decorator, or (c) any producer that runs outside `transaction.on_commit`. The cost to retrofit after a duplicate-event incident in production (UI fired twice, customer charged twice, etc.) is much higher than adding the optional parameter now.
+
+---
+
+## 25. Customer-side `job_accepted` handler is missing
+
+**Where**
+- `backend/bookings/services/job_request_action.py::accept_job_booking` — emits `job_accepted` to the customer on commit (flag #14 close).
+- `backend/realtime/constants/event_types.py` — `EventType.JOB_ACCEPTED = "job_accepted"` registered as `is_critical=True`, `display_name="Job Accepted"`.
+- `frontend/lib/core/realtime/domain/entities/system_event_type.dart` — has `jobAccepted` enum case + lookup entry, **but** no feature subscriber consumes it.
+- `frontend/lib/features/customer/` — no `JobAcceptedNotifier` or post-acceptance customer surface.
+- `frontend/lib/core/realtime/presentation/router/event_urgency_router.dart` — no entry for `job_accepted`.
+- `frontend/lib/core/realtime/presentation/app_lifecycle_orchestrator.dart::realtimeBootHooksProvider` — no boot-hook for the (missing) feature.
+
+**What's wrong**
+The technician's accept flow now fires `job_accepted` to the customer (durable in `EventLog`, FCM tray push fires, WS frame lands at `SystemEventNotifier`). The customer-side Flutter app has no handler, so:
+- The WS frame is processed by `SystemEventNotifier`, dedupe-stored, and dropped — no notifier filters on `SystemEventType.jobAccepted`.
+- The FCM tray notification fires with the registry's generic title `"Job Accepted"` and the default body. Tapping it launches the app to its default surface (customer home) with no state change — the customer's "Waiting for technician…" screen still says waiting.
+- The customer's perception is still that the booking is unconfirmed until they manually navigate or refresh, exactly the conversion drag flag #22 is also about.
+
+This is the post-confirmation half of flag #22's "the customer doesn't know what happened to their booking" gap. Twin entries because the events are distinct (`job_accepted` is informational/positive; `booking_rejected` is recovery/negative) and the customer-facing UX surfaces will differ — accepted leads into "your tech is on the way" with ETA / tech profile; rejected leads into "pick someone else" / re-dispatch.
+
+**Why we shipped it anyway**
+Holding the technician-side accept flow (flag #14) hostage to the customer-side post-acceptance UX would have blocked the technician's most-seen surface for an unrelated design problem. Emitting now means the wire contract is exercised by real test traffic during dev (every dev-environment accept fires the event into `EventLog` + FCM), so the customer-side handler can be built against real envelopes when it lands.
+
+**The proper fix (lockstep with the customer post-acceptance UX)**
+1. **Frontend.** Per-event feature wiring (CLAUDE.md → "Per-event feature wiring"):
+   - Build `features/customer/active_booking/` (or wherever the post-acceptance surface lives) with:
+     - `data/models/job_accepted_payload_model.dart` — Freezed + `fromJson` for the five payload fields documented in `BOOKINGS_API.md` §1.3.
+     - `data/mappers/` — wire-string-to-typed-domain (e.g. `scheduled_start_iso` → `DateTime`).
+     - `presentation/providers/job_accepted_notifier.dart` — `@Riverpod(keepAlive: true)`, listens via `ref.listen(systemEventProvider, ...)`, filters by `SystemEventType.jobAccepted`. Updates the customer's "Waiting for technician…" surface to "Confirmed — `<technician_display_name>` is on the way" with the resolved entity.
+   - Register the queue/state notifier in `realtimeBootHooksProvider` (bottom of `app_lifecycle_orchestrator.dart`) so it wakes before the WS connect cascade — otherwise the first `job_accepted` after login is missed.
+2. **Frontend (urgency tier — open question; existing classification is suspect).** `SystemEventType.jobAccepted` is **already** classified as `EventUrgency.highUrgency` in `event_urgency.dart` (line 10) — that decision predates this flag and was inherited from the original event-types modeling. Revisiting it is part of this sprint's scope.
+   The primary in-app surface should be the in-place update on the customer's "Waiting for technician…" screen via the per-event subscriber from step 1 — the customer is most likely on that screen at the moment of acceptance, and the screen-level subscriber handles them regardless of tier. The urgency tier only governs the fallback when the customer is **not** on that screen. Trade-off:
+   - **`lowUrgency` (`MaterialBanner`, recommended default).** "Your booking was confirmed — tap to view." Closest analog is `paymentReceived` — the customer is aware they booked and is implicitly waiting; an interrupt isn't needed if they're mid-WhatsApp or mid-anything-else. Polite; respects context.
+   - **`highUrgency` (`GoRouter.push`, current classification).** Yanks the customer to the booking detail surface. Defensible because they were about to need that screen anyway, but jarring when the FCM push already drew their attention and they can self-navigate.
+   If switching to `lowUrgency`, the change is one line in the urgency map plus adding entries to `_lowUrgencyTapRoutes` / `_bannerIcons` / `_bannerTitles` / `_bannerBody`. If keeping `highUrgency`, add entries to `_highUrgencyRoutes` and `_navGuardPayloadKeys` (route to the booking detail screen with `job_id` as the guard key).
+3. **Tests.** Frontend mapper / notifier / widget tests on the new surface.
+
+**Search hints**
+- `EventType.JOB_ACCEPTED` in `realtime/constants/event_types.py` (registry entry already live)
+- `accept_job_booking` in `bookings/services/job_request_action.py` (canonical emit)
+- `BOOKINGS_API.md` §1.3 (payload contract)
+- `SystemEventType.jobAccepted` in `frontend/lib/core/realtime/domain/entities/system_event_type.dart` (enum case already live)
+- `realtimeBootHooksProvider` at the bottom of `app_lifecycle_orchestrator.dart`
+- `EventUrgencyRouter._highUrgencyRoutes` in `event_urgency_router.dart`
+- Reference impl: `frontend/lib/features/technician/incoming_job_requests/` is the canonical per-event feature pattern.
+
+**Severity**
+Medium. The "I confirmed but the customer doesn't know" silence is a real conversion drag — the customer is most anxious in the window between booking and confirmation, and the absence of a confirmation push that does anything useful in-app is exactly the kind of friction that drives manual refresh / abandonment. Pair with flag #22 in a single customer-status sprint.

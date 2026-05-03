@@ -22,6 +22,12 @@ class EventType(str, Enum):
     # finalizes an instant booking — see bookings/services/job_request_dispatch.py.
     JOB_NEW_REQUEST = "job_new_request"
     JOB_ACCEPTED = "job_accepted"
+    # `booking_rejected` covers BOTH the technician-decline path
+    # (`reason: "technician_declined"`) and the SLA-expiry path
+    # (`reason: "sla_timeout"`, future — see flag #22). One event-type with
+    # a payload discriminator keeps the customer-side surface a single
+    # subscriber instead of forking the registry per pathway.
+    BOOKING_REJECTED = "booking_rejected"
     QUOTE_GENERATED = "quote_generated"
     QUOTE_APPROVED = "quote_approved"
     TECH_EN_ROUTE = "tech_en_route"
@@ -42,6 +48,7 @@ class EventMeta(TypedDict):
 EVENT_REGISTRY: dict[EventType, EventMeta] = {
     EventType.JOB_NEW_REQUEST:    {"is_critical": True,  "display_name": "New Job Available"},
     EventType.JOB_ACCEPTED:       {"is_critical": True,  "display_name": "Job Accepted"},
+    EventType.BOOKING_REJECTED:   {"is_critical": True,  "display_name": "Booking unavailable"},
     EventType.QUOTE_GENERATED:    {"is_critical": True,  "display_name": "New Quote Ready"},
     EventType.QUOTE_APPROVED:     {"is_critical": True,  "display_name": "Quote Approved"},
     EventType.TECH_EN_ROUTE:      {"is_critical": False, "display_name": "Technician On The Way"},

@@ -49,9 +49,9 @@ class IncomingJobCard extends StatelessWidget {
 
   /// Fired once when the swipe-track's drain reaches zero — the offer's SLA
   /// has elapsed and the technician didn't act in time. Same end-state as
-  /// decline (offer leaves the queue) but distinct semantically: when the
-  /// accept endpoint lands the host will decline-POST on user decline and
-  /// no-op on expire (server-side Celery task fires authoritative).
+  /// decline (offer leaves the queue) but distinct semantically: decline
+  /// POSTs `/decline`, expire is a pure local removal (the backend's
+  /// SLA-timeout Celery task fires authoritative).
   final VoidCallback onExpire;
 
   @override

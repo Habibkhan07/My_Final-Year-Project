@@ -8,6 +8,7 @@ import '../../domain/entities/job_new_request.dart';
 import '../providers/dependency_injection.dart';
 import '../providers/incoming_job_queue_notifier.dart';
 import '../providers/incoming_job_queue_state.dart';
+import '../state/job_action_result.dart';
 import 'incoming_job_sheet.dart';
 
 /// Global overlay that surfaces incoming job offers as a draggable bottom
@@ -217,33 +218,112 @@ class _IncomingJobSheetHostState extends ConsumerState<IncomingJobSheetHost>
   // The host renders the head directly; tail order is the notifier's
   // concern, not presentation's.
 
-  void _handleAccept(int jobId) {
+  Future<void> _handleAccept(int jobId) async {
+    // Defensive in-flight gate. The notifier also checks, but a tap that
+    // races between two `setState` frames could otherwise send a second
+    // call before the notifier's state propagates back here.
+    if (ref.read(incomingJobQueueProvider).inFlightJobIds.contains(jobId)) {
+      return;
+    }
     HapticFeedback.selectionClick();
     // The swipe widget plays a confirm animation (thumb → right edge, then
     // morphs into a check) for ~260ms after the user releases past the
-    // threshold. We hold removeRequest until the animation has played so
-    // the user sees their swipe register before the sheet slides out. If
-    // the host unmounts during the hold (route changes, app teardown), the
-    // mounted check below short-circuits.
-    Future<void>.delayed(_acceptConfirmHold, () {
-      if (!mounted) return;
-      // TODO(accept-endpoint): wire to the bookings repository when the
-      //   accept/decline endpoint lands. Until then, removeRequest is the
-      //   only effect — see flag.md #14 (Accept button asymmetry).
-      ref.read(incomingJobQueueProvider.notifier).removeRequest(jobId);
-    });
+    // threshold. We hold the remote call until the animation has played so
+    // the user sees their swipe register before any side-effect happens.
+    // If the host unmounts during the hold (route changes, app teardown),
+    // the mounted check below short-circuits.
+    await Future<void>.delayed(_acceptConfirmHold);
+    if (!mounted) return;
+    final result =
+        await ref.read(incomingJobQueueProvider.notifier).accept(jobId);
+    if (!mounted) return;
+    _surfaceResult(result, jobId: jobId, action: _JobAction.accept);
   }
 
-  void _handleDecline(int jobId) {
-    ref.read(incomingJobQueueProvider.notifier).removeRequest(jobId);
+  Future<void> _handleDecline(int jobId) async {
+    if (ref.read(incomingJobQueueProvider).inFlightJobIds.contains(jobId)) {
+      return;
+    }
+    final result =
+        await ref.read(incomingJobQueueProvider.notifier).decline(jobId);
+    if (!mounted) return;
+    _surfaceResult(result, jobId: jobId, action: _JobAction.decline);
   }
 
   void _handleExpire(int jobId) {
-    // Same end-state as decline (offer leaves the queue) — distinct only so
-    // the host can wire different remote semantics later: decline will POST
-    // /decline once that endpoint exists; expire will be a no-op because the
-    // server's SLA-timeout Celery task fires authoritative.
+    // Suppressed while the remote action is in flight — the server's
+    // response is the only thing that resolves the offer once a tap
+    // lands, otherwise we'd remove the card under the user just before
+    // a 200/409 response arrives. The visual countdown will sit at 00:00
+    // until the response lands.
+    if (ref.read(incomingJobQueueProvider).inFlightJobIds.contains(jobId)) {
+      return;
+    }
+    // Pure local removal — the server's SLA-timeout Celery task is
+    // authoritative on the backend. There is no /expire endpoint.
     ref.read(incomingJobQueueProvider.notifier).removeRequest(jobId);
+  }
+
+  /// Renders the outcome of a single accept/decline tap.
+  ///
+  /// * Success — silent. The notifier already removed the offer; the queue
+  ///   listener handles the slide-out / next-head ceremony.
+  /// * Conflict (409 / 404 IDOR collapse) — non-retryable. Mid-impact
+  ///   haptic + "no longer available" snackbar. Offer is already gone
+  ///   from the queue.
+  /// * Network / unexpected — retryable. Mid-impact haptic + snackbar
+  ///   with a Retry action that re-invokes the same handler. Offer
+  ///   stays in the queue.
+  /// * AlreadyInFlight — silent. The user double-tapped; their first
+  ///   request is still resolving.
+  void _surfaceResult(
+    JobActionResult result, {
+    required int jobId,
+    required _JobAction action,
+  }) {
+    switch (result) {
+      case JobActionSuccess():
+      case JobActionAlreadyInFlight():
+        return;
+      case JobActionConflict():
+        HapticFeedback.mediumImpact();
+        _showSnack(
+          message: 'This job is no longer available.',
+        );
+      case JobActionNetworkFailure(:final failure):
+        HapticFeedback.mediumImpact();
+        _showSnack(
+          message: failure.message,
+          retry: () => action == _JobAction.accept
+              ? _handleAccept(jobId)
+              : _handleDecline(jobId),
+        );
+      case JobActionUnexpectedFailure(:final failure):
+        HapticFeedback.mediumImpact();
+        _showSnack(
+          message: failure.message,
+          retry: () => action == _JobAction.accept
+              ? _handleAccept(jobId)
+              : _handleDecline(jobId),
+        );
+    }
+  }
+
+  void _showSnack({required String message, VoidCallback? retry}) {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    if (messenger == null) return;
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(message),
+        action: retry == null
+            ? null
+            : SnackBarAction(
+                label: 'Retry',
+                onPressed: retry,
+              ),
+      ),
+    );
   }
 
   // ── Build ───────────────────────────────────────────────────────────────
@@ -305,6 +385,11 @@ class _IncomingJobSheetHostState extends ConsumerState<IncomingJobSheetHost>
     );
   }
 }
+
+/// Discriminator for which handler the snackbar's Retry button should
+/// re-invoke. Local because the host is the only consumer; promoting this
+/// to its own file would just add ceremony.
+enum _JobAction { accept, decline }
 
 // ─── Scrim ─────────────────────────────────────────────────────────────────
 
