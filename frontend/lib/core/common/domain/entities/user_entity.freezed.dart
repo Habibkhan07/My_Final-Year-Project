@@ -15,7 +15,13 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$UserEntity {
 
- String get phone; String? get token; String? get firstName; String? get lastName; bool get isTechnician; bool get nameRequired;
+ String get phone;// Numeric `auth.User.id` from the backend. Sourced from
+// /api/accounts/verify-otp/'s `user_id` field. Powers the realtime
+// recipient filter via `currentAuthUserIdProvider` (flag #19).
+// Nullable for two reasons: pre-flag-#19 cached sessions where the
+// backend did not yet return `user_id`, and tests that construct a
+// `UserEntity` without exercising the auth flow.
+ int? get id; String? get token; String? get firstName; String? get lastName; bool get isTechnician; bool get nameRequired;
 /// Create a copy of UserEntity
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -28,16 +34,16 @@ $UserEntityCopyWith<UserEntity> get copyWith => _$UserEntityCopyWithImpl<UserEnt
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UserEntity&&(identical(other.phone, phone) || other.phone == phone)&&(identical(other.token, token) || other.token == token)&&(identical(other.firstName, firstName) || other.firstName == firstName)&&(identical(other.lastName, lastName) || other.lastName == lastName)&&(identical(other.isTechnician, isTechnician) || other.isTechnician == isTechnician)&&(identical(other.nameRequired, nameRequired) || other.nameRequired == nameRequired));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UserEntity&&(identical(other.phone, phone) || other.phone == phone)&&(identical(other.id, id) || other.id == id)&&(identical(other.token, token) || other.token == token)&&(identical(other.firstName, firstName) || other.firstName == firstName)&&(identical(other.lastName, lastName) || other.lastName == lastName)&&(identical(other.isTechnician, isTechnician) || other.isTechnician == isTechnician)&&(identical(other.nameRequired, nameRequired) || other.nameRequired == nameRequired));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,phone,token,firstName,lastName,isTechnician,nameRequired);
+int get hashCode => Object.hash(runtimeType,phone,id,token,firstName,lastName,isTechnician,nameRequired);
 
 @override
 String toString() {
-  return 'UserEntity(phone: $phone, token: $token, firstName: $firstName, lastName: $lastName, isTechnician: $isTechnician, nameRequired: $nameRequired)';
+  return 'UserEntity(phone: $phone, id: $id, token: $token, firstName: $firstName, lastName: $lastName, isTechnician: $isTechnician, nameRequired: $nameRequired)';
 }
 
 
@@ -48,7 +54,7 @@ abstract mixin class $UserEntityCopyWith<$Res>  {
   factory $UserEntityCopyWith(UserEntity value, $Res Function(UserEntity) _then) = _$UserEntityCopyWithImpl;
 @useResult
 $Res call({
- String phone, String? token, String? firstName, String? lastName, bool isTechnician, bool nameRequired
+ String phone, int? id, String? token, String? firstName, String? lastName, bool isTechnician, bool nameRequired
 });
 
 
@@ -65,10 +71,11 @@ class _$UserEntityCopyWithImpl<$Res>
 
 /// Create a copy of UserEntity
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? phone = null,Object? token = freezed,Object? firstName = freezed,Object? lastName = freezed,Object? isTechnician = null,Object? nameRequired = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? phone = null,Object? id = freezed,Object? token = freezed,Object? firstName = freezed,Object? lastName = freezed,Object? isTechnician = null,Object? nameRequired = null,}) {
   return _then(_self.copyWith(
 phone: null == phone ? _self.phone : phone // ignore: cast_nullable_to_non_nullable
-as String,token: freezed == token ? _self.token : token // ignore: cast_nullable_to_non_nullable
+as String,id: freezed == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
+as int?,token: freezed == token ? _self.token : token // ignore: cast_nullable_to_non_nullable
 as String?,firstName: freezed == firstName ? _self.firstName : firstName // ignore: cast_nullable_to_non_nullable
 as String?,lastName: freezed == lastName ? _self.lastName : lastName // ignore: cast_nullable_to_non_nullable
 as String?,isTechnician: null == isTechnician ? _self.isTechnician : isTechnician // ignore: cast_nullable_to_non_nullable
@@ -158,10 +165,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String phone,  String? token,  String? firstName,  String? lastName,  bool isTechnician,  bool nameRequired)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String phone,  int? id,  String? token,  String? firstName,  String? lastName,  bool isTechnician,  bool nameRequired)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _UserEntity() when $default != null:
-return $default(_that.phone,_that.token,_that.firstName,_that.lastName,_that.isTechnician,_that.nameRequired);case _:
+return $default(_that.phone,_that.id,_that.token,_that.firstName,_that.lastName,_that.isTechnician,_that.nameRequired);case _:
   return orElse();
 
 }
@@ -179,10 +186,10 @@ return $default(_that.phone,_that.token,_that.firstName,_that.lastName,_that.isT
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String phone,  String? token,  String? firstName,  String? lastName,  bool isTechnician,  bool nameRequired)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String phone,  int? id,  String? token,  String? firstName,  String? lastName,  bool isTechnician,  bool nameRequired)  $default,) {final _that = this;
 switch (_that) {
 case _UserEntity():
-return $default(_that.phone,_that.token,_that.firstName,_that.lastName,_that.isTechnician,_that.nameRequired);case _:
+return $default(_that.phone,_that.id,_that.token,_that.firstName,_that.lastName,_that.isTechnician,_that.nameRequired);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -199,10 +206,10 @@ return $default(_that.phone,_that.token,_that.firstName,_that.lastName,_that.isT
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String phone,  String? token,  String? firstName,  String? lastName,  bool isTechnician,  bool nameRequired)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String phone,  int? id,  String? token,  String? firstName,  String? lastName,  bool isTechnician,  bool nameRequired)?  $default,) {final _that = this;
 switch (_that) {
 case _UserEntity() when $default != null:
-return $default(_that.phone,_that.token,_that.firstName,_that.lastName,_that.isTechnician,_that.nameRequired);case _:
+return $default(_that.phone,_that.id,_that.token,_that.firstName,_that.lastName,_that.isTechnician,_that.nameRequired);case _:
   return null;
 
 }
@@ -214,10 +221,17 @@ return $default(_that.phone,_that.token,_that.firstName,_that.lastName,_that.isT
 @JsonSerializable()
 
 class _UserEntity implements UserEntity {
-  const _UserEntity({required this.phone, this.token, this.firstName, this.lastName, this.isTechnician = false, this.nameRequired = false});
+  const _UserEntity({required this.phone, this.id, this.token, this.firstName, this.lastName, this.isTechnician = false, this.nameRequired = false});
   factory _UserEntity.fromJson(Map<String, dynamic> json) => _$UserEntityFromJson(json);
 
 @override final  String phone;
+// Numeric `auth.User.id` from the backend. Sourced from
+// /api/accounts/verify-otp/'s `user_id` field. Powers the realtime
+// recipient filter via `currentAuthUserIdProvider` (flag #19).
+// Nullable for two reasons: pre-flag-#19 cached sessions where the
+// backend did not yet return `user_id`, and tests that construct a
+// `UserEntity` without exercising the auth flow.
+@override final  int? id;
 @override final  String? token;
 @override final  String? firstName;
 @override final  String? lastName;
@@ -237,16 +251,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _UserEntity&&(identical(other.phone, phone) || other.phone == phone)&&(identical(other.token, token) || other.token == token)&&(identical(other.firstName, firstName) || other.firstName == firstName)&&(identical(other.lastName, lastName) || other.lastName == lastName)&&(identical(other.isTechnician, isTechnician) || other.isTechnician == isTechnician)&&(identical(other.nameRequired, nameRequired) || other.nameRequired == nameRequired));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _UserEntity&&(identical(other.phone, phone) || other.phone == phone)&&(identical(other.id, id) || other.id == id)&&(identical(other.token, token) || other.token == token)&&(identical(other.firstName, firstName) || other.firstName == firstName)&&(identical(other.lastName, lastName) || other.lastName == lastName)&&(identical(other.isTechnician, isTechnician) || other.isTechnician == isTechnician)&&(identical(other.nameRequired, nameRequired) || other.nameRequired == nameRequired));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,phone,token,firstName,lastName,isTechnician,nameRequired);
+int get hashCode => Object.hash(runtimeType,phone,id,token,firstName,lastName,isTechnician,nameRequired);
 
 @override
 String toString() {
-  return 'UserEntity(phone: $phone, token: $token, firstName: $firstName, lastName: $lastName, isTechnician: $isTechnician, nameRequired: $nameRequired)';
+  return 'UserEntity(phone: $phone, id: $id, token: $token, firstName: $firstName, lastName: $lastName, isTechnician: $isTechnician, nameRequired: $nameRequired)';
 }
 
 
@@ -257,7 +271,7 @@ abstract mixin class _$UserEntityCopyWith<$Res> implements $UserEntityCopyWith<$
   factory _$UserEntityCopyWith(_UserEntity value, $Res Function(_UserEntity) _then) = __$UserEntityCopyWithImpl;
 @override @useResult
 $Res call({
- String phone, String? token, String? firstName, String? lastName, bool isTechnician, bool nameRequired
+ String phone, int? id, String? token, String? firstName, String? lastName, bool isTechnician, bool nameRequired
 });
 
 
@@ -274,10 +288,11 @@ class __$UserEntityCopyWithImpl<$Res>
 
 /// Create a copy of UserEntity
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? phone = null,Object? token = freezed,Object? firstName = freezed,Object? lastName = freezed,Object? isTechnician = null,Object? nameRequired = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? phone = null,Object? id = freezed,Object? token = freezed,Object? firstName = freezed,Object? lastName = freezed,Object? isTechnician = null,Object? nameRequired = null,}) {
   return _then(_UserEntity(
 phone: null == phone ? _self.phone : phone // ignore: cast_nullable_to_non_nullable
-as String,token: freezed == token ? _self.token : token // ignore: cast_nullable_to_non_nullable
+as String,id: freezed == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
+as int?,token: freezed == token ? _self.token : token // ignore: cast_nullable_to_non_nullable
 as String?,firstName: freezed == firstName ? _self.firstName : firstName // ignore: cast_nullable_to_non_nullable
 as String?,lastName: freezed == lastName ? _self.lastName : lastName // ignore: cast_nullable_to_non_nullable
 as String?,isTechnician: null == isTechnician ? _self.isTechnician : isTechnician // ignore: cast_nullable_to_non_nullable

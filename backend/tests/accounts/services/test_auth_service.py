@@ -88,7 +88,11 @@ def test_verify_new_user_creates_user_and_profiles():
     assert result['new_user'] is True
     assert result['name_required'] is True
     assert result['is_technician'] is False
-    assert User.objects.filter(username='+923001234567').exists()
+    user = User.objects.get(username='+923001234567')
+    # ``user_id`` is the realtime recipient-filter anchor (flag #19) — it must
+    # match the actual User row so the frontend pipeline can compare it against
+    # envelope.recipient_user_id without indirection.
+    assert result['user_id'] == user.id
     assert UserProfile.objects.filter(phone='+923001234567').exists()
     assert CustomerProfile.objects.filter(user__username='+923001234567').exists()
 

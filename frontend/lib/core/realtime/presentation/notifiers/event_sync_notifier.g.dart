@@ -101,7 +101,7 @@ final class EventSyncNotifierProvider
   }
 }
 
-String _$eventSyncNotifierHash() => r'5641f5a68ee9f0f9d02edd561d86c672de041b20';
+String _$eventSyncNotifierHash() => r'14b47a022622ff562dae9d32e34e0a09a0ae8e7d';
 
 /// REST-side of the realtime pipeline:
 ///   - Recovery: fetch events missed while the WebSocket was down.

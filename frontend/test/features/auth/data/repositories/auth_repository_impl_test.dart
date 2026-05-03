@@ -89,7 +89,9 @@ void main() {
   // ---------------------------------------------------------------------------
 
   group('verifyOtp', () {
+    const tUserId = 42;
     const tModel = UserModel(
+      id: tUserId,
       phone: tPhone,
       token: tToken,
       isTechnician: false,
@@ -106,8 +108,44 @@ void main() {
       expect(result.phone, tPhone);
       expect(result.token, tToken);
       expect(result.nameRequired, true);
+      // ``id`` from the wire flows through to the cached entity — required
+      // so the orchestrator's ``currentAuthUserIdProvider`` override has a
+      // non-null value to feed the realtime recipient filter (flag #19).
+      expect(result.id, tUserId);
       verify(() => mockLocal.saveToken(tToken)).called(1);
       verify(() => mockLocal.saveUser(any())).called(1);
+    });
+
+    test('UserModel.fromJson reads user_id from the verify-otp wire payload', () {
+      // Pin the wire field name (``user_id``) so a backend rename surfaces here
+      // as a test failure, not as a silently-null id on the device. Wire field
+      // is named per /api/accounts/verify-otp/ — see flag #19 / B1.
+      final json = <String, dynamic>{
+        'user_id': 7,
+        'token': 'abc',
+        'is_technician': false,
+        'name_required': false,
+      };
+
+      final model = UserModel.fromJson(json);
+
+      expect(model.id, 7);
+      expect(model.toEntity().id, 7);
+    });
+
+    test('UserModel.fromJson tolerates missing user_id (legacy cache)', () {
+      // Pre-flag-#19 backends did not return user_id. The model must accept
+      // this gracefully — null id keeps the recipient filter dormant rather
+      // than crashing the parse.
+      final json = <String, dynamic>{
+        'token': 'abc',
+        'is_technician': false,
+        'name_required': false,
+      };
+
+      final model = UserModel.fromJson(json);
+
+      expect(model.id, isNull);
     });
 
     test('throws InvalidInput with both message and field error for wrong OTP', () {

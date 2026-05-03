@@ -124,6 +124,10 @@ def test_verify_new_user_returns_token_and_flags(client, verify_url):
     assert data['new_user'] is True
     assert data['name_required'] is True
     assert data['is_technician'] is False
+    # user_id powers the realtime recipient filter (flag #19) — must be present
+    # on every successful verification so the frontend orchestrator can override
+    # ``currentAuthUserIdProvider`` with the live id.
+    assert isinstance(data['user_id'], int) and data['user_id'] > 0
 
 
 @pytest.mark.django_db

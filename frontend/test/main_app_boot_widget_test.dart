@@ -17,6 +17,7 @@ import 'package:frontend/core/realtime/presentation/services/fcm_handler.dart';
 import 'package:frontend/core/realtime/presentation/state/connection_state.dart';
 import 'package:frontend/core/realtime/presentation/state/system_event_state.dart';
 import 'package:frontend/features/auth/domain/repositories/auth_repository.dart';
+import 'package:frontend/features/auth/presentation/providers/auth_notifier.dart';
 import 'package:frontend/features/auth/presentation/providers/dependency_injection.dart'
     as auth_di;
 import 'package:frontend/features/technician/onboarding/presentation/providers/dependency_injection.dart'
@@ -138,6 +139,17 @@ Widget _wrapAppRoot({
 
       // Auth: mocked repo so getCachedUser is deterministic per test.
       auth_di.authRepositoryProvider.overrideWithValue(authRepo),
+
+      // flag #19 — mirror bootApp's production override so the realtime
+      // recipient filter sees the authenticated user's id. Existing tests
+      // that don't set ``UserEntity.id`` keep getting null here (no
+      // behavioural change); tests that exercise the recipient filter
+      // can rely on this chain producing the right id.
+      realtime_di.currentAuthUserIdProvider.overrideWith(
+        (ref) => ref.watch(
+          authProvider.select((async) => async.value?.user?.id),
+        ),
+      ),
 
       // Realtime: empty boot-hooks registry so we don't drag in
       // incomingJobQueueProvider's full feature DI tree.
@@ -467,6 +479,107 @@ void main() {
               'token through the boot composition — the full path from '
               'bootApp → ProviderScope → AppLifecycleOrchestrator → '
               'AuthNotifier → bootAfterAuth → ws.connect');
+    });
+
+    // ─── W9 — flag #19: currentAuthUserIdProvider override ─────────────
+    //
+    // The realtime pipeline's recipient filter compares envelope.recipient_user_id
+    // against ``currentAuthUserIdProvider``. The provider is declared in
+    // core/realtime as a null-returning seam (core can't import features) and
+    // is overridden at app boot to read auth state. This test pins the chain:
+    // a logged-in cached user with id=42 must surface as 42 through the
+    // override, otherwise the recipient filter is dormant in production even
+    // though the backend is now emitting recipient_user_id (Phase A).
+
+    testWidgets(
+        'W9 — flag #19: currentAuthUserIdProvider returns auth user id '
+        'after cached login resolves', (tester) async {
+      final calls = <MethodCall>[];
+      _setupLocalNotificationsMock(calls);
+
+      const cachedUser = UserEntity(
+        id: 42,
+        phone: '+923001234567',
+        token: 'cached-tok',
+        firstName: 'Test',
+        lastName: 'User',
+        nameRequired: true,
+        isTechnician: true,
+      );
+
+      final authRepo = _MockAuthRepository();
+      when(() => authRepo.getCachedUser())
+          .thenAnswer((_) async => cachedUser);
+
+      final fcm = _MockFCMHandler();
+      when(() => fcm.initialize()).thenAnswer((_) async {});
+
+      final local = _MockEventLocalDataSource();
+      when(() => local.getLastSyncTimestamp()).thenReturn(null);
+
+      final prefs = await SharedPreferences.getInstance();
+
+      await tester.pumpWidget(_wrapAppRoot(
+        authRepo: authRepo,
+        fcm: fcm,
+        local: local,
+        prefs: prefs,
+      ));
+      // AuthNotifier.build is async — pump until getCachedUser resolves and
+      // the AsyncData transition runs the select-driven override.
+      await tester.pump();
+      await tester.runAsync(() async {
+        await Future<void>.delayed(Duration.zero);
+      });
+      await tester.pump();
+
+      expect(
+        _lastContainer!.read(realtime_di.currentAuthUserIdProvider),
+        42,
+        reason:
+            'flag #19 — override must pipe AuthState.user.id through to '
+            'currentAuthUserIdProvider, otherwise the realtime recipient '
+            'filter cannot fire in production.',
+      );
+    });
+
+    testWidgets(
+        'W10 — flag #19: currentAuthUserIdProvider stays null when no '
+        'user is cached', (tester) async {
+      final calls = <MethodCall>[];
+      _setupLocalNotificationsMock(calls);
+
+      final authRepo = _MockAuthRepository();
+      when(() => authRepo.getCachedUser()).thenAnswer((_) async => null);
+
+      final fcm = _MockFCMHandler();
+      when(() => fcm.initialize()).thenAnswer((_) async {});
+
+      final local = _MockEventLocalDataSource();
+      when(() => local.getLastSyncTimestamp()).thenReturn(null);
+
+      final prefs = await SharedPreferences.getInstance();
+
+      await tester.pumpWidget(_wrapAppRoot(
+        authRepo: authRepo,
+        fcm: fcm,
+        local: local,
+        prefs: prefs,
+      ));
+      await tester.pump();
+      await tester.runAsync(() async {
+        await Future<void>.delayed(Duration.zero);
+      });
+      await tester.pump();
+
+      expect(
+        _lastContainer!.read(realtime_di.currentAuthUserIdProvider),
+        isNull,
+        reason:
+            'No cached user → override resolves to null → recipient filter '
+            'no-ops (the documented backwards-compat path). The pipeline '
+            'must not reject events just because the user is signed out.',
+      );
     });
   });
 }

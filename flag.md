@@ -679,53 +679,29 @@ Low. The placeholder is functional — the cue plays, respects silent mode, and 
 
 ---
 
-## 19. Wire envelope lacks `expires_at` and `recipient_user_id` — frontend filters at the feature level instead of the pipeline
+## ~~19. Wire envelope lacks `expires_at` and `recipient_user_id` — frontend filters at the feature level instead of the pipeline~~ ✅ Resolved (2026-05-03)
 
-**Where**
-- `backend/realtime/events/services/event_dispatch_service.py` — `broadcast_event` constructs the envelope at lines ~85–102 (currently only `id`, `kind`, `rawType`, `targetRole`, `timestamp`, `payload`).
-- `backend/realtime/events/api/serializers.py` — `EventLogSerializer` rebuilds the envelope from the EventLog row for `/api/realtime/events/sync/?since=`. Must include the two new fields.
-- `backend/realtime/devices/tasks.py` — `send_fcm_notification` flattens the envelope into the FCM data field via `_stringify`. Must include the two new fields so the BG isolate's drained payload carries them.
-- `backend/realtime/api/EVENT_DISPATCH_API.md` — wire docs need both fields documented.
-- `frontend/lib/core/realtime/data/models/system_event_model.dart` — Freezed model must add both optional fields (`@JsonKey(name: 'expires_at')`, `@JsonKey(name: 'recipient_user_id')`).
-- `frontend/lib/core/realtime/data/mappers/system_event_mapper.dart` — pass through to the entity.
-- `frontend/lib/core/realtime/domain/entities/system_event_entity.dart` — add the optional fields.
-- `frontend/lib/core/realtime/presentation/notifiers/system_event_notifier.dart` — two early-exit guards inside `processEvent` (before the dedup check):
-  - If `event.recipientUserId != null && event.recipientUserId != currentAuthUserId` → drop with debug log.
-  - If `event.expiresAt != null && serverNow > event.expiresAt` → drop with debug log. `serverNow` anchors on the latest WS-delivered event's timestamp + elapsed-since-anchor (insensitive to device-clock skew).
-- `frontend/lib/features/technician/incoming_job_requests/data/mappers/job_new_request_mapper.dart` — flag #19 stopgap freshness check today; once the pipeline-level filter ships, the feature-level check becomes redundant (kept as defense in depth).
+Resolved by emitting both fields from `EventDispatchService.broadcast_event` and denormalizing `expires_at` onto `EventLog` so /sync/ replay surfaces the same UTC instant the original WS frame carried — no recomputation, no clock drift between dispatch and replay. The frontend pipeline filters (already shipped under the rollout-window contract) activate automatically; the multi-account recipient filter further requires the auth chain to expose a numeric user id, also wired in this change.
 
-**What's wrong**
-The wire envelope has no fields for "when does this event expire" (only the feature-specific `payload.expires_in_seconds`, which is relative-to-when-ambiguous and only known to features that look inside payloads) and no field for "which user is this event for" (recipient identity is implicit in the channel-layer group membership, but on a multi-account device the FCM tap-intent path delivers the event regardless of which user is logged in).
+**What changed**
 
-The two missing fields force every frontend feature to either reimplement the same staleness/identity checks in its own mapper (the ratchet that keeps drift creeping in across features) or to skip them entirely (the silent-vulnerability path). The cross-cutting fixes belong at the envelope level so the pipeline can filter once and every present and future event inherits the protection.
+*Backend*
+- `EventDispatchService.broadcast_event` accepts an explicit `expires_in_seconds: int | None = None` kwarg. Pins one UTC `now` for both `envelope["timestamp"]` and `envelope["expires_at"]` so the wire string and the persisted row reference the same instant. `recipient_user_id` is set unconditionally from `user.id`. `broadcast_to_multiple` forwards the kwarg.
+- `bookings.services.job_request_dispatch` passes `expires_in_seconds=expires_in` to the new kwarg. The existing `expires_in_seconds` inside `payload` is preserved during the rollout window for backwards compat.
+- `EventLog.expires_at` denormalized column added (`realtime/migrations/0002_eventlog_expires_at.py`, nullable, no backfill — pre-flag rows replay as null). Single source of truth: dispatcher writes it once; serializer reads it verbatim.
+- `EventLogSerializer` exposes `recipient_user_id` (sourced from `user_id`) and `expires_at` (model field).
+- `accounts.services.auth_service.process_otp_verification` now returns `user_id`. `VerifyOTPView.OutputSerializer` declares it. The frontend orchestrator consumes this to override `currentAuthUserIdProvider`.
+- Tests: `test_event_dispatch_service.py` adds `test_envelope_includes_recipient_user_id`, `test_envelope_expires_at_is_null_without_sla`, `test_envelope_expires_at_is_anchored_at_dispatch` (asserts `exp - ts == timedelta(seconds=300)` and the row matches), `test_broadcast_to_multiple_propagates_expires_in_seconds`. `test_event_api.py` extends the sync-replay test to assert both fields and adds `test_sync_replay_preserves_expires_at_instant`. `test_auth_service.py` and `test_api.py` lock in the `user_id` field on the verify-otp response.
 
-**Why we shipped it anyway**
-The realtime pipeline shipped before any list-route event needed staleness or multi-account filtering. The first list-route event (`job_new_request`) was the surface that surfaced both gaps; the contract update (envelope fields + serializer + mapper changes) is a wider blast radius than either feature can absorb on its own, so it's a tracked obligation rather than an inline change.
+*Frontend*
+- `UserEntity` and `UserModel` gain `int? id`. `UserModel.fromJson` reads the wire field `user_id`.
+- `main.dart`'s `bootApp` ProviderScope overrides `currentAuthUserIdProvider` with `ref.watch(authProvider.select((async) => async.value?.user?.id))` — the sanctioned core ↔ features bridge described in `core/realtime/presentation/providers/dependency_injection.dart`. The override `select`s on the id specifically so unrelated AsyncValue transitions don't re-run it.
+- `EVENT_DISPATCH_API.md` flipped from "Backend emission is pending" to live; the example envelope now shows non-null values.
+- `_wrapAppRoot` in the boot widget test mirrors the production override so widget tests run against a faithful environment. New tests W9 (cached user with id=42 → `currentAuthUserIdProvider` returns 42) and W10 (no cached user → null) lock in the chain. New auth-repo tests pin `UserModel.fromJson` reading `user_id` and tolerating its absence (legacy cache compat).
 
-**The proper fix (lockstep)**
-1. **Backend, envelope construction.** In `EventDispatchService.broadcast_event`, after computing `expires_in` from the per-feature payload (today only `job_new_request` has one — others can pass `None`), set `envelope['expires_at'] = (now + timedelta(seconds=expires_in)).isoformat()` if non-null. Set `envelope['recipient_user_id'] = user.id` unconditionally. Keep `expires_in_seconds` inside the payload during the rollout window so older clients keep working.
-2. **Backend, sync endpoint.** `EventLogSerializer` adds `recipient_user_id = serializers.IntegerField(source='user_id')` and an `expires_at` `SerializerMethodField` that re-derives from the row's `payload['expires_in_seconds']` + `created_at`. (Or denormalize `expires_at` onto `EventLog` — DB-shape decision; either way the wire output is the same.)
-3. **Backend, FCM data flattening.** `_stringify` in `realtime/devices/tasks.py` already iterates the envelope; both new fields land automatically once the dispatcher includes them.
-4. **Frontend, model/mapper/entity.** Add the optional fields. Backwards compatible — missing fields stay null.
-5. **Frontend, pipeline filters.** Two early-exit guards at the top of `SystemEventNotifier.processEvent`. Drop-on-mismatch is silent (debug log only). Add tests:
-   - `recipient_user_id != current` → rejected.
-   - `expires_at < serverNow` → rejected.
-   - Both null (legacy event) → accepted (backwards compat).
-6. **Frontend, server-time anchor.** Inside `SystemEventNotifier`: track `_lastWsEventTimestamp` and `_lastWsObservedAt`. Update only on WS-delivered events (not FCM tap or `/sync/` replay). Compute `serverNow = _lastWsEventTimestamp + (DateTime.now() - _lastWsObservedAt)`. Fall back to `DateTime.now().toUtc()` if no anchor. The `WsFrameDispatcher._routeEvent` is the natural place to mark "this came from WS" — pass a `source: WsFrameDispatcherSource.ws` flag into `processEvent`, or register the anchor directly in `_routeEvent` before calling `processEvent`.
-7. **Test:** S11 family in `system_event_notifier_test.dart` already pins the dedup contract; add S16/S17 for the two new filters.
+**Defence-in-depth retained** — `JobNewRequestMapper`'s feature-level freshness check stays in place. Two staleness gates on different layers is intentional for a privacy-adjacent path.
 
-**Migration**
-Frontend ships with the optional fields treated as no-op when null — works against the current backend. Backend ships the fields → frontend filters activate without further deploy. F1's mapper-level expiry check (already shipped) becomes redundant once envelope `expires_at` lands; keep it as defense-in-depth (it's literally three lines, and "two checks for the same thing on different layers" is a feature, not a bug, for a privacy-adjacent gate).
-
-**Search hints**
-- `broadcast_event` in `event_dispatch_service.py`
-- `_stringify` in `realtime/devices/tasks.py`
-- `EventLogSerializer` in `events/api/serializers.py`
-- `SystemEventNotifier.processEvent` in `notifiers/system_event_notifier.dart`
-- `WsFrameDispatcher._routeEvent` in `services/ws_frame_dispatcher.dart`
-
-**Severity**
-High for the privacy aspect (recipient_user_id), medium for the staleness aspect (expires_at — F1's stopgap closes the common case at the feature level today). Both should land before any production rollout where multi-account devices are realistic, which they are in markets where shared phones are common.
+**Migration story** — backwards-compat held throughout. Pre-flag `EventLog` rows have `expires_at = null` and replay unchanged. Older clients that ignore the new envelope fields still parse the wire payload (the optional Freezed fields tolerate null). Older `UserModel.fromJson` cached responses without `user_id` produce a null `id`, which keeps the recipient filter dormant — exactly the documented null-half no-op path.
 
 ---
 

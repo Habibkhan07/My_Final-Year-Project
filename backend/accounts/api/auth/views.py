@@ -34,6 +34,10 @@ class VerifyOTPView(APIView):
     """Handles OTP verification and the register-or-login logic."""
 
     class OutputSerializer(serializers.Serializer):
+        # ``user_id`` powers the realtime recipient filter on the client
+        # (see flag #19 / ``currentAuthUserIdProvider``). Always set on a
+        # successful verification — there is no anonymous return path.
+        user_id = serializers.IntegerField()
         token = serializers.CharField()
         is_technician = serializers.BooleanField()
         name_required = serializers.BooleanField()

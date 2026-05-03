@@ -76,6 +76,12 @@ def process_otp_verification(*, phone: str, otp_input: str):
         name_required = user_selectors.is_profile_incomplete(user=user)
 
         return {
+            # ``user_id`` is consumed by the frontend orchestrator's
+            # override of ``currentAuthUserIdProvider`` — the realtime
+            # pipeline's recipient filter compares this id against
+            # envelope.recipient_user_id to drop frames intended for a
+            # different account on a shared device. See flag #19.
+            "user_id": user.id,
             "token": token.key,
             "is_technician": user.userprofile.is_technician,
             "name_required": name_required,

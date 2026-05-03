@@ -9,6 +9,7 @@ import 'core/realtime/presentation/providers/dependency_injection.dart'
     as realtime_di;
 import 'core/realtime/presentation/services/fcm_background_handler.dart';
 import 'core/routing/app_router.dart';
+import 'features/auth/presentation/providers/auth_notifier.dart';
 import 'features/technician/incoming_job_requests/presentation/widgets/incoming_job_sheet_host.dart';
 import 'features/technician/onboarding/presentation/providers/dependency_injection.dart';
 import 'firebase_options.dart';
@@ -73,6 +74,24 @@ Future<Widget> bootApp({
   return ProviderScope(
     overrides: [
       sharedPreferencesProvider.overrideWithValue(sharedPreferences),
+      // flag #19 — sanctioned core ↔ features bridge.
+      // ``currentAuthUserIdProvider`` is declared in core/realtime DI as a
+      // null-returning seam (core must not import features). Production
+      // boot is the place that gets to wire it to the live auth state, so
+      // the realtime pipeline's recipient filter compares envelope
+      // ``recipient_user_id`` against the actual signed-in user id.
+      // ``valueOrNull`` keeps the override null-safe before the auth
+      // notifier finishes its first build (cold start before cached-user
+      // load completes); the recipient filter no-ops on null exactly as
+      // documented in CLAUDE.md ("Both halves must be non-null...").
+      realtime_di.currentAuthUserIdProvider.overrideWith(
+        // ``select`` so the override only re-runs when the id itself
+        // changes — every other AsyncValue transition (loading flips,
+        // unrelated AuthState mutations) is filtered out.
+        (ref) => ref.watch(
+          authProvider.select((async) => async.value?.user?.id),
+        ),
+      ),
     ],
     child: const _Bootstrap(),
   );
