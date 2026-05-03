@@ -110,3 +110,20 @@ final navigatorKeyProvider = Provider<GlobalKey<NavigatorState>>(
 final scaffoldMessengerKeyProvider = Provider<GlobalKey<ScaffoldMessengerState>>(
   (_) => GlobalKey<ScaffoldMessengerState>(),
 );
+
+// ─── Current auth user id (callback-inversion seam, flag #19) ──────────────
+//
+// Returns the auth user id of the currently-signed-in user, or null when
+// no one is signed in OR when the auth feature does not yet expose a numeric
+// id on `UserEntity` (today: only `phone` is on the entity). The pipeline's
+// recipient filter consults this via `ref.read(currentAuthUserIdProvider)`
+// every time an event arrives, so the value is fresh per-event.
+//
+// **Why a default-null Provider, not a direct authProvider import.** Core
+// must not import features (`SystemEventNotifier` is in core, `authProvider`
+// is in features). The orchestrator is the sanctioned core ↔ features
+// bridge, so it overrides this provider when the auth feature gains a
+// numeric `id` field on `UserEntity`. Until then this stays null and the
+// recipient filter is a no-op — exactly the rollout-window contract that
+// flag #19 documents.
+final currentAuthUserIdProvider = Provider<int?>((_) => null);

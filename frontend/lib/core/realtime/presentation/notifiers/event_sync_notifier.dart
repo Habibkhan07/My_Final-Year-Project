@@ -80,7 +80,10 @@ class EventSyncNotifier extends _$EventSyncNotifier {
       final sorted = [...missed]
         ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
       for (final event in sorted) {
-        eventNotifier.processEvent(event);
+        // Tag as `sync` so the notifier does NOT update its server-time
+        // anchor on these timestamps — `/sync/?since=` replays can carry
+        // events that are hours stale (long offline window).
+        eventNotifier.processEvent(event, source: SystemEventSource.sync);
       }
 
       await syncUnacknowledgedCritical();
@@ -103,7 +106,9 @@ class EventSyncNotifier extends _$EventSyncNotifier {
       final unacked = await repo.fetchUnacknowledgedCritical();
       final eventNotifier = ref.read(systemEventProvider.notifier);
       for (final event in unacked) {
-        eventNotifier.processEvent(event);
+        // REST replay; like `/sync/?since=`, do not anchor the server-time
+        // estimate on these timestamps.
+        eventNotifier.processEvent(event, source: SystemEventSource.sync);
       }
     });
   }

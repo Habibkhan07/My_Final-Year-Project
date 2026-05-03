@@ -113,7 +113,12 @@ class WsFrameDispatcher {
       // would be a silent contract violation upstream.
       return;
     }
-    _ref.read(systemEventProvider.notifier).processEvent(entity);
+    // Tag as `ws` so `SystemEventNotifier` updates its server-time anchor
+    // on this event. WS frames are near-live by definition; FCM and sync
+    // paths do NOT pass `ws` for the same reason.
+    _ref
+        .read(systemEventProvider.notifier)
+        .processEvent(entity, source: SystemEventSource.ws);
   }
 
   void _routeStream(Map<String, dynamic> frame) {

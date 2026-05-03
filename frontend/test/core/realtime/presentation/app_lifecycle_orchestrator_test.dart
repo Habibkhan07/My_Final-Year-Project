@@ -102,9 +102,15 @@ void main() {
     // each step. `verifyInOrder` allows other unrelated calls between, but
     // we have no other interactions to worry about because every dependency
     // is a fresh mock.
+    //
+    // Flag #19 family: FCM unregister MUST precede WS disconnect. Doing the
+    // reverse leaves a window where the backend keeps fanning events out
+    // via FCM-only (WS is closed but the device is still registered for
+    // pushes), and on a multi-account device those late notifications can
+    // land at the next user's session after they log in.
     verifyInOrder([
-      () => ws.disconnect(),
       () => fcm.unregister(),
+      () => ws.disconnect(),
       () => sysEvent.reset(),
       () => local.clearLastSyncTimestamp(),
       () => local.clearCachedEvents(),

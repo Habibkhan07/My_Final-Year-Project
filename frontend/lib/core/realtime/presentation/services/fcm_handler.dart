@@ -171,7 +171,11 @@ class FCMHandler {
       final model = SystemEventModel.fromJson(normalized);
       final entity = model.toDomain();
       if (entity == null) return;
-      _eventNotifier.processEvent(entity);
+      // FCM payloads can be hours stale (tray notification tapped after
+      // the SLA window). Tag as `fcm` so the notifier's expiry filter
+      // uses the WS-anchored server-time estimate instead of this
+      // (potentially stale) timestamp.
+      _eventNotifier.processEvent(entity, source: SystemEventSource.fcm);
     } catch (e, stack) {
       log(
         'Failed to process FCM message: $e',

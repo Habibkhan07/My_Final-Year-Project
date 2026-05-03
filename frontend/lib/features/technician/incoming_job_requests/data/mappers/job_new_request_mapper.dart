@@ -31,7 +31,35 @@ class JobNewRequestMapper {
   /// Returns null when [event.eventType] is not `jobNewRequest` — caller's
   /// filter should already prevent this, but the guard keeps the mapper
   /// safe to call with any envelope.
-  static JobNewRequest? fromSystemEvent(SystemEventEntity event) {
+  ///
+  /// Returns null when the offer's SLA has already elapsed by the time the
+  /// envelope reaches us — see "Stale FCM tap" below.
+  ///
+  /// **Stale FCM tap (flag #19 stopgap).** A `job_new_request` notification
+  /// can sit in the OS tray for longer than the SLA window — the technician
+  /// was in a meeting, on a metro without signal, or simply not looking at
+  /// their phone. Tapping a stale tray banner cold-launches the app and
+  /// flows the event through the same pipeline as a live WS frame. Without
+  /// a freshness check the sheet would slide up showing a dead offer; the
+  /// technician would swipe accept and hit a server-side 4xx because the
+  /// booking has already flipped to REJECTED via the SLA Celery task. This
+  /// drop-on-expiry check closes that path at the mapper. It will be
+  /// subsumed by the pipeline-level filter inside `SystemEventNotifier`
+  /// once backend ships an envelope-level `expires_at` (flag #19); until
+  /// then, the per-feature derivation (`event.timestamp +
+  /// expires_in_seconds`) is the only way to know the offer's deadline.
+  ///
+  /// [now] is injectable for tests. Production callers omit it and the
+  /// mapper falls back to `DateTime.now().toUtc()`. Wall-clock skew is the
+  /// known failure mode: a phone whose clock is several minutes off would
+  /// either reject fresh offers or keep dead ones. Phones are typically
+  /// NTP-synced; the residual risk is acknowledged here and is the reason
+  /// the pipeline-level filter (which can anchor on server time observed
+  /// from live WS frames) is the proper home for this check.
+  static JobNewRequest? fromSystemEvent(
+    SystemEventEntity event, {
+    DateTime? now,
+  }) {
     final JobNewRequestPayloadModel model;
     try {
       model = JobNewRequestPayloadModel.fromJson(event.payload);
@@ -77,6 +105,17 @@ class JobNewRequestMapper {
     // expiry would 409 against the server's earlier-fired timeout.
     final slaWindow = Duration(seconds: model.expiresInSeconds);
     final expiresAt = event.timestamp.add(slaWindow);
+
+    final effectiveNow = now ?? DateTime.now().toUtc();
+    if (!effectiveNow.isBefore(expiresAt)) {
+      log(
+        'Dropping expired job_new_request: jobId=${model.jobId} '
+        'expiredAt=${expiresAt.toIso8601String()} '
+        'now=${effectiveNow.toIso8601String()}',
+        name: _logName,
+      );
+      return null;
+    }
 
     return JobNewRequest(
       jobId: model.jobId,

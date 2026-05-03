@@ -7,7 +7,13 @@ import 'package:frontend/core/realtime/domain/entities/target_role.dart';
 void main() {
   group('SystemEventMapper', () {
     test('fromJson + toJson byte-equal round-trip', () {
-      final json = {
+      // After flag #19 the model gained two optional envelope fields
+      // (`expires_at`, `recipient_user_id`). On round-trip, json_serializable
+      // emits them as null when absent on the input — that's the expected
+      // wire shape during the rollout window when older backends don't
+      // populate them. Newer backends will send non-null values which round-
+      // trip identically.
+      final input = {
         'kind': 'event',
         'id': '123e4567-e89b-12d3-a456-426614174000',
         'rawType': 'job_new_request',
@@ -15,12 +21,41 @@ void main() {
         'timestamp': '2023-01-01T12:00:00.000Z',
         'payload': {'key': 'value'},
       };
+      final expected = {
+        ...input,
+        'expires_at': null,
+        'recipient_user_id': null,
+      };
 
-      final model = SystemEventModel.fromJson(json);
+      final model = SystemEventModel.fromJson(input);
       final result = model.toJson();
 
-      expect(result, equals(json));
+      expect(result, equals(expected));
     });
+
+    test(
+      'fromJson + toJson round-trip with envelope-level expires_at + '
+      'recipient_user_id (flag #19 fully populated)',
+      () {
+        final json = {
+          'kind': 'event',
+          'id': '123e4567-e89b-12d3-a456-426614174000',
+          'rawType': 'job_new_request',
+          'targetRole': 'technician',
+          'timestamp': '2023-01-01T12:00:00.000Z',
+          'payload': {'key': 'value'},
+          'expires_at': '2023-01-01T12:05:00.000Z',
+          'recipient_user_id': 42,
+        };
+
+        final model = SystemEventModel.fromJson(json);
+        expect(model.expiresAt, '2023-01-01T12:05:00.000Z');
+        expect(model.recipientUserId, 42);
+
+        // Bidirectional round-trip preserves both new fields.
+        expect(model.toJson(), equals(json));
+      },
+    );
 
     test('fromJson without kind throws (required field, fail loudly)', () {
       // Backend wire contract guarantees kind on every frame post-streams

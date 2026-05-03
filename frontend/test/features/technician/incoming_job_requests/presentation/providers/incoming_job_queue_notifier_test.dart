@@ -10,8 +10,18 @@ import 'package:mocktail/mocktail.dart';
 class _MockLocal extends Mock implements EventLocalDataSource {}
 
 /// Builds a `SystemEventEntity` for the `job_new_request` event type with a
-/// fixed-past timestamp. Used by tests that don't care about urgency
-/// (insertion / dedup / filter).
+/// timestamp anchored to wall-clock-now by default. Used by tests that don't
+/// care about urgency (insertion / dedup / filter).
+///
+/// **Why anchored on now and not a fixed past timestamp.** The mapper's
+/// flag #19 stale-FCM filter (`JobNewRequestMapper.fromSystemEvent`) compares
+/// the envelope's `expiresAt = timestamp + expires_in_seconds` against
+/// `DateTime.now()`. A fixed-past timestamp would make every event "expired"
+/// when the test runs today, causing the queue notifier to silently drop the
+/// event and the test to assert against an empty queue. Wall-clock anchoring
+/// keeps these tests focused on insertion / dedup behavior without entangling
+/// them with the freshness filter (which has its own tests in
+/// `job_new_request_mapper_test.dart`).
 SystemEventEntity _event({
   required String id,
   required int jobId,
@@ -23,7 +33,7 @@ SystemEventEntity _event({
     id: id,
     rawType: rawType,
     targetRoleStr: 'technician',
-    timestamp: timestamp ?? DateTime.utc(2026, 4, 27, 20, 14, 42),
+    timestamp: timestamp ?? DateTime.now().toUtc(),
     payload: <String, dynamic>{
       'job_id': jobId,
       'service_name': 'AC Deep Wash',
@@ -126,22 +136,21 @@ void main() {
         // SystemEventNotifier already dedupes by event id; this test exercises
         // the per-jobId belt-and-suspenders guard inside the queue notifier
         // for a hypothetical re-broadcast with a regenerated event id.
+        //
+        // Timestamps are anchored to wall-clock now (with a 1ms gap so the
+        // SystemEventNotifier order guard accepts the second one) so the
+        // mapper's flag #19 freshness check passes for both.
         final container = _buildContainer(local);
         container.read(incomingJobQueueProvider);
 
+        final t1 = DateTime.now().toUtc();
+        final t2 = t1.add(const Duration(milliseconds: 1));
+
         container.read(systemEventProvider.notifier).processEvent(
-              _event(
-                id: 'e1',
-                jobId: 7,
-                timestamp: DateTime.utc(2026, 4, 27, 20, 14, 42),
-              ),
+              _event(id: 'e1', jobId: 7, timestamp: t1),
             );
         container.read(systemEventProvider.notifier).processEvent(
-              _event(
-                id: 'e2',
-                jobId: 7,
-                timestamp: DateTime.utc(2026, 4, 27, 20, 14, 43),
-              ),
+              _event(id: 'e2', jobId: 7, timestamp: t2),
             );
 
         final queue = container.read(incomingJobQueueProvider).queue;
@@ -161,7 +170,10 @@ void main() {
           id: 'e1',
           rawType: 'job_new_request',
           targetRoleStr: 'technician',
-          timestamp: DateTime.utc(2026, 4, 27, 20, 14, 42),
+          // Wall-clock-anchored so the test isolates "malformed payout"
+          // without depending on the mapper's check ordering relative to
+          // the freshness filter.
+          timestamp: DateTime.now().toUtc(),
           payload: const <String, dynamic>{
             'job_id': 1,
             'service_name': 'AC Deep Wash',
@@ -189,22 +201,20 @@ void main() {
       'first arrival becomes the head; second arrival joins the tail in '
       'arrival order',
       () {
+        // Wall-clock-anchored timestamps so the mapper's freshness check
+        // accepts both, with a 1ms gap so the SystemEventNotifier order
+        // guard accepts the second.
         final container = _buildContainer(local);
         container.read(incomingJobQueueProvider);
 
+        final t1 = DateTime.now().toUtc();
+        final t2 = t1.add(const Duration(milliseconds: 1));
+
         container.read(systemEventProvider.notifier).processEvent(
-              _event(
-                id: 'e1',
-                jobId: 1,
-                timestamp: DateTime.utc(2026, 4, 27, 20, 14, 42),
-              ),
+              _event(id: 'e1', jobId: 1, timestamp: t1),
             );
         container.read(systemEventProvider.notifier).processEvent(
-              _event(
-                id: 'e2',
-                jobId: 2,
-                timestamp: DateTime.utc(2026, 4, 27, 20, 14, 43),
-              ),
+              _event(id: 'e2', jobId: 2, timestamp: t2),
             );
 
         final queue = container.read(incomingJobQueueProvider).queue;

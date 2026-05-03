@@ -14,6 +14,8 @@ _SystemEventModel _$SystemEventModelFromJson(Map<String, dynamic> json) =>
       targetRole: json['targetRole'] as String,
       timestamp: json['timestamp'] as String,
       payload: json['payload'] as Map<String, dynamic>,
+      expiresAt: json['expires_at'] as String?,
+      recipientUserId: (json['recipient_user_id'] as num?)?.toInt(),
     );
 
 Map<String, dynamic> _$SystemEventModelToJson(_SystemEventModel instance) =>
@@ -24,4 +26,6 @@ Map<String, dynamic> _$SystemEventModelToJson(_SystemEventModel instance) =>
       'targetRole': instance.targetRole,
       'timestamp': instance.timestamp,
       'payload': instance.payload,
+      'expires_at': instance.expiresAt,
+      'recipient_user_id': instance.recipientUserId,
     };

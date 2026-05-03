@@ -43,6 +43,20 @@ class EventLocalDataSource {
   static const _keyPendingBackgroundEvents = '${_keyPrefix}pending_bg_events';
   static const _keyPendingAcks = '${_keyPrefix}pending_acks';
 
+  /// FIFO cap on the pending-background-events queue. Without a cap, a
+  /// wedged FCM init in the main isolate (failing every drain attempt) lets
+  /// the BG handler keep appending forever, growing SharedPreferences
+  /// unboundedly. 50 is generous: the WS reconnect's `/sync/?since=` call
+  /// recovers anything older than that anyway, so dropping the oldest
+  /// entries on cap is a backstop, not a data-loss event.
+  ///
+  /// **CRITICAL COUPLING.** This constant must match the one in
+  /// `fcm_background_handler.dart` (currently 50). The BG isolate writes
+  /// to the same SharedPreferences key and applies its own cap; if the two
+  /// values diverge, one isolate would let the queue exceed what the other
+  /// considers safe. See `_keyPendingBackgroundEvents`'s coupling note.
+  static const _kMaxPendingBackgroundEvents = 50;
+
   static const _logName = 'core.data.event_local';
 
   const EventLocalDataSource(this._prefs);
@@ -105,7 +119,8 @@ class EventLocalDataSource {
 
   // ─── Pending Background FCM Events ──────────────────────────────────────
 
-  /// Appends [eventJson] to the pending-background-events queue.
+  /// Appends [eventJson] to the pending-background-events queue, with FIFO
+  /// eviction once the queue exceeds [_kMaxPendingBackgroundEvents].
   /// On corrupt existing data: start fresh — a corrupt queue should never
   /// block a new event from being queued.
   Future<void> savePendingBackgroundEvent(
@@ -113,6 +128,14 @@ class EventLocalDataSource {
   ) async {
     final existing = _readPendingBackgroundList();
     existing.add(eventJson);
+    // FIFO cap: drop the oldest entries so the queue never exceeds the
+    // documented bound. Anything dropped is recoverable via the WS
+    // reconnect's `/sync/?since=` catch-up, so we never escalate to the
+    // user.
+    if (existing.length > _kMaxPendingBackgroundEvents) {
+      final overflow = existing.length - _kMaxPendingBackgroundEvents;
+      existing.removeRange(0, overflow);
+    }
     try {
       await _prefs.setString(
         _keyPendingBackgroundEvents,

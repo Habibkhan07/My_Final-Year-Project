@@ -123,6 +123,29 @@ void main() {
         expect(decoded.length, 1);
         expect(decoded[0]['id'], '1');
       });
+
+      test(
+        'L11a — flag #19 family: pending-bg queue is FIFO-capped at 50; '
+        'oldest entries drop when the cap is exceeded',
+        () async {
+          // Append 60 events. Cap is 50. After every save the queue is
+          // truncated from the front, so the final state holds the 50
+          // newest (ids 11..60).
+          for (var i = 1; i <= 60; i++) {
+            await dataSource.savePendingBackgroundEvent({'id': '$i'});
+          }
+
+          final events = await dataSource.consumePendingBackgroundEvents();
+          expect(events.length, 50,
+              reason: 'cap must hold even if save is called more than 50 '
+                  'times — defends against a wedged FCM init in the main '
+                  'isolate that never drains the queue');
+          expect(events.first['id'], '11',
+              reason: 'oldest 10 (ids 1..10) must be dropped');
+          expect(events.last['id'], '60',
+              reason: 'newest entry must be retained');
+        },
+      );
     });
 
     group('Pending ACKs', () {

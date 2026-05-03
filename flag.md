@@ -676,3 +676,209 @@ The vanish-reappear ceremony was scoped to land in one frontend session — wiri
 
 **Severity**
 Low. The placeholder is functional — the cue plays, respects silent mode, and combined with the heavy haptic + slide-in animation the new-offer signal is already redundant. The upgrade is a polish step, not a correctness fix. Pick up when the team commits to a sound design pass for the technician app.
+
+---
+
+## 19. Wire envelope lacks `expires_at` and `recipient_user_id` — frontend filters at the feature level instead of the pipeline
+
+**Where**
+- `backend/realtime/events/services/event_dispatch_service.py` — `broadcast_event` constructs the envelope at lines ~85–102 (currently only `id`, `kind`, `rawType`, `targetRole`, `timestamp`, `payload`).
+- `backend/realtime/events/api/serializers.py` — `EventLogSerializer` rebuilds the envelope from the EventLog row for `/api/realtime/events/sync/?since=`. Must include the two new fields.
+- `backend/realtime/devices/tasks.py` — `send_fcm_notification` flattens the envelope into the FCM data field via `_stringify`. Must include the two new fields so the BG isolate's drained payload carries them.
+- `backend/realtime/api/EVENT_DISPATCH_API.md` — wire docs need both fields documented.
+- `frontend/lib/core/realtime/data/models/system_event_model.dart` — Freezed model must add both optional fields (`@JsonKey(name: 'expires_at')`, `@JsonKey(name: 'recipient_user_id')`).
+- `frontend/lib/core/realtime/data/mappers/system_event_mapper.dart` — pass through to the entity.
+- `frontend/lib/core/realtime/domain/entities/system_event_entity.dart` — add the optional fields.
+- `frontend/lib/core/realtime/presentation/notifiers/system_event_notifier.dart` — two early-exit guards inside `processEvent` (before the dedup check):
+  - If `event.recipientUserId != null && event.recipientUserId != currentAuthUserId` → drop with debug log.
+  - If `event.expiresAt != null && serverNow > event.expiresAt` → drop with debug log. `serverNow` anchors on the latest WS-delivered event's timestamp + elapsed-since-anchor (insensitive to device-clock skew).
+- `frontend/lib/features/technician/incoming_job_requests/data/mappers/job_new_request_mapper.dart` — flag #19 stopgap freshness check today; once the pipeline-level filter ships, the feature-level check becomes redundant (kept as defense in depth).
+
+**What's wrong**
+The wire envelope has no fields for "when does this event expire" (only the feature-specific `payload.expires_in_seconds`, which is relative-to-when-ambiguous and only known to features that look inside payloads) and no field for "which user is this event for" (recipient identity is implicit in the channel-layer group membership, but on a multi-account device the FCM tap-intent path delivers the event regardless of which user is logged in).
+
+The two missing fields force every frontend feature to either reimplement the same staleness/identity checks in its own mapper (the ratchet that keeps drift creeping in across features) or to skip them entirely (the silent-vulnerability path). The cross-cutting fixes belong at the envelope level so the pipeline can filter once and every present and future event inherits the protection.
+
+**Why we shipped it anyway**
+The realtime pipeline shipped before any list-route event needed staleness or multi-account filtering. The first list-route event (`job_new_request`) was the surface that surfaced both gaps; the contract update (envelope fields + serializer + mapper changes) is a wider blast radius than either feature can absorb on its own, so it's a tracked obligation rather than an inline change.
+
+**The proper fix (lockstep)**
+1. **Backend, envelope construction.** In `EventDispatchService.broadcast_event`, after computing `expires_in` from the per-feature payload (today only `job_new_request` has one — others can pass `None`), set `envelope['expires_at'] = (now + timedelta(seconds=expires_in)).isoformat()` if non-null. Set `envelope['recipient_user_id'] = user.id` unconditionally. Keep `expires_in_seconds` inside the payload during the rollout window so older clients keep working.
+2. **Backend, sync endpoint.** `EventLogSerializer` adds `recipient_user_id = serializers.IntegerField(source='user_id')` and an `expires_at` `SerializerMethodField` that re-derives from the row's `payload['expires_in_seconds']` + `created_at`. (Or denormalize `expires_at` onto `EventLog` — DB-shape decision; either way the wire output is the same.)
+3. **Backend, FCM data flattening.** `_stringify` in `realtime/devices/tasks.py` already iterates the envelope; both new fields land automatically once the dispatcher includes them.
+4. **Frontend, model/mapper/entity.** Add the optional fields. Backwards compatible — missing fields stay null.
+5. **Frontend, pipeline filters.** Two early-exit guards at the top of `SystemEventNotifier.processEvent`. Drop-on-mismatch is silent (debug log only). Add tests:
+   - `recipient_user_id != current` → rejected.
+   - `expires_at < serverNow` → rejected.
+   - Both null (legacy event) → accepted (backwards compat).
+6. **Frontend, server-time anchor.** Inside `SystemEventNotifier`: track `_lastWsEventTimestamp` and `_lastWsObservedAt`. Update only on WS-delivered events (not FCM tap or `/sync/` replay). Compute `serverNow = _lastWsEventTimestamp + (DateTime.now() - _lastWsObservedAt)`. Fall back to `DateTime.now().toUtc()` if no anchor. The `WsFrameDispatcher._routeEvent` is the natural place to mark "this came from WS" — pass a `source: WsFrameDispatcherSource.ws` flag into `processEvent`, or register the anchor directly in `_routeEvent` before calling `processEvent`.
+7. **Test:** S11 family in `system_event_notifier_test.dart` already pins the dedup contract; add S16/S17 for the two new filters.
+
+**Migration**
+Frontend ships with the optional fields treated as no-op when null — works against the current backend. Backend ships the fields → frontend filters activate without further deploy. F1's mapper-level expiry check (already shipped) becomes redundant once envelope `expires_at` lands; keep it as defense-in-depth (it's literally three lines, and "two checks for the same thing on different layers" is a feature, not a bug, for a privacy-adjacent gate).
+
+**Search hints**
+- `broadcast_event` in `event_dispatch_service.py`
+- `_stringify` in `realtime/devices/tasks.py`
+- `EventLogSerializer` in `events/api/serializers.py`
+- `SystemEventNotifier.processEvent` in `notifiers/system_event_notifier.dart`
+- `WsFrameDispatcher._routeEvent` in `services/ws_frame_dispatcher.dart`
+
+**Severity**
+High for the privacy aspect (recipient_user_id), medium for the staleness aspect (expires_at — F1's stopgap closes the common case at the feature level today). Both should land before any production rollout where multi-account devices are realistic, which they are in markets where shared phones are common.
+
+---
+
+## 20. No specific error code for "booking is no longer available" — accept-just-past-expiry surfaces as a generic validation error
+
+**Where**
+- `backend/bookings/services/instant_book_service.py` (or wherever the future accept handler lives) — the booking-state validation path that runs when the technician's accept arrives but the booking is already `REJECTED` (SLA fired) or `CANCELLED` (customer pulled out between dispatch and accept).
+- `backend/bookings/api/BOOKINGS_API.md` — error envelope contract.
+- `frontend/lib/features/technician/incoming_job_requests/domain/failures/incoming_job_failure.dart` — `OfferNoLongerAvailable` already scaffolded (flag #19 family), waiting for the wire code to flip the switch.
+
+**What's wrong**
+When the accept endpoint lands (flag #14) and the technician taps swipe-accept on an offer the server has already moved out of `AWAITING`, the standard error envelope returns `code: "validation_error"` with a field-error string like `"Status is REJECTED"`. The frontend's `_mapFailures` switch can't distinguish "this offer is gone, move on" from any other validation failure, so the user sees a generic "Couldn't accept the offer. Try again." Snackbar — exactly the wrong copy for an unrecoverable state.
+
+**Why we shipped it anyway**
+The accept endpoint isn't built yet (flag #14). When that endpoint ships, the natural shape is: validate booking status → return generic 400. Surfacing a specific code requires deciding on the wire string and threading it through the error envelope. Cheaper to do once, deliberately, alongside the endpoint.
+
+**The proper fix (alongside flag #14)**
+1. **Backend.** When the accept handler validates booking status and finds anything other than `AWAITING`, raise a domain error that maps (via the project's DRF custom exception handler in `core/exception.py`) to:
+   ```json
+   {
+     "status": 400,
+     "code": "booking_no_longer_available",
+     "message": "This job is no longer available.",
+     "errors": {"booking": ["Status is <REJECTED|CANCELLED|...>"]}
+   }
+   ```
+   The user-facing `message` is the copy the frontend will surface; `errors.booking[0]` keeps the server-side reason for telemetry / debugging.
+2. **Frontend.** The `OfferNoLongerAvailable` Failure subtype is already in place (flag #19 family). When the accept repo lands, its `_mapFailures` switch adds `case 'booking_no_longer_available' → throw const OfferNoLongerAvailable()`. The host's `_handleAccept` catches it and surfaces a Snackbar with the failure's default message.
+3. **Tests.** Backend unit test on the accept service; frontend repository test on the wire-code → Failure mapping; widget test on Snackbar copy.
+
+**Search hints**
+- `core/exception.py` — DRF custom exception handler that produces the envelope.
+- `OfferNoLongerAvailable` in `incoming_job_failure.dart`.
+- `_handleAccept` in `incoming_job_sheet_host.dart` — call site once the repo lands.
+
+**Severity**
+Low/medium. Once flag #19's `expires_at` filter is active, the late-accept path is mostly unreachable from the frontend — the pipeline drops stale events before they reach the queue. This flag is the defense-in-depth layer for the residual race (an offer that's fresh when the queue accepts it but flips REJECTED server-side between the swipe and the REST call). Pick up alongside flag #14.
+
+---
+
+## 21. No FCM data-field size validation — > 4 KB silently drops the push
+
+**Where**
+- `backend/realtime/events/services/event_dispatch_service.py` — `broadcast_event` queues the FCM task without checking the serialized envelope size.
+- `backend/realtime/devices/tasks.py` — `send_fcm_notification` calls `_stringify` to flatten the envelope and ships it as the FCM data field.
+
+**What's wrong**
+FCM enforces a 4 KB limit on the data field. The backend has no assertion on serialized envelope size, so a sufficiently long `service_name` + `payout_context` + `ui_location_label` (or any future feature payload) can push the envelope over the limit. Firebase silently drops the message — no error, no log surfaces, the technician simply never sees the notification. Diagnosing this in production after the fact is hard because every relevant log line says "FCM dispatched successfully" (the Celery task succeeded; Firebase's SDK accepted the request and only later, server-side, rejected the data-too-large frame).
+
+Today's payloads are well under the limit (~400–800 bytes) but there's no guard rail. A future feature — a chat message, a long invoice description, a multi-stop technician route — can trip it without any visible warning at code-review time.
+
+**Why we shipped it anyway**
+Practical envelope sizes today are far below the limit; the bug surface is theoretical. The cost of writing the assertion plus the truncation/fallback logic was higher than the immediate risk during the realtime pipeline build-out.
+
+**The proper fix**
+1. In `EventDispatchService.broadcast_event`, after constructing the envelope and BEFORE queuing the FCM task: `serialized = json.dumps(envelope); if len(serialized.encode('utf-8')) > 3800: ...`. Headroom of 296 bytes covers FCM's per-key encoding overhead.
+2. On overflow, two reasonable strategies:
+   - **Truncate.** Replace long display fields with a "…" suffix until the envelope fits. Risk: arbitrary-looking truncation in production; user might see "Plumbing Inspection at Gulber…" instead of the full address.
+   - **Minimal-envelope fallback.** Replace the data field with `{kind, id, rawType, recipient_user_id}` only. The FCM tap-intent on the device fetches full details via `/api/realtime/events/sync/?since=...` immediately on app foreground. Tradeoff: tray notification's body text would be the registry's `display_name` instead of feature-specific text, but the technician still gets notified.
+3. Either way: log a warning so ops sees the event size growing toward the limit.
+
+**Search hints**
+- `broadcast_event` in `event_dispatch_service.py`
+- `_stringify` in `realtime/devices/tasks.py`
+- `EVENT_REGISTRY` in `realtime/constants/event_types.py` — `display_name` for the minimal-envelope fallback body.
+
+**Severity**
+Low today, latent. Track it before adding any feature whose payload is realistically variable-length (chat content, multi-line addresses, free-form notes). The cost to fix later (with no telemetry showing it actually happened) is much higher than the cost to add the assertion now.
+
+---
+
+## 22. Customer is not notified when the technician's SLA expires
+
+**Where**
+- `backend/bookings/tasks.py` line ~6 — the `expire_pending_job_booking` task notes "notification on SLA timeout is intentionally out of scope" for the current sprint.
+- Cross-references flag #1 (booking acceptance model) and flag #19 (wire envelope contract).
+
+**What's wrong**
+When the technician's accept SLA fires server-side and the booking flips `AWAITING → REJECTED`, no event is dispatched to the customer. The customer's UI sits on "Waiting for technician…" indefinitely until they navigate away or refresh the booking detail manually. In the worst case the customer waits 5 minutes (current SLA) for a confirmation that's never coming, then has to re-enter the discovery flow without any prompt that something went wrong.
+
+**Why we shipped it anyway**
+This is one half of a lockstep migration. The customer-side surface that consumes the `booking_rejected` event doesn't exist yet — adding the backend dispatch alone would emit an event into the void. The session that builds the customer "Waiting for technician → Job rejected → re-pick" UI is the natural pair.
+
+**The proper fix (lockstep with the customer-side waiting UI)**
+1. **Backend.** In `expire_pending_job_booking`, after flipping status to `REJECTED`, call `EventDispatchService.broadcast_event(user=booking.customer, target_role='customer', event_type='booking_rejected', payload={'booking_id': str(booking.id), 'reason': 'sla_timeout'})`. Inside the same `transaction.atomic()` so the event is only emitted if the status flip committed.
+2. **Backend.** Add `booking_rejected` to `EVENT_REGISTRY` with `display_name='Booking unavailable'`, `is_critical=True` (the customer needs to act).
+3. **Frontend.** Per-event feature wiring (CLAUDE.md → "Per-event feature wiring"): a `BookingRejectedNotifier` under `features/customer/booking_status/` (or wherever the waiting UI lives) listens via `ref.listen(systemEventProvider, ...)`, filters by `SystemEventType.bookingRejected`, and surfaces a modal: "This technician is no longer available. Choose someone else." with a button back into discovery.
+4. **Frontend.** `EventUrgencyRouter`: `booking_rejected` → `EventUrgency.highUrgency`, route to the booking detail screen (or a dedicated rejected modal). Add to `_navGuardPayloadKeys`.
+5. **Tests.** Backend test on the timeout task's event emission; frontend test on the notifier's filter + UI surfaces.
+
+**Search hints**
+- `expire_pending_job_booking` in `backend/bookings/tasks.py`
+- `EVENT_REGISTRY` in `realtime/constants/event_types.py`
+- `EventUrgencyRouter._highUrgencyRoutes` in `event_urgency_router.dart`
+
+**Severity**
+Medium. Until this lands, the customer's only recovery path on a tech timeout is to navigate manually. For a marketplace where the SLA window is short (5 minutes) and the next dispatch needs to happen quickly to maintain a high acceptance rate, the silence is a real conversion drag.
+
+---
+
+## 23. SLA-expired tray notifications stay in the tray until the technician clears them manually
+
+**Where**
+- `backend/bookings/tasks.py` — `expire_pending_job_booking`. After flipping booking to `REJECTED`, no FCM cancel-message is sent.
+- `backend/realtime/devices/tasks.py` — would need a second task `send_fcm_cancel_notification` (or a flag on the existing `send_fcm_notification`) that sends a data-only push with a collapse key matching the original notification's tag.
+
+**What's wrong**
+When a technician misses the SLA window, the booking flips to `REJECTED` server-side but the FCM banner that announced the original `job_new_request` stays in the OS tray. The technician can tap that banner an hour later. Today the frontend's mapper-level filter (flag #19 stopgap) and the planned pipeline filter (flag #19 proper) both drop the event silently — so the tap launches the app to its default surface (technician home) with no sheet — but the dead notification cluttering the tray is itself a UX nit. The technician has to swipe it away manually to clear it; the app gives them no signal that the offer is gone.
+
+**Why we shipped it anyway**
+FCM doesn't natively support "cancel a previously-sent notification on the receiving device" as a server-initiated action. The workaround is to send a follow-up data-only message that REPLACES the original via Android's `tag` field (or iOS's `apns-collapse-id`). That's a small but real piece of work that requires touching the FCM dispatch flow, which the SLA-timeout sprint left for later.
+
+**The proper fix**
+1. **Backend.** Add a `notification_id` (deterministic — e.g., `f"job_dispatch_{booking.id}"`) to every FCM notification's Android tag / iOS collapse-id. Use the same id when canceling.
+2. **Backend.** When `expire_pending_job_booking` fires, queue a follow-up FCM task that ships an empty/replacement notification with the same tag/collapse-id. Android's notification manager replaces the original with the new (effectively empty) one; on iOS the collapse-id consolidates them.
+3. **Alternative.** Use a data-only FCM message (no `notification` field) carrying a `cancel_notification: <id>` directive that the foreground handler interprets to call `FlutterLocalNotificationsPlugin.cancel(<id>)`. Risk: works only if the app is alive when the cancel arrives; for a killed app, the data-only message is queued but never processed. The tag/collapse-id approach works regardless of app state — it's purely OS-level.
+
+**Search hints**
+- `expire_pending_job_booking` in `bookings/tasks.py`
+- `send_fcm_notification` in `realtime/devices/tasks.py`
+- `notification_channels.dart` — the existing `job_dispatch` channel.
+
+**Severity**
+Low. Pure UX polish — the staleness filters (flag #19) already prevent dead notifications from doing harm; this is just hygiene. Pick up when there's bandwidth or alongside any other FCM-side work.
+
+---
+
+## 24. Producer-side event idempotency: retries mint new UUIDs
+
+**Where**
+- `backend/realtime/events/services/event_dispatch_service.py` line ~78 — `"id": str(uuid.uuid4())` is generated fresh on every `broadcast_event` call.
+- Cross-references the frontend's dedup map in `system_event_notifier.dart::_kDedupWindow` which keys exclusively on envelope `id`.
+
+**What's wrong**
+`broadcast_event` has no idempotency key. Every invocation — including a logical retry of the same event — creates a new `EventLog` row with a new UUID. The frontend's 24-hour dedup map keys on envelope `id`, so it treats two retries of the same logical event as two distinct events: it processes both, the queue notifier may surface both, and any UI that reacts to the event (toast, sheet push, queue insert) can fire twice.
+
+Today the surface area is narrow because the only production caller — `bookings/services/job_request_dispatch.py::dispatch_job_new_request_event` — is wrapped in `transaction.on_commit`, so a rolled-back transaction doesn't queue a phantom dispatch and there's no retry loop above it. The hole is latent: any future producer that retries on a transient failure (Channels group_send timeout, network blip mid-broadcast, Celery task with `autoretry_for=...`) will silently produce duplicates downstream.
+
+The frontend cannot mitigate this — its dedup map is correct given the contract it's promised. The fix has to live on the producer side.
+
+**Why we shipped it anyway**
+No production caller retries today, so the bug is invisible. Adding an idempotency key requires either (a) the caller passing a deterministic key (e.g. `f"job_dispatch_{booking.id}_{attempt}"`) which leaks retry semantics into business code, or (b) a producer-side cache keyed on `(user_id, event_type, payload_hash)` with a short TTL, which is non-trivial to size correctly. Neither was justified by the current call graph during the realtime build-out.
+
+**The proper fix**
+1. **Add an optional `idempotency_key` parameter** to `EventDispatchService.broadcast_event`. When provided, the service `get_or_create`s the `EventLog` row using a unique constraint on `(user, idempotency_key)` and short-circuits if a row already exists (re-emitting the same envelope to the channel layer is fine — the frontend's dedup catches the WS-after-DB case).
+2. **Schema.** Add `idempotency_key = models.CharField(max_length=128, null=True, blank=True)` to `EventLog` with a partial unique index on `(user, idempotency_key) WHERE idempotency_key IS NOT NULL`.
+3. **Caller convention.** Producers that need idempotency derive a deterministic key from their domain primitive. For `dispatch_job_new_request_event`: `idempotency_key=f"job_new_request:{booking.id}"`. Producers that don't pass a key keep the current behavior (fresh UUID each call) — opt-in, not enforced.
+4. **Tests.** A unit test on `broadcast_event` verifies that two calls with the same `idempotency_key` produce one `EventLog` row, and a regression test on the dispatch path asserts the key is set.
+
+**Search hints**
+- `EventDispatchService.broadcast_event` in `event_dispatch_service.py`
+- `EventLog` model in `realtime/models/events.py`
+- `dispatch_job_new_request_event` in `bookings/services/job_request_dispatch.py` (canonical caller to migrate first)
+
+**Severity**
+Low today, latent. The current call graph has no retry loops, so duplicates can't be produced in production. Track it before adding (a) any Celery `@shared_task` that produces events with `autoretry_for=...`, (b) any service-layer retry decorator, or (c) any producer that runs outside `transaction.on_commit`. The cost to retrofit after a duplicate-event incident in production (UI fired twice, customer charged twice, etc.) is much higher than adding the optional parameter now.

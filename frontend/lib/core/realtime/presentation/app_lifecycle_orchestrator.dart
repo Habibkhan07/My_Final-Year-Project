@@ -162,12 +162,27 @@ class AppLifecycleOrchestrator extends ConsumerStatefulWidget {
   /// auth state.
   ///
   /// Order matters:
-  ///   1. Disconnect WS first so no new events arrive during teardown.
-  ///   2. Unregister FCM token so the backend stops dispatching to this
-  ///      device. Best-effort — the repository swallows network errors.
-  ///   3. Reset `SystemEventNotifier` so a different user logging in on the
-  ///      same device cannot see the previous session's events.
-  ///   4. Clear the `onUnauthorized` callback last so a stray in-flight
+  ///   1. **Unregister FCM device first** — flag #19 family privacy fix.
+  ///      The backend dispatches FCM unconditionally for every event (no
+  ///      presence check), so the moment we ask it to stop dispatching to
+  ///      this device, the queue of in-flight Celery tasks that would
+  ///      otherwise produce tray notifications for user A goes silent.
+  ///      Doing this AFTER `wsConnection.disconnect()` would widen the
+  ///      window where backend keeps fanning events out via FCM-only
+  ///      (because WS is closed). On a multi-account device, those
+  ///      late-fired notifications would land at user B's session after
+  ///      they log in — the notification ingestion path can't tell
+  ///      they were tagged for user A. Best-effort: the repository
+  ///      swallows network errors so a phone that loses connectivity
+  ///      mid-logout still completes teardown.
+  ///   2. Disconnect WS so no new frames arrive during the rest of
+  ///      teardown.
+  ///   3. Reset `SystemEventNotifier` so a different user logging in on
+  ///      the same device cannot see the previous session's events.
+  ///   4. Clear persisted realtime caches (sync cursor, cached event list,
+  ///      pending ACK queue) so cache-fallback paths in the next session
+  ///      cannot surface user A's data.
+  ///   5. Null the `onUnauthorized` callback last so a stray in-flight
   ///      response cannot trigger a second logout against fresh state.
   @visibleForTesting
   static Future<void> performTeardown({
@@ -177,8 +192,8 @@ class AppLifecycleOrchestrator extends ConsumerStatefulWidget {
     required EventSyncNotifier eventSync,
     required EventLocalDataSource local,
   }) async {
-    wsConnection.disconnect();
     await fcmHandler.unregister();
+    wsConnection.disconnect();
     systemEventNotifier.reset();
     await local.clearLastSyncTimestamp();
     await local.clearCachedEvents();

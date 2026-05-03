@@ -55,6 +55,7 @@ void main() {
 
   setUpAll(() {
     registerFallbackValue(_fallbackEntity());
+    registerFallbackValue(SystemEventSource.unknown);
   });
 
   setUp(() {
@@ -63,7 +64,10 @@ void main() {
     repo = _MockEventRepository();
     local = _MockEventLocalDataSource();
 
-    when(() => eventNotifier.processEvent(any())).thenReturn(true);
+    when(() => eventNotifier.processEvent(
+          any(),
+          source: any(named: 'source'),
+        )).thenReturn(true);
     when(() => syncNotifier.syncMissedEvents()).thenAnswer((_) async {});
     when(() => local.consumePendingBackgroundEvents())
         .thenAnswer((_) async => <Map<String, dynamic>>[]);
@@ -87,8 +91,13 @@ void main() {
         _baseData(payload: <String, dynamic>{'job_id': 'abc'}),
       );
 
+      // FCM-source tag is part of the contract — the notifier's
+      // server-time anchor depends on this not being `ws`.
       final captured = verify(
-        () => eventNotifier.processEvent(captureAny()),
+        () => eventNotifier.processEvent(
+          captureAny(),
+          source: SystemEventSource.fcm,
+        ),
       ).captured;
       expect(captured, hasLength(1));
       final entity = captured.single as SystemEventEntity;
@@ -106,7 +115,10 @@ void main() {
       );
 
       final captured = verify(
-        () => eventNotifier.processEvent(captureAny()),
+        () => eventNotifier.processEvent(
+          captureAny(),
+          source: SystemEventSource.fcm,
+        ),
       ).captured;
       expect(captured, hasLength(1));
       final entity = captured.single as SystemEventEntity;
@@ -122,7 +134,10 @@ void main() {
       // missing key triggers a TypeError that the outer try swallows.
       handler.processRemoteMessage(_baseData());
 
-      verifyNever(() => eventNotifier.processEvent(any()));
+      verifyNever(() => eventNotifier.processEvent(
+            any(),
+            source: any(named: 'source'),
+          ));
     });
 
     test(
@@ -135,7 +150,10 @@ void main() {
       // and fails the type check.
       handler.processRemoteMessage(_baseData(payload: ''));
 
-      verifyNever(() => eventNotifier.processEvent(any()));
+      verifyNever(() => eventNotifier.processEvent(
+            any(),
+            source: any(named: 'source'),
+          ));
     });
 
     test(
@@ -150,7 +168,10 @@ void main() {
         ),
       );
 
-      verifyNever(() => eventNotifier.processEvent(any()));
+      verifyNever(() => eventNotifier.processEvent(
+            any(),
+            source: any(named: 'source'),
+          ));
     });
 
     test('F5 — jsonDecode throws on malformed string payload, swallowed', () {
@@ -160,7 +181,10 @@ void main() {
         _baseData(payload: '{not valid json'),
       );
 
-      verifyNever(() => eventNotifier.processEvent(any()));
+      verifyNever(() => eventNotifier.processEvent(
+            any(),
+            source: any(named: 'source'),
+          ));
     });
   });
 
@@ -185,16 +209,19 @@ void main() {
               any(
                 that: predicate<SystemEventEntity>((e) => e.id == 'e1'),
               ),
+              source: SystemEventSource.fcm,
             ),
         () => eventNotifier.processEvent(
               any(
                 that: predicate<SystemEventEntity>((e) => e.id == 'e2'),
               ),
+              source: SystemEventSource.fcm,
             ),
         () => eventNotifier.processEvent(
               any(
                 that: predicate<SystemEventEntity>((e) => e.id == 'e3'),
               ),
+              source: SystemEventSource.fcm,
             ),
         () => syncNotifier.syncMissedEvents(),
       ]);
@@ -209,7 +236,10 @@ void main() {
       final handler = buildHandler();
       await handler.processPendingBackgroundEvents();
 
-      verifyNever(() => eventNotifier.processEvent(any()));
+      verifyNever(() => eventNotifier.processEvent(
+            any(),
+            source: any(named: 'source'),
+          ));
       verify(() => syncNotifier.syncMissedEvents()).called(1);
     });
 
@@ -224,7 +254,10 @@ void main() {
       // Must not throw.
       await handler.processPendingBackgroundEvents();
 
-      verifyNever(() => eventNotifier.processEvent(any()));
+      verifyNever(() => eventNotifier.processEvent(
+            any(),
+            source: any(named: 'source'),
+          ));
       verifyNever(() => syncNotifier.syncMissedEvents());
     });
 

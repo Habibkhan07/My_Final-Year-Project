@@ -21,8 +21,15 @@ import 'notification_channels.dart';
 /// `'event_sync_pending_bg_events'`). If you change one, change both —
 /// otherwise background-queued events silently never reach the main isolate
 /// on app resume.
+///
+/// [_kMaxPendingBackgroundEvents] MUST match
+/// `EventLocalDataSource._kMaxPendingBackgroundEvents`. Both isolates
+/// apply the same FIFO cap so a wedged FCM init in the main isolate
+/// can't let the BG isolate grow the queue past the documented bound
+/// (and vice versa).
 /// ────────────────────────────────────────────────────────────────────────
 const _kPendingBackgroundEventsKey = 'event_sync_pending_bg_events';
+const _kMaxPendingBackgroundEvents = 50;
 
 const _logName = 'core.presentation.fcm_bg_handler';
 
@@ -64,6 +71,15 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
         : <dynamic>[];
 
     queue.add(message.data);
+
+    // FIFO cap: same bound the main isolate applies in
+    // `EventLocalDataSource.savePendingBackgroundEvent`. Drop oldest
+    // entries when the queue exceeds the cap. Anything dropped is
+    // recoverable via the WS reconnect's `/sync/?since=` catch-up.
+    if (queue.length > _kMaxPendingBackgroundEvents) {
+      final overflow = queue.length - _kMaxPendingBackgroundEvents;
+      queue.removeRange(0, overflow);
+    }
 
     await prefs.setString(
       _kPendingBackgroundEventsKey,

@@ -3,8 +3,11 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../../../../core/realtime/presentation/notifiers/ws_connection_notifier.dart';
+import '../../../../../core/realtime/presentation/state/connection_state.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../utils/urgency_palette.dart';
 
@@ -47,7 +50,22 @@ import '../utils/urgency_palette.dart';
 /// `DateTime.now()` (wall-clock — survives backgrounding correctly). Frame
 /// count would drift if the app is backgrounded mid-drain. The ticker
 /// stops when [onExpire] fires or when the widget unmounts.
-class IncomingJobSwipeToAccept extends StatefulWidget {
+///
+/// **Connectivity gate (flag #19 family).** The widget watches
+/// `wsConnectionProvider`. When the socket is anything other than
+/// `connected`, the gesture handlers early-out and the caption switches to
+/// `"Reconnecting…"`. Without this gate, a technician on the metro could
+/// physically swipe accept while offline and the host's accept REST call
+/// (once the endpoint lands per flag #14) would fire into a void — they'd
+/// see the confirm animation play, the sheet slide out, and then nothing
+/// would happen because the server never received the accept. Worse: the
+/// SLA Celery task would expire the booking server-side, the customer
+/// would re-dispatch to a different technician, and the offline technician
+/// would arrive at the address to find the job already taken. Disabling
+/// at the gesture level keeps the offer visible (technician can still see
+/// the payout / location / countdown) but physically prevents the
+/// destructive action until connectivity returns.
+class IncomingJobSwipeToAccept extends ConsumerStatefulWidget {
   const IncomingJobSwipeToAccept({
     super.key,
     required this.expiresAt,
@@ -67,7 +85,7 @@ class IncomingJobSwipeToAccept extends StatefulWidget {
   final int payoutRupees;
 
   /// Fired exactly once when the user releases past the swipe threshold.
-  /// Pre-conditions: not yet accepted, not yet expired.
+  /// Pre-conditions: not yet accepted, not yet expired, socket connected.
   final VoidCallback onAccept;
 
   /// Fired exactly once when the drain reaches zero. Pre-conditions: not
@@ -75,11 +93,12 @@ class IncomingJobSwipeToAccept extends StatefulWidget {
   final VoidCallback onExpire;
 
   @override
-  State<IncomingJobSwipeToAccept> createState() =>
+  ConsumerState<IncomingJobSwipeToAccept> createState() =>
       _IncomingJobSwipeToAcceptState();
 }
 
-class _IncomingJobSwipeToAcceptState extends State<IncomingJobSwipeToAccept>
+class _IncomingJobSwipeToAcceptState
+    extends ConsumerState<IncomingJobSwipeToAccept>
     with TickerProviderStateMixin {
   // ── Geometry ────────────────────────────────────────────────────────────
   static const double _pillHeight = 72;
@@ -269,6 +288,13 @@ class _IncomingJobSwipeToAcceptState extends State<IncomingJobSwipeToAccept>
     final accent = urgencyAccent(remaining, widget.slaWindow);
     final drainFraction = _drainFraction();
 
+    // Connectivity gate. We early-out gestures and swap the caption when
+    // the socket is anything other than `connected`. Reading the provider
+    // here causes `build` to re-run when status changes, so the gate
+    // updates promptly when the WS reconnects mid-offer.
+    final wsStatus = ref.watch(wsConnectionProvider);
+    final isConnected = wsStatus == WsConnectionStatus.connected;
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final trackWidth = constraints.maxWidth;
@@ -284,13 +310,29 @@ class _IncomingJobSwipeToAcceptState extends State<IncomingJobSwipeToAccept>
 
         return GestureDetector(
           behavior: HitTestBehavior.opaque,
-          onHorizontalDragStart: (d) => _onPanStart(d, maxThumbOffset),
-          onHorizontalDragUpdate: (d) => _onPanUpdate(d, maxThumbOffset),
-          onHorizontalDragEnd: (d) => _onPanEnd(d, maxThumbOffset),
+          // Connectivity gate: when offline, every gesture handler is a
+          // no-op. We deliberately do NOT also check this inside
+          // `_onPanStart` / `_onPanUpdate` / `_onPanEnd` — keeping the gate
+          // at the GestureDetector closure means the body of those methods
+          // has one less precondition to reason about, and the offline
+          // semantics live next to the caption swap that surfaces them.
+          onHorizontalDragStart: !isConnected
+              ? null
+              : (d) => _onPanStart(d, maxThumbOffset),
+          onHorizontalDragUpdate: !isConnected
+              ? null
+              : (d) => _onPanUpdate(d, maxThumbOffset),
+          onHorizontalDragEnd: !isConnected
+              ? null
+              : (d) => _onPanEnd(d, maxThumbOffset),
           child: Semantics(
-            label:
-                'Swipe right to accept job offer for Rs. ${widget.payoutRupees}',
+            label: isConnected
+                ? 'Swipe right to accept job offer for Rs. '
+                    '${widget.payoutRupees}'
+                : 'Reconnecting — accept disabled until the connection '
+                    'recovers',
             button: true,
+            enabled: isConnected,
             child: SizedBox(
               height: _pillHeight,
               width: trackWidth,
@@ -312,7 +354,9 @@ class _IncomingJobSwipeToAcceptState extends State<IncomingJobSwipeToAccept>
                   ),
                   // Colored fill — anchored left, recedes from right as time
                   // elapses. Slightly smaller pill radius to inset cleanly
-                  // inside the outer border.
+                  // inside the outer border. Dim slightly when offline so
+                  // the disabled state reads as visually different from the
+                  // ready-to-swipe state.
                   Positioned(
                     left: _trackPadding,
                     top: _trackPadding,
@@ -322,15 +366,20 @@ class _IncomingJobSwipeToAcceptState extends State<IncomingJobSwipeToAccept>
                       borderRadius: BorderRadius.circular(
                         (_pillHeight - _trackPadding * 2) / 2,
                       ),
-                      child: ColoredBox(color: accent.withValues(alpha: 0.85)),
+                      child: ColoredBox(
+                        color: accent
+                            .withValues(alpha: isConnected ? 0.85 : 0.45),
+                      ),
                     ),
                   ),
                   // Caption — centered. Fades during drag so the thumb leads.
+                  // Replaced wholesale by the offline caption when
+                  // disconnected.
                   Positioned.fill(
                     child: Center(
                       child: AnimatedOpacity(
                         duration: const Duration(milliseconds: 120),
-                        opacity: _accepted
+                        opacity: (_accepted || !isConnected)
                             ? 0.0
                             : (_dragStartX != null ? 0.45 : 1.0),
                         child: _Caption(
@@ -347,8 +396,19 @@ class _IncomingJobSwipeToAcceptState extends State<IncomingJobSwipeToAccept>
                     const Positioned.fill(
                       child: Center(child: _AcceptedCaption()),
                     ),
+                  // Offline caption — shown whenever the WS is not in the
+                  // `connected` state. Mutually exclusive with the accepted
+                  // caption (a tech can't reach `_accepted == true` while
+                  // offline because the gesture is gated upstream).
+                  if (!isConnected && !_accepted)
+                    const Positioned.fill(
+                      child: Center(child: _OfflineCaption()),
+                    ),
                   // Thumb — circle the user drags. Position is in OUTER
-                  // coordinates (track padding + inner offset).
+                  // coordinates (track padding + inner offset). When offline
+                  // the idle-hint shimmer pauses (a moving chevron under
+                  // the offline caption would read as "this is interactive
+                  // — try harder," exactly the wrong message).
                   Positioned(
                     left: _trackPadding + _thumbOffset,
                     top: _trackPadding,
@@ -359,6 +419,7 @@ class _IncomingJobSwipeToAcceptState extends State<IncomingJobSwipeToAccept>
                       idleHint: _idleHint,
                       isDragging: _dragStartX != null,
                       isAccepted: _accepted,
+                      isConnected: isConnected,
                     ),
                   ),
                 ],
@@ -439,6 +500,37 @@ class _AcceptedCaption extends StatelessWidget {
   }
 }
 
+/// Caption shown when the WS is anything other than `connected`. The
+/// signal-icon-plus-text combination reads as "we're trying to come back"
+/// rather than "you tapped wrong" — a soft, recoverable state. The string
+/// stays the same across all non-connected statuses (connecting,
+/// reconnecting, failed, disconnected) on purpose: technicians don't need
+/// the distinction, only that they should wait for the system to recover
+/// before swiping.
+class _OfflineCaption extends StatelessWidget {
+  const _OfflineCaption();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(Icons.wifi_off_rounded, size: 18, color: Colors.white),
+        SizedBox(width: 8),
+        Text(
+          'Reconnecting…',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.2,
+            color: Colors.white,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 // ─── Thumb ─────────────────────────────────────────────────────────────────
 
 class _Thumb extends StatelessWidget {
@@ -447,12 +539,14 @@ class _Thumb extends StatelessWidget {
     required this.idleHint,
     required this.isDragging,
     required this.isAccepted,
+    required this.isConnected,
   });
 
   final Color accent;
   final AnimationController idleHint;
   final bool isDragging;
   final bool isAccepted;
+  final bool isConnected;
 
   @override
   Widget build(BuildContext context) {
@@ -461,9 +555,10 @@ class _Thumb extends StatelessWidget {
       builder: (context, _) {
         // Idle hint: subtle horizontal nudge on the chevron icon (NOT the
         // thumb itself — moving the thumb would change the perceived swipe
-        // distance). 0..1 sawtooth, lerped to a 0..3px shift.
+        // distance). 0..1 sawtooth, lerped to a 0..3px shift. Pauses while
+        // dragging, after accept, and while disconnected.
         final t = idleHint.value;
-        final shift = isDragging || isAccepted
+        final shift = (isDragging || isAccepted || !isConnected)
             ? 0.0
             : 3.0 * 0.5 * (1 - math.cos(t * 2 * math.pi));
         return Container(

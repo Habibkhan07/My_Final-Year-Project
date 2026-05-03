@@ -224,6 +224,17 @@ The realtime transport (`lib/core/realtime/`) is generic and audience-agnostic. 
 - **List-route vs detail-route distinction**: events that can arrive in bursts (multiple pending at once — incoming job requests, batched chat messages) target a **list-style** screen with no entity id in the URL. Register the event in `EventUrgencyRouter._listRouteEvents` so the nav guard skips push when the screen is already mounted; the screen reacts via its `ref.watch` on the feature's queue notifier. Detail-route events (one-shot per entity — `job_accepted`, `quote_generated`) use `_navGuardPayloadKeys` instead.
 - **Wake-up at app boot is load-bearing**: a `keepAlive: true` queue notifier doesn't subscribe to `systemEventProvider` until first read. If the screen is what reads it, the notifier wakes *after* the event that pushed the screen has already passed `SystemEventNotifier`. Every list-route event feature must register its queue provider in `realtimeBootHooksProvider` (declared at the bottom of `app_lifecycle_orchestrator.dart`); `bootAfterAuth` iterates that registry **before** the WS connect cascade fires. New event = append to the registry, never edit `bootAfterAuth`.
 
+**Pipeline-level guarantees (apply to every event automatically — do NOT re-implement per feature):**
+- **Source tagging**: every call site of `SystemEventNotifier.processEvent(entity, source: SystemEventSource)` passes the source. `WsFrameDispatcher` passes `ws`, `FCMHandler` passes `fcm`, `EventSyncNotifier` passes `sync`. The default `unknown` is for tests only.
+- **Server-time anchor**: `SystemEventNotifier` maintains a server-time estimate seeded ONLY by `source: ws` frames (FCM and sync are tap-intent / replay channels and could be stale). The expiry filter uses this anchor, so device clock skew cannot make expired offers swipeable.
+- **Recipient filter**: drops frames whose `recipientUserId` does not match `currentAuthUserIdProvider`. Both halves must be non-null — null on either side is backwards-compat and lets the frame through.
+- **Expiry filter**: drops frames whose `expiresAt` is past the server-anchored now. Null `expiresAt` is accepted (event has no SLA).
+- **24-hour windowed dedup**: `SystemEventNotifier` keys on envelope `id` over a 24h window matching the backend `UNACKNOWLEDGED_WINDOW`. FIFO-by-timestamp hard cap (500 / 250) prevents unbounded growth.
+- **BG-isolate queue cap**: `_kMaxPendingBackgroundEvents = 50` in both `event_local_data_source.dart` (main isolate) and `fcm_background_handler.dart` (BG isolate) — constants are coupled across the isolate boundary; change both together.
+- **Teardown order in `app_lifecycle_orchestrator.dart::performTeardown`** is load-bearing: `fcmHandler.unregister()` runs BEFORE `wsConnection.disconnect()`. Reversing this leaks tray notifications to a logged-out device on shared phones.
+
+These guarantees are enforced once at the envelope layer. New events inherit them — there is nothing per-feature to wire.
+
 **Touch-points in `core/realtime` per new event (one-line edits, expected):**
 - `system_event_type.dart` — add the enum case + rawType lookup entry. Source of truth is the backend wire string.
 - `event_urgency.dart` — add the urgency level (`highUrgency` / `lowUrgency` / `silent`).

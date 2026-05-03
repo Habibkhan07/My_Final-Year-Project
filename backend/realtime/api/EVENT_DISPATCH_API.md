@@ -19,24 +19,36 @@ exact JSON shape. The Flutter client has ONE parser.
   "rawType": "job_accepted",
   "targetRole": "customer",
   "timestamp": "2026-04-24T07:12:33.102000Z",
+  "expires_at": null,
+  "recipient_user_id": null,
   "payload": { "job_id": "abc-123", "technician_name": "Ali R." }
 }
 ```
 
-| Field        | Type     | Notes                                                                 |
-|--------------|----------|-----------------------------------------------------------------------|
-| `kind`       | literal  | Always `"event"`. Discriminates events from streams on the same socket. |
-| `id`         | UUIDv4   | Primary key of the `EventLog` row. Use to `ACK`.                      |
-| `rawType`    | string   | Registered key in `core.constants.event_types.EventType`.             |
-| `targetRole` | enum     | `"customer"` \| `"technician"`. Drives client-side routing.           |
-| `timestamp`  | ISO-8601 | UTC with trailing `Z`. Server-authoritative.                          |
-| `payload`    | object   | Feature-specific dict. JSON-serializable.                             |
+| Field               | Type             | Notes                                                                 |
+|---------------------|------------------|-----------------------------------------------------------------------|
+| `kind`              | literal          | Always `"event"`. Discriminates events from streams on the same socket. |
+| `id`                | UUIDv4           | Primary key of the `EventLog` row. Use to `ACK`.                      |
+| `rawType`           | string           | Registered key in `core.constants.event_types.EventType`.             |
+| `targetRole`        | enum             | `"customer"` \| `"technician"`. Drives client-side routing.           |
+| `timestamp`         | ISO-8601         | UTC with trailing `Z`. Server-authoritative.                          |
+| `expires_at`        | ISO-8601 \| null | UTC absolute expiry for SLA-bounded events. Frontend pipeline drops past-expiry frames at `SystemEventNotifier` ingress (server-anchored clock). Null for events without an SLA. **Backend emission is pending — see flag #19.** |
+| `recipient_user_id` | int \| null      | Numeric `User.id` of the intended recipient. Frontend pipeline drops frames whose recipient does not match the authenticated user (defence-in-depth against multi-account device FCM tap races). Null defers to channel-layer routing. **Backend emission is pending — see flag #19.** |
+| `payload`           | object           | Feature-specific dict. JSON-serializable.                             |
 
 `is_critical` is **not** sent on the wire — it lives server-side in the
 registry and controls whether the Flutter client must call `/ack/`.
 
 Stream frames travel on the same socket but use a different envelope
 shape (`kind: "stream"`). See `STREAM_DISPATCH_API.md` for the contract.
+
+**Forward-compat contract.** The frontend already accepts `expires_at`
+and `recipient_user_id` as optional fields on `SystemEventModel`
+(`frontend/lib/core/realtime/data/models/system_event_model.dart`).
+Both halves of each filter gate must be non-null for the filter to fire,
+so the frontend tolerates a phased rollout: backend ships the fields,
+frontend filters activate without a redeploy. Until then the filters
+are dormant. See `flag.md` #19 for the migration plan.
 
 ---
 

@@ -3,6 +3,15 @@ import 'package:frontend/core/realtime/domain/entities/system_event_entity.dart'
 import 'package:frontend/features/technician/incoming_job_requests/data/mappers/job_new_request_mapper.dart';
 import 'package:frontend/features/technician/incoming_job_requests/domain/entities/booking_type.dart';
 
+/// Anchor timestamp every fixture event uses unless overridden. Pinned to a
+/// fixed instant so test outputs are deterministic — the freshness check
+/// inside the mapper consults [_freshNow] (a few seconds inside the SLA
+/// window) so events never accidentally trip the expiry filter on real
+/// wall-clock days. Tests that *want* to assert on the expiry filter pass
+/// their own `now`.
+final _baseTs = DateTime.utc(2026, 4, 27, 20, 14, 42);
+final _freshNow = _baseTs.add(const Duration(seconds: 30));
+
 /// Builds a `job_new_request` `SystemEventEntity` for mapper tests.
 SystemEventEntity _event({
   DateTime? timestamp,
@@ -29,7 +38,7 @@ SystemEventEntity _event({
     id: 'evt-1',
     rawType: 'job_new_request',
     targetRoleStr: 'technician',
-    timestamp: timestamp ?? DateTime.utc(2026, 4, 27, 20, 14, 42),
+    timestamp: timestamp ?? _baseTs,
     payload: base,
   );
 }
@@ -38,8 +47,10 @@ void main() {
   group('JobNewRequestMapper.fromSystemEvent', () {
     test('fresh event → typed entity with parsed payout, UTC scheduledStart, '
         'envelope-anchored expiresAt, propagated locationLabel', () {
-      final ts = DateTime.utc(2026, 4, 27, 20, 14, 42);
-      final entity = JobNewRequestMapper.fromSystemEvent(_event(timestamp: ts));
+      final entity = JobNewRequestMapper.fromSystemEvent(
+        _event(timestamp: _baseTs),
+        now: _freshNow,
+      );
 
       expect(entity, isNotNull);
       expect(entity!.jobId, 99482);
@@ -50,7 +61,7 @@ void main() {
       expect(entity.scheduledStart, DateTime.utc(2026, 4, 8, 5, 0, 0));
       // Anchored on envelope timestamp, NOT receipt time. Critical for SLA
       // alignment with the server's Celery timeout task.
-      expect(entity.expiresAt, ts.add(const Duration(seconds: 60)));
+      expect(entity.expiresAt, _baseTs.add(const Duration(seconds: 60)));
       expect(entity.locationLabel, 'Gulberg, Lahore');
     });
 
@@ -58,6 +69,7 @@ void main() {
         () {
       final entity = JobNewRequestMapper.fromSystemEvent(
         _event(payloadRemovals: const {'booking_type': null}),
+        now: _freshNow,
       );
 
       expect(entity, isNotNull);
@@ -67,6 +79,7 @@ void main() {
     test('§2.5 replay (null payout_context) → entity carries null', () {
       final entity = JobNewRequestMapper.fromSystemEvent(
         _event(payloadRemovals: const {'payout_context': null}),
+        now: _freshNow,
       );
 
       expect(entity, isNotNull);
@@ -76,6 +89,7 @@ void main() {
     test('unknown booking_type string → defaults to laborGig (no throw)', () {
       final entity = JobNewRequestMapper.fromSystemEvent(
         _event(payloadOverrides: const {'booking_type': 'MYSTERY_GIG'}),
+        now: _freshNow,
       );
 
       expect(entity, isNotNull);
@@ -85,6 +99,7 @@ void main() {
     test('inspection wire string → BookingType.inspection', () {
       final entity = JobNewRequestMapper.fromSystemEvent(
         _event(payloadOverrides: const {'booking_type': 'INSPECTION'}),
+        now: _freshNow,
       );
 
       expect(entity, isNotNull);
@@ -97,6 +112,7 @@ void main() {
       // detached via SET_NULL).
       final entity = JobNewRequestMapper.fromSystemEvent(
         _event(payloadOverrides: const {'ui_location_label': null}),
+        now: _freshNow,
       );
 
       expect(entity, isNotNull);
@@ -110,6 +126,7 @@ void main() {
       // the absent key as null without throwing.
       final entity = JobNewRequestMapper.fromSystemEvent(
         _event(payloadRemovals: const {'ui_location_label': null}),
+        now: _freshNow,
       );
 
       expect(entity, isNotNull);
@@ -119,6 +136,7 @@ void main() {
     test('non-numeric payout → returns null (mapper logs, no throw)', () {
       final entity = JobNewRequestMapper.fromSystemEvent(
         _event(payloadOverrides: const {'payout': 'twelve hundred'}),
+        now: _freshNow,
       );
 
       expect(entity, isNull);
@@ -127,6 +145,7 @@ void main() {
     test('unparseable scheduled_start_iso → returns null', () {
       final entity = JobNewRequestMapper.fromSystemEvent(
         _event(payloadOverrides: const {'scheduled_start_iso': 'not-a-date'}),
+        now: _freshNow,
       );
 
       expect(entity, isNull);
@@ -135,9 +154,83 @@ void main() {
     test('missing required job_id → returns null (no throw)', () {
       final entity = JobNewRequestMapper.fromSystemEvent(
         _event(payloadRemovals: const {'job_id': null}),
+        now: _freshNow,
       );
 
       expect(entity, isNull);
     });
+  });
+
+  group('JobNewRequestMapper.fromSystemEvent — flag #19 stale-FCM expiry', () {
+    test(
+      'now AT expiresAt → returns null (boundary; SLA is exclusive at the '
+      'instant of expiry — same as the server-side Celery timeout)',
+      () {
+        // Envelope ts = _baseTs, expires_in_seconds = 60.
+        // expiresAt = _baseTs + 60s. now = expiresAt → drop.
+        final atExpiry = _baseTs.add(const Duration(seconds: 60));
+        final entity = JobNewRequestMapper.fromSystemEvent(
+          _event(timestamp: _baseTs),
+          now: atExpiry,
+        );
+
+        expect(entity, isNull,
+            reason: 'now == expiresAt is the boundary the SLA timer fires on');
+      },
+    );
+
+    test(
+      'now PAST expiresAt → returns null '
+      '(stale FCM tap-intent on a long-ignored notification)',
+      () {
+        // Tray banner sat for 6 minutes after a 60-second SLA dispatch.
+        final wayPastExpiry = _baseTs.add(const Duration(minutes: 6));
+        final entity = JobNewRequestMapper.fromSystemEvent(
+          _event(timestamp: _baseTs),
+          now: wayPastExpiry,
+        );
+
+        expect(entity, isNull,
+            reason: 'long-stale tap must not summon a sheet for a dead offer');
+      },
+    );
+
+    test(
+      'now JUST before expiresAt → still produces an entity '
+      '(fresh by a hair — the technician still has time to swipe)',
+      () {
+        final justBeforeExpiry =
+            _baseTs.add(const Duration(seconds: 59, milliseconds: 999));
+        final entity = JobNewRequestMapper.fromSystemEvent(
+          _event(timestamp: _baseTs),
+          now: justBeforeExpiry,
+        );
+
+        expect(entity, isNotNull,
+            reason: 'sub-second-fresh events must still reach the queue');
+      },
+    );
+
+    test(
+      'now defaults to DateTime.now().toUtc() when omitted '
+      '(production call site shape)',
+      () {
+        // A LIVE envelope (timestamp ≈ wall clock now, generous SLA) must
+        // still produce a typed entity when the mapper is called without
+        // injecting `now` — confirms the production default does not
+        // accidentally drop fresh events.
+        final liveTs = DateTime.now().toUtc();
+        final entity = JobNewRequestMapper.fromSystemEvent(
+          _event(
+            timestamp: liveTs,
+            payloadOverrides: const {'expires_in_seconds': 300},
+          ),
+          // no `now` — exercises DateTime.now() fallback
+        );
+
+        expect(entity, isNotNull,
+            reason: 'live envelope under default `now` must not be dropped');
+      },
+    );
   });
 }
