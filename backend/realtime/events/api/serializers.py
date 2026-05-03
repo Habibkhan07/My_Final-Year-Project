@@ -14,10 +14,24 @@ class EventLogSerializer(serializers.ModelSerializer):
     rawType = serializers.CharField(source="event_type", read_only=True)
     targetRole = serializers.CharField(source="target_role", read_only=True)
     timestamp = serializers.DateTimeField(source="created_at", read_only=True)
+    # Recipient identity and absolute expiry — both denormalized onto
+    # ``EventLog`` so the /sync/ replay surfaces the exact same instant the
+    # original WS frame carried (no recomputation drift). See flag #19.
+    recipient_user_id = serializers.IntegerField(source="user_id", read_only=True)
+    expires_at = serializers.DateTimeField(read_only=True)
 
     class Meta:
         model = EventLog
-        fields = ("kind", "id", "rawType", "targetRole", "timestamp", "payload")
+        fields = (
+            "kind",
+            "id",
+            "rawType",
+            "targetRole",
+            "timestamp",
+            "recipient_user_id",
+            "expires_at",
+            "payload",
+        )
         read_only_fields = fields
 
     def get_kind(self, _obj) -> str:
