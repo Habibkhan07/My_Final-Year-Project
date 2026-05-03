@@ -204,17 +204,16 @@ class SystemEventNotifier extends _$SystemEventNotifier {
       return false;
     }
 
-    // 2.5 Recipient filter (flag #19, P2). Drops events whose recipient
-    //    does not match the currently-authenticated user. Defends against
-    //    the multi-account-device race where a notification queued for
-    //    user A arrives at user B's session after a logout/login.
+    // 2.5 Recipient filter (flag #19, resolved 2026-05-03). Drops events
+    //    whose recipient does not match the currently-authenticated user.
+    //    Defends against the multi-account-device race where a notification
+    //    queued for user A arrives at user B's session after a logout/login.
     //
-    //    Defensive: only fires when BOTH sides are non-null. Today
-    //    `currentAuthUserIdProvider` returns null until the auth feature
-    //    exposes a numeric `id` on `UserEntity` (also tracked in flag #19).
-    //    Until then this gate is a no-op — the event passes through. When
-    //    backend ships `recipient_user_id` AND auth ships the id field,
-    //    the filter activates without further code changes.
+    //    Defensive: only fires when BOTH sides are non-null. Backend ships
+    //    `recipient_user_id` on every envelope; `currentAuthUserIdProvider`
+    //    is overridden in `main.dart` to read the live auth user id. Either
+    //    side being null (legacy `EventLog` replay, or signed-out container)
+    //    means the gate no-ops — the documented backwards-compat path.
     final eventRecipientId = event.recipientUserId;
     if (eventRecipientId != null) {
       final currentUserId = ref.read(currentAuthUserIdProvider);
@@ -228,12 +227,12 @@ class SystemEventNotifier extends _$SystemEventNotifier {
       }
     }
 
-    // 2.6 Expiry filter (flag #19, P1). Drops events whose `expiresAt` is
-    //    in the past relative to the server-time anchor. This is the
-    //    pipeline-level home for the staleness check that
-    //    `JobNewRequestMapper` does today at the feature level — once
-    //    backend ships envelope `expires_at`, every present and future
-    //    typed event inherits the protection without per-feature work.
+    // 2.6 Expiry filter (flag #19, resolved 2026-05-03). Drops events whose
+    //    `expiresAt` is in the past relative to the server-time anchor.
+    //    This is the pipeline-level home for the staleness check; every
+    //    present and future typed event inherits it without per-feature
+    //    work. `JobNewRequestMapper` retains its own freshness check as
+    //    defence-in-depth (intentional — see the mapper's docstring).
     final eventExpiresAt = event.expiresAt;
     if (eventExpiresAt != null) {
       final now = _serverNow();

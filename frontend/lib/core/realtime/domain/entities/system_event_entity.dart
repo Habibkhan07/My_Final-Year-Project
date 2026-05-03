@@ -35,11 +35,12 @@ class SystemEventEntity {
   /// events before any feature subscriber sees them. See flag #19.
   final DateTime? expiresAt;
 
-  /// Auth user id this event was dispatched to. Null on legacy events
-  /// (during the wire contract rollout window). The pipeline filter
+  /// Auth user id this event was dispatched to. The pipeline filter
   /// rejects events whose recipient does not match the currently-
   /// authenticated user — defends against the multi-account-device race.
-  /// See flag #19.
+  /// Null on `EventLog` rows persisted before flag #19 closed
+  /// (2026-05-03); replays of those rows pass the filter (no recipient to
+  /// compare against). See flag #19 (resolved).
   final int? recipientUserId;
 
   const SystemEventEntity({

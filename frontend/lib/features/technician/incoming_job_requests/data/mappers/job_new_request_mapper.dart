@@ -35,19 +35,25 @@ class JobNewRequestMapper {
   /// Returns null when the offer's SLA has already elapsed by the time the
   /// envelope reaches us — see "Stale FCM tap" below.
   ///
-  /// **Stale FCM tap (flag #19 stopgap).** A `job_new_request` notification
-  /// can sit in the OS tray for longer than the SLA window — the technician
-  /// was in a meeting, on a metro without signal, or simply not looking at
-  /// their phone. Tapping a stale tray banner cold-launches the app and
-  /// flows the event through the same pipeline as a live WS frame. Without
-  /// a freshness check the sheet would slide up showing a dead offer; the
-  /// technician would swipe accept and hit a server-side 4xx because the
-  /// booking has already flipped to REJECTED via the SLA Celery task. This
-  /// drop-on-expiry check closes that path at the mapper. It will be
-  /// subsumed by the pipeline-level filter inside `SystemEventNotifier`
-  /// once backend ships an envelope-level `expires_at` (flag #19); until
-  /// then, the per-feature derivation (`event.timestamp +
-  /// expires_in_seconds`) is the only way to know the offer's deadline.
+  /// **Stale FCM tap (flag #19 defence-in-depth).** A `job_new_request`
+  /// notification can sit in the OS tray for longer than the SLA window —
+  /// the technician was in a meeting, on a metro without signal, or simply
+  /// not looking at their phone. Tapping a stale tray banner cold-launches
+  /// the app and flows the event through the same pipeline as a live WS
+  /// frame. Without a freshness check the sheet would slide up showing a
+  /// dead offer; the technician would swipe accept and hit a server-side
+  /// 4xx because the booking has already flipped to REJECTED via the SLA
+  /// Celery task.
+  ///
+  /// Since flag #19 closed (2026-05-03), `SystemEventNotifier`'s pipeline
+  /// filter handles the common case using envelope-level `expires_at`
+  /// before the event ever reaches this mapper. This per-feature derivation
+  /// (`event.timestamp + expires_in_seconds`) stays as a second gate —
+  /// "two checks for the same thing on different layers" is the right
+  /// shape for a privacy/UX-adjacent path, and the cost is three lines.
+  /// It also covers the residual case where a backend-side glitch ships
+  /// an envelope without `expires_at` despite the payload carrying
+  /// `expires_in_seconds` (rollout-edge or legacy `EventLog` replay).
   ///
   /// [now] is injectable for tests. Production callers omit it and the
   /// mapper falls back to `DateTime.now().toUtc()`. Wall-clock skew is the

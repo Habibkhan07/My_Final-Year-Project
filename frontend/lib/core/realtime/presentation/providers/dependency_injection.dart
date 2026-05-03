@@ -114,16 +114,17 @@ final scaffoldMessengerKeyProvider = Provider<GlobalKey<ScaffoldMessengerState>>
 // ─── Current auth user id (callback-inversion seam, flag #19) ──────────────
 //
 // Returns the auth user id of the currently-signed-in user, or null when
-// no one is signed in OR when the auth feature does not yet expose a numeric
-// id on `UserEntity` (today: only `phone` is on the entity). The pipeline's
-// recipient filter consults this via `ref.read(currentAuthUserIdProvider)`
-// every time an event arrives, so the value is fresh per-event.
+// no one is signed in. The pipeline's recipient filter consults this via
+// `ref.read(currentAuthUserIdProvider)` every time an event arrives, so
+// the value is fresh per-event.
 //
 // **Why a default-null Provider, not a direct authProvider import.** Core
 // must not import features (`SystemEventNotifier` is in core, `authProvider`
-// is in features). The orchestrator is the sanctioned core ↔ features
-// bridge, so it overrides this provider when the auth feature gains a
-// numeric `id` field on `UserEntity`. Until then this stays null and the
-// recipient filter is a no-op — exactly the rollout-window contract that
-// flag #19 documents.
+// is in features). `main.dart`'s `bootApp` ProviderScope overrides this
+// seam with `ref.watch(authProvider.select((async) => async.value?.user?.id))`
+// — the sanctioned core ↔ features bridge. The default-null implementation
+// here is what tests and any non-prod ProviderContainer see when no
+// override is supplied; in that mode the recipient filter no-ops on null,
+// which is the documented backwards-compat path for legacy / unauthenticated
+// flows. See flag #19 (resolved 2026-05-03).
 final currentAuthUserIdProvider = Provider<int?>((_) => null);
