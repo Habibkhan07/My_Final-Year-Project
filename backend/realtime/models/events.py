@@ -53,6 +53,11 @@ class EventLog(models.Model):
     is_critical = models.BooleanField(default=False)
     acknowledged_at = models.DateTimeField(null=True, blank=True, default=None)
     created_at = models.DateTimeField(auto_now_add=True)
+    # Denormalized absolute expiry. Set by EventDispatchService when the
+    # caller passes ``expires_in_seconds`` so the wire envelope and the
+    # /sync/ replay both surface the same UTC instant. Null for events
+    # without an SLA. See flag #19.
+    expires_at = models.DateTimeField(null=True, blank=True, default=None)
 
     objects = EventLogManager()
 

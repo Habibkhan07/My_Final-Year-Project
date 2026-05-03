@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import datetime, timezone as dt_timezone
+from datetime import datetime, timedelta, timezone as dt_timezone
 from typing import Any, Iterable
 
 from asgiref.sync import async_to_sync
@@ -33,9 +33,9 @@ logger = logging.getLogger(__name__)
 CHANNEL_EVENT_TYPE = "system.event"
 
 
-def _utc_now_iso() -> str:
-    """ISO-8601 UTC timestamp with trailing ``Z`` (Flutter-friendly)."""
-    return datetime.now(tz=dt_timezone.utc).isoformat().replace("+00:00", "Z")
+def _to_iso_z(dt: datetime) -> str:
+    """ISO-8601 UTC string with trailing ``Z`` (Flutter-friendly)."""
+    return dt.isoformat().replace("+00:00", "Z")
 
 
 class EventDispatchService:
@@ -51,6 +51,7 @@ class EventDispatchService:
         target_role: str,
         event_type: str,
         payload: dict[str, Any],
+        expires_in_seconds: int | None = None,
     ) -> dict[str, Any]:
         """
         Fire one event. Returns the built envelope so the caller can
@@ -69,8 +70,26 @@ class EventDispatchService:
             default non-critical metadata.
         payload:
             Feature-specific dict. Must be JSON-serializable.
+        expires_in_seconds:
+            SLA window for events that go stale (e.g. job offers). Drives
+            ``envelope["expires_at"]`` and the denormalized ``EventLog.expires_at``
+            column so ``/api/events/sync/`` replays the same instant. The
+            frontend pipeline drops past-expiry frames at ``SystemEventNotifier``
+            ingress (server-anchored clock). Pass ``None`` for events with no
+            SLA; the field will surface as ``null`` on the wire. See flag #19.
         """
         meta = get_event_meta(event_type)
+        # Pin "now" once so envelope.timestamp, envelope.expires_at, and the
+        # persisted EventLog row's expires_at all reference the same instant.
+        # Otherwise a slow EventLog.objects.create could produce a row whose
+        # expires_at trails the envelope by milliseconds, causing /sync/ replay
+        # to disagree with the original WS frame.
+        now = datetime.now(tz=dt_timezone.utc)
+        expires_at = (
+            now + timedelta(seconds=expires_in_seconds)
+            if expires_in_seconds is not None
+            else None
+        )
         envelope: dict[str, Any] = {
             # ``kind`` discriminates events from streams on the same socket.
             # Frontend dispatcher switches on this field. See STREAM_DISPATCH_API.md.
@@ -78,7 +97,13 @@ class EventDispatchService:
             "id": str(uuid.uuid4()),
             "rawType": event_type,
             "targetRole": target_role,
-            "timestamp": _utc_now_iso(),
+            "timestamp": _to_iso_z(now),
+            # Recipient identity — defence-in-depth against multi-account
+            # device FCM tap races. Always set; channel-layer routing is
+            # the primary gate, this field is the second one.
+            "recipient_user_id": user.id,
+            # Absolute expiry — null when caller has no SLA.
+            "expires_at": _to_iso_z(expires_at) if expires_at is not None else None,
             "payload": payload,
         }
 
@@ -88,10 +113,15 @@ class EventDispatchService:
         #
         # We store the *inner* payload only. EventLogSerializer rebuilds the
         # envelope shell (kind/rawType/targetRole/timestamp) from the row's
-        # columns and a SerializerMethodField, so /api/events/sync/ output
-        # matches the §1.2 single-envelope wire contract feature mappers
-        # consume. Storing the full envelope here was a doubly-nested-payload
-        # bug that silently broke every reconnect-replayed event.
+        # columns, so /api/events/sync/ output matches the §1.2 single-envelope
+        # wire contract feature mappers consume. Storing the full envelope here
+        # was a doubly-nested-payload bug that silently broke every reconnect-
+        # replayed event.
+        #
+        # ``expires_at`` is denormalized onto the row (not recomputed from
+        # ``payload['expires_in_seconds']`` + ``created_at``) so the wire
+        # value is the single source of truth — sync replay can't drift from
+        # the original dispatch.
         EventLog.objects.create(
             id=envelope["id"],
             user=user,
@@ -99,6 +129,7 @@ class EventDispatchService:
             target_role=target_role,
             payload=payload,
             is_critical=meta["is_critical"],
+            expires_at=expires_at,
         )
 
         # --- Step 2: WebSocket (Barrel 1) ----------------------------------
@@ -125,10 +156,12 @@ class EventDispatchService:
         target_role: str,
         event_type: str,
         payload: dict[str, Any],
+        expires_in_seconds: int | None = None,
     ) -> list[dict[str, Any]]:
         """
         Fan-out helper. Typical use: nearby-technician notifications for a
         new job. Each recipient gets its own EventLog row + envelope id.
+        ``expires_in_seconds`` applies uniformly across the cohort.
         """
         envelopes: list[dict[str, Any]] = []
         for user in users:
@@ -138,6 +171,7 @@ class EventDispatchService:
                     target_role=target_role,
                     event_type=event_type,
                     payload=payload,
+                    expires_in_seconds=expires_in_seconds,
                 )
             )
         return envelopes

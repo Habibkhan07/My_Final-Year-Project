@@ -169,6 +169,11 @@ def dispatch_job_new_request_event(
         target_role="technician",
         event_type=EventType.JOB_NEW_REQUEST.value,
         payload=payload,
+        # Top-level field drives ``envelope["expires_at"]`` and the
+        # ``EventLog.expires_at`` column. Kept inside ``payload`` too as
+        # ``expires_in_seconds`` so older clients that look there still
+        # work during the rollout window. See flag #19.
+        expires_in_seconds=expires_in,
     )
 
     scheduler.schedule_sla_timeout(
