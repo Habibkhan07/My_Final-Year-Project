@@ -18,6 +18,8 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 // Anywhere else in core: callback inversion, not a direct import.
 // ───────────────────────────────────────────────────────────────────────────
 import '../../../features/auth/presentation/providers/auth_notifier.dart';
+import '../../../features/customer/bookings/presentation/providers/customer_bookings_counts_notifier.dart';
+import '../../../features/customer/bookings/presentation/providers/customer_bookings_list_notifier.dart';
 import '../../../features/technician/incoming_job_requests/presentation/providers/incoming_job_queue_notifier.dart';
 import '../data/datasources/event_local_data_source.dart';
 import '../domain/entities/system_event_entity.dart';
@@ -340,4 +342,12 @@ class _AppLifecycleOrchestratorState
 @Riverpod(keepAlive: true)
 List<ProviderListenable<Object?>> realtimeBootHooks(Ref ref) => [
   incomingJobQueueProvider,
+  // Customer-side My Bookings list. List-route event feature: must
+  // wake before WS frames fire after auth so `job_accepted` /
+  // `booking_rejected` patches land on a subscribed notifier instead
+  // of going to dead-letter via SystemEventNotifier dedup. The counts
+  // notifier is paired here for symmetry — it listens to the same
+  // events to refresh its aggregate.
+  customerBookingsListProvider,
+  customerBookingsCountsProvider,
 ];
