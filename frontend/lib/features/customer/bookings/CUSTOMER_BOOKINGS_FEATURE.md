@@ -15,9 +15,9 @@ The customer-side **My Bookings** tab. Powers the scrollable list of upcoming + 
 | Domain (entities, failures, repository interface, use cases) | ✅ Shipped |
 | Data (models, mappers, data sources, repository impl) | ✅ Shipped |
 | Presentation / providers (DI, list notifier, counts notifier, segment notifier, state) | ✅ Shipped |
-| Presentation / screens (list screen widget, segmented control, card widget, empty/error/skeleton states) | ⏳ pending — next sprint |
-| Bottom-nav tab onTap wiring (currently hardcoded `currentIndex: 0` in `home_screen.dart`) | ⏳ pending — next sprint |
-| GoRoute `/customer/bookings` registration | ⏳ pending — next sprint |
+| Presentation / screens (list screen widget, segmented control, card widget, empty/error/skeleton states) | ✅ Shipped |
+| Bottom-nav tab onTap wiring (`HomeScreen` converted to `IndexedStack` shell) | ✅ Shipped |
+| GoRoute `/customer/bookings` registration | ✅ Shipped |
 | Tests | ⏳ pending — proposed after impl approval per CLAUDE.md |
 
 ---
@@ -186,6 +186,33 @@ class CustomerBookingsListState {
 ```
 
 Per CLAUDE.md: all async mutations use `AsyncValue.guard(...)`; safe access via `state.requireValue` / `state.valueOrNull`, never `state.value!`.
+
+### Screens + Widgets
+
+`presentation/screens/customer_bookings_list_screen.dart` — `ConsumerStatefulWidget`. Reads all three providers, owns a `ScrollController` for `loadMore()` pre-fetch (within 320pt of list end; notifier guards re-entry), runs `Future.wait([listRefresh, countsRefresh])` on pull-to-refresh, and auto-refreshes once on `CustomerBookingsValidationFailure` via `ref.listen`. Implements every §7 state→render branch — no `SizedBox.shrink()` defaults. AppBar shows a back arrow only when `showBackButton: true` (deep-link route entry); the tab-mounted instance has no back arrow.
+
+| File | Purpose |
+|---|---|
+| `presentation/screens/customer_bookings_list_screen.dart` | Tab destination + deep-link target. |
+| `presentation/widgets/booking_card.dart` | Dumb card. Switches on `ui.badgeTone` for tokens, never on raw status. Stateful for realtime pulse + segment-fade-out + Cancelled visual decay. Hero-tags the service icon as `'booking-icon-${id}'`. Tap fires `HapticFeedback.lightImpact()` then `context.push('/customer/booking/${id}')`. |
+| `presentation/widgets/booking_card_skeleton.dart` | Shimmer placeholder. Outer chrome + region heights + gaps match the real card exactly so there's no relayout flash on data arrival. |
+| `presentation/widgets/booking_status_pill.dart` | Tone-tinted capsule. Caller wraps in `AnimatedSwitcher` keyed on text+tone for 250ms morph on realtime patches. |
+| `presentation/widgets/booking_tech_avatar.dart` | 48px `CachedNetworkImage` with initials fallback. Handles single-name + all-whitespace gracefully (never a broken-image icon). |
+| `presentation/widgets/bookings_segmented_control.dart` | Custom-styled two-segment switcher. Reads `selectedSegmentProvider` + `customerBookingsCountsProvider`. Renders `Upcoming · 1` / `Past · 12` when counts are available; clean omission on loading/error (no `· —` placeholder). |
+| `presentation/widgets/bookings_empty_upcoming.dart` | Empty state with "Browse services" CTA → `context.go('/home')`. |
+| `presentation/widgets/bookings_empty_past.dart` | Empty state, no CTA. |
+| `presentation/widgets/bookings_offline_banner.dart` | Warning-tone strip with `cachedAt` minute-delta + refresh button. Animated in/out by parent via `AnimatedSize`. |
+| `presentation/widgets/bookings_error_state.dart` | Three named ctors: `.offline()` / `.server()` / `.unknown()` per §7.6/7.7/7.8. Each has distinct copy. |
+| `presentation/utils/booking_tone_palette.dart` | `BookingUiTone` → `(bg, fg, border)` resolver. Reads `AppColors` directly (not the live `ColorScheme`) so the brief's exact §3.1 tokens are used regardless of `MaterialApp.theme`'s seed-based scheme. |
+| `presentation/utils/booking_date_formatter.dart` | Smart "Today / Tomorrow / In 30 min" formatter. **Anchored on `state.serverTime`, never `DateTime.now()`** so device-clock skew can't misrepresent imminence. Appends `" · responding within ~15 min"` for AWAITING (static; live countdown deferred per session_4 §15). |
+
+### Theme additions
+
+`core/theme/app_colors.dart` was extended with four tokens the brief's tone palette requires: `tertiaryFixedDim` (`#FFB77D`), `onTertiaryFixed` (`#2F1500`), `onSecondaryContainer` (`#00714C`), `onErrorContainer` (`#93000A`). Adding them locally avoids reshaping the global `ThemeData` mid-sprint (the project's `MaterialApp.theme` still uses `ColorScheme.fromSeed`); the planned end-of-UI design-system cleanup pass can migrate the global theme to explicit M3 tokens at that time.
+
+### Bottom-nav shell
+
+`features/customer/home/presentation/screens/home_screen.dart` was converted to an `IndexedStack` shell driven by `currentCustomerTabProvider` (declared in `features/customer/home/presentation/providers/current_tab_notifier.dart`). Tabs: Home / Bookings / Messages-placeholder / Profile-placeholder. `IndexedStack` keeps every tab mounted, so scroll position and Riverpod state survive switches.
 
 ### Realtime Patch Behavior
 

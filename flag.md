@@ -924,33 +924,17 @@ Low. The destination today is informational-stub; the user can read "Booking #N 
 
 ---
 
-## 27. Customer bookings list feature stack landed without UI
+## ~~27. Customer bookings list feature stack landed without UI~~ ✅ Resolved (2026-05-05)
 
-**Where**
-- `frontend/lib/features/customer/bookings/{domain,data,presentation/providers}/` — full Clean Architecture stack (entities, sealed failures, repository, use cases, models, mappers, data sources, repo impl, three notifiers, DI). No `presentation/screens/` for the list yet.
-- `frontend/lib/features/customer/home/presentation/screens/home_screen.dart` — bottom-nav `Bookings` tab (index 1) still has `currentIndex: 0` hardcoded and no `onTap` callback. Tapping is a no-op.
-- `frontend/lib/core/routing/app_router.dart` — no `/customer/bookings` GoRoute registered.
-- Backend `GET /api/bookings/` and `GET /api/bookings/counts/` are live, IDOR-scoped, tested.
+**What changed**
+- `presentation/screens/customer_bookings_list_screen.dart` — landed. Sticky AppBar, segmented control + counts badges, RefreshIndicator + paginated `ListView.builder`, full §7 state→render coverage (skeleton / empty-per-segment / list / list+offline-banner / list+pagination-footer / offline-error / server-error / unknown-error), validation-failure auto-refresh.
+- `presentation/widgets/` — booking_card (dumb, switches only on `ui.badgeTone`; 1s pulse animation on realtime status patches; pill morphs via 250ms `AnimatedSwitcher`; segment-fade-out on cross-segment status flips; Cancelled visual decay), booking_card_skeleton (shimmer; dims match card exactly), booking_status_pill, booking_tech_avatar (initials fallback), bookings_segmented_control, bookings_empty_upcoming, bookings_empty_past, bookings_offline_banner (warning-tone strip with `cachedAt` minute-delta), bookings_error_state (offline / server / unknown variants).
+- `presentation/utils/` — booking_tone_palette (single source of truth for tone→token resolution; reads `AppColors` directly until the global theme is migrated to explicit M3 tokens), booking_date_formatter (smart "Today / Tomorrow / In 30 min" anchored on server-time, AWAITING SLA hint appended).
+- `core/theme/app_colors.dart` — appended four missing tokens (`tertiaryFixedDim`, `onTertiaryFixed`, `onSecondaryContainer`, `onErrorContainer`) at the brief's exact §3.1 hexes. Global theme stays on `ColorScheme.fromSeed`; the bookings palette reads `AppColors` directly so the canonical tones land regardless of seed drift. Documented as part of the planned end-of-UI design-system cleanup pass.
+- `features/customer/home/presentation/screens/home_screen.dart` — converted to `IndexedStack` shell. `BottomNavigationBar` now tracks `currentCustomerTabProvider` and tabs switch instantly with scroll/state preserved per tab. Messages and Profile are coming-soon placeholder widgets until those features ship. Debug FABs scoped to the Home tab only.
+- `features/customer/home/presentation/providers/current_tab_notifier.dart` — new `@riverpod` int notifier (not `keepAlive`; resets to Home on next mount).
+- `core/routing/app_router.dart` — registered `GoRoute('/customer/bookings')` for deep-link navigation (FCM "View your bookings" tap, in-app `context.push`). Direct route shows the back arrow; tab-mounted instance does not.
 
-**What's wrong**
-The data plumbing is fully wired end-to-end: the notifiers run, fetch the list, listen to `job_accepted` / `booking_rejected` events, patch state via the mirror mapper (Option ii — same status→ui table the server uses), and survive boot via `realtimeBootHooksProvider`. But there is no widget consuming the state. A user tapping the Bookings tab today gets nothing — the bottom nav bar is still a hardcoded placeholder. Realtime patches still mutate local state silently — the notifier holds patched items the user never sees.
+The data sprint's ~25 source files are unchanged. The dumb-UI contract held — the widget reads `ui.badgeText` / `ui.badgeTone` / `ui.headline` / `price.uiLabel` / `price.context` / `addressLabel` verbatim and never recomputes from raw `BookingStatus`.
 
-**Why we shipped it anyway**
-Splitting the data and presentation work into two sprints kept the data sprint's diff readable (~25 source files, all data-shaped, plus tests). Bundling the screen widgets, segmented control, card layout, empty/error/skeleton states, tab wiring, and route registration into the same PR would have doubled scope and forced UI design decisions to land before the data contract was settled. Better to ship a working data layer with passing tests, then iterate on UI in isolation.
-
-**The proper fix**
-1. `presentation/screens/customer_bookings_list_screen.dart` consuming `customerBookingsListProvider` + `customerBookingsCountsProvider`.
-2. `presentation/widgets/booking_card.dart` (dumb, switches only on `ui.badgeTone`).
-3. Supporting widgets: segmented control, skeleton loader, empty state per segment, offline banner driven by `state.value.isStaleCache` + `cachedAt`.
-4. Wire `home_screen.dart`'s bottom-nav tab onTap (or convert `HomeScreen` into an `IndexedStack` shell — decision deferred from the data sprint, see open question 2 in the original sprint plan).
-5. Register `GoRoute('/customer/bookings')` in `app_router.dart`.
-6. Widget render tests per `BookingStatus` (notifier tests already shipped this sprint).
-
-**Search hints**
-- `customerBookingsListProvider` → consumer entry point
-- `home_screen.dart:50` → bottom nav placeholder
-- `realtimeBootHooksProvider` in `app_lifecycle_orchestrator.dart` → confirms the notifiers already wake at boot
-- `CUSTOMER_BOOKINGS_FEATURE.md` → presentation/screens marked ⏳ pending
-
-**Severity**
-Low. The Bookings tab is a known placeholder; users who tap it today see nothing change. Realtime patches write to local state silently (slight memory waste — the notifier holds patched items the user never sees, but state clears on app restart) and nothing is load-bearing. Pick up before any user-visible flow depends on the bookings list being navigable (e.g., a "View your bookings" deep link from a notification).
+---
