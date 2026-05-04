@@ -2,91 +2,172 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../../core/theme/app_colors.dart';
+import '../../../../../core/theme/app_spacing.dart';
+import '../../../addresses/presentation/providers/dependency_injection.dart';
+import '../../../addresses/presentation/widgets/address_selector_sheet.dart';
+import '../../../bookings/presentation/screens/customer_bookings_list_screen.dart';
 import '../../domain/failures/home_failure.dart';
+import '../providers/current_tab_notifier.dart';
 import '../providers/home_notifier.dart';
 import '../providers/home_state.dart';
-import '../widgets/home_skeleton_loader.dart';
-import '../widgets/offline_banner.dart';
-import '../widgets/promo_banner_slider.dart';
 import '../widgets/category_grid.dart';
 import '../widgets/fixed_gig_carousel.dart';
-import '../widgets/technician_carousel.dart';
+import '../widgets/home_skeleton_loader.dart';
 import '../widgets/location_required_card.dart';
-import '../../../../customer/addresses/presentation/providers/dependency_injection.dart';
-import '../../../../customer/addresses/presentation/widgets/address_selector_sheet.dart';
+import '../widgets/offline_banner.dart';
+import '../widgets/promo_banner_slider.dart';
+import '../widgets/technician_carousel.dart';
 
+/// Customer-side bottom-nav shell.
+///
+/// `IndexedStack` keeps every tab mounted: scroll position, Riverpod
+/// state, and any in-flight async work survive tab switches. Switching
+/// to a tab the user already visited is instant — no loading theatrics.
+///
+/// Tabs:
+///   0. Home feed (services, promos, top technicians)
+///   1. Bookings (My Bookings list — `CustomerBookingsListScreen`)
+///   2. Messages (placeholder until the messaging feature ships)
+///   3. Profile (placeholder until the profile feature ships)
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final homeStateAsync = ref.watch(homeProvider);
+    final tab = ref.watch(currentCustomerTabProvider);
 
     return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        child: homeStateAsync.when(
-          data: (state) => _buildContent(context, ref, state, false),
-          error: (error, stack) {
-            final state = homeStateAsync.value;
-            // Tier 2 Cache Rule: If we have data but hit an error, show offline mode
-            if (state?.homeFeed != null) {
-              return _buildContent(context, ref, state!, true);
-            }
+      backgroundColor: AppColors.surface,
+      body: IndexedStack(
+        index: tab,
+        children: const [
+          _HomeFeedTab(),
+          CustomerBookingsListScreen(),
+          _ComingSoonTab(
+            icon: Icons.chat_bubble_outline,
+            label: 'Messages',
+            body: 'In-app chat is coming soon.',
+          ),
+          _ComingSoonTab(
+            icon: Icons.person_outline,
+            label: 'Profile',
+            body: 'Your profile and settings will live here.',
+          ),
+        ],
+      ),
+      bottomNavigationBar: _BottomNav(),
+      // DEBUG FABs only on the Home tab — these are temporary sprint
+      // helpers, not production navigation.
+      floatingActionButton: tab == 0 ? const _DebugFabs() : null,
+    );
+  }
+}
 
-            // Otherwise, total failure
-            return _buildErrorState(context, ref, error);
-          },
-          loading: () {
-            final state = homeStateAsync.value;
-            if (state?.homeFeed != null) {
-              // Refreshing silently in background
-              return _buildContent(context, ref, state!, false);
-            }
-            return const HomeSkeletonLoader();
-          },
+// ---------------------------------------------------------------------------
+// Bottom navigation
+// ---------------------------------------------------------------------------
+
+class _BottomNav extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tab = ref.watch(currentCustomerTabProvider);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surfaceContainerLowest,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 12,
+            offset: const Offset(0, -4),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: BottomNavigationBar(
+          type: BottomNavigationBarType.fixed,
+          backgroundColor: AppColors.surfaceContainerLowest,
+          elevation: 0,
+          selectedItemColor: AppColors.primaryContainer,
+          unselectedItemColor: AppColors.outline,
+          selectedFontSize: 12,
+          unselectedFontSize: 12,
+          selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600),
+          currentIndex: tab,
+          onTap: (i) => ref.read(currentCustomerTabProvider.notifier).set(i),
+          items: const [
+            BottomNavigationBarItem(
+              icon: Icon(Icons.home_outlined),
+              activeIcon: Icon(Icons.home),
+              label: 'Home',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.calendar_month_outlined),
+              activeIcon: Icon(Icons.calendar_month),
+              label: 'Bookings',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.chat_bubble_outline),
+              activeIcon: Icon(Icons.chat_bubble),
+              label: 'Messages',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.person_outline),
+              activeIcon: Icon(Icons.person),
+              label: 'Profile',
+            ),
+          ],
         ),
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: Colors.blue.shade700,
-        unselectedItemColor: Colors.grey,
-        currentIndex: 0,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
-          BottomNavigationBarItem(icon: Icon(Icons.calendar_month), label: "Bookings"),
-          BottomNavigationBarItem(icon: Icon(Icons.message), label: "Messages"),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: "Profile"),
-        ],
-      ),
-      // DEBUG: temporary FABs for sprint routing — remove once nav is wired
-      floatingActionButton: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          FloatingActionButton.extended(
-            heroTag: 'debug_dashboard',
-            onPressed: () => context.go('/technician/dashboard'),
-            backgroundColor: Colors.green.shade700,
-            icon: const Icon(Icons.dashboard, color: Colors.white),
-            label: const Text('Tech Dashboard', style: TextStyle(color: Colors.white)),
-          ),
-          const SizedBox(height: 8),
-          FloatingActionButton(
-            heroTag: 'debug_onboarding',
-            onPressed: () => context.push('/technician/onboarding'),
-            backgroundColor: Colors.blue.shade700,
-            child: const Icon(Icons.handyman, color: Colors.white),
-          ),
-        ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Home feed tab — extracted from the previous HomeScreen body
+// ---------------------------------------------------------------------------
+
+class _HomeFeedTab extends ConsumerWidget {
+  const _HomeFeedTab();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final homeStateAsync = ref.watch(homeProvider);
+
+    return SafeArea(
+      child: homeStateAsync.when(
+        data: (state) => _buildContent(context, ref, state, false),
+        error: (error, stack) {
+          final state = homeStateAsync.value;
+          // Tier 2 Cache Rule: If we have data but hit an error, show offline mode
+          if (state?.homeFeed != null) {
+            return _buildContent(context, ref, state!, true);
+          }
+          return _buildErrorState(context, ref, error);
+        },
+        loading: () {
+          final state = homeStateAsync.value;
+          if (state?.homeFeed != null) {
+            // Refreshing silently in background
+            return _buildContent(context, ref, state!, false);
+          }
+          return const HomeSkeletonLoader();
+        },
       ),
     );
   }
 
-  Widget _buildContent(BuildContext context, WidgetRef ref, HomeState state, bool isOffline) {
+  Widget _buildContent(
+    BuildContext context,
+    WidgetRef ref,
+    HomeState state,
+    bool isOffline,
+  ) {
     final feed = state.homeFeed;
     if (feed == null) return const SizedBox.shrink();
 
-    // Check if we have a default address loaded
     final defaultAddressAsync = ref.watch(defaultAddressProvider);
     final hasAddress = defaultAddressAsync.value != null;
 
@@ -96,7 +177,7 @@ class HomeScreen extends ConsumerWidget {
           OfflineBanner(
             onRetry: () => ref.read(homeProvider.notifier).fetchHomeFeed(),
           ),
-        
+
         // App Bar / Header
         Padding(
           padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 8.0),
@@ -121,7 +202,7 @@ class HomeScreen extends ConsumerWidget {
                         shape: BoxShape.circle,
                       ),
                     ),
-                  )
+                  ),
                 ],
               ),
             ],
@@ -139,10 +220,13 @@ class HomeScreen extends ConsumerWidget {
                 children: [
                   // Search Bar
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16.0,
+                      vertical: 8.0,
+                    ),
                     child: GestureDetector(
                       onTap: () {
-                         if (!hasAddress) {
+                        if (!hasAddress) {
                           showModalBottomSheet(
                             context: context,
                             isScrollControlled: true,
@@ -165,7 +249,10 @@ class HomeScreen extends ConsumerWidget {
                             readOnly: true,
                             decoration: InputDecoration(
                               hintText: 'Try "AC not cooling" or "Leaky pipe"...',
-                              hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
+                              hintStyle: TextStyle(
+                                color: Colors.grey,
+                                fontSize: 14,
+                              ),
                               border: InputBorder.none,
                               icon: Icon(Icons.search, color: Colors.blue),
                               suffixIcon: Icon(Icons.tune, color: Colors.grey),
@@ -179,13 +266,13 @@ class HomeScreen extends ConsumerWidget {
 
                   PromoBannerSlider(promotions: feed.promotions),
                   const SizedBox(height: 24),
-                  
+
                   CategoryGrid(categories: feed.categories),
                   const SizedBox(height: 32),
-                  
+
                   FixedGigCarousel(fixedGigs: feed.fixedGigs),
                   const SizedBox(height: 32),
-                  
+
                   if (hasAddress)
                     TechnicianCarousel(technicians: feed.topTechnicians)
                   else
@@ -201,15 +288,14 @@ class HomeScreen extends ConsumerWidget {
     );
   }
 
-
   Widget _buildErrorState(BuildContext context, WidgetRef ref, Object error) {
-    // Strict Error Propagation Pipeline: Dart 3 Pattern Matching on Sealed Classes
-    String errorMessage = "An unexpected error occurred.";
+    String errorMessage = 'An unexpected error occurred.';
     if (error is HomeFailure) {
       errorMessage = switch (error) {
-        HomeNetworkFailure() => "No internet connection. Please check your settings.",
+        HomeNetworkFailure() =>
+          'No internet connection. Please check your settings.',
         HomeServerFailure(message: final msg) => msg,
-        HomeParsingFailure() => "Failed to load feed data correctly.",
+        HomeParsingFailure() => 'Failed to load feed data correctly.',
       };
     }
 
@@ -230,7 +316,7 @@ class HomeScreen extends ConsumerWidget {
             ElevatedButton.icon(
               onPressed: () => ref.read(homeProvider.notifier).fetchHomeFeed(),
               icon: const Icon(Icons.refresh),
-              label: const Text("Retry"),
+              label: const Text('Retry'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.blue.shade700,
                 foregroundColor: Colors.white,
@@ -239,6 +325,102 @@ class HomeScreen extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Coming-soon placeholder for not-yet-built tabs
+// ---------------------------------------------------------------------------
+
+class _ComingSoonTab extends StatelessWidget {
+  const _ComingSoonTab({
+    required this.icon,
+    required this.label,
+    required this.body,
+  });
+
+  final IconData icon;
+  final String label;
+  final String body;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 120,
+                height: 120,
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceContainerLow,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, size: 64, color: AppColors.outlineVariant),
+              ),
+              const SizedBox(height: AppSpacing.s6),
+              Text(
+                label,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 20,
+                  height: 28 / 20,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.onSurface,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.s2),
+              Text(
+                body,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 14,
+                  height: 20 / 14,
+                  color: AppColors.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Debug FABs (temporary — sprint routing helpers, will be removed)
+// ---------------------------------------------------------------------------
+
+class _DebugFabs extends StatelessWidget {
+  const _DebugFabs();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        FloatingActionButton.extended(
+          heroTag: 'debug_dashboard',
+          onPressed: () => context.go('/technician/dashboard'),
+          backgroundColor: Colors.green.shade700,
+          icon: const Icon(Icons.dashboard, color: Colors.white),
+          label: const Text(
+            'Tech Dashboard',
+            style: TextStyle(color: Colors.white),
+          ),
+        ),
+        const SizedBox(height: 8),
+        FloatingActionButton(
+          heroTag: 'debug_onboarding',
+          onPressed: () => context.push('/technician/onboarding'),
+          backgroundColor: Colors.blue.shade700,
+          child: const Icon(Icons.handyman, color: Colors.white),
+        ),
+      ],
     );
   }
 }
