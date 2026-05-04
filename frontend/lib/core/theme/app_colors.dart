@@ -10,7 +10,12 @@ abstract final class AppColors {
   // Success / availability
   static const Color secondary = Color(0xFF006E2F);
   static const Color secondaryContainer = Color(0xFF6BFF8F);
+  static const Color onSecondaryContainer = Color(0xFF00714C);
   static const Color onSecondaryFixed = Color(0xFF002109);
+
+  // Warning tone (used by booking status pills — AWAITING)
+  static const Color tertiaryFixedDim = Color(0xFFFFB77D);
+  static const Color onTertiaryFixed = Color(0xFF2F1500);
 
   // Surfaces
   static const Color background = Color(0xFFF8F9FA);
@@ -28,6 +33,7 @@ abstract final class AppColors {
   // Feedback
   static const Color error = Color(0xFFBA1A1A);
   static const Color errorContainer = Color(0xFFFFDAD6);
+  static const Color onErrorContainer = Color(0xFF93000A);
 
   // CTA gradient (primaryContainer → primary, top→bottom)
   static const LinearGradient ctaGradient = LinearGradient(
