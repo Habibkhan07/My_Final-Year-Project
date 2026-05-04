@@ -38,7 +38,7 @@ final class CustomerBookingsListProvider
 }
 
 String _$customerBookingsListHash() =>
-    r'2c670aa07ea3f27ee456a75d04ebd701635461e0';
+    r'31b77caa1dd2e72ec8648b6df5fd9386197a4939';
 
 abstract class _$CustomerBookingsList
     extends $AsyncNotifier<CustomerBookingsListState> {

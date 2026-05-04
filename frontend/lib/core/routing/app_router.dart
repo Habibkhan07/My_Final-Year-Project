@@ -6,6 +6,7 @@ import '../../features/auth/presentation/screens/login_screen.dart';
 import '../../features/auth/presentation/screens/otp_screen.dart';
 import '../../features/auth/presentation/screens/profile_setup_screen.dart';
 import '../../features/customer/bookings/presentation/screens/customer_booking_detail_screen.dart';
+import '../../features/customer/bookings/presentation/screens/customer_bookings_list_screen.dart';
 import '../../features/customer/home/presentation/screens/home_screen.dart';
 import '../../features/customer/search/presentation/pages/search_page.dart';
 import '../../features/customer/discovery/presentation/screens/discovery_results_screen.dart';
@@ -104,6 +105,15 @@ final routerProvider = Provider<GoRouter>((ref) {
           final id = int.tryParse(state.pathParameters['job_id'] ?? '') ?? 0;
           return CustomerBookingDetailScreen(bookingId: id);
         },
+      ),
+      // My Bookings list. Primary surface is the home shell's bottom-nav
+      // tab; this route exists for deep links (FCM "View your bookings"
+      // notification taps, in-app /customer/bookings push) — when reached
+      // directly we show the back arrow so the user can pop back.
+      GoRoute(
+        path: '/customer/bookings',
+        builder: (context, state) =>
+            const CustomerBookingsListScreen(showBackButton: true),
       ),
       GoRoute(
         path: '/technician-profile/:id',
