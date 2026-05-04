@@ -921,3 +921,36 @@ Flag #22's customer-side surface needed *somewhere* to land taps so the realtime
 
 **Severity**
 Low. The destination today is informational-stub; the user can read "Booking #N — coming soon" and back out. Real damage would be if the realtime surface became more chatty (e.g. bookings list with multiple historical rejections) before the detail screen lands. Pick up before adding any other route that lands customers on a detail-by-id screen.
+
+---
+
+## 27. Customer bookings list feature stack landed without UI
+
+**Where**
+- `frontend/lib/features/customer/bookings/{domain,data,presentation/providers}/` — full Clean Architecture stack (entities, sealed failures, repository, use cases, models, mappers, data sources, repo impl, three notifiers, DI). No `presentation/screens/` for the list yet.
+- `frontend/lib/features/customer/home/presentation/screens/home_screen.dart` — bottom-nav `Bookings` tab (index 1) still has `currentIndex: 0` hardcoded and no `onTap` callback. Tapping is a no-op.
+- `frontend/lib/core/routing/app_router.dart` — no `/customer/bookings` GoRoute registered.
+- Backend `GET /api/bookings/` and `GET /api/bookings/counts/` are live, IDOR-scoped, tested.
+
+**What's wrong**
+The data plumbing is fully wired end-to-end: the notifiers run, fetch the list, listen to `job_accepted` / `booking_rejected` events, patch state via the mirror mapper (Option ii — same status→ui table the server uses), and survive boot via `realtimeBootHooksProvider`. But there is no widget consuming the state. A user tapping the Bookings tab today gets nothing — the bottom nav bar is still a hardcoded placeholder. Realtime patches still mutate local state silently — the notifier holds patched items the user never sees.
+
+**Why we shipped it anyway**
+Splitting the data and presentation work into two sprints kept the data sprint's diff readable (~25 source files, all data-shaped, plus tests). Bundling the screen widgets, segmented control, card layout, empty/error/skeleton states, tab wiring, and route registration into the same PR would have doubled scope and forced UI design decisions to land before the data contract was settled. Better to ship a working data layer with passing tests, then iterate on UI in isolation.
+
+**The proper fix**
+1. `presentation/screens/customer_bookings_list_screen.dart` consuming `customerBookingsListProvider` + `customerBookingsCountsProvider`.
+2. `presentation/widgets/booking_card.dart` (dumb, switches only on `ui.badgeTone`).
+3. Supporting widgets: segmented control, skeleton loader, empty state per segment, offline banner driven by `state.value.isStaleCache` + `cachedAt`.
+4. Wire `home_screen.dart`'s bottom-nav tab onTap (or convert `HomeScreen` into an `IndexedStack` shell — decision deferred from the data sprint, see open question 2 in the original sprint plan).
+5. Register `GoRoute('/customer/bookings')` in `app_router.dart`.
+6. Widget render tests per `BookingStatus` (notifier tests already shipped this sprint).
+
+**Search hints**
+- `customerBookingsListProvider` → consumer entry point
+- `home_screen.dart:50` → bottom nav placeholder
+- `realtimeBootHooksProvider` in `app_lifecycle_orchestrator.dart` → confirms the notifiers already wake at boot
+- `CUSTOMER_BOOKINGS_FEATURE.md` → presentation/screens marked ⏳ pending
+
+**Severity**
+Low. The Bookings tab is a known placeholder; users who tap it today see nothing change. Realtime patches write to local state silently (slight memory waste — the notifier holds patched items the user never sees, but state clears on app restart) and nothing is load-bearing. Pick up before any user-visible flow depends on the bookings list being navigable (e.g., a "View your bookings" deep link from a notification).
