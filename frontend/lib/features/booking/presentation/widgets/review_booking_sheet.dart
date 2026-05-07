@@ -74,82 +74,50 @@ class ReviewBookingSheet extends ConsumerWidget {
 
     return ModalBottomSheetLayout(
       title: 'Review Booking',
-      footer: Row(
-        children: [
-          Expanded(
-            flex: 1,
-            child: InkWell(
-              onTap: isSubmitting ? null : () => Navigator.pop(context),
-              child: const Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.close, color: Color(0xFF424753)),
-                  SizedBox(height: 4),
-                  Text(
-                    'CANCEL',
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF424753),
-                      letterSpacing: 1,
-                    ),
+      footer: SizedBox(
+        width: double.infinity,
+        child: ElevatedButton(
+          onPressed: isSubmitting || defaultAddress == null || serviceId == null
+              ? null
+              : () {
+                  ref.read(instantBookingProvider.notifier).book(
+                        technicianId: technician.id,
+                        addressId: defaultAddress.id,
+                        serviceId: serviceId!,
+                        subServiceId: subServiceId,
+                        promotionId: promotionId,
+                        scheduledStart: selectedSlot.isoStart,
+                        scheduledEnd: selectedSlot.isoEnd,
+                      );
+                },
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF0051AE),
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            elevation: 8,
+            shadowColor: const Color(0xFF0051AE).withOpacity(0.4),
+          ),
+          child: isSubmitting
+              ? const SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(
+                    color: Colors.white,
+                    strokeWidth: 2,
                   ),
-                ],
-              ),
-            ),
-          ),
-          Expanded(
-            flex: 3,
-            child: ElevatedButton(
-              onPressed: isSubmitting || defaultAddress == null || serviceId == null
-                  ? null
-                  : () {
-                      ref.read(instantBookingProvider.notifier).book(
-                            technicianId: technician.id,
-                            addressId: defaultAddress.id,
-                            serviceId: serviceId!,
-                            subServiceId: subServiceId,
-                            promotionId: promotionId,
-                            scheduledStart: selectedSlot.isoStart,
-                            scheduledEnd: selectedSlot.isoEnd,
-                          );
-                    },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF0051AE),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
+                )
+              : const Text(
+                  'Book',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-                elevation: 8,
-                shadowColor: const Color(0xFF0051AE).withOpacity(0.4),
-              ),
-              child: isSubmitting
-                  ? const SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(
-                        color: Colors.white,
-                        strokeWidth: 2,
-                      ),
-                    )
-                  : const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.lock_outline, size: 20),
-                        SizedBox(width: 12),
-                        Text(
-                          'Confirm & Lock',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-            ),
-          ),
-        ],
+        ),
       ),
       child: Column(
         children: [
@@ -182,59 +150,6 @@ class ReviewBookingSheet extends ConsumerWidget {
                 );
               },
               child: const Text('Change', style: TextStyle(fontWeight: FontWeight.bold)),
-            ),
-          ),
-
-          const SizedBox(height: 32),
-
-          // Map Preview (Mock Image per Figma hints)
-          Container(
-            height: 160,
-            width: double.infinity,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(24),
-              color: Colors.grey.shade200,
-              image: const DecorationImage(
-                image: const NetworkImage(
-                  'https://lh3.googleusercontent.com/aida-public/AB6AXuDM3SxdvWZLgtsL7EvuIZSkCtQ0gdhSR3-xlH3CaDFVfvvgNykLJ0E9JvhpRLHaAb9iIdfH8FbTPhejjMQYuadD46ier0JrcGIX4BiZJWHuYblnWcnfbSEh2fdSYTUBC8e4VQJsXopFwNs8rEBl6pJbGcQsDqJ9obHUGFKWxlAcP37fdY-OkSSM6GEJFkShHZT6OKYjtytH220ImqZVGFdBFKYgfNbuP5pssBec54MOm6CLT19u9AFXO10O3FAN82si1wYy3wEo8Uw',
-                ),
-                fit: BoxFit.cover,
-                colorFilter: const ColorFilter.mode(
-                  Colors.black12,
-                  BlendMode.darken,
-                ),
-              ),
-            ),
-            child: Stack(
-              children: [
-                Positioned(
-                  bottom: 16,
-                  left: 16,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.9),
-                      borderRadius: BorderRadius.circular(100),
-                      border: Border.all(color: Colors.black.withOpacity(0.05)),
-                    ),
-                    child: const Row(
-                      children: [
-                        Icon(Icons.map, size: 12, color: Color(0xFF0051AE)),
-                        SizedBox(width: 8),
-                        Text(
-                          'LIVE LOCATION ACTIVE',
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 1,
-                            color: Color(0xFF151C24),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
             ),
           ),
 
