@@ -106,7 +106,7 @@ void main() {
       expect(find.text('Home - 123 Main St'), findsOneWidget);
 
       // Confirm button
-      expect(find.text('Confirm & Lock'), findsOneWidget);
+      expect(find.text('Book'), findsOneWidget);
     });
   });
 
@@ -116,7 +116,7 @@ void main() {
       await tester.pump();
 
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
-      expect(find.text('Confirm & Lock'), findsNothing); // It's hidden by loading indicator
+      expect(find.text('Book'), findsNothing); // It's hidden by loading indicator
     });
   });
 
