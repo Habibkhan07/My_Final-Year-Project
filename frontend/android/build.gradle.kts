@@ -1,9 +1,3 @@
-// ADD THIS NEW BLOCK AT THE VERY TOP:
-plugins {
-    id("com.google.gms.google-services") version "4.4.1" apply false
-}
-
-
 allprojects {
     repositories {
         google()
