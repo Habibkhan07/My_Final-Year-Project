@@ -75,7 +75,7 @@ void main() {
     final uri = captured[0] as Uri;
     final headers = captured[1] as Map<String, String>;
 
-    expect(uri.path, '/api/events/sync/');
+    expect(uri.path, '/api/realtime/events/sync/');
     expect(uri.queryParameters['since'], '2025-01-01T00:00:00Z');
     expect(uri.queryParameters['limit'], '25');
     expect(headers['Authorization'], 'Token default-token');
@@ -94,7 +94,7 @@ void main() {
     final uri = captured[0] as Uri;
     final headers = captured[1] as Map<String, String>;
 
-    expect(uri.path, '/api/events/unacknowledged/');
+    expect(uri.path, '/api/realtime/events/unacknowledged/');
     expect(uri.query, isEmpty);
     expect(headers['Authorization'], 'Token default-token');
   });
@@ -118,7 +118,7 @@ void main() {
     final headers = captured[1] as Map<String, String>;
     final body = jsonDecode(captured[2] as String) as Map<String, dynamic>;
 
-    expect(uri.path, '/api/events/ack/');
+    expect(uri.path, '/api/realtime/events/ack/');
     expect(headers['Authorization'], 'Token default-token');
     expect(headers['Content-Type'], 'application/json');
     expect(body, {'event_ids': ['evt-1', 'evt-2']});
@@ -143,7 +143,7 @@ void main() {
     final headers = captured[1] as Map<String, String>;
     final body = jsonDecode(captured[2] as String) as Map<String, dynamic>;
 
-    expect(uri.path, '/api/devices/register/');
+    expect(uri.path, '/api/realtime/devices/register/');
     expect(headers['Authorization'], 'Token default-token');
     expect(headers['Content-Type'], 'application/json');
     expect(body, {'device_token': 'fcm-token-xyz', 'device_type': 'android'});
@@ -168,7 +168,7 @@ void main() {
     final headers = captured[1] as Map<String, String>;
     final body = jsonDecode(captured[2] as String) as Map<String, dynamic>;
 
-    expect(uri.path, '/api/devices/unregister/');
+    expect(uri.path, '/api/realtime/devices/unregister/');
     expect(headers['Authorization'], 'Token default-token');
     expect(headers['Content-Type'], 'application/json');
     expect(body, {'device_token': 'fcm-token-xyz'});
