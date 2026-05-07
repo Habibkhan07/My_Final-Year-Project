@@ -54,7 +54,12 @@ class TechnicianCarousel extends StatelessWidget {
                             CircleAvatar(
                               radius: 35,
                               backgroundColor: Colors.grey.shade200,
-                              child: Icon(Icons.person, size: 40, color: Colors.grey.shade400),
+                              backgroundImage: tech.profilePicture.isNotEmpty
+                                  ? NetworkImage(tech.profilePicture)
+                                  : null,
+                              child: tech.profilePicture.isEmpty
+                                  ? Icon(Icons.person, size: 40, color: Colors.grey.shade400)
+                                  : null,
                             ),
                             if (tech.isActive)
                               Positioned(
