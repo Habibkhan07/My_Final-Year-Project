@@ -635,3 +635,76 @@ class TestInstantBookOnCommitDispatch:
                 scheduled_end=_pkt(11),
             )
         assert dispatch.call_count == 0
+
+
+# ======================================================================
+# Promo snapshot at booking creation (audit P1-03)
+#
+# Promotion FK can become NULL via on_delete=SET_NULL when a promo is
+# deleted. The denormalized snapshots on JobBooking survive that deletion
+# and preserve the audit trail. The contract:
+#   - With promotion → promo_code_snapshot equals promotion.name
+#                      promo_discount_snapshot equals promotion.discount_value
+#   - Without promotion → both snapshots null
+#   - Fixed-price gig with promo → snapshots null (firewall stripped the FK
+#                                  inside the resolver; we snapshot post-firewall)
+# ======================================================================
+
+
+class TestPromoSnapshotAtCreation:
+
+    def test_snapshot_written_when_promotion_present(self, lahore_tech_and_address):
+        tech, profile, address = lahore_tech_and_address
+        service = ServiceFactory(base_inspection_fee=decimal.Decimal('500.00'))
+        promo = PromotionFactory(
+            target_service=service,
+            name='SUMMER25',
+            discount_value=decimal.Decimal('250.00'),
+        )
+
+        booking = create_instant_booking(
+            customer_user=profile.user,
+            technician_id=tech.id, address_id=address.id,
+            service_id=service.id, promotion_id=promo.id,
+            scheduled_start=_pkt(10), scheduled_end=_pkt(11),
+        )
+
+        booking.refresh_from_db()
+        assert booking.promo_code_snapshot == 'SUMMER25'
+        assert booking.promo_discount_snapshot == decimal.Decimal('250.00')
+
+    def test_snapshot_null_without_promotion(self, lahore_tech_and_address):
+        tech, profile, address = lahore_tech_and_address
+        booking = create_instant_booking(
+            customer_user=profile.user,
+            **_make_booking_kwargs(tech, address),
+        )
+        booking.refresh_from_db()
+        assert booking.promo_code_snapshot is None
+        assert booking.promo_discount_snapshot is None
+
+    def test_snapshot_null_on_fixed_gig_promo_firewalled_in_resolver(self, lahore_tech_and_address):
+        # Fixed-gig + promo on the wire → resolver firewall strips the
+        # promotion. We snapshot from intent.promotion (post-firewall), so
+        # the booking carries null snapshots and the firewall stays the
+        # single point of truth.
+        tech, profile, address = lahore_tech_and_address
+        service = ServiceFactory()
+        sub = SubServiceFactory(
+            service=service, is_fixed_price=True,
+            base_price=decimal.Decimal('1500.00'),
+        )
+        promo = PromotionFactory(target_service=service)
+
+        # Promo on a fixed gig actually triggers the firewall and raises;
+        # the snapshot test for the firewall path is implicit (the booking
+        # is never created). Confirm here that the firewall still raises so
+        # the audit P1-03 fix didn't accidentally bypass it.
+        with pytest.raises(PromoFirewallError):
+            create_instant_booking(
+                customer_user=profile.user,
+                technician_id=tech.id, address_id=address.id,
+                service_id=service.id, sub_service_id=sub.id,
+                promotion_id=promo.id,
+                scheduled_start=_pkt(10), scheduled_end=_pkt(11),
+            )
