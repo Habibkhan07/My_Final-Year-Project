@@ -571,3 +571,411 @@ Flutter's deserializer should:
 - ✅ **400 error mapping** — each new field-level error key maps to the expected toast + navigation action. (`test/features/booking/data/repositories/booking_repository_impl_test.dart`, `test/features/booking/presentation/widgets/review_booking_sheet_test.dart`)
 - ⏳ **`JobNewRequestPayload` deserialization** — parses fresh payloads (with `bookingType` / `payoutContext`) and replayed payloads (without) without throwing.
 - ⏳ **Technician job-card widget** — snapshot one card per `BookingType` to lock the layout differences.
+
+---
+
+## 3. ORCHESTRATOR — PHASE MARKERS (TECH)
+
+The orchestrator transitions from session 1 are exposed here as
+HTTP endpoints. Every transition raises `BookingValidationError`
+on a wrong-from-state, IDOR-mismatch, or missing-resource error;
+the canonical envelope handler (`core.common.failures.exception`)
+formats `{status, code, message, errors}`.
+
+Every endpoint requires `Authorization: Token <token>`.
+
+### 3.1 `POST /api/bookings/{booking_id}/start-inspection/`
+
+Tech-only. `ARRIVED → INSPECTING`. Idempotent on already-INSPECTING.
+
+**Body**: empty.
+
+**Response (`200 OK`)**:
+```json
+{ "id": 123, "status": "INSPECTING", "inspection_started_at": "2026-05-08T10:23:45Z" }
+```
+
+**Errors**:
+- `403 not_a_technician` — caller has no `tech_profile`.
+- `403 not_assigned_to_you` — caller is not this booking's tech.
+- `404 booking_not_found` — booking missing.
+- `400 invalid_transition` — booking not in ARRIVED. `errors.current_status` echoes actual state.
+
+### 3.2 `POST /api/bookings/{booking_id}/en-route/`
+
+Tech-only manual override. `CONFIRMED → EN_ROUTE`. Same orchestrator
+function the auto path (tech-location ingress) calls; `source='manual'` on
+this path is informational only.
+
+**Body**: empty.
+
+**Response (`200 OK`)**:
+```json
+{ "id": 123, "status": "EN_ROUTE", "en_route_started_at": "2026-05-08T10:23:45Z" }
+```
+
+**Errors**: as 3.1, with `400 invalid_transition` when not in CONFIRMED.
+
+### 3.3 `POST /api/bookings/{booking_id}/arrived/`
+
+Tech-only manual override. `EN_ROUTE → ARRIVED`. Optional GPS coords
+for the strict-mode geofence check.
+
+**Body** (optional):
+```json
+{ "current_lat": 31.5204, "current_lng": 74.3587 }
+```
+
+**Response (`200 OK`)**:
+```json
+{ "id": 123, "status": "ARRIVED", "arrived_at": "2026-05-08T10:23:45Z" }
+```
+
+**Geofence**: when `BOOKING_GEOFENCE_STRICT=True` AND both coords are
+supplied AND the Haversine distance to the customer's address exceeds
+100m, the view rejects with `400 not_at_customer_location` and
+`errors.current_lat = ["distance Nm exceeds 100m"]`. In lenient mode
+(default) the same mismatch logs a warning but allows. The auto path
+(`POST .../tech-location/`) is unaffected — it never auto-flips on a
+mismatch regardless of the env flag.
+
+---
+
+## 4. ORCHESTRATOR — QUOTE FLOW
+
+### 4.1 `POST /api/bookings/{booking_id}/quotes/`
+
+Tech-only. Creates a new `Quote` with revision_number = max(prev) + 1
+and one `QuoteLineItem` per body item. Recomputes total. On
+`is_upsell=true` the booking stays in IN_PROGRESS; on `false` it flips
+INSPECTING → QUOTED.
+
+**Body**:
+```json
+{
+  "is_upsell": false,
+  "line_items": [
+    { "sub_service_id": 17, "quantity": 1, "priced_at": "1500.00" }
+  ]
+}
+```
+
+**Response (`201 Created`)**:
+```json
+{
+  "id": 56,
+  "booking_id": 123,
+  "revision_number": 1,
+  "status": "SUBMITTED",
+  "total_amount": "1500.00",
+  "is_upsell": false,
+  "line_items": [
+    {
+      "id": 88,
+      "sub_service_id": 17,
+      "sub_service_name": "AC compressor refill",
+      "quantity": 1,
+      "priced_at": "1500.00",
+      "line_total": "1500.00"
+    }
+  ],
+  "submitted_at": "2026-05-08T10:25:00Z"
+}
+```
+
+**Errors**:
+- `400 validation_error` — body shape invalid (DRF serializer level).
+- `400 invalid_quote_empty` — empty `line_items` (orchestrator).
+- `400 quote_band_violation` — fixed-price priced ≠ base, or labor priced outside [base, max]. `errors[f'line_items[{idx}].priced_at']` carries the actual band.
+- `400 invalid_transition` — booking not in INSPECTING (regular) or IN_PROGRESS (upsell).
+- `403 not_a_technician`, `403 not_assigned_to_you`.
+
+Realtime: customer receives `quote_generated` with `total_amount` and `is_upsell`.
+
+### 4.2 `POST /api/bookings/{booking_id}/quotes/{quote_id}/approve/`
+
+Customer-only. `QUOTED → IN_PROGRESS` (regular) or no-op-on-status with
+`BookingItem` rows appended (upsell). Stamps `final_cash_to_collect`
+floor-at-0 = `base_services_total − inspection_fee`.
+
+**Body**: empty.
+
+**Response (`200 OK`)**:
+```json
+{ "booking_id": 123, "status": "IN_PROGRESS", "final_cash_to_collect": "1000.00" }
+```
+
+**Errors**:
+- `400 invalid_transition` — quote isn't SUBMITTED, or upsell on non-IN_PROGRESS booking.
+- `404 quote_not_found` — quote missing OR belongs to a different booking (IDOR-safe).
+- `403 not_a_customer`.
+
+Realtime: tech receives `quote_approved` with `is_upsell`, `total_amount` (this quote's), and `final_cash_to_collect` (cumulative — tech's cash button binds without re-fetch).
+
+### 4.3 `POST /api/bookings/{booking_id}/quotes/{quote_id}/decline/`
+
+Customer-only. `QUOTED → COMPLETED_INSPECTION_ONLY` (terminal). Sets
+`final_cash_to_collect` = `inspection_fee` (Rs. 500 for INSPECTION-flow,
+0 for fixed/labor-gig).
+
+**Body**:
+```json
+{ "reason": "Quote was higher than expected." }
+```
+
+**Response (`200 OK`)**:
+```json
+{ "booking_id": 123, "status": "COMPLETED_INSPECTION_ONLY", "final_cash_to_collect": "500.00" }
+```
+
+**Errors**: as 4.2.
+
+Realtime: tech receives `quote_declined` with `reason`.
+
+### 4.4 `POST /api/bookings/{booking_id}/quotes/{quote_id}/request-revision/`
+
+Customer-only. `QUOTED → INSPECTING`. The targeted quote becomes
+SUPERSEDED; the tech can submit a fresh revision.
+
+**Body**:
+```json
+{ "reason": "Can you skip line item 2 to bring the total down?" }
+```
+
+**Response (`200 OK`)**:
+```json
+{ "booking_id": 123, "status": "INSPECTING", "superseded_quote_id": 56 }
+```
+
+Realtime: tech receives `quote_revision_requested` with `quote_id` and `reason`.
+
+---
+
+## 5. ORCHESTRATOR — COMPLETION
+
+### 5.1 `POST /api/bookings/{booking_id}/confirm-cash-received/`
+
+Tech-only. Combined complete + cash collection. `IN_PROGRESS → COMPLETED`.
+
+**Body**:
+```json
+{ "amount": "1500.00", "method": "cash" }
+```
+
+`method` only accepts `"cash"` for v1 (CLAUDE.md). Anything else gets
+`400 invalid_input` with `errors.method` echoing the allowed list.
+
+**Response (`200 OK`)**:
+```json
+{
+  "id": 123,
+  "status": "COMPLETED",
+  "cash_collected_amount": "1500.00",
+  "cash_collected_at": "2026-05-08T11:45:00Z",
+  "cash_collection_method": "cash",
+  "completed_at": "2026-05-08T11:45:00Z"
+}
+```
+
+**Errors**:
+- `400 invalid_input` — amount ≤ 0, unparseable decimal, or unsupported method.
+- `400 invalid_transition` — booking not in IN_PROGRESS.
+- `403 not_a_technician`, `403 not_assigned_to_you`, `404 booking_not_found`.
+
+Realtime: customer receives `payment_received` then `job_completed`.
+
+---
+
+## 6. ORCHESTRATOR — TERMINATIONS
+
+### 6.1 `POST /api/bookings/{booking_id}/cancel/` — customer
+
+Customer-only. Maps phase → `cancel_reason` (`customer_cancelled_*`).
+Disallowed in IN_PROGRESS — open a dispute instead.
+
+**Response (`200 OK`)**:
+```json
+{ "id": 123, "status": "CANCELLED", "cancel_reason": "customer_cancelled_post_accept", "final_cash_to_collect": null }
+```
+
+**Errors**:
+- `400 cancellation_not_allowed` — booking is IN_PROGRESS or terminal.
+- `403 not_a_customer`, `403 not_assigned_to_you`, `404 booking_not_found`.
+
+### 6.2 `POST /api/bookings/{booking_id}/tech-cancel/` — technician
+
+Tech-only. Writes a `TechReliabilityIncident(TECH_CANCEL)` row.
+
+**Body**: `{ "reason": "..." }` (optional, future use).
+
+**Response (`200 OK`)**: `{ "id": 123, "status": "CANCELLED", "cancel_reason": "technician_cancelled" }`.
+
+### 6.3 `POST /api/bookings/{booking_id}/no-show/`
+
+Either party. Actor role is **derived from auth**, never from the body.
+
+**Tech path** (auth user is the booking's tech):
+- Allowed from {ARRIVED, INSPECTING, QUOTED}.
+- 15-min wait clock anchored on `arrived_at`.
+
+**Customer path** (auth user is the booking's customer):
+- Allowed from {CONFIRMED, EN_ROUTE, ARRIVED}.
+- 15-min wait clock anchored on `scheduled_start`.
+- Writes a `TechReliabilityIncident(TECH_NO_SHOW)` row.
+
+**Body**: empty.
+
+**Response (`200 OK`)**:
+```json
+{ "id": 123, "status": "NO_SHOW", "no_show_actor": "tech", "no_show_at": "2026-05-08T10:45:00Z" }
+```
+
+**Errors**:
+- `400 no_show_too_early` — wait clock not yet elapsed; `errors.wait_seconds` carries the remaining seconds.
+- `400 invalid_transition` — booking not in an allowed from-state.
+- `403 not_a_participant` — caller is neither customer nor tech.
+
+Realtime: counterparty receives `booking_no_show` with `reported_by`.
+
+### 6.4 `POST /api/bookings/{booking_id}/disputes/` — multipart
+
+Either party. Optional photo evidence (≤ 5 MB).
+
+**Body** (multipart):
+- `initial_reason` — string, 10–2000 chars (required).
+- `photo` — image file (optional).
+
+**Response (`201 Created`)**:
+```json
+{ "ticket_id": 7, "booking_id": 123, "booking_status": "DISPUTED", "dispute_intake_method": "FORM" }
+```
+
+**Errors**:
+- `400 dispute_not_disputable_status` — booking is pre-CONFIRMED.
+- `403 not_assigned_to_you` — caller is neither party.
+- Standard 400 envelope for missing `initial_reason` / oversize `photo`.
+
+Realtime: counterparty receives `dispute_opened`.
+
+### 6.5 `POST /api/bookings/{booking_id}/reschedule/` — customer
+
+Customer-only. CANCELs the original (reason `customer_rescheduled`) and
+creates a child `JobBooking(parent_booking=original, status=AWAITING)`.
+The child is dispatched as a fresh job request via the existing
+`dispatch_job_new_request_event`.
+
+**Body**:
+```json
+{
+  "new_scheduled_start": "2026-05-20T15:00:00+05:00",
+  "new_scheduled_end":   "2026-05-20T17:00:00+05:00"
+}
+```
+
+**Response (`201 Created`)**:
+```json
+{
+  "original_booking_id": 123,
+  "original_status": "CANCELLED",
+  "child_booking_id": 124,
+  "child_status": "AWAITING"
+}
+```
+
+**Errors**:
+- `400 reschedule_not_allowed` — original not in {AWAITING, CONFIRMED}, or new slot overlaps another booking on the same tech.
+- `403 not_a_customer`, `404 booking_not_found`.
+
+Realtime: tech receives `booking_rescheduled` with `new_booking_id` and `new_scheduled_start`. The dispatch service then fires `job_new_request` for the child with a fresh SLA.
+
+---
+
+## 7. GPS INGRESS + AUTO-TRANSITION
+
+### 7.1 `POST /api/bookings/{booking_id}/tech-location/`
+
+See [`STREAMS_TECH_GPS.md`](../../realtime/api/STREAMS_TECH_GPS.md) for
+the full stream contract. Summary:
+
+- Tech-only ingress.
+- Throttled at 1 call per 4 seconds per (tech, booking).
+- Publishes a `tech_gps` stream frame to `tracking_job_{id}`.
+- Calls `auto_transition.evaluate_on_location` which may fire
+  CONFIRMED → EN_ROUTE (>200m) or EN_ROUTE → ARRIVED (≤100m).
+- Returns `{published, transition_fired}`.
+- Terminal-status booking → silent no-op (returns 200, `published: false`).
+
+---
+
+## 8. BOOKING DETAIL (READ)
+
+### 8.1 `GET /api/bookings/{booking_id}/`
+
+Either participant. Composed payload for the orchestrator screen.
+
+**No HTTP cache** (audit P1-04). Realtime events drive frontend
+re-fetches; a stale 5-second cache would silently mask fresh state.
+
+**Response (`200 OK`)** — abbreviated:
+```json
+{
+  "id": 123,
+  "status": "QUOTED",
+  "service": { "id": 3, "name": "AC Service", "icon_name": "ac_repair" },
+  "sub_service": null,
+  "technician": {
+    "id": 42,
+    "display_name": "Ali Raza",
+    "profile_picture_url": "https://api.example.com/media/tech_profiles/42.jpg"
+  },
+  "customer": { "id": 9, "full_name": "Sara K.", "phone_no": "+923001234567" },
+  "address": {
+    "label": "Home",
+    "latitude": "31.520400",
+    "longitude": "74.358700",
+    "address_text": "Apt 4B, Liberty Market"
+  },
+  "address_snapshot": "Apt 4B, Liberty Market — DHA Phase 5",
+  "scheduled_start": "2026-05-08T10:00:00+05:00",
+  "scheduled_end":   "2026-05-08T11:00:00+05:00",
+  "phase_timestamps": { "accepted_at": "...", "en_route_started_at": "...", "...": "..." },
+  "pricing": {
+    "inspection_fee": "500.00",
+    "base_services_total": "1500.00",
+    "discount_applied": null,
+    "final_cash_to_collect": "1000.00",
+    "promo_code_snapshot": null,
+    "promo_discount_snapshot": null
+  },
+  "cash_collection": { "amount": null, "at": null, "method": "cash" },
+  "parent_booking_id": null,
+  "cancel_reason": null,
+  "no_show_actor": null,
+  "active_quote": { "id": 56, "revision_number": 1, "status": "SUBMITTED", "...": "..." },
+  "booking_items": [],
+  "open_tickets_count": 0,
+  "ui": {
+    "status_label": "Quote ready",
+    "body_text": "Review the quote and approve, decline, or ask for a revision.",
+    "primary_action": { "label": "Approve quote", "endpoint": "/api/bookings/123/quotes/<id>/approve/", "method": "POST", "style": "primary" },
+    "secondary_actions": [ { "...": "..." } ],
+    "show_tracking": false,
+    "show_quote_card": true,
+    "show_dispute_button": false,
+    "tone": "info"
+  },
+  "available_transitions": ["approve_quote", "decline_quote", "request_revision", "cancel_by_customer"]
+}
+```
+
+**Errors**:
+- `403 not_a_participant` — caller is neither customer nor assigned tech.
+- `404 booking_not_found`.
+
+**Dumb-UI fields**:
+- `ui.*` — all copy + button labels + slot toggles. The Flutter screen
+  renders `ui` verbatim; never branches on `status` for copy.
+- `available_transitions` — orchestrator function names that are valid
+  *right now* for the viewer. Used to enable/disable action buttons.
+  Stays in sync with the orchestrator's actual validity (test-enforced
+  in `tests/bookings/selectors/test_transition_validator_selector.py`).

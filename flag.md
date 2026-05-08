@@ -1063,3 +1063,66 @@ Adding `'admin'` as a third `target_role` requires extending the `EventLog` choi
 Low for now (admin list view is functional), Medium when the platform scales past a single ops person who can't watch every booking. Pair with the reliability-score sprint that aggregates over `TechReliabilityIncident`.
 
 ---
+
+## 32. Geofence strictness is env-only, with no per-tech / per-service overrides
+
+**Where**
+- `backend/core/settings.py` — `BOOKING_GEOFENCE_STRICT = env.bool('BOOKING_GEOFENCE_STRICT', default=False)`
+- `backend/.env.example` — documents the flag
+- `backend/bookings/api/transitions/views.py::ArrivedView._maybe_geofence_check` — reads the flag at request time
+- `backend/bookings/services/auto_transition.py` — `EN_ROUTE_THRESHOLD_METERS = 200`, `ARRIVED_THRESHOLD_METERS = 100` (hardcoded constants)
+
+**What's wrong**
+The geofence's strictness is a single global env flag, and the distance thresholds are single hardcoded constants. Real fleets have variance — dense city centres need a wider threshold; rural / large-property bookings need a tighter one. A high-end gated community where the customer's address pin is at the gatehouse but the actual unit is 300 m inside cannot be served well by a single global value. Same for the strict/lenient toggle: a deployment that wants strict in dense zones but lenient in suburban zones has no path with a single env var.
+
+**Why we shipped it**
+Single-tenant pre-launch scope; no operational signal yet on which thresholds work in which Pakistani city. Per-entity config is premature without data on real-world false-positive rates from the auto-transition path. The env flag was the cheapest path to (a) close audit P1-04's spirit (no silent stale surfaces) and (b) keep an emergency lever to disable the geofence rejection if early-launch data shows the 100 m radius is wrong, without paying the model-churn cost of a per-tech / per-service / per-zone config table.
+
+**The proper fix**
+1. Add `geofence_radius_meters` to `TechnicianProfile` (per-tech; defaults to a Service-level fallback). Captures the field-experience signal the tech will give us once they are operating.
+2. Add `geofence_strict` to `Service` (per-category). Big services like full-house cleaning legitimately need lenient; emergency plumbing needs strict.
+3. Update `ArrivedView._maybe_geofence_check` to resolve from `booking.technician.geofence_radius_meters` (with Service fallback), and `auto_transition.evaluate_on_location` to read the same.
+4. Deprecate `BOOKING_GEOFENCE_STRICT` once the per-Service column lands — per-zone is strictly more expressive.
+5. Telemetry: log every lenient-mode mismatch warning with `distance_m`, `tech_id`, `booking_id` so the data team can pick sane defaults from observed behaviour.
+
+**Search hints**
+- `BOOKING_GEOFENCE_STRICT`, `ARRIVED_THRESHOLD_METERS`, `EN_ROUTE_THRESHOLD_METERS`
+- `_maybe_geofence_check`, `auto_transition.evaluate_on_location`
+- `STREAMS_TECH_GPS.md` — public docs reference this rule
+
+**Severity**
+P3. UX polish, no correctness or money-flow risk. The lenient default + warning log keeps the system functional even when the constant is wrong for a particular booking.
+
+---
+
+## 33. `tech_location` ingress throttle is per-process, not distributed
+
+**Where**
+- `backend/bookings/api/tech_location/views.py`
+  - module-level `_LAST_PUBLISH_TS: dict[tuple[int, int], float]`
+  - module-level `_THROTTLE_SECONDS = 4.0`
+  - module-level `_THROTTLE_CACHE_MAX = 5_000`
+- Audit reference: cycle-2 P1-07
+- `backend/realtime/api/STREAMS_TECH_GPS.md` — documents the limitation
+
+**What's wrong**
+The 4-second throttle for GPS frame ingress is keyed on a process-local Python dict (`_LAST_PUBLISH_TS`). Each Daphne / gunicorn worker has its own copy; with N workers, the effective rate per `(tech_user_id, booking_id)` pair is `N × (1/4s)`. A foreground location service that round-robins across workers (or any sticky-session-disabled deployment) could publish the stream up to N times per 4 seconds. Auto-transition is idempotent so double-flips never happen, but the customer's WS connection still receives N× redundant stream frames and pays the bandwidth + battery cost.
+
+The Python dict additionally has a 5,000-row hard cap with stale-eviction; under sustained load that eviction can fire before the throttle window elapses, weakening the limit further.
+
+**Why we shipped it**
+CLAUDE.md explicitly forbids a Redis dependency for v1 ratelimiting ("no Redis dependency for ratelimiting in v1"). Pre-launch we have no realistic load profile yet, and a single-worker deployment exhibits the contract perfectly. The 5-second client tick gives a 1-second guard band even under the worst N-worker case (8 workers × every-5s tech ticks = at most 8 publishes per 4-second window — bandwidth-impactful but not service-degrading).
+
+**The proper fix**
+1. Add a Redis-backed token bucket (`django-ratelimit` or a thin `redis.set(..., ex=4, nx=True)` wrapper) keyed `tech_location:{tech_user_id}:{booking_id}`.
+2. Replace `_LAST_PUBLISH_TS` + `_throttle_hit` with a single atomic `set` — distributed across workers, no eviction footprint.
+3. Update `STREAMS_TECH_GPS.md`'s "Throttling" section to drop the per-worker caveat once the fix lands.
+4. Add a `tech_location.publish.count_per_minute` metric so we can observe actual publish rate post-fix and confirm the limit is binding.
+
+**Search hints**
+- `_LAST_PUBLISH_TS`, `_throttle_hit`, `_THROTTLE_SECONDS`, `_THROTTLE_CACHE_MAX`
+- `tech-location-rate-limit-not-distributed` (referenced in `STREAMS_TECH_GPS.md`)
+- `bookings/api/tech_location/views.py`
+
+**Severity**
+P2. Observability + bandwidth concern; no correctness risk because the auto-transition path is idempotent. Becomes P1 once we run > 1 worker AND have a paying-customer base whose data plans we care about.

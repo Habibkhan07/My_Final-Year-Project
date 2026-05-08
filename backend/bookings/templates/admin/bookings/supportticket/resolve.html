@@ -1,0 +1,47 @@
+{% extends "admin/base_site.html" %}
+
+{% block title %}Resolve dispute #{{ ticket.id }}{% endblock %}
+
+{% block content %}
+<h1>Resolve dispute ticket #{{ ticket.id }}</h1>
+
+<p><strong>Booking:</strong> {{ ticket.booking_id }}</p>
+<p><strong>Opened by:</strong> {{ ticket.opened_by }}</p>
+<p><strong>Intake method:</strong> {{ ticket.dispute_intake_method }}</p>
+<p><strong>Initial reason:</strong></p>
+<blockquote style="border-left: 3px solid #ccc; padding-left: 12px; margin-left: 0;">
+  {{ ticket.initial_reason|linebreaks }}
+</blockquote>
+
+<form method="post">
+  {% csrf_token %}
+
+  <p>
+    <label for="id_outcome"><strong>Outcome:</strong></label><br>
+    <select name="outcome" id="id_outcome" required>
+      {% for value, label in outcomes %}
+        <option value="{{ value }}">{{ label }}</option>
+      {% endfor %}
+    </select>
+  </p>
+
+  <p>
+    <label for="id_final_status"><strong>Final booking status:</strong></label><br>
+    <select name="final_status" id="id_final_status" required>
+      {% for value, label in final_statuses %}
+        <option value="{{ value }}">{{ label }}</option>
+      {% endfor %}
+    </select>
+  </p>
+
+  <p>
+    <label for="id_notes"><strong>Resolution notes:</strong></label><br>
+    <textarea name="notes" id="id_notes" rows="6" cols="80"></textarea>
+  </p>
+
+  <p>
+    <input type="submit" value="Resolve dispute" class="default">
+    <a href="../../{{ ticket.id }}/change/" class="button cancel-link">Cancel</a>
+  </p>
+</form>
+{% endblock %}

@@ -717,7 +717,11 @@ class TestDeclineQuote:
 
 class TestMarkCompleteWithCash:
     def test_happy_path(self, fake_finance, captured_broadcasts):
-        booking = JobBookingInProgressFactory()
+        # Audit P2 / C2: final_cash_to_collect must equal the
+        # submitted cash_amount; production sets it on quote-decision.
+        booking = JobBookingInProgressFactory(
+            final_cash_to_collect=Decimal('1500.00'),
+        )
         result = orchestrator.mark_complete_with_cash(
             booking_id=booking.id,
             technician_user=booking.technician.user,
@@ -760,6 +764,47 @@ class TestMarkCompleteWithCash:
         )
         assert captured_broadcasts == []
         fake_finance.record_cash_collected.assert_not_called()
+
+    def test_cash_amount_must_match_final_cash_to_collect(
+        self, fake_finance, captured_broadcasts,
+    ):
+        """C2 — orchestrator-level proof: the submitted amount MUST
+        equal ``booking.final_cash_to_collect``. This is the primary
+        guard against under-reported cash collection (revenue loss).
+        """
+        booking = JobBookingInProgressFactory(
+            final_cash_to_collect=Decimal('1500.00'),
+        )
+        with pytest.raises(BookingValidationError) as exc:
+            orchestrator.mark_complete_with_cash(
+                booking_id=booking.id,
+                technician_user=booking.technician.user,
+                cash_amount=Decimal('1.00'),
+                method='cash',
+                finance=fake_finance,
+            )
+        assert exc.value.code == 'invalid_input'
+        # No side effects on rejection.
+        assert captured_broadcasts == []
+        fake_finance.record_cash_collected.assert_not_called()
+        fake_finance.record_commission.assert_not_called()
+        booking.refresh_from_db()
+        assert booking.status == JobBooking.STATUS_IN_PROGRESS
+
+    def test_missing_final_cash_to_collect_is_invariant_break(self, fake_finance):
+        """C2 — if final_cash_to_collect is unset on an IN_PROGRESS
+        booking, treat it as a server-side invariant break (clean
+        envelope, no 500)."""
+        booking = JobBookingInProgressFactory(final_cash_to_collect=None)
+        with pytest.raises(BookingValidationError) as exc:
+            orchestrator.mark_complete_with_cash(
+                booking_id=booking.id,
+                technician_user=booking.technician.user,
+                cash_amount=Decimal('1500.00'),
+                method='cash',
+                finance=fake_finance,
+            )
+        assert exc.value.code == 'invalid_transition'
 
 
 # ---------------------------------------------------------------------------

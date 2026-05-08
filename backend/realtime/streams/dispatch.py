@@ -43,27 +43,53 @@ def _utc_now_iso() -> str:
     return datetime.now(tz=dt_timezone.utc).isoformat().replace("+00:00", "Z")
 
 
-def publish_stream(*, user, stream_type: str, payload: dict[str, Any]) -> None:
+def publish_stream(
+    *,
+    user=None,
+    group: str | None = None,
+    stream_type: str,
+    payload: dict[str, Any],
+) -> None:
     """
-    Push one transient stream frame to ``user``'s realtime channel.
+    Push one transient stream frame to a channel-layer group.
+
+    Group resolution (exactly one of ``group`` or ``user`` must be supplied):
+        * ``group``: send to the named group directly. Used for booking-scoped
+          subgroups like ``tracking_job_{id}`` where multiple users (the
+          customer plus the assigned tech, plus a future admin watcher)
+          subscribe to the same fan-out.
+        * ``user``: send to the user's own ``USER_GROUP_TEMPLATE`` group —
+          the original single-recipient stream behavior.
 
     Parameters
     ----------
     user:
-        Recipient User instance. Must be a concrete authenticated user —
-        the frame is delivered only to this user's group.
+        Recipient User instance. Mutually exclusive with ``group``.
+    group:
+        Channel-layer group name string. Mutually exclusive with ``user``.
     stream_type:
         Open string identifying the stream (e.g. ``"telemetry"``,
-        ``"wallet_balance"``, ``"ai_chat_token"``). No registry yet —
-        document new types in ``STREAM_DISPATCH_API.md`` as they are added.
+        ``"wallet_balance"``, ``"tech_gps"``). No registry yet — document
+        new types in ``STREAM_DISPATCH_API.md`` as they are added.
     payload:
         Stream-specific dict. Must be JSON-serializable.
 
     Returns nothing. Network failures are absorbed; the caller can treat
     this as fire-and-forget.
     """
-    # SECURITY: group is always scoped to ``user.id``, so a stream frame
-    # can only ever reach the intended user's sockets — no cross-user leak.
+    if (user is None) == (group is None):
+        # Both or neither — programming error. Raise so the bug surfaces in
+        # dev; the network-call try/except below is intentionally narrow.
+        raise ValueError(
+            "publish_stream requires exactly one of `user` or `group`."
+        )
+
+    # SECURITY: when ``user`` is the resolver, the group is always scoped
+    # to ``user.id``, so a stream frame can only ever reach the intended
+    # user's sockets. When ``group`` is supplied directly, the caller (a
+    # service or view) is responsible for membership-gating before
+    # publishing — the consumer's subscribe path enforces this for
+    # tracking subgroups.
     envelope: dict[str, Any] = {
         "kind": "stream",
         "streamType": stream_type,
@@ -76,7 +102,7 @@ def publish_stream(*, user, stream_type: str, payload: dict[str, Any]) -> None:
         logger.warning("No channel layer configured; skipping stream dispatch.")
         return
 
-    group_name = USER_GROUP_TEMPLATE.format(user_id=user.id)
+    group_name = group if group is not None else USER_GROUP_TEMPLATE.format(user_id=user.id)
     message = {"type": CHANNEL_STREAM_TYPE, "message": envelope}
     # Narrow swallow: only the network call. Anything raised before this
     # line (bad config, formatting bugs) is allowed to propagate.
@@ -84,8 +110,8 @@ def publish_stream(*, user, stream_type: str, payload: dict[str, Any]) -> None:
         async_to_sync(channel_layer.group_send)(group_name, message)
     except Exception as exc:  # noqa: BLE001 — Redis outage must not crash caller
         logger.warning(
-            "Stream dispatch failed for user %s (stream_type=%s): %s",
-            user.id,
+            "Stream dispatch failed for group %s (stream_type=%s): %s",
+            group_name,
             stream_type,
             exc,
         )

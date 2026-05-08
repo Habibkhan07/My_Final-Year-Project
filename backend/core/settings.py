@@ -77,6 +77,14 @@ CELERY_TIMEZONE = 'UTC'
 # retries on publish so the web worker returns fast.
 CELERY_TASK_PUBLISH_RETRY = False
 
+# --- Booking orchestrator ---------------------------------------------------
+# Lenient (False, default): the manual `arrived` endpoint logs a warning when
+# the tech's claimed coords are >100m from the customer's address but still
+# allows the transition. Strict (True): the same mismatch returns
+# 400 not_at_customer_location. The auto path (auto_transition.evaluate_on_location)
+# is unaffected — it never auto-flips on a mismatch regardless of this flag.
+BOOKING_GEOFENCE_STRICT = env.bool('BOOKING_GEOFENCE_STRICT', default=False)
+
 
 # Application definition
 

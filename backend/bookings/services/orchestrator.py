@@ -862,6 +862,36 @@ def mark_complete_with_cash(
                 errors={'cash_amount': ['must be > 0']},
             )
 
+        # Audit P2 (Pass 2 / O2): the tech-side button surfaces the
+        # server-derived ``final_cash_to_collect``; the SUBMITTED amount
+        # MUST equal that figure. Without this check, a malicious or
+        # buggy client can mark a Rs. 5000 job paid with Rs. 1, and the
+        # platform would commission off the under-reported cash. Refuse
+        # any mismatch with a clean envelope so finance never reconciles
+        # against an attacker-controlled number.
+        #
+        # ``final_cash_to_collect`` may be None on the COMPLETED_INSPECTION_ONLY
+        # path, which never reaches this function (that path runs through
+        # decline_quote, not mark_complete_with_cash). For IN_PROGRESS we
+        # assert it is set; absence is a server-side invariant break.
+        expected = booking.final_cash_to_collect
+        if expected is None:
+            raise BookingValidationError(
+                code=ERROR_INVALID_TRANSITION,
+                message='Booking has no final_cash_to_collect set; cannot complete.',
+                errors={'final_cash_to_collect': ['missing on booking']},
+            )
+        if cash_amount_d != expected:
+            raise BookingValidationError(
+                code=ERROR_INVALID_INPUT,
+                message='Cash amount must match the server-computed final cash to collect.',
+                errors={
+                    'cash_amount': [
+                        f'expected {expected}, got {cash_amount_d}',
+                    ],
+                },
+            )
+
         now = timezone.now()
         booking.status = JobBooking.STATUS_COMPLETED
         booking.completed_at = now

@@ -222,3 +222,32 @@ The `realtime` app is organized into sub-modules for traceability:
 - **`realtime.streams`**: Owns the transient stream publisher (`publish_stream`). No persistence, no FCM. See `STREAM_DISPATCH_API.md`.
 - **`realtime.devices`**: Owns FCM device registration (`FCMDevice`) and the Celery background tasks.
 - **`realtime.constants`**: Cross-cutting constants (`event_types`, `groups`) shared by the above.
+
+---
+
+## Event registry — wire strings + criticality
+
+Source of truth: `realtime/constants/event_types.py::EVENT_REGISTRY`. Frontend
+keys off the wire string; renaming any of these requires a coordinated
+mobile change.
+
+| Wire string | `is_critical` | Display name | Producer |
+|---|---|---|---|
+| `job_new_request`           | true  | "New Job Available"       | `bookings.services.job_request_dispatch` |
+| `job_accepted`              | false | "Booking confirmed"       | `bookings.services.job_request_action` |
+| `booking_rejected`          | false | "Booking unavailable"     | `bookings.services.job_request_action` + SLA timeout |
+| `quote_generated`           | true  | "New Quote Ready"         | `orchestrator.submit_quote` |
+| `quote_approved`            | true  | "Quote Approved"          | `orchestrator.approve_quote` |
+| `tech_en_route`             | false | "Technician On The Way"   | `orchestrator.en_route` (auto + manual) |
+| `tech_arrived`              | false | "Technician Has Arrived"  | `orchestrator.arrived` (auto + manual) |
+| `job_completed`             | true  | "Job Completed"           | `orchestrator.mark_complete_with_cash` |
+| `payment_received`          | false | "Payment Received"        | `orchestrator.mark_complete_with_cash` |
+| `chat_message`              | false | "New Message"             | (chat sprint, not yet shipped) |
+| `dispute_opened`            | true  | "Dispute Opened"          | `orchestrator.open_dispute` |
+| `dispute_resolved`          | true  | "Dispute Resolved"        | `orchestrator.admin_resolve_dispute` |
+| `wallet_low_balance`        | false | "Low Wallet Balance"      | (finance sprint, not yet shipped) |
+| `quote_revision_requested`  | false | "Customer wants to bargain" | `orchestrator.request_revision` |
+| `quote_declined`            | false | "Quote declined"          | `orchestrator.decline_quote` |
+| `booking_cancelled`         | false | "Booking cancelled"       | `orchestrator.cancel_by_customer` / `cancel_by_tech` |
+| `booking_no_show`           | false | "No-show reported"        | `orchestrator.mark_no_show` |
+| `booking_rescheduled`       | false | "Booking rescheduled"     | `orchestrator.reschedule` |

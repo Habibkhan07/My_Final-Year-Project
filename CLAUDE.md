@@ -55,9 +55,10 @@ The same topic can produce both — e.g. `walletLowBalance` is an event; the liv
 **Strict rules:**
 - Every WS frame carries a top-level `kind` field. The frontend dispatcher (`WsFrameDispatcher`) routes on `kind`. Streams MUST NOT touch `SystemEventNotifier` or the `EventLog` cache.
 - Shared socket: `ws/events/`. Shared per-user channel-layer group: `user_<id>_events` (defined once in `realtime.constants.groups`). The `_events` suffix is historical and intentionally retained — do not bundle a rename into unrelated work.
+- Booking-scoped tracking subgroup: `tracking_job_<booking_id>` (template in `realtime.constants.groups`). The WS consumer accepts two upstream messages — `subscribe_tracking` and `unsubscribe_tracking` — for joining/leaving these subgroups. Authorization (booking participant + non-terminal status) is enforced at the consumer; failures silently drop. Every other client-originated payload is ignored — the consumer is otherwise strictly downstream.
 - Two publisher modules, never collapsed into one with a flag. The import graph enforces the boundary: `publish_stream` cannot accidentally write to `EventLog`; `broadcast_event` cannot accidentally bypass persistence.
 - Try/except in the publishers is **narrow** — wraps only the `group_send` network call. Coding errors above that line MUST propagate. Bug-hiding via wide barrels is forbidden.
-- Client-originated streams (e.g. typing indicators) ingress via thin REST views that internally call `publish_stream(...)`. The WS consumer stays one-way and logic-less.
+- Client-originated streams (e.g. typing indicators) ingress via thin REST views that internally call `publish_stream(...)`. The WS consumer stays one-way and logic-less for stream content; only the subscribe/unsubscribe envelopes above are consumer-handled.
 - No `StreamType` enum — strings until a stream type needs registered metadata.
 
 Authoritative docs: `backend/realtime/api/EVENT_DISPATCH_API.md`, `backend/realtime/api/STREAM_DISPATCH_API.md`, and `REALTIME_STREAMS_PATCH_SUMMARY.md` (frontend sync brief + decision log).
