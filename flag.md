@@ -938,3 +938,128 @@ Low. The destination today is informational-stub; the user can read "Booking #N 
 The data sprint's ~25 source files are unchanged. The dumb-UI contract held — the widget reads `ui.badgeText` / `ui.badgeTone` / `ui.headline` / `price.uiLabel` / `price.context` / `addressLabel` verbatim and never recomputes from raw `BookingStatus`.
 
 ---
+
+## 28. AI chatbot dispute intake — schema seam present, module deferred
+
+**Where**
+- `backend/bookings/models.py::SupportTicket.dispute_intake_method` (CHOICES: `FORM` | `CHATBOT`)
+- `backend/bookings/models.py::SupportTicket.chat_log` (`JSONField`, nullable)
+- `backend/bookings/services/orchestrator.py::open_dispute` — only writes `dispute_intake_method=FORM`
+- `backend/bookings/admin.py` — admin shows the field but no writer creates `CHATBOT`-intake tickets
+
+**What's wrong**
+The booking orchestrator landed with the seam in place — `SupportTicket` accepts a method enum and a `chat_log` payload — but no module actually emits chatbot-intake tickets. Every dispute opened today is `FORM` intake; `chat_log` is uniformly null. Customers in distress walk into a static form and miss the lower-friction conversational triage planned in the product spec.
+
+**Why we shipped it that way**
+The chatbot is a separate engineering effort (LLM-routing infra, prompt safety, transcript storage policy, GDPR-style consent on the chat log). Bundling it into the orchestrator sprint would have multiplied scope and pushed every other deliverable back. Locking the schema this sprint preserves the seam — when the chatbot module ships it can write tickets through the same `SupportTicket` row without a migration.
+
+**The proper fix**
+1. New app `chatbot/` with an LLM-router service and a transcript model. Settle the storage policy first (PII redaction at write time vs. read time).
+2. Customer-facing entry point (mobile UI tap → `POST /api/dispute/chat/start/` returns a session token) that runs the conversation server-side, then on resolution writes a `SupportTicket(dispute_intake_method=CHATBOT, initial_reason=<router summary>, chat_log=<full transcript>)` and invokes `orchestrator.open_dispute` with the resulting reason.
+3. Update `SupportTicketAdmin` to render `chat_log` readably (collapsible JSON viewer) once tickets start carrying it.
+4. Audit `orchestrator.open_dispute` — it accepts `initial_reason` as a single string today; if the chatbot wants to attach multiple structured fields, extend the signature.
+
+**Search hints**
+- `dispute_intake_method` — every consumer
+- `chat_log` — currently zero writers
+- `INTAKE_CHATBOT` — the enum sentinel
+
+**Severity**
+Low. Form intake works; the seam doesn't degrade either lifecycle. Pick up alongside the customer-facing chatbot rollout.
+
+---
+
+## 29. Reviews / ratings — model + endpoints deferred
+
+**Where**
+- No `Review` model exists yet (`backend/` has no `reviews/` app)
+- `TechnicianProfile.rating_average` and `review_count` columns exist but are never written by any service today
+- `bookings/services/orchestrator.py::mark_complete_with_cash` — completion path never prompts the customer for a review
+
+**What's wrong**
+A booking moves to `COMPLETED` and the loop closes silently. The technician's `rating_average` / `review_count` columns stay at their factory defaults (4.5 / 10) forever; the matchmaker's Bayesian average is computed against a synthetic baseline because there is no real review data flowing in. Customers can't surface bad experiences short of opening a dispute, and tech reputation can't differentiate over time.
+
+**Why we shipped it that way**
+The review system needs decisions that are properly product-side: which dimensions to rate (overall vs. punctuality vs. cleanliness), edit windows, abuse-prevention (one review per booking, not per session), retroactive review for bookings that completed pre-launch. None of those decisions exist today and the orchestrator sprint was already ten files deep.
+
+**The proper fix**
+1. New app `reviews/` with a `Review` model: `booking` (OneToOne), `customer` (FK), `technician` (FK), `rating` (1..5 IntegerField), `comment` (TextField), `created_at`. Constraint: one review per booking. Edit window field if product wants editable reviews.
+2. `bookings/services/orchestrator.py::mark_complete_with_cash` registers a deferred event (`booking_completed_review_prompt`) on commit so the customer's UI prompts after completion.
+3. `POST /api/reviews/` writes the row + atomically updates `TechnicianProfile.rating_average` (running mean) and `review_count`. `select_for_update` on the technician row.
+4. Surface in matchmaking selector — replace the synthetic Bayesian baseline with the real distribution.
+5. Tech-side moderation flow (admin can hide a review with reason) — coordinate with the dispute model so a dispute that PENALIZE_TECHs auto-flags any review on the same booking for moderator review.
+
+**Search hints**
+- `rating_average` — column exists; no writers
+- `review_count` — same
+- Look for `Bayesian` / `m=10` in matchmaking selectors — the placeholder math
+
+**Severity**
+Medium. Ranking quality degrades over time without real data, but the platform technically functions. Pick up after the orchestrator stabilizes; it's a natural next sprint.
+
+---
+
+## 30. Bank accounts / wallet payouts — cash collection only this sprint
+
+**Where**
+- `backend/bookings/services/finance_ports.py::FinancePort` — Protocol with 5 methods, all routed to `NullFinanceAdapter` no-ops
+- `backend/bookings/adapters/null_finance.py::NullFinanceAdapter` — every method returns `None` / `(True, None)`
+- `backend/bookings/adapters/__init__.py::get_default_finance_service` — returns the null adapter
+- `backend/bookings/services/orchestrator.py::mark_complete_with_cash` — calls `record_cash_collected` and `record_commission` against the null adapter (no-ops)
+- No `WalletTransaction` model, no `JobCommission` model, no JazzCash integration
+
+**What's wrong**
+The orchestrator publishes the right port-and-adapter shape, but no real money flow exists. `mark_complete_with_cash` stamps the booking row with the cash amount and broadcasts `payment_received`, but no commission is debited from the technician wallet, no platform balance changes, and the technician has no path to top-up via JazzCash. `apply_inspection_fee_decision`, `apply_cancellation_charge`, and `can_accept_job` all silently permit. Any production go-live requires the finance adapter; right now the platform technically lets technicians accept unlimited jobs with zero wallet balance.
+
+**Why we shipped it that way**
+Real money flow is a sprint of its own — JazzCash sandbox + production credentials, idempotency keys for top-up retries, reconciliation reports for the platform's own bank, daily payout batching, transaction history UI. The booking orchestrator's contract demanded a clean port boundary (`FinancePort`) so the wallet sprint can land without re-touching orchestrator code. Bundling them would have made review impossible.
+
+**The proper fix**
+1. New app `wallet/` with `WalletTransaction` (technician FK, kind=TOP_UP|COMMISSION|REFUND|PENALTY, amount Decimal, JazzCash ref, created_at), `JobCommission` (booking OneToOne, computed amount, technician FK).
+2. New adapter `bookings/adapters/wallet_finance.py::WalletFinanceAdapter` implementing every `FinancePort` method against the wallet models.
+3. `bookings/adapters/__init__.py::get_default_finance_service` swaps to return `WalletFinanceAdapter` — single point of swap; no orchestrator code touched.
+4. JazzCash top-up integration — tech-facing endpoint + webhook handler for top-up confirmation (idempotent on JazzCash ref).
+5. Wallet-lockout enforcement — `can_accept_job` returns `(False, 'wallet_below_threshold')` when balance < commission threshold; orchestrator's `accept_job_booking` (existing) needs to be retrofitted to call this port (today it doesn't).
+6. Admin reconciliation views — daily commission rollup, refund audit.
+
+**Search hints**
+- `FinancePort` — the contract
+- `NullFinanceAdapter` — what gets swapped out
+- `current_wallet_balance` on `TechnicianProfile` — exists but currently static
+
+**Severity**
+High. Cannot ship to production without this. Hard-blocker on the platform's revenue model. Must precede any paid-pilot launch.
+
+---
+
+## 31. Admin realtime channel — `tech_reliability_penalty` event deferred (audit P0-08)
+
+**Where**
+- `backend/realtime/constants/event_types.py::EventType` — no `tech_reliability_penalty` member (deliberately omitted this sprint)
+- `backend/realtime/events/services/...EventLog.target_role` — accepts only `'customer'` / `'technician'` strings; `'admin'` would fail at save
+- `backend/bookings/services/orchestrator.py::cancel_by_tech`, `mark_no_show` — write `TechReliabilityIncident` rows but do NOT broadcast to admin
+- `backend/bookings/admin.py::TechReliabilityIncidentAdmin` — append-only admin list view IS the admin's only window today
+
+**What's wrong**
+The v0.9 sprint plan called for a `tech_reliability_penalty` realtime event broadcast to admin every time a tech cancels post-arrival or is reported no-show. Audit P0-08 caught that `EventLog.target_role` only allows customer/technician roles — admin broadcasts would crash at save. The sprint replaced the broadcast with a `TechReliabilityIncident` DB row; admin reads via Django Admin's list view. That works for now (admin can pull a CSV any time) but admins lose realtime situational awareness — if a tech is mid-cascade canceling 3 jobs in a row the admin sees it on next page-refresh, not as it happens.
+
+**Why we shipped it that way**
+Adding `'admin'` as a third `target_role` requires extending the `EventLog` choice set, the FCM device registry to accept admin tokens, the per-user channel-layer group convention, and the frontend admin tooling to consume those frames. None of that infrastructure exists; admins today use the Django Admin web UI on a desktop browser. The DB row + admin list view delivers the same audit trail with a refresh-cycle lag.
+
+**The proper fix**
+1. Extend `EventLog.target_role` choices to include `'admin'`. Backfill nothing (no historical admin events exist).
+2. Define an `admin_<id>_events` channel-layer group convention and a corresponding subscription in a future admin web-tooling app (or a new admin SPA).
+3. Wire `bookings/services/orchestrator.py::cancel_by_tech` and `mark_no_show` to broadcast `tech_reliability_penalty` (target_role='admin', payload includes booking_id + technician_id + incident_type + phase) alongside the DB row write.
+4. Consider whether to also broadcast on `open_dispute` (today the dispute event goes to the counterparty only — admins read disputes via the SupportTicket admin list).
+5. Decide on FCM-vs-WS-only: admins are likely on a desktop/web client most of the time, so WS-only might suffice and dodge the admin-FCM-token problem.
+
+**Search hints**
+- `EventLog.target_role` — the constraint blocking admin broadcasts today
+- `TechReliabilityIncident` — the DB row that fills the gap meanwhile
+- `audit P0-08` — referenced in models.py and orchestrator.py
+- `tech_reliability_penalty` — the event name reserved for this fix
+
+**Severity**
+Low for now (admin list view is functional), Medium when the platform scales past a single ops person who can't watch every booking. Pair with the reliability-score sprint that aggregates over `TechReliabilityIncident`.
+
+---
