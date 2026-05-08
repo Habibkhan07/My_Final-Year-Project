@@ -4,6 +4,26 @@ from rest_framework import status
 from django.db import IntegrityError
 
 def custom_exception_handler(exc, context):
+    # 0. Booking orchestrator transitions raise ``BookingValidationError`` with
+    # stable ``code`` strings (e.g. ``invalid_transition``) and a structured
+    # ``errors`` dict. DRF's default handler would flatten ``code`` into the
+    # generic ``"validation_error"`` and drop the field map — defeating the
+    # whole point of the canonical envelope. Match it first.
+    # Lazy import: ``bookings`` imports DRF, which imports settings, which
+    # imports this handler — module-load circular if we put this at the top.
+    from bookings.exceptions import BookingValidationError
+
+    if isinstance(exc, BookingValidationError):
+        return Response(
+            {
+                "status": exc.status_code,
+                "code": exc.code,
+                "message": exc.message,
+                "errors": exc.errors,
+            },
+            status=exc.status_code,
+        )
+
     # 1. Call DRF's default handler first
     # This handles standard ValidationErrors (400), NotAuthenticated (401), etc.
     response = exception_handler(exc, context)

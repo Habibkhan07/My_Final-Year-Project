@@ -39,6 +39,21 @@ class EventType(str, Enum):
     DISPUTE_RESOLVED = "dispute_resolved"
     WALLET_LOW_BALANCE = "wallet_low_balance"
 
+    # Booking orchestrator v1 (sprint 0008). All five are non-critical: none
+    # of them gate money or service delivery on the recipient's ACK. Cash
+    # collection confirms via the explicit POST response, not via an ACK on
+    # ``payment_received``; quote/cancel/no-show/reschedule signals just flip
+    # UI state on the counterparty. ``tech_reliability_penalty`` from the
+    # v0.9 plan was deliberately dropped — ``EventLog.target_role`` does not
+    # accept ``"admin"``, so the broadcast would fail at save. The
+    # ``TechReliabilityIncident`` table replaces it; admin reads via Django
+    # Admin (see flag: admin-realtime-channel-deferred).
+    QUOTE_REVISION_REQUESTED = "quote_revision_requested"
+    QUOTE_DECLINED = "quote_declined"
+    BOOKING_CANCELLED = "booking_cancelled"
+    BOOKING_NO_SHOW = "booking_no_show"
+    BOOKING_RESCHEDULED = "booking_rescheduled"
+
 
 class EventMeta(TypedDict):
     is_critical: bool
@@ -70,6 +85,11 @@ EVENT_REGISTRY: dict[EventType, EventMeta] = {
     EventType.DISPUTE_OPENED:     {"is_critical": True,  "display_name": "Dispute Opened"},
     EventType.DISPUTE_RESOLVED:   {"is_critical": True,  "display_name": "Dispute Resolved"},
     EventType.WALLET_LOW_BALANCE: {"is_critical": False, "display_name": "Low Wallet Balance"},
+    EventType.QUOTE_REVISION_REQUESTED: {"is_critical": False, "display_name": "Customer wants to bargain"},
+    EventType.QUOTE_DECLINED:           {"is_critical": False, "display_name": "Quote declined"},
+    EventType.BOOKING_CANCELLED:        {"is_critical": False, "display_name": "Booking cancelled"},
+    EventType.BOOKING_NO_SHOW:          {"is_critical": False, "display_name": "No-show reported"},
+    EventType.BOOKING_RESCHEDULED:      {"is_critical": False, "display_name": "Booking rescheduled"},
 }
 
 

@@ -1,3 +1,72 @@
+from rest_framework.exceptions import APIException
+from rest_framework import status as drf_status
+
+
+# ---------------------------------------------------------------------------
+# Booking orchestrator v1 (sprint 0008): canonical validation envelope.
+#
+# The orchestrator transitions raise ``BookingValidationError`` with a
+# stable machine-readable ``code`` plus a human-readable ``message`` and
+# an optional per-field ``errors`` dict. The custom DRF exception handler
+# at ``core/common/failures/exception.py`` matches on this class FIRST and
+# emits the canonical ``{status, code, message, errors}`` envelope without
+# letting DRF's default flow override the code with the generic
+# ``"validation_error"``.
+#
+# The pre-existing exceptions below (InvalidAddressError, ...) belong to
+# the booking-creation path. They predate the standard envelope contract
+# and are translated to envelope shape inside their callers' views, not
+# here. Do NOT retrofit them onto ``BookingValidationError``.
+# ---------------------------------------------------------------------------
+
+
+class BookingValidationError(APIException):
+    """Raised by ``bookings.services.orchestrator`` transition functions.
+
+    Serialized by ``core.common.failures.exception.custom_exception_handler``
+    into the canonical ``{status, code, message, errors}`` envelope.
+
+    Always pass ``code`` (one of ``ERROR_*`` constants below) and a
+    user-facing ``message``. Use ``errors={'field': ['detail', ...]}``
+    only when the failure is per-field; transition guards typically pass
+    ``{'current_status': [<status>]}`` so the client can render a
+    contextual hint.
+    """
+
+    status_code = drf_status.HTTP_400_BAD_REQUEST
+    default_detail = "Booking transition invalid."
+    default_code = "invalid_transition"
+
+    def __init__(
+        self,
+        *,
+        code: str,
+        message: str,
+        errors: dict | None = None,
+        status: int = drf_status.HTTP_400_BAD_REQUEST,
+    ):
+        self.status_code = status
+        self.code = code
+        self.message = message
+        self.errors = errors or {}
+        # APIException expects ``detail``; passing ``message`` keeps DRF logs
+        # readable when the handler chain doesn't reach our custom branch.
+        super().__init__(detail=message, code=code)
+
+
+# Stable ``code`` strings for ``BookingValidationError``. Wire-strings —
+# the Flutter side keys off these literals to surface user-friendly UI,
+# so do not rename without coordinating a frontend change.
+ERROR_INVALID_TRANSITION = "invalid_transition"
+ERROR_INVALID_QUOTE_EMPTY = "invalid_quote_empty"
+ERROR_QUOTE_BAND_VIOLATION = "quote_band_violation"
+ERROR_CANCELLATION_NOT_ALLOWED = "cancellation_not_allowed"
+ERROR_DISPUTE_NOT_DISPUTABLE_STATUS = "dispute_not_disputable_status"
+ERROR_RESCHEDULE_NOT_ALLOWED = "reschedule_not_allowed"
+ERROR_NOT_ASSIGNED_TO_YOU = "not_assigned_to_you"
+ERROR_NO_SHOW_TOO_EARLY = "no_show_too_early"
+
+
 class InvalidAddressError(Exception):
     """
     Raised when the given address_id does not exist or does not belong to the
