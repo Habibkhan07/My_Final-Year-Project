@@ -1644,6 +1644,7 @@ class TestMarkCompleteCashAmountValidation:
         assert exc_info.value.code == 'invalid_input'
         assert 'method' in exc_info.value.errors
 
+
     def test_negative_cash_rejected(self, fake_finance):
         booking = JobBookingInProgressFactory()
         with pytest.raises(BookingValidationError):
@@ -1683,6 +1684,61 @@ class TestMarkCompleteCashAmountValidation:
             finance=fake_finance,
         )
         assert result.status == JobBooking.STATUS_COMPLETED
+
+
+class TestQuoteSubmittedUniqueness:
+    """Belt-and-braces: the partial unique constraint on Quote prevents
+    a bug-bypass of the orchestrator's supersede-then-create flow from
+    creating two SUBMITTED quotes for the same (booking, is_upsell).
+    Direct ORM creation bypasses the orchestrator and tests the DB."""
+
+    def test_two_submitted_non_upsell_quotes_rejected(self):
+        from django.db import IntegrityError
+        booking = JobBookingInspectingFactory()
+        Quote.objects.create(
+            booking=booking, revision_number=1,
+            status=Quote.STATUS_SUBMITTED, is_upsell=False,
+            total_amount=Decimal('500'),
+        )
+        with pytest.raises(IntegrityError):
+            Quote.objects.create(
+                booking=booking, revision_number=2,
+                status=Quote.STATUS_SUBMITTED, is_upsell=False,
+                total_amount=Decimal('700'),
+            )
+
+    def test_submitted_upsell_and_non_upsell_coexist(self):
+        # Different flavours don't collide on the partial index. A
+        # legitimate (if rare) state to be in mid-supersede.
+        booking = JobBookingInspectingFactory()
+        Quote.objects.create(
+            booking=booking, revision_number=1,
+            status=Quote.STATUS_SUBMITTED, is_upsell=False,
+            total_amount=Decimal('500'),
+        )
+        upsell = Quote.objects.create(
+            booking=booking, revision_number=2,
+            status=Quote.STATUS_SUBMITTED, is_upsell=True,
+            total_amount=Decimal('300'),
+        )
+        assert upsell.id is not None
+
+    def test_superseded_does_not_block_new_submitted(self):
+        # Verify the orchestrator's supersede-then-create flow still
+        # works with the constraint in place: prior SUPERSEDED rows
+        # don't sit in the partial index.
+        booking = JobBookingInspectingFactory()
+        Quote.objects.create(
+            booking=booking, revision_number=1,
+            status=Quote.STATUS_SUPERSEDED, is_upsell=False,
+            total_amount=Decimal('500'),
+        )
+        new = Quote.objects.create(
+            booking=booking, revision_number=2,
+            status=Quote.STATUS_SUBMITTED, is_upsell=False,
+            total_amount=Decimal('700'),
+        )
+        assert new.id is not None
 
 
 class TestAdminResolveDisputeLockOrdering:

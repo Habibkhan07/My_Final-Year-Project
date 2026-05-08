@@ -254,6 +254,20 @@ class Quote(models.Model):
                 fields=['booking', 'revision_number'],
                 name='unique_quote_revision_per_booking',
             ),
+            # Belt-and-braces: the orchestrator's submit_quote flow
+            # (supersede prior → create new) enforces "at most one
+            # SUBMITTED quote per (booking, flavour)" — but only at the
+            # application layer. A bug in a future caller (or a concurrent
+            # path that bypasses the supersede) could violate this without
+            # any DB signal. The partial index makes the invariant
+            # database-enforced. Filter on status=SUBMITTED so prior
+            # SUPERSEDED / APPROVED / DECLINED rows don't collide with
+            # the new one.
+            models.UniqueConstraint(
+                fields=['booking', 'is_upsell'],
+                condition=models.Q(status='SUBMITTED'),
+                name='unique_submitted_quote_per_booking_flavour',
+            ),
         ]
 
     def __str__(self):
