@@ -708,3 +708,186 @@ class TestPromoSnapshotAtCreation:
                 promotion_id=promo.id,
                 scheduled_start=_pkt(10), scheduled_end=_pkt(11),
             )
+
+
+# ---------------------------------------------------------------------------
+# Inspection-fee + final-cash + address-snapshot columns at booking creation.
+#
+# These columns are populated at booking time by ``create_instant_booking``
+# so the orchestrator's quote-decision transitions (approve / decline) and
+# the customer-side receipt UI have the data they need without a follow-up
+# write. Pre-fix audit found all three columns silently NULL — that bug
+# made INSPECTION-flow declines owe Rs.0 instead of Rs.500, and broke the
+# tech's "Cash Collected: Rs.X" button on FIXED_GIG / LABOR_GIG paths.
+# ---------------------------------------------------------------------------
+
+
+class TestInspectionFeeColumn:
+    """``inspection_fee`` is set only for INSPECTION-flow bookings.
+
+    Inspection bookings have ``sub_service=None``; the resolver returns
+    ``booking_type=INSPECTION`` and ``primary_amount=service.base_inspection_fee``.
+    The fee column mirrors that figure so the orchestrator's decline path
+    has it without re-resolving from the catalog.
+    """
+
+    def test_inspection_flow_persists_base_inspection_fee(self, lahore_tech_and_address):
+        tech, profile, address = lahore_tech_and_address
+        service = ServiceFactory(base_inspection_fee=decimal.Decimal('500.00'))
+        booking = create_instant_booking(
+            customer_user=profile.user,
+            technician_id=tech.id, address_id=address.id,
+            service_id=service.id,
+            scheduled_start=_pkt(10), scheduled_end=_pkt(11),
+        )
+        booking.refresh_from_db()
+        assert booking.inspection_fee == decimal.Decimal('500.00')
+
+    def test_fixed_gig_leaves_inspection_fee_null(self, lahore_tech_and_address):
+        tech, profile, address = lahore_tech_and_address
+        service = ServiceFactory()
+        sub = SubServiceFactory(
+            service=service, is_fixed_price=True,
+            base_price=decimal.Decimal('1500.00'),
+        )
+        booking = create_instant_booking(
+            customer_user=profile.user,
+            technician_id=tech.id, address_id=address.id,
+            service_id=service.id, sub_service_id=sub.id,
+            scheduled_start=_pkt(10), scheduled_end=_pkt(11),
+        )
+        booking.refresh_from_db()
+        assert booking.inspection_fee is None
+
+    def test_labor_gig_leaves_inspection_fee_null(self, lahore_tech_and_address):
+        tech, profile, address = lahore_tech_and_address
+        service = ServiceFactory()
+        sub = SubServiceFactory(service=service, is_fixed_price=False)
+        TechnicianSkillFactory(
+            technician=tech, sub_service=sub,
+            labor_rate=decimal.Decimal('1200.00'),
+        )
+        booking = create_instant_booking(
+            customer_user=profile.user,
+            technician_id=tech.id, address_id=address.id,
+            service_id=service.id, sub_service_id=sub.id,
+            scheduled_start=_pkt(10), scheduled_end=_pkt(11),
+        )
+        booking.refresh_from_db()
+        assert booking.inspection_fee is None
+
+
+class TestFinalCashToCollectColumn:
+    """``final_cash_to_collect`` is set at creation only for paths whose
+    cash figure is final at booking time (FIXED_GIG / LABOR_GIG).
+
+    INSPECTION-flow bookings leave the column NULL because the cash
+    button number is unknown until the customer accepts or declines the
+    quote — the orchestrator's ``approve_quote`` / ``decline_quote`` write
+    it then.
+    """
+
+    def test_inspection_flow_leaves_final_cash_null(self, lahore_tech_and_address):
+        tech, profile, address = lahore_tech_and_address
+        service = ServiceFactory(base_inspection_fee=decimal.Decimal('500.00'))
+        booking = create_instant_booking(
+            customer_user=profile.user,
+            technician_id=tech.id, address_id=address.id,
+            service_id=service.id,
+            scheduled_start=_pkt(10), scheduled_end=_pkt(11),
+        )
+        booking.refresh_from_db()
+        assert booking.final_cash_to_collect is None
+
+    def test_fixed_gig_persists_full_price(self, lahore_tech_and_address):
+        tech, profile, address = lahore_tech_and_address
+        service = ServiceFactory()
+        sub = SubServiceFactory(
+            service=service, is_fixed_price=True,
+            base_price=decimal.Decimal('1500.00'),
+        )
+        booking = create_instant_booking(
+            customer_user=profile.user,
+            technician_id=tech.id, address_id=address.id,
+            service_id=service.id, sub_service_id=sub.id,
+            scheduled_start=_pkt(10), scheduled_end=_pkt(11),
+        )
+        booking.refresh_from_db()
+        assert booking.final_cash_to_collect == decimal.Decimal('1500.00')
+
+    def test_labor_gig_persists_resolved_labor_rate(self, lahore_tech_and_address):
+        tech, profile, address = lahore_tech_and_address
+        service = ServiceFactory()
+        sub = SubServiceFactory(service=service, is_fixed_price=False)
+        TechnicianSkillFactory(
+            technician=tech, sub_service=sub,
+            labor_rate=decimal.Decimal('1200.00'),
+        )
+        booking = create_instant_booking(
+            customer_user=profile.user,
+            technician_id=tech.id, address_id=address.id,
+            service_id=service.id, sub_service_id=sub.id,
+            scheduled_start=_pkt(10), scheduled_end=_pkt(11),
+        )
+        booking.refresh_from_db()
+        assert booking.final_cash_to_collect == decimal.Decimal('1200.00')
+
+
+class TestActualAddressSnapshotColumn:
+    """``actual_address_snapshot`` is composed from the address's
+    ``street_address`` + best-available locality field. The column
+    survives ``customer.address.SET_NULL`` if the customer later deletes
+    the address, so receipts and admin still render where the visit was.
+    """
+
+    def test_snapshot_uses_locality_label_when_present(self, lahore_tech_and_address):
+        tech, profile, _ = lahore_tech_and_address
+        address = CustomerAddressFactory(
+            customer=profile,
+            latitude=decimal.Decimal('31.5204'),
+            longitude=decimal.Decimal('74.3587'),
+            street_address='123 Main Boulevard',
+            locality_label='Gulberg III, Lahore',
+            city='Lahore',
+        )
+        booking = create_instant_booking(
+            customer_user=profile.user,
+            **_make_booking_kwargs(tech, address),
+        )
+        booking.refresh_from_db()
+        # locality_label preferred over city when both present.
+        assert booking.actual_address_snapshot == '123 Main Boulevard, Gulberg III, Lahore'
+
+    def test_snapshot_falls_back_to_city_without_locality_label(self, lahore_tech_and_address):
+        tech, profile, _ = lahore_tech_and_address
+        address = CustomerAddressFactory(
+            customer=profile,
+            latitude=decimal.Decimal('31.5204'),
+            longitude=decimal.Decimal('74.3587'),
+            street_address='456 Side Street',
+            locality_label=None,
+            city='Karachi',
+        )
+        booking = create_instant_booking(
+            customer_user=profile.user,
+            **_make_booking_kwargs(tech, address),
+        )
+        booking.refresh_from_db()
+        assert booking.actual_address_snapshot == '456 Side Street, Karachi'
+
+    def test_snapshot_is_street_only_when_no_locality_or_city(self, lahore_tech_and_address):
+        tech, profile, _ = lahore_tech_and_address
+        address = CustomerAddressFactory(
+            customer=profile,
+            latitude=decimal.Decimal('31.5204'),
+            longitude=decimal.Decimal('74.3587'),
+            street_address='789 Lonely Lane',
+            locality_label=None,
+            city=None,
+        )
+        booking = create_instant_booking(
+            customer_user=profile.user,
+            **_make_booking_kwargs(tech, address),
+        )
+        booking.refresh_from_db()
+        assert booking.actual_address_snapshot == '789 Lonely Lane'

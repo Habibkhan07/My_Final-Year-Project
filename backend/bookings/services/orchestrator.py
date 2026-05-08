@@ -586,7 +586,18 @@ def approve_quote(
         )['total'] or Decimal('0')
         booking.base_services_total = running
 
-        update_fields = ['base_services_total']
+        # Final cash button number (CLAUDE.md "Inspection Fee" rule:
+        # accepted quote → Rs.500 deducted from final bill). Floor at 0
+        # so a quote whose total is below the inspection fee doesn't
+        # surface a negative number on the tech's button. inspection_fee
+        # is null for FIXED_GIG / LABOR_GIG paths, in which case the
+        # full base_services_total is owed.
+        inspection_credit = booking.inspection_fee or Decimal('0')
+        booking.final_cash_to_collect = max(
+            Decimal('0'), running - inspection_credit,
+        )
+
+        update_fields = ['base_services_total', 'final_cash_to_collect']
         if not quote.is_upsell:
             booking.status = JobBooking.STATUS_IN_PROGRESS
             update_fields.append('status')

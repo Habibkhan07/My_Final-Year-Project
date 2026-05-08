@@ -462,7 +462,9 @@ class TestRequestRevision:
 
 class TestApproveQuote:
     def test_happy_path_snapshots_booking_items(self, fake_finance, captured_broadcasts):
-        booking = JobBookingQuotedFactory()
+        # Inspection-flow booking with the standard Rs.500 fee — accepting
+        # the quote credits the fee, so final_cash = 1000 - 500 = 500.
+        booking = JobBookingQuotedFactory(inspection_fee=Decimal('500.00'))
         sub = LaborSubServiceFactory(base_price=Decimal('500'), max_price=Decimal('2000'))
         quote = QuoteFactory(booking=booking, status=Quote.STATUS_SUBMITTED, total_amount=Decimal('1000.00'))
         QuoteLineItemFactory(
@@ -478,6 +480,8 @@ class TestApproveQuote:
         assert result.status == JobBooking.STATUS_IN_PROGRESS
         assert result.work_started_at is not None
         assert result.base_services_total == Decimal('1000.00')
+        # final_cash = base_services_total - inspection_fee, floored at 0.
+        assert result.final_cash_to_collect == Decimal('500.00')
         # BookingItem snapshot exists.
         items = list(booking.items.all())
         assert len(items) == 1
@@ -493,6 +497,79 @@ class TestApproveQuote:
         fake_finance.apply_inspection_fee_decision.assert_called_once()
         kwargs = fake_finance.apply_inspection_fee_decision.call_args.kwargs
         assert kwargs['decision'] == 'accepted'
+
+    def test_final_cash_clamped_to_zero_when_quote_below_inspection_fee(self, fake_finance):
+        # Quote total Rs.300, inspection fee Rs.500 → 300 - 500 = -200 →
+        # clamped to 0 so the cash button never shows a negative number.
+        booking = JobBookingQuotedFactory(inspection_fee=Decimal('500.00'))
+        sub = LaborSubServiceFactory(base_price=Decimal('300'), max_price=Decimal('1000'))
+        quote = QuoteFactory(booking=booking, status=Quote.STATUS_SUBMITTED, total_amount=Decimal('300.00'))
+        QuoteLineItemFactory(
+            quote=quote, sub_service=sub, quantity=1,
+            priced_at=Decimal('300.00'), line_total=Decimal('300.00'),
+        )
+        result = orchestrator.approve_quote(
+            booking_id=booking.id,
+            customer_user=booking.customer,
+            quote_id=quote.id,
+            finance=fake_finance,
+        )
+        assert result.final_cash_to_collect == Decimal('0')
+
+    def test_final_cash_no_inspection_credit_when_fee_null(self, fake_finance):
+        # FIXED_GIG / LABOR_GIG paths arrive at approve_quote without an
+        # inspection fee on the booking row. Defensive fallback: full
+        # base_services_total is owed, no credit applied.
+        booking = JobBookingQuotedFactory(inspection_fee=None)
+        sub = LaborSubServiceFactory(base_price=Decimal('500'), max_price=Decimal('2000'))
+        quote = QuoteFactory(booking=booking, status=Quote.STATUS_SUBMITTED, total_amount=Decimal('1200.00'))
+        QuoteLineItemFactory(
+            quote=quote, sub_service=sub, quantity=1,
+            priced_at=Decimal('1200.00'), line_total=Decimal('1200.00'),
+        )
+        result = orchestrator.approve_quote(
+            booking_id=booking.id,
+            customer_user=booking.customer,
+            quote_id=quote.id,
+            finance=fake_finance,
+        )
+        assert result.final_cash_to_collect == Decimal('1200.00')
+
+    def test_upsell_recomputes_final_cash_on_total_growth(self, fake_finance):
+        # Existing approved quote with one item (Rs.1000) already in the
+        # snapshot. An upsell quote adds Rs.1500 → base_total = 2500,
+        # final_cash = 2500 - 500 (fee) = 2000.
+        booking = JobBookingInProgressFactory(
+            inspection_fee=Decimal('500.00'),
+            base_services_total=Decimal('1000.00'),
+            final_cash_to_collect=Decimal('500.00'),
+        )
+        sub_a = LaborSubServiceFactory(base_price=Decimal('1000'), max_price=Decimal('2000'))
+        sub_b = LaborSubServiceFactory(base_price=Decimal('1500'), max_price=Decimal('2000'))
+        prior_quote = QuoteFactory(booking=booking, revision_number=1, status=Quote.STATUS_APPROVED)
+        BookingItem.objects.create(
+            booking=booking, sub_service=sub_a, quantity=1,
+            price_charged=Decimal('1000.00'), line_total=Decimal('1000.00'),
+            sourced_quote=prior_quote,
+        )
+
+        upsell = QuoteFactory(
+            booking=booking, revision_number=2,
+            status=Quote.STATUS_SUBMITTED, is_upsell=True,
+            total_amount=Decimal('1500.00'),
+        )
+        QuoteLineItemFactory(
+            quote=upsell, sub_service=sub_b, quantity=1,
+            priced_at=Decimal('1500.00'), line_total=Decimal('1500.00'),
+        )
+        result = orchestrator.approve_quote(
+            booking_id=booking.id,
+            customer_user=booking.customer,
+            quote_id=upsell.id,
+            finance=fake_finance,
+        )
+        assert result.base_services_total == Decimal('2500.00')
+        assert result.final_cash_to_collect == Decimal('2000.00')
 
     def test_upsell_appends_booking_items_does_not_replace(self, fake_finance):
         # Set up a booking that's already IN_PROGRESS with one BookingItem
@@ -595,11 +672,15 @@ class TestDeclineQuote:
         assert kwargs['decision'] == 'declined'
         assert any(c['event_type'] == EventType.QUOTE_DECLINED for c in captured_broadcasts)
 
-    def test_decline_with_no_inspection_fee_yields_zero(self, fake_finance):
-        # Fixed-gig / labor-gig flows don't carry an upfront inspection fee
-        # (inspection_fee is null). Decline still terminates the booking with
-        # final_cash_to_collect=0 so the cash button does not show a phantom
-        # number.
+    def test_decline_with_null_inspection_fee_defensive_fallback_zero(self, fake_finance):
+        # Defensive fallback path. INSPECTION-flow bookings created via
+        # ``create_instant_booking`` always populate ``inspection_fee``,
+        # so reaching ``decline_quote`` with a null fee implies a legacy
+        # row or a hand-built test fixture. The orchestrator floors to 0
+        # rather than crashing or surfacing a phantom number — but this
+        # is NOT the inspection-flow contract; that's covered by the
+        # ``test_happy_path_terminal_inspection_only`` case above which
+        # asserts a Rs.500 cash owed.
         booking = JobBookingQuotedFactory(inspection_fee=None)
         quote = QuoteFactory(booking=booking, status=Quote.STATUS_SUBMITTED)
         result = orchestrator.decline_quote(

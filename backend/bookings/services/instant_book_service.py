@@ -203,6 +203,11 @@ def create_instant_booking(
 
     # --- 6. Atomic slot lock + race condition check + creation ---
     from bookings.models import JobBooking  # avoid circular at module level
+    from bookings.selectors.pricing_selector import (
+        BOOKING_TYPE_INSPECTION,
+        BOOKING_TYPE_FIXED_GIG,
+        BOOKING_TYPE_LABOR_GIG,
+    )
     from bookings.services.job_request_dispatch import dispatch_job_new_request_event
 
     with transaction.atomic():
@@ -242,6 +247,42 @@ def create_instant_booking(
             promo_code_snapshot = None
             promo_discount_snapshot = None
 
+        # Address snapshot — street_address plus the richest locality field
+        # available. Survives ``customer.address.SET_NULL`` if the customer
+        # later deletes the address, so the receipt UI and admin view can
+        # still render where the visit happened.
+        locality = address.locality_label or address.city or ''
+        actual_address_snapshot = ', '.join(
+            p for p in (address.street_address, locality) if p
+        )
+
+        # Inspection-fee + final-cash columns (CLAUDE.md "Inspection Fee"
+        # rule). The orchestrator's quote-decision transitions read these
+        # to compute the cash-collected button number — the column has to
+        # be populated AT booking creation, not at quote time, so the
+        # decline path on a freshly-cancelled visit owes the right amount.
+        #
+        #   INSPECTION: customer pays the Rs.500 inspection fee per visit.
+        #               final_cash is unknown until the quote decision —
+        #               approve credits the 500 (cash = quote_total - 500),
+        #               decline turns the 500 into the cash owed.
+        #   FIXED_GIG / LABOR_GIG: no inspection step. Customer pays the
+        #               fixed/labor price in cash on completion. The cash
+        #               figure is final at booking time.
+        if intent.booking_type == BOOKING_TYPE_INSPECTION:
+            booking_inspection_fee = intent.service.base_inspection_fee
+            booking_final_cash = None
+        elif intent.booking_type in (BOOKING_TYPE_FIXED_GIG, BOOKING_TYPE_LABOR_GIG):
+            booking_inspection_fee = None
+            booking_final_cash = intent.primary_amount
+        else:
+            # Defensive: BOOKING_TYPE_UNKNOWN should never reach here
+            # (the resolver returns it only for caller-error cases the
+            # validations above already reject), but if it does, leave
+            # both columns null so downstream paths fall back safely.
+            booking_inspection_fee = None
+            booking_final_cash = None
+
         booking = JobBooking.objects.create(
             technician=tech,
             customer=customer_user,
@@ -264,6 +305,9 @@ def create_instant_booking(
             price_context=intent.price_context_label,
             promo_code_snapshot=promo_code_snapshot,
             promo_discount_snapshot=promo_discount_snapshot,
+            actual_address_snapshot=actual_address_snapshot,
+            inspection_fee=booking_inspection_fee,
+            final_cash_to_collect=booking_final_cash,
         )
 
         # Fire the realtime event AND arm the SLA timeout only after the
