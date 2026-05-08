@@ -26,3 +26,18 @@ def get_default_scheduler() -> JobDispatchScheduler:
     from bookings.adapters.celery_scheduler import CelerySchedulerAdapter
 
     return CelerySchedulerAdapter()
+
+
+def get_default_finance_service():
+    """
+    Return the production ``FinancePort`` adapter.
+
+    Lazy-imports ``NullFinanceAdapter`` for the booking orchestrator sprint;
+    the finance sprint swaps the body to return a wallet-backed adapter
+    without touching any service-layer caller. The lazy import preserves
+    the same boundary as ``get_default_scheduler``: importing
+    ``bookings.services.*`` must never transitively pull in finance code.
+    """
+    from bookings.adapters.null_finance import NullFinanceAdapter
+
+    return NullFinanceAdapter()
