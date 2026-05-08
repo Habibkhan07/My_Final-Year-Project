@@ -355,6 +355,19 @@ class SupportTicket(models.Model):
     status = models.CharField(max_length=16, choices=STATUS_CHOICES, default=STATUS_OPEN)
     resolution_outcome = models.CharField(max_length=32, choices=OUTCOME_CHOICES, default=OUTCOME_NONE)
     resolution_notes = models.TextField(blank=True, default='')
+    # The admin who resolved the dispute (audit trail; populated by
+    # ``orchestrator.admin_resolve_dispute``). PROTECT so deleting an
+    # admin user cannot orphan resolution attribution. Nullable for
+    # backwards compatibility with rows resolved before this column
+    # existed (none in production — pre-launch — but keeps the schema
+    # honest for tests that pre-create RESOLVED tickets).
+    resolved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name='resolved_tickets',
+    )
     opened_at = models.DateTimeField(auto_now_add=True)
     resolved_at = models.DateTimeField(null=True, blank=True)
 

@@ -1361,12 +1361,39 @@ def admin_resolve_dispute(
         ticket.resolution_outcome = outcome
         ticket.resolution_notes = notes
         ticket.resolved_at = now
+        ticket.resolved_by = admin_user
         ticket.save(update_fields=[
-            'status', 'resolution_outcome', 'resolution_notes', 'resolved_at',
+            'status', 'resolution_outcome', 'resolution_notes',
+            'resolved_at', 'resolved_by',
         ])
 
+        # Stamp the booking's terminal-state audit columns to mirror what
+        # the user-facing transitions (cancel_by_*, mark_complete_with_cash)
+        # write. Without this, an admin-resolved cancellation has
+        # ``status=CANCELLED`` but ``cancelled_at IS NULL``, which silently
+        # drops it from any analytics filtering on the timestamp; same for
+        # COMPLETED + completed_at. Cash columns are intentionally NOT
+        # touched — admin resolution doesn't collect cash; whatever was
+        # collected pre-dispute (or none) is the legitimate value.
         booking.status = final_status
-        booking.save(update_fields=['status'])
+        booking_update_fields = ['status']
+        if final_status == JobBooking.STATUS_CANCELLED:
+            booking.cancelled_at = now
+            booking.cancelled_by = admin_user
+            booking.cancel_reason = 'admin_resolved_dispute'
+            booking_update_fields += [
+                'cancelled_at', 'cancelled_by', 'cancel_reason',
+            ]
+        elif final_status in (
+            JobBooking.STATUS_COMPLETED,
+            JobBooking.STATUS_COMPLETED_INSPECTION_ONLY,
+        ):
+            # Preserve a pre-existing completion timestamp (dispute opened
+            # on an already-COMPLETED booking, admin upholds completion).
+            if booking.completed_at is None:
+                booking.completed_at = now
+                booking_update_fields.append('completed_at')
+        booking.save(update_fields=booking_update_fields)
 
         # Capture admin identity in the broadcast for audit. SupportTicket has
         # no ``resolved_by`` column today; surfacing the admin's username on

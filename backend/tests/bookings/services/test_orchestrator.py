@@ -1202,6 +1202,99 @@ class TestAdminResolveDispute:
                 finance=fake_finance,
             )
 
+    def test_resolution_to_cancelled_stamps_audit_columns(self, fake_finance, captured_broadcasts):
+        # Reports that filter on cancelled_at / cancelled_by must see
+        # admin-resolved cancellations. Without the stamp, those
+        # bookings have status=CANCELLED but null audit columns.
+        booking = JobBookingFactory(status=JobBooking.STATUS_DISPUTED)
+        ticket = SupportTicket.objects.create(
+            booking=booking, opened_by=booking.customer,
+            initial_reason='x', status=SupportTicket.STATUS_OPEN,
+        )
+        admin = UserFactory(username='+923009999999')
+        orchestrator.admin_resolve_dispute(
+            ticket_id=ticket.id, admin_user=admin,
+            outcome=SupportTicket.OUTCOME_REFUND_CUSTOMER,
+            notes='valid claim',
+            final_status=JobBooking.STATUS_CANCELLED,
+            finance=fake_finance,
+        )
+        booking.refresh_from_db()
+        assert booking.status == JobBooking.STATUS_CANCELLED
+        assert booking.cancelled_at is not None
+        assert booking.cancelled_by_id == admin.id
+        assert booking.cancel_reason == 'admin_resolved_dispute'
+
+    def test_resolution_to_completed_stamps_completed_at(self, fake_finance, captured_broadcasts):
+        # Admin upholds completion on a disputed booking that never
+        # reached COMPLETED on its own (dispute opened mid-flow). The
+        # completed_at column must be stamped so the booking shows up
+        # in completion analytics.
+        booking = JobBookingFactory(status=JobBooking.STATUS_DISPUTED)
+        ticket = SupportTicket.objects.create(
+            booking=booking, opened_by=booking.customer,
+            initial_reason='x', status=SupportTicket.STATUS_OPEN,
+        )
+        assert booking.completed_at is None  # precondition
+        orchestrator.admin_resolve_dispute(
+            ticket_id=ticket.id, admin_user=UserFactory(),
+            outcome=SupportTicket.OUTCOME_DISMISS,
+            notes='customer claim unsupported',
+            final_status=JobBooking.STATUS_COMPLETED,
+            finance=fake_finance,
+        )
+        booking.refresh_from_db()
+        assert booking.status == JobBooking.STATUS_COMPLETED
+        assert booking.completed_at is not None
+
+    def test_resolution_to_completed_preserves_existing_completed_at(self, fake_finance, captured_broadcasts):
+        # Dispute opened on a booking that was ALREADY completed before
+        # the dispute was filed. Admin upholds the completion. The
+        # original completed_at must be preserved — overwriting it to
+        # ``now`` would falsify the historical record of when work
+        # actually finished.
+        original_completion = timezone.now() - timezone.timedelta(days=3)
+        booking = JobBookingFactory(
+            status=JobBooking.STATUS_DISPUTED,
+            completed_at=original_completion,
+        )
+        ticket = SupportTicket.objects.create(
+            booking=booking, opened_by=booking.customer,
+            initial_reason='x', status=SupportTicket.STATUS_OPEN,
+        )
+        orchestrator.admin_resolve_dispute(
+            ticket_id=ticket.id, admin_user=UserFactory(),
+            outcome=SupportTicket.OUTCOME_DISMISS, notes='',
+            final_status=JobBooking.STATUS_COMPLETED,
+            finance=fake_finance,
+        )
+        booking.refresh_from_db()
+        # Use isoformat to dodge timezone-aware-vs-naive comparison
+        # quirks if the factory stored a different tzinfo than
+        # timezone.now() returns.
+        assert booking.completed_at == original_completion
+
+    def test_resolved_by_recorded_on_ticket(self, fake_finance, captured_broadcasts):
+        # Permanent audit trail for the dispute resolution. The WS
+        # broadcast captures the admin username for ephemeral display,
+        # but the DB row must hold the FK so a future audit query can
+        # answer "which admin resolved ticket #N" without reading WS
+        # logs.
+        booking = JobBookingFactory(status=JobBooking.STATUS_DISPUTED)
+        ticket = SupportTicket.objects.create(
+            booking=booking, opened_by=booking.customer,
+            initial_reason='x', status=SupportTicket.STATUS_OPEN,
+        )
+        admin = UserFactory(username='+923001112222')
+        orchestrator.admin_resolve_dispute(
+            ticket_id=ticket.id, admin_user=admin,
+            outcome=SupportTicket.OUTCOME_DISMISS, notes='',
+            final_status=JobBooking.STATUS_CANCELLED,
+            finance=fake_finance,
+        )
+        ticket.refresh_from_db()
+        assert ticket.resolved_by_id == admin.id
+
 
 # ---------------------------------------------------------------------------
 # reschedule
