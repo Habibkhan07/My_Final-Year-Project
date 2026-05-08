@@ -36,6 +36,7 @@ from typing import Any, Iterable
 from django.db import transaction
 from django.db.models import Sum as models_sum
 from django.utils import timezone
+from rest_framework import status as drf_status
 
 from bookings.exceptions import (
     BookingValidationError,
@@ -43,6 +44,7 @@ from bookings.exceptions import (
     ERROR_DISPUTE_NOT_DISPUTABLE_STATUS,
     ERROR_INVALID_QUOTE_EMPTY,
     ERROR_INVALID_TRANSITION,
+    ERROR_NO_SHOW_TOO_EARLY,
     ERROR_NOT_ASSIGNED_TO_YOU,
     ERROR_QUOTE_BAND_VIOLATION,
     ERROR_RESCHEDULE_NOT_ALLOWED,
@@ -112,19 +114,49 @@ def _lock_booking(booking_id: int) -> JobBooking:
 
     Nested catalog FKs ride along so payload composition (service/sub_service
     name) doesn't fire follow-up queries inside the lock window.
+
+    Bad ``booking_id`` (no row, deleted, never existed) raises a 404
+    envelope rather than a bare ``JobBooking.DoesNotExist`` so the future
+    HTTP layer never has to translate. Every transition function inherits
+    this behaviour by virtue of routing every booking fetch through here.
     """
-    return (
-        JobBooking.objects
-        .select_for_update()
-        .select_related(
-            'technician__user',
-            'customer',
-            'service',
-            'sub_service',
-            'address',
+    try:
+        return (
+            JobBooking.objects
+            .select_for_update()
+            .select_related(
+                'technician__user',
+                'customer',
+                'service',
+                'sub_service',
+                'address',
+            )
+            .get(id=booking_id)
         )
-        .get(id=booking_id)
-    )
+    except JobBooking.DoesNotExist:
+        raise BookingValidationError(
+            code=ERROR_INVALID_TRANSITION,
+            message='Booking not found.',
+            status=drf_status.HTTP_404_NOT_FOUND,
+        )
+
+
+def _get_booking_quote_locked(booking: JobBooking, quote_id: int) -> Quote:
+    """Fetch a booking-scoped quote under select_for_update, raising the
+    canonical envelope on a missing or cross-booking id.
+
+    The booking-scope on the manager (``booking.quotes``) doubles as an
+    IDOR guard: a quote_id from another booking returns DoesNotExist
+    here, indistinguishable from "never existed."
+    """
+    try:
+        return booking.quotes.select_for_update().get(id=quote_id)
+    except Quote.DoesNotExist:
+        raise BookingValidationError(
+            code=ERROR_INVALID_TRANSITION,
+            message='Quote not found on this booking.',
+            status=drf_status.HTTP_404_NOT_FOUND,
+        )
 
 
 def _require_assigned_tech(booking: JobBooking, technician_user) -> None:
@@ -275,14 +307,21 @@ def start_inspection(*, booking_id: int, technician_user, finance=None) -> JobBo
 # ---------------------------------------------------------------------------
 
 
-def _validate_line_items(line_items: list[dict]) -> None:
+def _validate_line_items(line_items: list) -> None:
     """Schema and pricing-band check on submit_quote input.
 
-    Empty list → ERROR_INVALID_QUOTE_EMPTY.
-    Each dict must carry sub_service_id, quantity, priced_at.
+    Empty list -> ERROR_INVALID_QUOTE_EMPTY.
+    Each item must be a dict carrying ``sub_service_id`` and ``priced_at``;
+    ``quantity`` defaults to 1.
     Per-line band:
         fixed-price: priced_at == base_price
-        labor:      base_price <= priced_at <= max_price (max_price required)
+        labor:       base_price <= priced_at <= max_price (max_price required)
+
+    Defensive parsing: malformed items (non-dict, missing keys, unparsable
+    Decimal) raise ``BookingValidationError`` with a field-level
+    ``errors[f'line_items[{idx}].field']`` map. Session-2 serializers will
+    catch most of this earlier, but the service is the canonical
+    validator and must not crash on bad input.
     """
     if not line_items:
         raise BookingValidationError(
@@ -292,13 +331,69 @@ def _validate_line_items(line_items: list[dict]) -> None:
 
     from catalog.models import SubService
 
-    sub_ids = [li['sub_service_id'] for li in line_items]
+    # First pass: structural validation — every item must be a dict with
+    # the required keys before we attempt the catalog fetch. Collecting
+    # sub_service_ids cleanly here keeps the catalog query single-shot.
+    sub_ids: list[int] = []
+    for idx, li in enumerate(line_items):
+        if not isinstance(li, dict):
+            raise BookingValidationError(
+                code=ERROR_QUOTE_BAND_VIOLATION,
+                message='Line item must be an object.',
+                errors={f'line_items[{idx}]': ['expected an object']},
+            )
+        if 'sub_service_id' not in li:
+            raise BookingValidationError(
+                code=ERROR_QUOTE_BAND_VIOLATION,
+                message='Line item missing sub_service_id.',
+                errors={f'line_items[{idx}].sub_service_id': ['required']},
+            )
+        if 'priced_at' not in li:
+            raise BookingValidationError(
+                code=ERROR_QUOTE_BAND_VIOLATION,
+                message='Line item missing priced_at.',
+                errors={f'line_items[{idx}].priced_at': ['required']},
+            )
+        sub_ids.append(li['sub_service_id'])
+
     sub_map = {s.id: s for s in SubService.objects.filter(id__in=sub_ids)}
 
     for idx, li in enumerate(line_items):
         sub_id = li['sub_service_id']
         quantity = li.get('quantity', 1)
-        priced_at = Decimal(str(li['priced_at']))
+
+        # Decimal parsing: priced_at can arrive as str / int / float /
+        # Decimal / None. Wrap and surface a field-keyed envelope on
+        # failure rather than letting decimal.InvalidOperation escape.
+        try:
+            priced_at = Decimal(str(li['priced_at']))
+        except (TypeError, ValueError, ArithmeticError):
+            raise BookingValidationError(
+                code=ERROR_QUOTE_BAND_VIOLATION,
+                message='priced_at is not a valid decimal.',
+                errors={f'line_items[{idx}].priced_at': [
+                    f'invalid decimal: {li["priced_at"]!r}',
+                ]},
+            )
+
+        # Quantity sanity. Accepts ints + numeric-looking strings; rejects
+        # zero, negative, and unparsable.
+        try:
+            quantity = int(quantity)
+        except (TypeError, ValueError):
+            raise BookingValidationError(
+                code=ERROR_QUOTE_BAND_VIOLATION,
+                message='Quantity must be an integer.',
+                errors={f'line_items[{idx}].quantity': [
+                    f'invalid integer: {li.get("quantity")!r}',
+                ]},
+            )
+        if quantity <= 0:
+            raise BookingValidationError(
+                code=ERROR_QUOTE_BAND_VIOLATION,
+                message='Quantity must be positive.',
+                errors={f'line_items[{idx}].quantity': ['must be > 0']},
+            )
 
         sub = sub_map.get(sub_id)
         if sub is None:
@@ -306,13 +401,6 @@ def _validate_line_items(line_items: list[dict]) -> None:
                 code=ERROR_QUOTE_BAND_VIOLATION,
                 message='Unknown sub-service in quote.',
                 errors={f'line_items[{idx}].sub_service_id': ['not found']},
-            )
-
-        if quantity <= 0:
-            raise BookingValidationError(
-                code=ERROR_QUOTE_BAND_VIOLATION,
-                message='Quantity must be positive.',
-                errors={f'line_items[{idx}].quantity': ['must be > 0']},
             )
 
         if sub.is_fixed_price:
@@ -474,13 +562,7 @@ def request_revision(
                 booking, 'Revision can only be requested on a QUOTED booking.',
             )
 
-        try:
-            quote = booking.quotes.select_for_update().get(id=quote_id)
-        except Quote.DoesNotExist:
-            raise BookingValidationError(
-                code=ERROR_INVALID_TRANSITION,
-                message='Quote not found on this booking.',
-            )
+        quote = _get_booking_quote_locked(booking, quote_id)
 
         if quote.status != Quote.STATUS_SUBMITTED:
             raise BookingValidationError(
@@ -533,13 +615,12 @@ def approve_quote(
         booking = _lock_booking(booking_id)
         _require_customer(booking, customer_user)
 
-        try:
-            quote = booking.quotes.select_for_update().prefetch_related('line_items').get(id=quote_id)
-        except Quote.DoesNotExist:
-            raise BookingValidationError(
-                code=ERROR_INVALID_TRANSITION,
-                message='Quote not found on this booking.',
-            )
+        # ``_get_booking_quote_locked`` raises the canonical 404 envelope
+        # on miss / cross-booking id. We then prefetch line_items via a
+        # second query — splitting the lock+prefetch is fine because the
+        # lock only needs to cover the Quote row's status flip.
+        quote = _get_booking_quote_locked(booking, quote_id)
+        quote = booking.quotes.prefetch_related('line_items').get(id=quote.id)
 
         if quote.status != Quote.STATUS_SUBMITTED:
             raise BookingValidationError(
@@ -649,13 +730,7 @@ def decline_quote(
                 booking, 'Decline only valid from QUOTED state.',
             )
 
-        try:
-            quote = booking.quotes.select_for_update().get(id=quote_id)
-        except Quote.DoesNotExist:
-            raise BookingValidationError(
-                code=ERROR_INVALID_TRANSITION,
-                message='Quote not found on this booking.',
-            )
+        quote = _get_booking_quote_locked(booking, quote_id)
 
         if quote.status != Quote.STATUS_SUBMITTED:
             raise BookingValidationError(
@@ -715,17 +790,40 @@ def mark_complete_with_cash(
     ``job_completed`` to the customer.
     """
     finance = _resolve_finance(finance)
-    cash_amount_d = Decimal(str(cash_amount))
+    # Decimal coercion outside the atomic so the canonical envelope fires
+    # before any DB work. Bad input (None, 'abc', etc.) becomes a clean
+    # 400 instead of a decimal.InvalidOperation 500.
+    try:
+        cash_amount_d = Decimal(str(cash_amount))
+    except (TypeError, ValueError, ArithmeticError):
+        raise BookingValidationError(
+            code=ERROR_INVALID_TRANSITION,
+            message='Cash amount is not a valid decimal.',
+            errors={'cash_amount': [f'invalid decimal: {cash_amount!r}']},
+        )
 
     with transaction.atomic():
         booking = _lock_booking(booking_id)
         _require_assigned_tech(booking, technician_user)
 
+        # Idempotent re-entry runs BEFORE the positive-cash guard so a
+        # duplicate POST from a flaky client never re-validates an amount
+        # that was accepted on the original call.
         if booking.status == JobBooking.STATUS_COMPLETED:
             return booking
 
         if booking.status != JobBooking.STATUS_IN_PROGRESS:
             _reject_invalid_from_state(booking, 'Completion only valid from IN_PROGRESS.')
+
+        # Sanity floor: tech taps a single button with the server-derived
+        # final_cash_to_collect; the only way zero / negative reaches the
+        # service is a malformed client. Surface a clean envelope.
+        if cash_amount_d <= Decimal('0'):
+            raise BookingValidationError(
+                code=ERROR_INVALID_TRANSITION,
+                message='Cash amount must be positive.',
+                errors={'cash_amount': ['must be > 0']},
+            )
 
         now = timezone.now()
         booking.status = JobBooking.STATUS_COMPLETED
@@ -1168,22 +1266,39 @@ def admin_resolve_dispute(
         )
 
     with transaction.atomic():
+        # Lock-ordering: booking first, ticket second — matches every
+        # user-facing transition (which only ever locks the booking),
+        # so an admin resolving a dispute concurrent with a customer or
+        # tech action can never deadlock-cycle.
+        #
+        # The unlocked ticket fetch only reads ``booking_id``; the row
+        # is then re-fetched under the booking's lock with
+        # select_for_update so the actual mutation is fully serialized.
         try:
-            ticket = (
-                SupportTicket.objects
-                .select_for_update()
-                .select_related('booking__customer', 'booking__technician__user')
-                .get(id=ticket_id)
-            )
+            unlocked_ticket = SupportTicket.objects.only(
+                'id', 'booking_id', 'status',
+            ).get(id=ticket_id)
         except SupportTicket.DoesNotExist:
             raise BookingValidationError(
                 code=ERROR_INVALID_TRANSITION,
                 message='Dispute ticket not found.',
+                status=drf_status.HTTP_404_NOT_FOUND,
             )
-        if ticket.status == SupportTicket.STATUS_RESOLVED:
-            return ticket  # idempotent
+        if unlocked_ticket.status == SupportTicket.STATUS_RESOLVED:
+            return unlocked_ticket  # idempotent — no lock needed
 
-        booking = JobBooking.objects.select_for_update().get(id=ticket.booking_id)
+        booking = _lock_booking(unlocked_ticket.booking_id)
+        ticket = (
+            SupportTicket.objects
+            .select_for_update()
+            .select_related('booking__customer', 'booking__technician__user')
+            .get(id=ticket_id)
+        )
+        # Re-check resolution under the lock — concurrent admin clicks
+        # could both pass the unlocked check above; only one wins the
+        # lock and the loser short-circuits.
+        if ticket.status == SupportTicket.STATUS_RESOLVED:
+            return ticket
 
         now = timezone.now()
         ticket.status = SupportTicket.STATUS_RESOLVED

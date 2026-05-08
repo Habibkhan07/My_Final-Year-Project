@@ -25,6 +25,7 @@ from bookings.services.auto_transition import (
     EN_ROUTE_THRESHOLD_METERS,
     _haversine_meters,
 )
+from tests.factories.accounts import UserFactory
 from tests.factories.bookings import (
     JobBookingArrivedFactory,
     JobBookingConfirmedFactory,
@@ -177,3 +178,42 @@ class TestEvaluateOnLocation:
             technician_user=booking.technician.user,
         )
         assert result is None
+
+    def test_unauthorized_tech_returns_none_silently(self, patched_orchestrator):
+        # Defense-in-depth: a tech who doesn't own the booking gets the
+        # same response as a "no trigger" frame, regardless of whether
+        # the lat/lng would have flipped the status. Without this guard
+        # the orchestrator's ERROR_NOT_ASSIGNED_TO_YOU rejection would
+        # leak booking-state information across techs.
+        addr = CustomerAddressFactory(
+            latitude=Decimal(str(LIBERTY_LAT)),
+            longitude=Decimal(str(LIBERTY_LNG)),
+        )
+        booking = JobBookingConfirmedFactory(address=addr)
+        attacker = UserFactory()
+        # Send a lat/lng that WOULD trigger en_route for the real tech.
+        result = auto_transition.evaluate_on_location(
+            booking_id=booking.id,
+            lat=GULBERG_LAT, lng=GULBERG_LNG,
+            technician_user=attacker,
+        )
+        assert result is None
+        patched_orchestrator['en_route'].assert_not_called()
+        patched_orchestrator['arrived'].assert_not_called()
+
+    def test_none_technician_user_returns_none_silently(self, patched_orchestrator):
+        # Defensive: a caller passing technician_user=None (e.g. an
+        # unauthenticated request that slipped past the view layer) must
+        # never reach the orchestrator.
+        addr = CustomerAddressFactory(
+            latitude=Decimal(str(LIBERTY_LAT)),
+            longitude=Decimal(str(LIBERTY_LNG)),
+        )
+        booking = JobBookingConfirmedFactory(address=addr)
+        result = auto_transition.evaluate_on_location(
+            booking_id=booking.id,
+            lat=GULBERG_LAT, lng=GULBERG_LNG,
+            technician_user=None,
+        )
+        assert result is None
+        patched_orchestrator['en_route'].assert_not_called()

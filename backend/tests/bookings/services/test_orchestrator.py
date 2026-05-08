@@ -1171,3 +1171,248 @@ class TestDefaultFinanceResolution:
             )
         booking.refresh_from_db()
         assert booking.status == JobBooking.STATUS_EN_ROUTE
+
+
+# ---------------------------------------------------------------------------
+# Defensive hardening — bad input, lock ordering, missing rows.
+#
+# Pre-fix audit found the orchestrator would crash with a 500 on bad
+# booking_id / quote_id / cash_amount / malformed line items. The
+# canonical envelope contract requires every failure mode return a
+# ``{status, code, message, errors}`` envelope; these tests pin that.
+# ---------------------------------------------------------------------------
+
+
+class TestLockBookingNotFound:
+    """Every transition routes booking fetches through ``_lock_booking``,
+    so wrapping its DoesNotExist into the canonical envelope auto-covers
+    every transition function."""
+
+    def test_en_route_unknown_booking_raises_404_envelope(self, fake_finance):
+        with pytest.raises(BookingValidationError) as exc_info:
+            orchestrator.en_route(
+                booking_id=999_999_999,
+                technician_user=UserFactory(),
+                finance=fake_finance,
+            )
+        assert exc_info.value.code == 'invalid_transition'
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.message == 'Booking not found.'
+
+    def test_cancel_unknown_booking_raises_404_envelope(self, fake_finance):
+        with pytest.raises(BookingValidationError) as exc_info:
+            orchestrator.cancel_by_customer(
+                booking_id=999_999_999,
+                customer_user=UserFactory(),
+                finance=fake_finance,
+            )
+        assert exc_info.value.status_code == 404
+
+
+class TestQuoteNotFoundOnBooking:
+    def test_approve_quote_with_unknown_id_raises_404(self, fake_finance):
+        booking = JobBookingQuotedFactory()
+        with pytest.raises(BookingValidationError) as exc_info:
+            orchestrator.approve_quote(
+                booking_id=booking.id,
+                customer_user=booking.customer,
+                quote_id=999_999_999,
+                finance=fake_finance,
+            )
+        assert exc_info.value.status_code == 404
+        assert exc_info.value.message == 'Quote not found on this booking.'
+
+    def test_approve_quote_with_other_bookings_quote_raises_404(self, fake_finance):
+        # IDOR-safety: quote belongs to a different booking. The
+        # booking-scoped manager prevents the cross-leak; the test
+        # confirms the canonical 404 surfaces (not "not submitted" or
+        # similar leaks of the foreign quote's state).
+        booking_a = JobBookingQuotedFactory()
+        booking_b = JobBookingQuotedFactory()
+        foreign_quote = QuoteFactory(booking=booking_b, status=Quote.STATUS_SUBMITTED)
+        with pytest.raises(BookingValidationError) as exc_info:
+            orchestrator.approve_quote(
+                booking_id=booking_a.id,
+                customer_user=booking_a.customer,
+                quote_id=foreign_quote.id,
+                finance=fake_finance,
+            )
+        assert exc_info.value.status_code == 404
+
+    def test_request_revision_with_unknown_quote_raises_404(self, fake_finance):
+        booking = JobBookingQuotedFactory()
+        with pytest.raises(BookingValidationError) as exc_info:
+            orchestrator.request_revision(
+                booking_id=booking.id,
+                customer_user=booking.customer,
+                quote_id=999_999_999,
+                reason='x',
+                finance=fake_finance,
+            )
+        assert exc_info.value.status_code == 404
+
+
+class TestSubmitQuoteMalformedInput:
+    """The orchestrator is the canonical line-item validator (session-2
+    serializers will catch most of this earlier, but the service must not
+    crash). Every bad-input branch returns a field-keyed envelope."""
+
+    def _booking(self):
+        return JobBookingInspectingFactory()
+
+    def test_non_dict_item_rejected(self, fake_finance):
+        with pytest.raises(BookingValidationError) as exc_info:
+            orchestrator.submit_quote(
+                booking_id=self._booking().id,
+                technician_user=UserFactory(),
+                line_items=['not a dict'],
+                finance=fake_finance,
+            )
+        assert exc_info.value.code == 'quote_band_violation'
+        assert 'line_items[0]' in exc_info.value.errors
+
+    def test_missing_sub_service_id_rejected(self, fake_finance):
+        with pytest.raises(BookingValidationError) as exc_info:
+            orchestrator.submit_quote(
+                booking_id=self._booking().id,
+                technician_user=UserFactory(),
+                line_items=[{'priced_at': '500'}],
+                finance=fake_finance,
+            )
+        assert 'line_items[0].sub_service_id' in exc_info.value.errors
+
+    def test_missing_priced_at_rejected(self, fake_finance):
+        sub = LaborSubServiceFactory(base_price=Decimal('500'), max_price=Decimal('1500'))
+        with pytest.raises(BookingValidationError) as exc_info:
+            orchestrator.submit_quote(
+                booking_id=self._booking().id,
+                technician_user=UserFactory(),
+                line_items=[{'sub_service_id': sub.id}],
+                finance=fake_finance,
+            )
+        assert 'line_items[0].priced_at' in exc_info.value.errors
+
+    def test_unparsable_priced_at_rejected(self, fake_finance):
+        sub = LaborSubServiceFactory(base_price=Decimal('500'), max_price=Decimal('1500'))
+        with pytest.raises(BookingValidationError) as exc_info:
+            orchestrator.submit_quote(
+                booking_id=self._booking().id,
+                technician_user=UserFactory(),
+                line_items=[{'sub_service_id': sub.id, 'priced_at': 'oops'}],
+                finance=fake_finance,
+            )
+        assert 'line_items[0].priced_at' in exc_info.value.errors
+
+    def test_unparsable_quantity_rejected(self, fake_finance):
+        sub = LaborSubServiceFactory(base_price=Decimal('500'), max_price=Decimal('1500'))
+        with pytest.raises(BookingValidationError) as exc_info:
+            orchestrator.submit_quote(
+                booking_id=self._booking().id,
+                technician_user=UserFactory(),
+                line_items=[{
+                    'sub_service_id': sub.id,
+                    'priced_at': '500',
+                    'quantity': 'two',
+                }],
+                finance=fake_finance,
+            )
+        assert 'line_items[0].quantity' in exc_info.value.errors
+
+
+class TestMarkCompleteCashAmountValidation:
+    def test_zero_cash_rejected(self, fake_finance):
+        booking = JobBookingInProgressFactory()
+        with pytest.raises(BookingValidationError) as exc_info:
+            orchestrator.mark_complete_with_cash(
+                booking_id=booking.id,
+                technician_user=booking.technician.user,
+                cash_amount=Decimal('0'),
+                finance=fake_finance,
+            )
+        assert exc_info.value.code == 'invalid_transition'
+        assert 'cash_amount' in exc_info.value.errors
+
+    def test_negative_cash_rejected(self, fake_finance):
+        booking = JobBookingInProgressFactory()
+        with pytest.raises(BookingValidationError):
+            orchestrator.mark_complete_with_cash(
+                booking_id=booking.id,
+                technician_user=booking.technician.user,
+                cash_amount=Decimal('-100'),
+                finance=fake_finance,
+            )
+
+    def test_unparsable_cash_rejected(self, fake_finance):
+        booking = JobBookingInProgressFactory()
+        with pytest.raises(BookingValidationError) as exc_info:
+            orchestrator.mark_complete_with_cash(
+                booking_id=booking.id,
+                technician_user=booking.technician.user,
+                cash_amount='not a number',
+                finance=fake_finance,
+            )
+        assert 'cash_amount' in exc_info.value.errors
+
+    def test_idempotent_replay_with_zero_does_not_validate(self, fake_finance):
+        # Already-COMPLETED booking. Idempotent replay short-circuits
+        # BEFORE the positive-cash guard fires — a network-flaky client
+        # re-posting with a stale (or buggy) zero amount should NOT
+        # surface a 400; the transaction was already terminal on the
+        # first call.
+        booking = JobBookingInProgressFactory(
+            status=JobBooking.STATUS_COMPLETED,
+            cash_collected_amount=Decimal('1500.00'),
+            completed_at=timezone.now(),
+        )
+        result = orchestrator.mark_complete_with_cash(
+            booking_id=booking.id,
+            technician_user=booking.technician.user,
+            cash_amount=Decimal('0'),
+            finance=fake_finance,
+        )
+        assert result.status == JobBooking.STATUS_COMPLETED
+
+
+class TestAdminResolveDisputeLockOrdering:
+    """The audit found admin_resolve_dispute locked ticket-then-booking
+    while every user transition locks booking-first. The order is now
+    booking-first to match. These tests pin the corrected behaviour
+    against regression."""
+
+    def test_unknown_ticket_raises_404(self, fake_finance):
+        with pytest.raises(BookingValidationError) as exc_info:
+            orchestrator.admin_resolve_dispute(
+                ticket_id=999_999_999,
+                admin_user=UserFactory(),
+                outcome=SupportTicket.OUTCOME_DISMISS,
+                notes='',
+                final_status=JobBooking.STATUS_CANCELLED,
+                finance=fake_finance,
+            )
+        assert exc_info.value.status_code == 404
+
+    def test_idempotent_resolved_ticket_returns_without_locking(self, fake_finance):
+        # The unlocked-fetch + resolved-check path means this case never
+        # acquires the booking lock. Hard to assert "no lock" directly
+        # in pytest-django's savepoint mode, but we assert behavioural
+        # equivalence: result is the same ticket, booking unchanged.
+        booking = JobBookingFactory(status=JobBooking.STATUS_DISPUTED)
+        ticket = SupportTicket.objects.create(
+            booking=booking, opened_by=booking.customer,
+            initial_reason='x', status=SupportTicket.STATUS_RESOLVED,
+            resolution_outcome=SupportTicket.OUTCOME_DISMISS,
+            resolved_at=timezone.now(),
+        )
+        result = orchestrator.admin_resolve_dispute(
+            ticket_id=ticket.id,
+            admin_user=UserFactory(),
+            outcome=SupportTicket.OUTCOME_DISMISS,
+            notes='retry',
+            final_status=JobBooking.STATUS_CANCELLED,
+            finance=fake_finance,
+        )
+        assert result.id == ticket.id
+        booking.refresh_from_db()
+        # Booking status untouched — early-return fired BEFORE the lock /
+        # mutation pair.
+        assert booking.status == JobBooking.STATUS_DISPUTED

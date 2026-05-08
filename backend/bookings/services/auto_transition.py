@@ -57,8 +57,23 @@ def evaluate_on_location(
     of an active state at the next reload.
     """
     try:
-        booking = JobBooking.objects.select_related('address').get(id=booking_id)
+        booking = (
+            JobBooking.objects
+            .select_related('address', 'technician__user')
+            .get(id=booking_id)
+        )
     except JobBooking.DoesNotExist:
+        return None
+
+    # Ownership early-return (defense-in-depth). The session-2 view layer
+    # will gate on technician identity before reaching here, but the
+    # service is the canonical entry point and must not trust callers.
+    # An unauthorized tech sending varied lat/lng would otherwise be able
+    # to distinguish "no trigger" (None) from "would-flip-but-rejected"
+    # (orchestrator raises ERROR_NOT_ASSIGNED_TO_YOU) — a faint info-leak
+    # about booking state. Returning None for non-owning callers
+    # collapses both branches into the same response.
+    if technician_user is None or booking.technician.user_id != getattr(technician_user, 'id', None):
         return None
 
     if booking.address is None:
