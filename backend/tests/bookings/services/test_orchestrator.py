@@ -1280,6 +1280,73 @@ class TestReschedule:
         assert child.promo_code_snapshot == 'WINTER25'
         assert child.promo_discount_snapshot == Decimal('250.00')
 
+    def test_final_cash_to_collect_carried_to_child(self, fake_finance):
+        # Phase 1 invariant: every newly-created booking has the cash
+        # columns populated for its booking type. FIXED_GIG / LABOR_GIG
+        # bookings carry final_cash_to_collect from creation; the
+        # reschedule child must mirror that value or the cash button on
+        # the rescheduled booking renders empty until quote-approve
+        # re-derives it.
+        booking = JobBookingConfirmedFactory(
+            final_cash_to_collect=Decimal('1000.00'),
+        )
+        new_start = booking.scheduled_start + timezone.timedelta(days=1)
+        with patch('bookings.services.job_request_dispatch.dispatch_job_new_request_event'):
+            child = orchestrator.reschedule(
+                original_booking_id=booking.id,
+                customer_user=booking.customer,
+                new_scheduled_start=new_start,
+                new_scheduled_end=new_start + timezone.timedelta(hours=1),
+                finance=fake_finance,
+            )
+        assert child.final_cash_to_collect == Decimal('1000.00')
+
+    def test_new_slot_overlap_with_other_booking_rejected(self, fake_finance):
+        # Without the new tech-profile lock + overlap re-check, a customer
+        # could reschedule INTO a window already claimed by another
+        # AWAITING/CONFIRMED booking on the same technician — silently
+        # double-booking the tech. This test pins the rejection.
+        booking = JobBookingConfirmedFactory()
+        new_start = booking.scheduled_start + timezone.timedelta(days=1)
+        new_end = new_start + timezone.timedelta(hours=1)
+        # A second booking already owns the target slot.
+        JobBookingConfirmedFactory(
+            technician=booking.technician,
+            scheduled_start=new_start,
+            scheduled_end=new_end,
+        )
+        with pytest.raises(BookingValidationError) as exc_info:
+            orchestrator.reschedule(
+                original_booking_id=booking.id,
+                customer_user=booking.customer,
+                new_scheduled_start=new_start,
+                new_scheduled_end=new_end,
+                finance=fake_finance,
+            )
+        assert exc_info.value.code == 'reschedule_not_allowed'
+        assert 'new_scheduled_start' in exc_info.value.errors
+
+    def test_overlap_query_excludes_original_being_rescheduled(self, fake_finance):
+        # The customer reschedules into a window that overlaps the
+        # original's own current window (e.g. shortening duration without
+        # changing start time). The overlap query must exclude the
+        # original itself — it's about to be cancelled — otherwise a
+        # legitimate same-slot adjustment would self-overlap and reject.
+        booking = JobBookingConfirmedFactory()
+        new_start = booking.scheduled_start
+        new_end = booking.scheduled_end - timezone.timedelta(minutes=30)
+        with patch('bookings.services.job_request_dispatch.dispatch_job_new_request_event'):
+            child = orchestrator.reschedule(
+                original_booking_id=booking.id,
+                customer_user=booking.customer,
+                new_scheduled_start=new_start,
+                new_scheduled_end=new_end,
+                finance=fake_finance,
+            )
+        assert child.scheduled_end == new_end
+        booking.refresh_from_db()
+        assert booking.status == JobBooking.STATUS_CANCELLED
+
 
 # ---------------------------------------------------------------------------
 # Default finance factory wiring

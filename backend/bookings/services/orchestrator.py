@@ -59,6 +59,7 @@ from bookings.models import (
     TicketEvidence,
 )
 from realtime.constants.event_types import EventType
+from technicians.models import TechnicianProfile
 
 
 # ---------------------------------------------------------------------------
@@ -1442,6 +1443,35 @@ def reschedule(
                 errors={'current_status': [original.status]},
             )
 
+        # Lock the technician row + re-check the new window for an overlap.
+        # Mirrors instant_book_service: without this lock, a concurrent
+        # instant-book and a reschedule INTO the same target slot can both
+        # pass their respective checks under READ_COMMITTED and double-book
+        # the technician. Lock ordering (booking → tech profile) is safe:
+        # instant_book_service only locks the tech profile, never a booking
+        # row, so no deadlock cycle is reachable.
+        # ``.exclude(id=original.id)`` is required because the original is
+        # still in AWAITING/CONFIRMED at this moment (the cancellation
+        # mutation runs below); without the exclude, shortening the
+        # original's window in-place would self-overlap.
+        TechnicianProfile.objects.select_for_update().get(pk=original.technician_id)
+        overlap_exists = JobBooking.objects.filter(
+            technician=original.technician,
+            status__in=[
+                JobBooking.STATUS_PENDING,
+                JobBooking.STATUS_AWAITING_TECH_ACCEPT,
+                JobBooking.STATUS_CONFIRMED,
+            ],
+            scheduled_start__lt=new_scheduled_end,
+            scheduled_end__gt=new_scheduled_start,
+        ).exclude(id=original.id).exists()
+        if overlap_exists:
+            raise BookingValidationError(
+                code=ERROR_RESCHEDULE_NOT_ALLOWED,
+                message='New time slot conflicts with another booking.',
+                errors={'new_scheduled_start': ['slot unavailable']},
+            )
+
         now = timezone.now()
         original.status = JobBooking.STATUS_CANCELLED
         original.cancelled_at = now
@@ -1464,6 +1494,12 @@ def reschedule(
             price_amount=original.price_amount,
             price_context=original.price_context,
             inspection_fee=original.inspection_fee,
+            # Carry the cash-button value so a FIXED_GIG / LABOR_GIG child
+            # has the same final_cash_to_collect the original surfaced
+            # before the reschedule. INSPECTION-flow originals have None
+            # here (cash isn't computed until quote-decision), so the
+            # carry is a no-op for that path.
+            final_cash_to_collect=original.final_cash_to_collect,
             promo_code_snapshot=original.promo_code_snapshot,
             promo_discount_snapshot=original.promo_discount_snapshot,
             actual_address_snapshot=original.actual_address_snapshot,
