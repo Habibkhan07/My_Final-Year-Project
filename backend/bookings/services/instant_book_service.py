@@ -227,6 +227,21 @@ def create_instant_booking(
         if overlap_exists:
             raise SlotUnavailableError()
 
+        # Promotion snapshot (audit P1-03). Snapshot from ``intent.promotion``
+        # (post-firewall) so a fixed-gig booking whose promo was stripped
+        # also has null snapshots — single source of truth at the resolver.
+        # ``Promotion`` has no ``code`` field; ``name`` is the human-stable
+        # identifier. ``discount_value`` is the raw figure (Decimal) carried
+        # through; the discount-type pairing is captured by leaving the FK
+        # intact for non-fixed gigs. The pair (snapshot + FK) survives even
+        # if the promo row is later deactivated or deleted.
+        if intent.promotion is not None:
+            promo_code_snapshot = intent.promotion.name
+            promo_discount_snapshot = intent.promotion.discount_value
+        else:
+            promo_code_snapshot = None
+            promo_discount_snapshot = None
+
         booking = JobBooking.objects.create(
             technician=tech,
             customer=customer_user,
@@ -247,6 +262,8 @@ def create_instant_booking(
             # stays as a denormalized snapshot so historical bookings render
             # consistently even if the catalog row is later renamed.
             price_context=intent.price_context_label,
+            promo_code_snapshot=promo_code_snapshot,
+            promo_discount_snapshot=promo_discount_snapshot,
         )
 
         # Fire the realtime event AND arm the SLA timeout only after the
