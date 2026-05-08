@@ -471,10 +471,19 @@ def submit_quote(
                     booking, 'Quote submission requires booking in INSPECTING state.',
                 )
 
-        # Mark any prior SUBMITTED quote as SUPERSEDED before adding the new one.
-        # Customers can submit_quote → request_revision → submit_quote → ... and
-        # at any moment exactly one quote should be SUBMITTED.
-        booking.quotes.filter(status=Quote.STATUS_SUBMITTED).update(
+        # Mark any prior SUBMITTED quote of the SAME flavour as SUPERSEDED
+        # before adding the new one. Customers can submit_quote ->
+        # request_revision -> submit_quote -> ... and at any moment exactly
+        # one quote per flavour (regular vs upsell) should be SUBMITTED.
+        # The is_upsell filter is defensive — current flow makes regular
+        # and upsell SUBMITTED quotes mutually exclusive (regular requires
+        # status=QUOTED, upsell requires status=IN_PROGRESS), but the SQL
+        # used to be loose; pinning it prevents future flow changes from
+        # accidentally cross-superseding.
+        booking.quotes.filter(
+            status=Quote.STATUS_SUBMITTED,
+            is_upsell=is_upsell,
+        ).update(
             status=Quote.STATUS_SUPERSEDED,
             decided_at=timezone.now(),
         )
@@ -649,9 +658,12 @@ def approve_quote(
         quote.save(update_fields=['status', 'decided_at'])
 
         # Snapshot — APPEND, never replace. The finance sprint reads the
-        # full set of BookingItem rows for reconciliation.
-        for li in quote.line_items.all():
-            BookingItem.objects.create(
+        # full set of BookingItem rows for reconciliation. bulk_create
+        # collapses N inserts into one round trip; ordering is preserved
+        # so callers iterating ``booking.items.order_by('id')`` see items
+        # in the same order they appeared on the quote.
+        BookingItem.objects.bulk_create([
+            BookingItem(
                 booking=booking,
                 sub_service_id=li.sub_service_id,
                 quantity=li.quantity,
@@ -659,6 +671,8 @@ def approve_quote(
                 line_total=li.line_total,
                 sourced_quote=quote,
             )
+            for li in quote.line_items.all()
+        ])
 
         # Recompute denormalized totals from the snapshot. Avoids floating
         # drift from ad-hoc additions to ``base_services_total``.
@@ -1050,25 +1064,41 @@ _CUSTOMER_REPORT_NO_SHOW = frozenset({
 })
 
 
+# Spec: a no-show may only be filed once 15 minutes have elapsed since
+# the relevant anchor (tech filing -> from arrival, customer filing ->
+# from scheduled_start). Enforced at the service layer so non-view
+# callers (cron, admin, future RPC) inherit the gate.
+MIN_NO_SHOW_ELAPSED_SECONDS = 15 * 60
+
+
 def mark_no_show(
     *,
     booking_id: int,
     actor_user,
     actor_role: str,  # 'tech' | 'customer'
     finance=None,
+    _clock=None,
 ) -> JobBooking:
     """Mark booking as NO_SHOW.
 
     Tech path (``actor_role='tech'``): tech arrived but customer is missing.
-    Allowed from {ARRIVED, INSPECTING, QUOTED}.
+    Allowed from {ARRIVED, INSPECTING, QUOTED}. Anchored on ``arrived_at``
+    (the wait clock starts when the tech is at the door).
+
     Customer path (``actor_role='customer'``): tech never showed.
     Allowed from {CONFIRMED, EN_ROUTE, ARRIVED}; also writes a
-    ``TechReliabilityIncident`` row.
+    ``TechReliabilityIncident`` row. Anchored on ``scheduled_start``
+    (the customer's perspective is "the booking time has come and the
+    tech is not here").
 
-    Time-elapsed gating (15-min threshold per spec) is enforced at the
-    view layer where wall-clock context lives — service signature stays clean.
+    Both paths require ``MIN_NO_SHOW_ELAPSED_SECONDS`` (15 min) to have
+    passed since the anchor. Filing too early raises
+    ``ERROR_NO_SHOW_TOO_EARLY``.
+
+    ``_clock`` is a test seam; production callers leave it None.
     """
     finance = _resolve_finance(finance)
+    now = (_clock or timezone.now)()
 
     if actor_role not in ('tech', 'customer'):
         raise BookingValidationError(
@@ -1084,18 +1114,33 @@ def mark_no_show(
             allowed = _TECH_REPORT_NO_SHOW
             broadcast_user = booking.customer
             broadcast_role = 'customer'
+            # Anchor: when did the tech arrive? Falls back to
+            # scheduled_start if arrived_at is null (defensive — tech
+            # paths require status >= ARRIVED, so arrived_at should be
+            # set, but a manually-mutated row could still slip through).
+            anchor = booking.arrived_at or booking.scheduled_start
         else:
             _require_customer(booking, actor_user)
             allowed = _CUSTOMER_REPORT_NO_SHOW
             broadcast_user = booking.technician.user
             broadcast_role = 'technician'
+            anchor = booking.scheduled_start
 
         if booking.status not in allowed:
             _reject_invalid_from_state(
                 booking, f'No-show by {actor_role} not allowed in current state.',
             )
 
-        now = timezone.now()
+        # Time-elapsed gate (sprint meta — 15 min). Service-level so any
+        # caller pays the wait, not just the view layer.
+        elapsed = (now - anchor).total_seconds()
+        if elapsed < MIN_NO_SHOW_ELAPSED_SECONDS:
+            remaining = int(MIN_NO_SHOW_ELAPSED_SECONDS - elapsed)
+            raise BookingValidationError(
+                code=ERROR_NO_SHOW_TOO_EARLY,
+                message='No-show cannot be filed yet — wait at least 15 minutes.',
+                errors={'wait_seconds': [str(max(0, remaining))]},
+            )
         booking.status = JobBooking.STATUS_NO_SHOW
         booking.no_show_at = now
         booking.no_show_actor = actor_role
@@ -1194,7 +1239,17 @@ def open_dispute(
         if first_dispute:
             booking.dispute_opened_at = timezone.now()
             update_fields.append('dispute_opened_at')
-        if booking.status != JobBooking.STATUS_DISPUTED:
+        # Preserve terminal status. CANCELLED / COMPLETED / etc. bookings
+        # with a dispute filed against them stay queryable as such; the
+        # dispute is captured by ``dispute_opened_at IS NOT NULL`` plus
+        # the ticket row, not by erasing the prior terminal status. For
+        # non-terminal bookings (IN_PROGRESS being the typical case) the
+        # flip to DISPUTED is what locks out further transitions on the
+        # booking until admin resolves, so it stays mandatory there.
+        # ``STATUS_DISPUTED`` is itself in ``TERMINAL_STATUSES``, so a
+        # second open on an already-disputed booking takes the no-flip
+        # branch automatically.
+        if booking.status not in JobBooking.TERMINAL_STATUSES:
             booking.status = JobBooking.STATUS_DISPUTED
             update_fields.append('status')
         if update_fields:

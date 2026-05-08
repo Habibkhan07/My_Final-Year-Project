@@ -866,13 +866,28 @@ class TestCancelByTech:
 
 
 class TestMarkNoShow:
-    def test_tech_path(self, fake_finance, captured_broadcasts):
+    """The 15-minute gate is enforced at the service level. Tests pass
+    ``_clock=lambda: <future>`` to simulate the elapsed wait without
+    sleeping. The gate's anchor differs by actor:
+        tech filing     → from booking.arrived_at
+        customer filing → from booking.scheduled_start
+    """
+
+    @staticmethod
+    def _twenty_min_later():
+        # Helper: returns a clock fn that's 20 minutes ahead of "now"
+        # at fixture-build time, comfortably past the 15-min gate.
+        future = timezone.now() + timezone.timedelta(minutes=20)
+        return lambda: future
+
+    def test_tech_path_after_15_min_wait(self, fake_finance, captured_broadcasts):
         booking = JobBookingArrivedFactory()
         orchestrator.mark_no_show(
             booking_id=booking.id,
             actor_user=booking.technician.user,
             actor_role='tech',
             finance=fake_finance,
+            _clock=self._twenty_min_later(),
         )
         booking.refresh_from_db()
         assert booking.status == JobBooking.STATUS_NO_SHOW
@@ -890,6 +905,7 @@ class TestMarkNoShow:
             actor_user=booking.customer,
             actor_role='customer',
             finance=fake_finance,
+            _clock=self._twenty_min_later(),
         )
         booking.refresh_from_db()
         assert booking.status == JobBooking.STATUS_NO_SHOW
@@ -919,7 +935,68 @@ class TestMarkNoShow:
                 actor_user=booking.technician.user,
                 actor_role='tech',
                 finance=fake_finance,
+                _clock=self._twenty_min_later(),
             )
+
+    def test_tech_path_too_early_rejected(self, fake_finance):
+        # Tech files immediately after marking arrived → < 15 min elapsed.
+        booking = JobBookingArrivedFactory()
+        with pytest.raises(BookingValidationError) as exc_info:
+            orchestrator.mark_no_show(
+                booking_id=booking.id,
+                actor_user=booking.technician.user,
+                actor_role='tech',
+                finance=fake_finance,
+                # No _clock → uses timezone.now(), which is essentially
+                # the same instant as the factory's LazyFunction-built
+                # arrived_at.
+            )
+        assert exc_info.value.code == 'no_show_too_early'
+        assert 'wait_seconds' in exc_info.value.errors
+
+    def test_customer_path_too_early_rejected(self, fake_finance):
+        booking = JobBookingConfirmedFactory()
+        with pytest.raises(BookingValidationError) as exc_info:
+            orchestrator.mark_no_show(
+                booking_id=booking.id,
+                actor_user=booking.customer,
+                actor_role='customer',
+                finance=fake_finance,
+            )
+        assert exc_info.value.code == 'no_show_too_early'
+
+    def test_tech_path_anchors_on_arrived_at_not_scheduled_start(self, fake_finance, captured_broadcasts):
+        # Anchor distinction matters: a booking whose scheduled_start is
+        # ancient but whose arrived_at is recent must REJECT (tech only
+        # just arrived; the wait starts then). Pin the contract.
+        booking = JobBookingArrivedFactory(
+            scheduled_start=timezone.now() - timezone.timedelta(hours=2),
+            arrived_at=timezone.now() - timezone.timedelta(minutes=5),
+        )
+        with pytest.raises(BookingValidationError) as exc_info:
+            orchestrator.mark_no_show(
+                booking_id=booking.id,
+                actor_user=booking.technician.user,
+                actor_role='tech',
+                finance=fake_finance,
+            )
+        assert exc_info.value.code == 'no_show_too_early'
+
+    def test_tech_path_arrived_at_null_falls_back_to_scheduled_start(self, fake_finance, captured_broadcasts):
+        # Defensive fallback: a manually-mutated row could have ARRIVED
+        # status without arrived_at populated. Use scheduled_start.
+        booking = JobBookingArrivedFactory(
+            scheduled_start=timezone.now() - timezone.timedelta(minutes=20),
+            arrived_at=None,
+        )
+        orchestrator.mark_no_show(
+            booking_id=booking.id,
+            actor_user=booking.technician.user,
+            actor_role='tech',
+            finance=fake_finance,
+        )
+        booking.refresh_from_db()
+        assert booking.status == JobBooking.STATUS_NO_SHOW
 
 
 # ---------------------------------------------------------------------------
@@ -993,6 +1070,59 @@ class TestOpenDispute:
                 finance=fake_finance,
             )
         assert exc_info.value.code == 'dispute_not_disputable_status'
+
+    def test_dispute_on_completed_preserves_terminal_status(self, fake_finance, captured_broadcasts):
+        # Post-job dispute window: customer disputes a COMPLETED booking.
+        # Status MUST stay COMPLETED so list-views filtering by terminal
+        # state still surface the booking; the dispute is captured by
+        # ``dispute_opened_at IS NOT NULL`` plus the ticket row.
+        booking = JobBookingFactory(
+            status=JobBooking.STATUS_COMPLETED,
+            completed_at=timezone.now(),
+        )
+        ticket = orchestrator.open_dispute(
+            booking_id=booking.id,
+            opener_user=booking.customer,
+            initial_reason='leak came back',
+            finance=fake_finance,
+        )
+        booking.refresh_from_db()
+        assert booking.status == JobBooking.STATUS_COMPLETED  # NOT DISPUTED
+        assert booking.dispute_opened_at is not None
+        assert ticket.status == SupportTicket.STATUS_OPEN
+
+    def test_dispute_on_cancelled_preserves_terminal_status(self, fake_finance):
+        # Same contract for CANCELLED bookings — customer disputes that
+        # the cancellation was unjustified. Booking stays CANCELLED;
+        # admin can override final_status when resolving.
+        booking = JobBookingFactory(
+            status=JobBooking.STATUS_CANCELLED,
+            cancelled_at=timezone.now(),
+            cancel_reason='technician_cancelled',
+        )
+        orchestrator.open_dispute(
+            booking_id=booking.id,
+            opener_user=booking.customer,
+            initial_reason='this cancel was bogus',
+            finance=fake_finance,
+        )
+        booking.refresh_from_db()
+        assert booking.status == JobBooking.STATUS_CANCELLED
+        assert booking.dispute_opened_at is not None
+
+    def test_dispute_on_in_progress_flips_to_disputed(self, fake_finance):
+        # Non-terminal contract: IN_PROGRESS still flips to DISPUTED so
+        # mark_complete_with_cash and other transitions can't fire while
+        # the dispute is open.
+        booking = JobBookingInProgressFactory()
+        orchestrator.open_dispute(
+            booking_id=booking.id,
+            opener_user=booking.customer,
+            initial_reason='something is wrong',
+            finance=fake_finance,
+        )
+        booking.refresh_from_db()
+        assert booking.status == JobBooking.STATUS_DISPUTED
 
 
 # ---------------------------------------------------------------------------

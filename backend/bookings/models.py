@@ -271,9 +271,14 @@ class QuoteLineItem(models.Model):
         ordering = ['quote_id', 'id']
 
     def save(self, *args, **kwargs):
-        # Keep line_total in sync. The orchestrator already passes a
-        # computed value; this is a defensive fallback for hand-built
-        # rows in admin or shell sessions.
+        # ``line_total`` is server-derived, never user-controlled — always
+        # recompute on save. Defensive against:
+        #   * admin / shell sessions that build rows manually
+        #   * hypothetical future code paths that miscompute the total
+        #   * factory_boy fixtures that pass an unrelated line_total
+        # The orchestrator computes line_total upstream too, but pinning
+        # it here means a single source of truth (quantity * priced_at)
+        # regardless of caller.
         if self.quantity and self.priced_at is not None:
             self.line_total = self.quantity * self.priced_at
         super().save(*args, **kwargs)
