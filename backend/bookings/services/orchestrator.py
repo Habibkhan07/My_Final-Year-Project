@@ -40,14 +40,18 @@ from rest_framework import status as drf_status
 
 from bookings.exceptions import (
     BookingValidationError,
+    ERROR_BOOKING_NOT_FOUND,
     ERROR_CANCELLATION_NOT_ALLOWED,
     ERROR_DISPUTE_NOT_DISPUTABLE_STATUS,
+    ERROR_INVALID_INPUT,
     ERROR_INVALID_QUOTE_EMPTY,
     ERROR_INVALID_TRANSITION,
     ERROR_NO_SHOW_TOO_EARLY,
     ERROR_NOT_ASSIGNED_TO_YOU,
     ERROR_QUOTE_BAND_VIOLATION,
+    ERROR_QUOTE_NOT_FOUND,
     ERROR_RESCHEDULE_NOT_ALLOWED,
+    ERROR_TICKET_NOT_FOUND,
 )
 from bookings.models import (
     BookingItem,
@@ -136,7 +140,7 @@ def _lock_booking(booking_id: int) -> JobBooking:
         )
     except JobBooking.DoesNotExist:
         raise BookingValidationError(
-            code=ERROR_INVALID_TRANSITION,
+            code=ERROR_BOOKING_NOT_FOUND,
             message='Booking not found.',
             status=drf_status.HTTP_404_NOT_FOUND,
         )
@@ -154,7 +158,7 @@ def _get_booking_quote_locked(booking: JobBooking, quote_id: int) -> Quote:
         return booking.quotes.select_for_update().get(id=quote_id)
     except Quote.DoesNotExist:
         raise BookingValidationError(
-            code=ERROR_INVALID_TRANSITION,
+            code=ERROR_QUOTE_NOT_FOUND,
             message='Quote not found on this booking.',
             status=drf_status.HTTP_404_NOT_FOUND,
         )
@@ -712,7 +716,12 @@ def approve_quote(
                 **_payload_basics(booking),
                 'quote_id': quote.id,
                 'is_upsell': quote.is_upsell,
+                # ``total_amount`` is THIS quote's total only (the upsell's
+                # delta on the upsell path). ``final_cash_to_collect`` is
+                # the cumulative number the tech's cash button needs and
+                # spares the frontend a round-trip refetch.
                 'total_amount': str(quote.total_amount),
+                'final_cash_to_collect': str(booking.final_cash_to_collect),
             },
         ))
 
@@ -789,6 +798,13 @@ def decline_quote(
 # ---------------------------------------------------------------------------
 
 
+# CLAUDE.md "Customer ↔ Technician = CASH ONLY". The ``method`` parameter
+# exists on the API only so a future expansion (e.g. mobile-money receipt)
+# can extend the set without a model change; until that ships, anything
+# other than 'cash' is rejected at the service boundary.
+_VALID_CASH_COLLECTION_METHODS = frozenset({'cash'})
+
+
 def mark_complete_with_cash(
     *,
     booking_id: int,
@@ -805,6 +821,12 @@ def mark_complete_with_cash(
     ``job_completed`` to the customer.
     """
     finance = _resolve_finance(finance)
+    if method not in _VALID_CASH_COLLECTION_METHODS:
+        raise BookingValidationError(
+            code=ERROR_INVALID_INPUT,
+            message='Unsupported cash collection method.',
+            errors={'method': [f'must be one of {sorted(_VALID_CASH_COLLECTION_METHODS)}']},
+        )
     # Decimal coercion outside the atomic so the canonical envelope fires
     # before any DB work. Bad input (None, 'abc', etc.) becomes a clean
     # 400 instead of a decimal.InvalidOperation 500.
@@ -812,7 +834,7 @@ def mark_complete_with_cash(
         cash_amount_d = Decimal(str(cash_amount))
     except (TypeError, ValueError, ArithmeticError):
         raise BookingValidationError(
-            code=ERROR_INVALID_TRANSITION,
+            code=ERROR_INVALID_INPUT,
             message='Cash amount is not a valid decimal.',
             errors={'cash_amount': [f'invalid decimal: {cash_amount!r}']},
         )
@@ -835,7 +857,7 @@ def mark_complete_with_cash(
         # service is a malformed client. Surface a clean envelope.
         if cash_amount_d <= Decimal('0'):
             raise BookingValidationError(
-                code=ERROR_INVALID_TRANSITION,
+                code=ERROR_INVALID_INPUT,
                 message='Cash amount must be positive.',
                 errors={'cash_amount': ['must be > 0']},
             )
@@ -1103,7 +1125,7 @@ def mark_no_show(
 
     if actor_role not in ('tech', 'customer'):
         raise BookingValidationError(
-            code=ERROR_INVALID_TRANSITION,
+            code=ERROR_INVALID_INPUT,
             message="actor_role must be 'tech' or 'customer'.",
         )
 
@@ -1336,7 +1358,7 @@ def admin_resolve_dispute(
             ).get(id=ticket_id)
         except SupportTicket.DoesNotExist:
             raise BookingValidationError(
-                code=ERROR_INVALID_TRANSITION,
+                code=ERROR_TICKET_NOT_FOUND,
                 message='Dispute ticket not found.',
                 status=drf_status.HTTP_404_NOT_FOUND,
             )

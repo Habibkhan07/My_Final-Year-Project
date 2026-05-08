@@ -491,8 +491,13 @@ class TestApproveQuote:
         # Quote moved to APPROVED.
         quote.refresh_from_db()
         assert quote.status == Quote.STATUS_APPROVED
-        # Broadcast sent.
-        assert any(c['event_type'] == EventType.QUOTE_APPROVED for c in captured_broadcasts)
+        # Broadcast sent — payload carries the cumulative
+        # final_cash_to_collect so the tech's cash button updates without
+        # a follow-up fetch (matters most on upsell approvals where
+        # ``total_amount`` is the upsell delta only, not the cumulative).
+        approved_events = [c for c in captured_broadcasts if c['event_type'] == EventType.QUOTE_APPROVED]
+        assert len(approved_events) == 1
+        assert approved_events[0]['payload']['final_cash_to_collect'] == '500.00'
         # Finance port hooked.
         fake_finance.apply_inspection_fee_decision.assert_called_once()
         kwargs = fake_finance.apply_inspection_fee_decision.call_args.kwargs
@@ -1485,7 +1490,7 @@ class TestLockBookingNotFound:
                 technician_user=UserFactory(),
                 finance=fake_finance,
             )
-        assert exc_info.value.code == 'invalid_transition'
+        assert exc_info.value.code == 'booking_not_found'
         assert exc_info.value.status_code == 404
         assert exc_info.value.message == 'Booking not found.'
 
@@ -1509,6 +1514,7 @@ class TestQuoteNotFoundOnBooking:
                 quote_id=999_999_999,
                 finance=fake_finance,
             )
+        assert exc_info.value.code == 'quote_not_found'
         assert exc_info.value.status_code == 404
         assert exc_info.value.message == 'Quote not found on this booking.'
 
@@ -1619,8 +1625,24 @@ class TestMarkCompleteCashAmountValidation:
                 cash_amount=Decimal('0'),
                 finance=fake_finance,
             )
-        assert exc_info.value.code == 'invalid_transition'
+        assert exc_info.value.code == 'invalid_input'
         assert 'cash_amount' in exc_info.value.errors
+
+    def test_invalid_method_rejected(self, fake_finance):
+        # CLAUDE.md "CASH ONLY". Anything other than 'cash' is rejected
+        # at the service boundary so a buggy or hostile client can't
+        # smuggle 'mobile_money' / 'check' / '' onto the model field.
+        booking = JobBookingInProgressFactory()
+        with pytest.raises(BookingValidationError) as exc_info:
+            orchestrator.mark_complete_with_cash(
+                booking_id=booking.id,
+                technician_user=booking.technician.user,
+                cash_amount=Decimal('1500'),
+                method='mobile_money',
+                finance=fake_finance,
+            )
+        assert exc_info.value.code == 'invalid_input'
+        assert 'method' in exc_info.value.errors
 
     def test_negative_cash_rejected(self, fake_finance):
         booking = JobBookingInProgressFactory()
@@ -1679,6 +1701,7 @@ class TestAdminResolveDisputeLockOrdering:
                 final_status=JobBooking.STATUS_CANCELLED,
                 finance=fake_finance,
             )
+        assert exc_info.value.code == 'ticket_not_found'
         assert exc_info.value.status_code == 404
 
     def test_idempotent_resolved_ticket_returns_without_locking(self, fake_finance):

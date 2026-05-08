@@ -58,6 +58,7 @@ class BookingValidationError(APIException):
 # the Flutter side keys off these literals to surface user-friendly UI,
 # so do not rename without coordinating a frontend change.
 ERROR_INVALID_TRANSITION = "invalid_transition"
+ERROR_INVALID_INPUT = "invalid_input"
 ERROR_INVALID_QUOTE_EMPTY = "invalid_quote_empty"
 ERROR_QUOTE_BAND_VIOLATION = "quote_band_violation"
 ERROR_CANCELLATION_NOT_ALLOWED = "cancellation_not_allowed"
@@ -65,6 +66,13 @@ ERROR_DISPUTE_NOT_DISPUTABLE_STATUS = "dispute_not_disputable_status"
 ERROR_RESCHEDULE_NOT_ALLOWED = "reschedule_not_allowed"
 ERROR_NOT_ASSIGNED_TO_YOU = "not_assigned_to_you"
 ERROR_NO_SHOW_TOO_EARLY = "no_show_too_early"
+# Resource-not-found codes. Distinct from ERROR_INVALID_TRANSITION so the
+# Flutter dispatcher can branch cleanly: 404 means "the thing you
+# referenced doesn't exist" (gone, deleted, never existed) — different
+# from "you cannot move from this state to that one."
+ERROR_BOOKING_NOT_FOUND = "booking_not_found"
+ERROR_QUOTE_NOT_FOUND = "quote_not_found"
+ERROR_TICKET_NOT_FOUND = "ticket_not_found"
 
 
 class InvalidAddressError(Exception):
