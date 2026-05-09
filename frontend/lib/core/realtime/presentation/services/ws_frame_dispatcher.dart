@@ -55,10 +55,29 @@ class WsFrameDispatcher {
     _streamHandlers[streamType] = handler;
   }
 
-  /// Removes the handler for [streamType] if any. Used by tests and by
-  /// feature DI on logout-style teardown.
-  void unregister(String streamType) {
-    _streamHandlers.remove(streamType);
+  /// Removes the handler for [streamType], but ONLY if the currently
+  /// registered handler is identity-equal to [handler].
+  ///
+  /// Audit C5 (R-3) — race fix: with single-handler-per-streamType, two
+  /// notifiers for the same streamType may overlap in lifetime
+  /// (e.g. customer pops booking #42 and pushes booking #43 in the same
+  /// frame; the second notifier registers its handler before the first's
+  /// `ref.onDispose` fires). A naive `_streamHandlers.remove(streamType)`
+  /// from notifier #42's dispose would then silently delete notifier #43's
+  /// handler, freezing the new screen with no GPS frames forever. The
+  /// identity check makes the unregister a no-op when our handler has
+  /// already been replaced — the new owner remains live.
+  ///
+  /// (When the multi-handler refactor in flag
+  /// `ws-stream-multi-handler-deferred` lands, this becomes a list-remove
+  /// keyed on the same identity comparison.)
+  void unregister(
+    String streamType,
+    void Function(Map<String, dynamic> payload) handler,
+  ) {
+    if (identical(_streamHandlers[streamType], handler)) {
+      _streamHandlers.remove(streamType);
+    }
   }
 
   /// Routes a decoded WebSocket frame.

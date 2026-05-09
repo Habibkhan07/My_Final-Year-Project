@@ -175,18 +175,72 @@ void main() {
     var callsToFirstHandler = 0;
     var callsToSecondHandler = 0;
 
-    dispatcher.register('wallet_balance', (_) => callsToFirstHandler++);
+    void firstHandler(Map<String, dynamic> _) => callsToFirstHandler++;
+    void secondHandler(Map<String, dynamic> _) => callsToSecondHandler++;
+
+    dispatcher.register('wallet_balance', firstHandler);
     dispatcher.dispatch(_streamFrame());
     expect(callsToFirstHandler, 1);
 
-    dispatcher.unregister('wallet_balance');
+    dispatcher.unregister('wallet_balance', firstHandler);
     dispatcher.dispatch(_streamFrame());
     expect(callsToFirstHandler, 1, reason: 'after unregister, no more calls');
 
     // Re-register a different handler under the same key.
-    dispatcher.register('wallet_balance', (_) => callsToSecondHandler++);
+    dispatcher.register('wallet_balance', secondHandler);
     dispatcher.dispatch(_streamFrame());
     expect(callsToSecondHandler, 1);
     expect(callsToFirstHandler, 1, reason: 'first handler stays unchanged');
+  });
+
+  // ───────────────────────────────────────────────────────────────────────
+  // D8 — identity-checked unregister (audit C5 / R-3)
+  // ───────────────────────────────────────────────────────────────────────
+  //
+  // Race scenario: notifier-A registers handler-A. Notifier-B then
+  // registers handler-B for the same streamType (last-writer-wins
+  // overwrites A). Now A's `ref.onDispose` runs and calls unregister.
+  // A naive `_streamHandlers.remove(streamType)` would silently delete
+  // B's handler — leaving the new screen with no GPS frames forever.
+  // The identity-checked unregister makes A's late dispose a no-op
+  // when the registered handler is no longer A's.
+
+  test('D8 — unregister with stale handler is a no-op when a successor has '
+      'replaced the registration', () {
+    final container = _buildContainer(local);
+    final dispatcher = container.read(wsFrameDispatcherProvider);
+
+    var callsToA = 0;
+    var callsToB = 0;
+    void handlerA(Map<String, dynamic> _) => callsToA++;
+    void handlerB(Map<String, dynamic> _) => callsToB++;
+
+    // A registers, then B replaces (last-writer-wins).
+    dispatcher.register('wallet_balance', handlerA);
+    dispatcher.register('wallet_balance', handlerB);
+
+    // A's late onDispose. Identity check sees B is registered, not A,
+    // so the unregister does NOTHING — B remains live.
+    dispatcher.unregister('wallet_balance', handlerA);
+
+    dispatcher.dispatch(_streamFrame());
+    expect(callsToB, 1, reason: 'B stays registered after A\'s stale unregister');
+    expect(callsToA, 0, reason: 'A is no longer registered');
+    expect(dispatcher.hasHandlerFor('wallet_balance'), isTrue);
+  });
+
+  test('D9 — unregister with the currently-registered handler removes it', () {
+    final container = _buildContainer(local);
+    final dispatcher = container.read(wsFrameDispatcherProvider);
+
+    var calls = 0;
+    void handler(Map<String, dynamic> _) => calls++;
+
+    dispatcher.register('wallet_balance', handler);
+    dispatcher.unregister('wallet_balance', handler);
+
+    dispatcher.dispatch(_streamFrame());
+    expect(calls, 0);
+    expect(dispatcher.hasHandlerFor('wallet_balance'), isFalse);
   });
 }

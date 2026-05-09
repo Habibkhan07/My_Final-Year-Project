@@ -76,11 +76,18 @@ class TechnicianLocationStreamNotifier
 
     dispatcher.register('tech_gps', handler);
     ref.onDispose(() {
-      // Audit P0-07: WsFrameDispatcher.unregister(streamType) is
-      // single-arg — the dispatcher is single-handler-per-type.
-      // Multi-handler refactor deferred via flag
-      // `ws-stream-multi-handler-deferred`.
-      dispatcher.unregister('tech_gps');
+      // Audit C5 (R-3): pass our handler reference so the dispatcher
+      // only removes if its currently-registered handler is identical
+      // to ours. If a successor notifier (e.g. a new orchestrator
+      // screen mounted before our dispose ran) has already replaced
+      // the registration, the identity check makes unregister a no-op
+      // and the successor's handler stays live.
+      //
+      // Audit P0-07 / flag `ws-stream-multi-handler-deferred`: the
+      // dispatcher remains single-handler-per-type for now; the
+      // multi-handler refactor will key a list-remove on the same
+      // identity comparison.
+      dispatcher.unregister('tech_gps', handler);
     });
 
     return null;
