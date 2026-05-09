@@ -173,3 +173,60 @@ final class TechLocationRemoteDataSourceProvider
 
 String _$techLocationRemoteDataSourceHash() =>
     r'59ad0c9e3130f9c3de98422eb335fa04a8db23bc';
+
+/// Owned by `AppLifecycleOrchestrator.performTeardown`. Stateless —
+/// kept as a provider so tests can override with a recording fake.
+
+@ProviderFor(foregroundLocationLifecycle)
+final foregroundLocationLifecycleProvider =
+    ForegroundLocationLifecycleProvider._();
+
+/// Owned by `AppLifecycleOrchestrator.performTeardown`. Stateless —
+/// kept as a provider so tests can override with a recording fake.
+
+final class ForegroundLocationLifecycleProvider
+    extends
+        $FunctionalProvider<
+          ForegroundLocationLifecycle,
+          ForegroundLocationLifecycle,
+          ForegroundLocationLifecycle
+        >
+    with $Provider<ForegroundLocationLifecycle> {
+  /// Owned by `AppLifecycleOrchestrator.performTeardown`. Stateless —
+  /// kept as a provider so tests can override with a recording fake.
+  ForegroundLocationLifecycleProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'foregroundLocationLifecycleProvider',
+        isAutoDispose: false,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$foregroundLocationLifecycleHash();
+
+  @$internal
+  @override
+  $ProviderElement<ForegroundLocationLifecycle> $createElement(
+    $ProviderPointer pointer,
+  ) => $ProviderElement(pointer);
+
+  @override
+  ForegroundLocationLifecycle create(Ref ref) {
+    return foregroundLocationLifecycle(ref);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(ForegroundLocationLifecycle value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<ForegroundLocationLifecycle>(value),
+    );
+  }
+}
+
+String _$foregroundLocationLifecycleHash() =>
+    r'201d6230d62d0910020b19572dd454de95a01d6e';

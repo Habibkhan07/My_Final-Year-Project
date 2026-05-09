@@ -23,6 +23,9 @@ import 'package:frontend/features/auth/domain/use_cases/complete_signup_use_case
 import 'package:frontend/features/auth/presentation/providers/auth_notifier.dart';
 import 'package:frontend/features/auth/presentation/providers/auth_state.dart';
 import 'package:frontend/features/auth/presentation/providers/dependency_injection.dart';
+import 'package:frontend/features/technician/location_broadcaster/presentation/providers/dependency_injection.dart'
+    as location_broadcaster_di;
+import 'package:frontend/features/technician/location_broadcaster/presentation/services/foreground_location_lifecycle.dart';
 
 class MockAuthRepository extends Mock implements AuthRepository {}
 
@@ -37,6 +40,9 @@ class FakeUserEntity extends Fake implements UserEntity {}
 class _MockFcmHandler extends Mock implements FCMHandler {}
 
 class _MockEventLocal extends Mock implements EventLocalDataSource {}
+
+class _MockForegroundLocationLifecycle extends Mock
+    implements ForegroundLocationLifecycle {}
 
 /// Records `connect`/`disconnect` calls so boot/teardown bridge tests can
 /// verify the auth notifier reaches the WS layer with the right token.
@@ -125,10 +131,15 @@ void main() {
     when(() => local.clearCachedEvents()).thenAnswer((_) async {});
     when(() => local.clearPendingAcks()).thenAnswer((_) async {});
 
+    final fgLifecycle = _MockForegroundLocationLifecycle();
+    when(() => fgLifecycle.tearDown()).thenAnswer((_) async {});
+
     return [
       realtimeBootHooksProvider.overrideWith((ref) => const []),
       realtime_di.fcmHandlerProvider.overrideWithValue(fcm),
       realtime_di.eventLocalDataSourceProvider.overrideWithValue(local),
+      location_broadcaster_di.foregroundLocationLifecycleProvider
+          .overrideWithValue(fgLifecycle),
       eventSyncProvider.overrideWith(_RecordingEventSyncNotifier.new),
       wsConnectionProvider.overrideWith(_RecordingWsNotifier.new),
       systemEventProvider.overrideWith(_RecordingSystemEventNotifier.new),
@@ -514,6 +525,9 @@ void main() {
       when(() => bridgeLocal.clearCachedEvents()).thenAnswer((_) async {});
       when(() => bridgeLocal.clearPendingAcks()).thenAnswer((_) async {});
 
+      final bridgeFgLifecycle = _MockForegroundLocationLifecycle();
+      when(() => bridgeFgLifecycle.tearDown()).thenAnswer((_) async {});
+
       bridgeContainer = ProviderContainer(
         overrides: [
           authRepositoryProvider.overrideWithValue(bridgeRepo),
@@ -525,6 +539,8 @@ void main() {
           realtime_di.eventLocalDataSourceProvider.overrideWithValue(
             bridgeLocal,
           ),
+          location_broadcaster_di.foregroundLocationLifecycleProvider
+              .overrideWithValue(bridgeFgLifecycle),
           eventSyncProvider.overrideWith(_RecordingEventSyncNotifier.new),
           wsConnectionProvider.overrideWith(_RecordingWsNotifier.new),
           systemEventProvider.overrideWith(_RecordingSystemEventNotifier.new),

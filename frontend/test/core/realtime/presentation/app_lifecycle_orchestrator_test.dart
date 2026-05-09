@@ -12,6 +12,7 @@ import 'package:frontend/core/realtime/presentation/providers/dependency_injecti
 import 'package:frontend/core/realtime/presentation/services/fcm_handler.dart';
 import 'package:frontend/core/realtime/presentation/state/connection_state.dart';
 import 'package:frontend/features/technician/incoming_job_requests/presentation/providers/incoming_job_queue_notifier.dart';
+import 'package:frontend/features/technician/location_broadcaster/presentation/services/foreground_location_lifecycle.dart';
 import 'package:mocktail/mocktail.dart';
 
 class _MockEventLocalDataSource extends Mock implements EventLocalDataSource {}
@@ -23,6 +24,9 @@ class _MockWsConnectionNotifier extends Mock implements WsConnectionNotifier {}
 class _MockFCMHandler extends Mock implements FCMHandler {}
 
 class _MockEventSyncNotifier extends Mock implements EventSyncNotifier {}
+
+class _MockForegroundLocationLifecycle extends Mock
+    implements ForegroundLocationLifecycle {}
 
 /// Recording fake notifiers used by the boot-flow tests below. Each one
 /// extends the real notifier and overrides only the methods that
@@ -71,11 +75,13 @@ void main() {
       'and clears onUnauthorized', () async {
     final ws = _MockWsConnectionNotifier();
     final fcm = _MockFCMHandler();
+    final fgLifecycle = _MockForegroundLocationLifecycle();
     final sysEvent = _MockSystemEventNotifier();
     final eventSync = _MockEventSyncNotifier();
     final local = _MockEventLocalDataSource();
 
     when(() => fcm.unregister()).thenAnswer((_) async {});
+    when(() => fgLifecycle.tearDown()).thenAnswer((_) async {});
     when(() => local.clearLastSyncTimestamp()).thenAnswer((_) async {});
     when(() => local.clearCachedEvents()).thenAnswer((_) async {});
     when(() => local.clearPendingAcks()).thenAnswer((_) async {});
@@ -90,6 +96,7 @@ void main() {
     await AppLifecycleOrchestrator.performTeardown(
       wsConnection: ws,
       fcmHandler: fcm,
+      foregroundLocationLifecycle: fgLifecycle,
       systemEventNotifier: sysEvent,
       eventSync: eventSync,
       local: local,
@@ -105,8 +112,15 @@ void main() {
     // via FCM-only (WS is closed but the device is still registered for
     // pushes), and on a multi-account device those late notifications can
     // land at the next user's session after they log in.
+    //
+    // Audit C3 (S-1): tech-location FG service teardown sits between FCM
+    // unregister and WS disconnect — same family of "stop device → backend
+    // publishers before cutting the WS." Without this step the saved auth
+    // token blob would persist in FlutterForegroundTask shared-prefs,
+    // letting a different tech logging in on the same device inherit it.
     verifyInOrder([
       () => fcm.unregister(),
+      () => fgLifecycle.tearDown(),
       () => ws.disconnect(),
       () => sysEvent.reset(),
       () => local.clearLastSyncTimestamp(),

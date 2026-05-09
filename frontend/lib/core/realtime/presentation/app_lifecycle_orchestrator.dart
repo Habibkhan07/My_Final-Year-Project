@@ -21,6 +21,9 @@ import '../../../features/auth/presentation/providers/auth_notifier.dart';
 import '../../../features/customer/bookings/presentation/providers/customer_bookings_counts_notifier.dart';
 import '../../../features/customer/bookings/presentation/providers/customer_bookings_list_notifier.dart';
 import '../../../features/technician/incoming_job_requests/presentation/providers/incoming_job_queue_notifier.dart';
+import '../../../features/technician/location_broadcaster/presentation/providers/dependency_injection.dart'
+    as location_broadcaster_di;
+import '../../../features/technician/location_broadcaster/presentation/services/foreground_location_lifecycle.dart';
 import '../data/datasources/event_local_data_source.dart';
 import '../domain/entities/system_event_entity.dart';
 import '../domain/entities/target_role.dart';
@@ -177,24 +180,36 @@ class AppLifecycleOrchestrator extends ConsumerStatefulWidget {
   ///      they were tagged for user A. Best-effort: the repository
   ///      swallows network errors so a phone that loses connectivity
   ///      mid-logout still completes teardown.
-  ///   2. Disconnect WS so no new frames arrive during the rest of
+  ///   2. **Tear down the tech-location foreground service** —
+  ///      stops any in-flight Geolocator stream and clears the auth-token
+  ///      blob from FlutterForegroundTask's shared-prefs persistence.
+  ///      Must run BEFORE WS disconnect for symmetry with FCM (both are
+  ///      device → backend publishers; we silence them before cutting
+  ///      the WS), and must run during teardown rather than relying on
+  ///      the controller's `ref.onDispose` because the saved blob
+  ///      persists across app restarts independently of the controller's
+  ///      Riverpod lifecycle. Without this step, tech B logging in on
+  ///      the same device would inherit tech A's saved auth token.
+  ///   3. Disconnect WS so no new frames arrive during the rest of
   ///      teardown.
-  ///   3. Reset `SystemEventNotifier` so a different user logging in on
+  ///   4. Reset `SystemEventNotifier` so a different user logging in on
   ///      the same device cannot see the previous session's events.
-  ///   4. Clear persisted realtime caches (sync cursor, cached event list,
+  ///   5. Clear persisted realtime caches (sync cursor, cached event list,
   ///      pending ACK queue) so cache-fallback paths in the next session
   ///      cannot surface user A's data.
-  ///   5. Null the `onUnauthorized` callback last so a stray in-flight
+  ///   6. Null the `onUnauthorized` callback last so a stray in-flight
   ///      response cannot trigger a second logout against fresh state.
   @visibleForTesting
   static Future<void> performTeardown({
     required WsConnectionNotifier wsConnection,
     required FCMHandler fcmHandler,
+    required ForegroundLocationLifecycle foregroundLocationLifecycle,
     required SystemEventNotifier systemEventNotifier,
     required EventSyncNotifier eventSync,
     required EventLocalDataSource local,
   }) async {
     await fcmHandler.unregister();
+    await foregroundLocationLifecycle.tearDown();
     wsConnection.disconnect();
     systemEventNotifier.reset();
     await local.clearLastSyncTimestamp();
@@ -206,6 +221,9 @@ class AppLifecycleOrchestrator extends ConsumerStatefulWidget {
   static Future<void> teardownOnLogout(Ref ref) => performTeardown(
     wsConnection: ref.read(wsConnectionProvider.notifier),
     fcmHandler: ref.read(fcmHandlerProvider),
+    foregroundLocationLifecycle: ref.read(
+      location_broadcaster_di.foregroundLocationLifecycleProvider,
+    ),
     systemEventNotifier: ref.read(systemEventProvider.notifier),
     eventSync: ref.read(eventSyncProvider.notifier),
     local: ref.read(eventLocalDataSourceProvider),

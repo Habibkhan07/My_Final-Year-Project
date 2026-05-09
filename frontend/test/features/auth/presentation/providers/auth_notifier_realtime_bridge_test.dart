@@ -18,6 +18,9 @@ import 'package:frontend/features/auth/domain/use_cases/verify_otp_use_case.dart
 import 'package:frontend/features/auth/presentation/providers/auth_notifier.dart';
 import 'package:frontend/features/auth/presentation/providers/dependency_injection.dart'
     as auth_di;
+import 'package:frontend/features/technician/location_broadcaster/presentation/providers/dependency_injection.dart'
+    as location_broadcaster_di;
+import 'package:frontend/features/technician/location_broadcaster/presentation/services/foreground_location_lifecycle.dart';
 import 'package:mocktail/mocktail.dart';
 
 // ─── Mocks ────────────────────────────────────────────────────────────────
@@ -29,6 +32,9 @@ class _MockFCMHandler extends Mock implements FCMHandler {}
 class _MockEventLocalDataSource extends Mock implements EventLocalDataSource {}
 
 class _MockVerifyOtpUseCase extends Mock implements VerifyOtpUseCase {}
+
+class _MockForegroundLocationLifecycle extends Mock
+    implements ForegroundLocationLifecycle {}
 
 // ─── Recording fakes for code-gen `@riverpod class` notifiers ────────────
 //
@@ -86,11 +92,13 @@ class _Deps {
     : authRepo = _MockAuthRepository(),
       fcm = _MockFCMHandler(),
       local = _MockEventLocalDataSource(),
+      fgLifecycle = _MockForegroundLocationLifecycle(),
       verifyOtp = _MockVerifyOtpUseCase();
 
   final _MockAuthRepository authRepo;
   final _MockFCMHandler fcm;
   final _MockEventLocalDataSource local;
+  final _MockForegroundLocationLifecycle fgLifecycle;
   final _MockVerifyOtpUseCase verifyOtp;
 }
 
@@ -99,6 +107,7 @@ class _Deps {
 void _stubDefaults(_Deps deps) {
   when(() => deps.fcm.initialize()).thenAnswer((_) async {});
   when(() => deps.fcm.unregister()).thenAnswer((_) async {});
+  when(() => deps.fgLifecycle.tearDown()).thenAnswer((_) async {});
   when(() => deps.local.clearLastSyncTimestamp()).thenAnswer((_) async {});
   when(() => deps.local.clearCachedEvents()).thenAnswer((_) async {});
   when(() => deps.local.clearPendingAcks()).thenAnswer((_) async {});
@@ -119,6 +128,8 @@ ProviderContainer _buildContainer(_Deps deps) {
 
       realtime_di.fcmHandlerProvider.overrideWithValue(deps.fcm),
       realtime_di.eventLocalDataSourceProvider.overrideWithValue(deps.local),
+      location_broadcaster_di.foregroundLocationLifecycleProvider
+          .overrideWithValue(deps.fgLifecycle),
 
       // Code-gen notifier overrides — recording subclasses defined above.
       eventSyncProvider.overrideWith(_RecordingEventSyncNotifier.new),
@@ -474,6 +485,7 @@ void main() {
       // Reset interaction history so verifyInOrder counts only logout()'s
       // calls, not anything from the boot phase.
       clearInteractions(deps.fcm);
+      clearInteractions(deps.fgLifecycle);
       clearInteractions(deps.local);
       clearInteractions(deps.authRepo);
       // Re-stub after clearInteractions wipes the when() configuration.
@@ -508,6 +520,11 @@ void main() {
       // multi-tenant device invariant.
       verifyInOrder([
         () => deps.fcm.unregister(),
+        // Audit C3 (S-1): tech-location FG service teardown sits between
+        // FCM unregister and the local-cache clears, ensuring the saved
+        // auth token blob in FlutterForegroundTask shared-prefs is wiped
+        // BEFORE repository.logout() invalidates the token server-side.
+        () => deps.fgLifecycle.tearDown(),
         () => deps.local.clearLastSyncTimestamp(),
         () => deps.local.clearCachedEvents(),
         () => deps.local.clearPendingAcks(),
