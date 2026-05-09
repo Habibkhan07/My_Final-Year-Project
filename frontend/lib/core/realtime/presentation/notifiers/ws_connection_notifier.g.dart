@@ -19,6 +19,12 @@ part of 'ws_connection_notifier.dart';
 ///   - After [_kMaxRetries] consecutive failures, flip state to `failed`
 ///     for the UI — but keep retrying on the cap so the socket recovers
 ///     if the server comes back.
+///   - Surface lifecycle events via [connectionEvents] so consumers
+///     (e.g. `TrackingSubscriptionController`) can replay upstream
+///     subscriptions on every reconnect.
+///   - Accept upstream messages via [sendUpstream] for the WS consumer's
+///     `subscribe_tracking` / `unsubscribe_tracking` envelopes (the only
+///     client-originated upstream payloads the backend honours).
 ///
 /// keepAlive: the channel, timer, and retry counter cannot live with a
 /// widget lifecycle. Disposing mid-session would kill the live connection.
@@ -37,6 +43,12 @@ final wsConnectionProvider = WsConnectionNotifierProvider._();
 ///   - After [_kMaxRetries] consecutive failures, flip state to `failed`
 ///     for the UI — but keep retrying on the cap so the socket recovers
 ///     if the server comes back.
+///   - Surface lifecycle events via [connectionEvents] so consumers
+///     (e.g. `TrackingSubscriptionController`) can replay upstream
+///     subscriptions on every reconnect.
+///   - Accept upstream messages via [sendUpstream] for the WS consumer's
+///     `subscribe_tracking` / `unsubscribe_tracking` envelopes (the only
+///     client-originated upstream payloads the backend honours).
 ///
 /// keepAlive: the channel, timer, and retry counter cannot live with a
 /// widget lifecycle. Disposing mid-session would kill the live connection.
@@ -53,6 +65,12 @@ final class WsConnectionNotifierProvider
   ///   - After [_kMaxRetries] consecutive failures, flip state to `failed`
   ///     for the UI — but keep retrying on the cap so the socket recovers
   ///     if the server comes back.
+  ///   - Surface lifecycle events via [connectionEvents] so consumers
+  ///     (e.g. `TrackingSubscriptionController`) can replay upstream
+  ///     subscriptions on every reconnect.
+  ///   - Accept upstream messages via [sendUpstream] for the WS consumer's
+  ///     `subscribe_tracking` / `unsubscribe_tracking` envelopes (the only
+  ///     client-originated upstream payloads the backend honours).
   ///
   /// keepAlive: the channel, timer, and retry counter cannot live with a
   /// widget lifecycle. Disposing mid-session would kill the live connection.
@@ -84,7 +102,7 @@ final class WsConnectionNotifierProvider
 }
 
 String _$wsConnectionNotifierHash() =>
-    r'f43dd1d23ef9219d053dd493c8f3e7b48aa7eb07';
+    r'a4cb319041f03808e3c6072c8092f40925d2ca0f';
 
 /// Owns the entire WebSocket lifecycle for the realtime event stream:
 ///   - Connect with the user's auth token in the query string.
@@ -97,6 +115,12 @@ String _$wsConnectionNotifierHash() =>
 ///   - After [_kMaxRetries] consecutive failures, flip state to `failed`
 ///     for the UI — but keep retrying on the cap so the socket recovers
 ///     if the server comes back.
+///   - Surface lifecycle events via [connectionEvents] so consumers
+///     (e.g. `TrackingSubscriptionController`) can replay upstream
+///     subscriptions on every reconnect.
+///   - Accept upstream messages via [sendUpstream] for the WS consumer's
+///     `subscribe_tracking` / `unsubscribe_tracking` envelopes (the only
+///     client-originated upstream payloads the backend honours).
 ///
 /// keepAlive: the channel, timer, and retry counter cannot live with a
 /// widget lifecycle. Disposing mid-session would kill the live connection.

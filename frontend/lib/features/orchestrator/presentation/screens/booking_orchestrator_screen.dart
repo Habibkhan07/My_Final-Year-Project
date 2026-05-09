@@ -6,6 +6,8 @@ import '../../domain/failures/booking_detail_failure.dart';
 import '../providers/booking_detail_provider.dart';
 import '../providers/booking_orchestrator_events_notifier.dart';
 import '../providers/booking_rescheduled_notifier.dart';
+import '../providers/technician_location_stream_notifier.dart';
+import '../providers/tracking_subscription_controller.dart';
 import '../widgets/slots/body_slot.dart';
 import '../widgets/slots/header_slot.dart';
 import '../widgets/slots/primary_action_slot.dart';
@@ -52,13 +54,29 @@ class BookingOrchestratorScreen extends ConsumerWidget {
     // rebuild because their state is identical to itself.
     ref.watch(bookingOrchestratorEventsProvider(jobId));
     ref.watch(bookingRescheduledProvider(jobId));
+    // Session 4 — live tracking lifecycle:
+    //   • TrackingSubscriptionController fires subscribe_tracking
+    //     upstream when (status × role) enters the EN_ROUTE/ARRIVED
+    //     window for a customer viewer; replays on every WS reconnect.
+    //   • TechnicianLocationStreamNotifier is woken HERE rather than
+    //     inside EnRouteBodyStub so the `tech_gps` handler is
+    //     registered with the dispatcher BEFORE subscribe_tracking
+    //     goes out — guarantees the first frame post-subscribe lands
+    //     in our handler instead of the dispatcher's "no handler"
+    //     warning bin.
+    //   • Both providers are `keepAlive: false`; the same `ref.watch`
+    //     contract above applies.
+    //
+    // ForegroundLocationServiceController is similarly watched here on
+    // the tech-side path so the foreground service starts/stops in
+    // lockstep with the booking status. (Lands in commit 3.)
+    ref.watch(trackingSubscriptionControllerProvider(jobId));
+    ref.watch(technicianLocationStreamProvider(jobId));
 
     final detailAsync = ref.watch(bookingDetailProvider(jobId));
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Booking #$jobId'),
-      ),
+      appBar: AppBar(title: Text('Booking #$jobId')),
       body: SafeArea(
         child: detailAsync.when(
           // Initial load — only fires when there's no prior data
@@ -67,8 +85,7 @@ class BookingOrchestratorScreen extends ConsumerWidget {
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (error, _) => _ErrorBody(
             failure: error,
-            onRetry: () =>
-                ref.invalidate(bookingDetailProvider(jobId)),
+            onRetry: () => ref.invalidate(bookingDetailProvider(jobId)),
           ),
           data: (booking) => _LoadedBody(
             booking: booking,
@@ -110,9 +127,7 @@ class _LoadedBody extends StatelessWidget {
         HeaderSlot(booking: booking),
         TimelineSlot(booking: booking),
         Expanded(
-          child: SingleChildScrollView(
-            child: BodySlot(booking: booking),
-          ),
+          child: SingleChildScrollView(child: BodySlot(booking: booking)),
         ),
         SecondaryActionsSlot(booking: booking),
         PrimaryActionSlot(booking: booking),
@@ -137,11 +152,7 @@ class _ErrorBody extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              Icons.error_outline,
-              size: 56,
-              color: theme.colorScheme.error,
-            ),
+            Icon(Icons.error_outline, size: 56, color: theme.colorScheme.error),
             const SizedBox(height: 16),
             Text(title, style: theme.textTheme.titleMedium),
             const SizedBox(height: 8),
@@ -178,7 +189,10 @@ class _ErrorBody extends StatelessWidget {
       return ('Network error', 'Could not reach the server.');
     }
     if (f is BookingDetailServerFailure) {
-      return ('Server error', 'Something went wrong on our end. Try again in a moment.');
+      return (
+        'Server error',
+        'Something went wrong on our end. Try again in a moment.',
+      );
     }
     return ('Error', 'Something went wrong.');
   }

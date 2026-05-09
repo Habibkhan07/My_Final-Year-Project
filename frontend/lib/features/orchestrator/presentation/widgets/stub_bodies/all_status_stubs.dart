@@ -4,13 +4,22 @@
 // chrome these stubs establish. Every stub reads its prose from
 // `booking.ui.bodyText` (dumb-UI principle); none branches on status
 // for copy or computes its own.
+//
+// Session 4: EnRouteBodyStub and ArrivedBodyStub render LiveTrackingMap
+// against the booking's destination + the latest tech_gps frame from
+// `technicianLocationStreamProvider`. The other 13 stubs are unchanged.
 import 'dart:developer' as developer;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:latlong2/latlong.dart';
 
+import '../../../../../core/widgets/map/live_tracking_map.dart';
 import '../../../../customer/bookings/domain/entities/booking_status.dart';
 import '../../../domain/entities/booking_detail.dart';
+import '../../../domain/entities/booking_orchestrator_role.dart';
 import '../../../domain/entities/booking_quote.dart';
+import '../../providers/technician_location_stream_notifier.dart';
 
 class AwaitingBodyStub extends StatelessWidget {
   const AwaitingBodyStub({super.key, required this.booking});
@@ -30,38 +39,133 @@ class ConfirmedBodyStub extends StatelessWidget {
       _IconWithBody(icon: Icons.check_circle_outline, booking: booking);
 }
 
-class EnRouteBodyStub extends StatelessWidget {
+/// Customer / tech viewing a booking that is EN_ROUTE.
+///
+/// Map fills the body — it IS the experience while the tech is on the
+/// move. The booking's UI prose ("Tech will reach you in a few minutes")
+/// sits below as supporting text. The phone-call button is surfaced for
+/// the tech (who has the customer's phoneNo); the customer-side call
+/// button stays hidden until the BookingDetail wire contract exposes
+/// the tech's phoneNo (flag #booking-detail-tech-phone, see flag.md).
+class EnRouteBodyStub extends ConsumerWidget {
   const EnRouteBodyStub({super.key, required this.booking});
   final BookingDetail booking;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final addr = booking.address;
+    if (addr == null) {
+      // Defensive — backend always serializes address for non-terminal
+      // bookings, but the contract allows null. Fall back to plain
+      // body text rather than rendering a map with a default centre.
+      return _IconWithBody(icon: Icons.directions_bike, booking: booking);
+    }
+    final frame = ref.watch(technicianLocationStreamProvider(booking.id));
+    final destination = LatLng(addr.latitude, addr.longitude);
+    final callPhone = booking.viewerRole == BookingOrchestratorRole.technician
+        ? booking.customer.phoneNo
+        : null;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _MapPlaceholder(),
-          const SizedBox(height: 16),
-          Text(booking.ui.bodyText, textAlign: TextAlign.center),
+          // Map fills the body. SizedBox + Expanded gives the map all
+          // remaining vertical space minus the body text caption.
+          Expanded(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: LiveTrackingMap(
+                technicianPosition: frame == null
+                    ? null
+                    : LatLng(frame.latitude, frame.longitude),
+                technicianHeadingDegrees: frame?.heading,
+                lastFrameAt: frame?.frameArrivedAt,
+                destination: destination,
+                phase: TrackingPhase.enRoute,
+                callPhoneNumber: callPhone,
+                callTooltip:
+                    booking.viewerRole == BookingOrchestratorRole.technician
+                    ? 'Call customer'
+                    : 'Call technician',
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            booking.ui.bodyText,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
         ],
       ),
     );
   }
 }
 
-class ArrivedBodyStub extends StatelessWidget {
+/// Customer / tech viewing a booking that is ARRIVED.
+///
+/// Smaller map (220px tall) — the tech is at the door, so the visual
+/// emphasis shifts to "what's next" prose. Marker icon swaps from
+/// motorbike to walking-person via [TrackingPhase.arrived]; staleness
+/// detection stays on (tech going inside = GPS drops; legitimate
+/// signal that the customer might want to know about).
+class ArrivedBodyStub extends ConsumerWidget {
   const ArrivedBodyStub({super.key, required this.booking});
   final BookingDetail booking;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final addr = booking.address;
+    if (addr == null) {
+      return _IconWithBody(icon: Icons.location_on, booking: booking);
+    }
+    final frame = ref.watch(technicianLocationStreamProvider(booking.id));
+    final destination = LatLng(addr.latitude, addr.longitude);
+    final callPhone = booking.viewerRole == BookingOrchestratorRole.technician
+        ? booking.customer.phoneNo
+        : null;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _MapPlaceholder(label: 'Tech is at the door'),
-          const SizedBox(height: 16),
-          Text(booking.ui.bodyText, textAlign: TextAlign.center),
+          SizedBox(
+            height: 220,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: LiveTrackingMap(
+                technicianPosition: frame == null
+                    ? null
+                    : LatLng(frame.latitude, frame.longitude),
+                technicianHeadingDegrees: frame?.heading,
+                lastFrameAt: frame?.frameArrivedAt,
+                destination: destination,
+                phase: TrackingPhase.arrived,
+                callPhoneNumber: callPhone,
+                callTooltip:
+                    booking.viewerRole == BookingOrchestratorRole.technician
+                    ? 'Call customer'
+                    : 'Call technician',
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Card(
+            elevation: 0,
+            color: Theme.of(context).colorScheme.surfaceContainerLow,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                booking.ui.bodyText,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -124,10 +228,8 @@ class CompletedInspectionOnlyBodyStub extends StatelessWidget {
   final BookingDetail booking;
 
   @override
-  Widget build(BuildContext context) => _IconWithBody(
-        icon: Icons.receipt_outlined,
-        booking: booking,
-      );
+  Widget build(BuildContext context) =>
+      _IconWithBody(icon: Icons.receipt_outlined, booking: booking);
 }
 
 class CancelledBodyStub extends StatelessWidget {
@@ -229,39 +331,8 @@ class _IconWithBody extends StatelessWidget {
   }
 }
 
-class _MapPlaceholder extends StatelessWidget {
-  const _MapPlaceholder({this.label});
-  final String? label;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      height: 200,
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: theme.colorScheme.outlineVariant),
-      ),
-      alignment: Alignment.center,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.map_outlined,
-              size: 32, color: theme.colorScheme.outline),
-          const SizedBox(height: 8),
-          Text(
-            label ?? 'Live tracking — coming in session 4',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
+// _MapPlaceholder removed in session 4 — EnRouteBodyStub and
+// ArrivedBodyStub now render `LiveTrackingMap` directly.
 
 class _QuoteCard extends StatelessWidget {
   const _QuoteCard({required this.quote});

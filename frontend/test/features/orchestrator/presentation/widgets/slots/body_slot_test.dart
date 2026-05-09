@@ -7,15 +7,74 @@
 // that swapped a case (e.g. arrived → quoted by typo) would compile
 // cleanly but fail this test.
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:frontend/core/widgets/map/i_app_map.dart';
+import 'package:frontend/core/widgets/map/map_provider.dart';
 import 'package:frontend/features/customer/bookings/domain/entities/booking_status.dart';
 import 'package:frontend/features/orchestrator/data/mappers/booking_detail_mapper.dart';
 import 'package:frontend/features/orchestrator/data/models/booking_detail_model.dart';
 import 'package:frontend/features/orchestrator/domain/entities/booking_detail.dart';
 import 'package:frontend/features/orchestrator/presentation/widgets/slots/body_slot.dart';
 import 'package:frontend/features/orchestrator/presentation/widgets/stub_bodies/all_status_stubs.dart';
+import 'package:latlong2/latlong.dart';
 
 import '../../../_helpers/booking_detail_fixture.dart';
+
+class _NoopAppMap extends StatelessWidget implements IAppMap {
+  @override
+  final LatLng initialCenter;
+  @override
+  final double initialZoom;
+  @override
+  final List<MapMarker> markers;
+  @override
+  final List<MapPolyline> polylines;
+  @override
+  final LatLng? cameraTarget;
+  @override
+  final double? cameraZoom;
+  @override
+  final List<LatLng>? cameraBounds;
+  @override
+  final VoidCallback? onUserGesture;
+
+  const _NoopAppMap({
+    required this.initialCenter,
+    this.initialZoom = 15.0,
+    this.markers = const [],
+    this.polylines = const [],
+    this.cameraTarget,
+    this.cameraZoom,
+    this.cameraBounds,
+    this.onUserGesture,
+  });
+
+  @override
+  Widget build(BuildContext context) => const SizedBox.shrink();
+}
+
+AppMapBuilder _noopMapBuilder() {
+  return ({
+    required initialCenter,
+    initialZoom = 15.0,
+    markers = const [],
+    polylines = const [],
+    cameraTarget,
+    cameraZoom,
+    cameraBounds,
+    onUserGesture,
+  }) => _NoopAppMap(
+    initialCenter: initialCenter,
+    initialZoom: initialZoom,
+    markers: markers,
+    polylines: polylines,
+    cameraTarget: cameraTarget,
+    cameraZoom: cameraZoom,
+    cameraBounds: cameraBounds,
+    onUserGesture: onUserGesture,
+  );
+}
 
 BookingDetail _bookingFor(BookingStatus s) {
   // Map domain status back to wire string. Keep this table in sync with
@@ -65,11 +124,23 @@ void main() {
   ];
 
   for (final (status, expectedType) in cases) {
-    testWidgets('${status.name} renders ${expectedType.toString()}',
-        (tester) async {
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(body: BodySlot(booking: _bookingFor(status))),
-      ));
+    testWidgets('${status.name} renders ${expectedType.toString()}', (
+      tester,
+    ) async {
+      // EnRoute / Arrived stubs read providers (LiveTrackingMap and the
+      // technician location stream). Wrap in a ProviderScope and stub
+      // out the map builder to keep this test scoped to the type-match
+      // assertion.
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            appMapBuilderProvider.overrideWith((ref) => _noopMapBuilder()),
+          ],
+          child: MaterialApp(
+            home: Scaffold(body: BodySlot(booking: _bookingFor(status))),
+          ),
+        ),
+      );
       expect(
         find.byWidgetPredicate((w) => w.runtimeType == expectedType),
         findsOneWidget,

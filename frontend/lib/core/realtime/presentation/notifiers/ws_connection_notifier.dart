@@ -13,6 +13,33 @@ import 'event_sync_notifier.dart';
 
 part 'ws_connection_notifier.g.dart';
 
+/// WS connection lifecycle events surfaced via [WsConnectionNotifier.connectionEvents].
+///
+/// **Why a Stream and not a Riverpod listener.** Riverpod listeners
+/// debounce equal-value writes — a fast disconnect→reconnect can be
+/// coalesced into a single state change observation, missing the
+/// transition. A broadcast Stream emits each lifecycle event
+/// individually, so [TrackingSubscriptionController] (and any future
+/// reconnect-aware consumer) can replay subscriptions reliably.
+///
+/// Late subscribers see only events fired after they listen — there
+/// is no replay buffer. That's intentional: replays of stale events
+/// would force every consumer to filter by recency, complicating their
+/// logic.
+sealed class WsConnectionEvent {
+  const WsConnectionEvent();
+}
+
+class WsConnected extends WsConnectionEvent {
+  final DateTime at;
+  const WsConnected(this.at);
+}
+
+class WsDisconnected extends WsConnectionEvent {
+  final DateTime at;
+  const WsDisconnected(this.at);
+}
+
 /// Owns the entire WebSocket lifecycle for the realtime event stream:
 ///   - Connect with the user's auth token in the query string.
 ///   - Listen to frames, JSON-decode, and forward each decoded map into
@@ -24,6 +51,12 @@ part 'ws_connection_notifier.g.dart';
 ///   - After [_kMaxRetries] consecutive failures, flip state to `failed`
 ///     for the UI — but keep retrying on the cap so the socket recovers
 ///     if the server comes back.
+///   - Surface lifecycle events via [connectionEvents] so consumers
+///     (e.g. `TrackingSubscriptionController`) can replay upstream
+///     subscriptions on every reconnect.
+///   - Accept upstream messages via [sendUpstream] for the WS consumer's
+///     `subscribe_tracking` / `unsubscribe_tracking` envelopes (the only
+///     client-originated upstream payloads the backend honours).
 ///
 /// keepAlive: the channel, timer, and retry counter cannot live with a
 /// widget lifecycle. Disposing mid-session would kill the live connection.
@@ -46,12 +79,25 @@ class WsConnectionNotifier extends _$WsConnectionNotifier {
   Duration _currentBackoff = _kInitialBackoff;
   bool _manualDisconnect = false;
 
+  // Session 4: lifecycle event broadcast for reconnect-aware consumers.
+  // Late subscribers see only events that fire after they listen
+  // (no replay) — intentional, see WsConnectionEvent docs.
+  final StreamController<WsConnectionEvent> _connectionEvents =
+      StreamController<WsConnectionEvent>.broadcast();
+
+  /// Broadcast stream of WS connection lifecycle events. Used by
+  /// `TrackingSubscriptionController` (and any future consumer with
+  /// upstream subscription state) to re-issue `subscribe_tracking` on
+  /// every successful reconnect.
+  Stream<WsConnectionEvent> get connectionEvents => _connectionEvents.stream;
+
   @override
   WsConnectionStatus build() {
     ref.onDispose(() {
       _reconnectTimer?.cancel();
       _socketSubscription?.cancel();
       _channel?.sink.close();
+      _connectionEvents.close();
     });
     return WsConnectionStatus.disconnected;
   }
@@ -84,30 +130,31 @@ class WsConnectionNotifier extends _$WsConnectionNotifier {
       // errors surfacing as stream errors.
       await _channel!.ready;
     } catch (e, stack) {
-      log(
-        'WebSocket handshake failed: $e',
-        name: _logName,
-        stackTrace: stack,
-      );
+      log('WebSocket handshake failed: $e', name: _logName, stackTrace: stack);
       _scheduleReconnect(authToken);
       return;
     }
 
     state = WsConnectionStatus.connected;
+    // Session 4: announce the (re)connect so TrackingSubscriptionController
+    // can replay subscribe_tracking. Add() is a no-op if the controller
+    // has been closed during shutdown.
+    if (!_connectionEvents.isClosed) {
+      _connectionEvents.add(WsConnected(DateTime.now()));
+    }
     _retryCount = 0;
     _currentBackoff = _kInitialBackoff;
 
     // Critical recovery step — pull anything we missed while disconnected.
     // Fire-and-forget: the socket stream is already live, and sync failures
     // are handled internally by EventSyncNotifier.
-    unawaited(
-      ref.read(eventSyncProvider.notifier).syncMissedEvents(),
-    );
+    unawaited(ref.read(eventSyncProvider.notifier).syncMissedEvents());
 
     _socketSubscription = _channel!.stream.listen(
       (raw) => _onMessage(raw),
       onDone: () {
         if (_manualDisconnect) return;
+        _emitDisconnect();
         _scheduleReconnect(authToken);
       },
       onError: (Object error, StackTrace stack) {
@@ -116,6 +163,7 @@ class WsConnectionNotifier extends _$WsConnectionNotifier {
           name: _logName,
           stackTrace: stack,
         );
+        _emitDisconnect();
         _scheduleReconnect(authToken);
       },
       cancelOnError: true,
@@ -140,6 +188,26 @@ class WsConnectionNotifier extends _$WsConnectionNotifier {
     }
   }
 
+  /// Send an upstream JSON message over the live socket. The backend
+  /// honours exactly two upstream actions —
+  /// `{action: 'subscribe_tracking', booking_id}` and
+  /// `{action: 'unsubscribe_tracking', booking_id}`. Anything else is
+  /// silently dropped server-side.
+  ///
+  /// Drops silently when the socket is not connected. Consumers that
+  /// need at-least-once delivery (e.g. tracking subscriptions) listen
+  /// to [connectionEvents] and re-issue their messages on every
+  /// `WsConnected` so a reconnect replays the upstream state.
+  void sendUpstream(Map<String, dynamic> message) {
+    final channel = _channel;
+    if (channel == null) return;
+    try {
+      channel.sink.add(jsonEncode(message));
+    } catch (e, stack) {
+      log('WS upstream send failed: $e', name: _logName, stackTrace: stack);
+    }
+  }
+
   /// Clean shutdown — user-initiated (logout, app close). Suppresses the
   /// auto-reconnect that would otherwise fire on `onDone`.
   void disconnect() {
@@ -152,7 +220,14 @@ class WsConnectionNotifier extends _$WsConnectionNotifier {
     _channel = null;
     _retryCount = 0;
     _currentBackoff = _kInitialBackoff;
+    _emitDisconnect();
     state = WsConnectionStatus.disconnected;
+  }
+
+  void _emitDisconnect() {
+    if (!_connectionEvents.isClosed) {
+      _connectionEvents.add(WsDisconnected(DateTime.now()));
+    }
   }
 
   void _scheduleReconnect(String authToken) {
@@ -171,8 +246,10 @@ class WsConnectionNotifier extends _$WsConnectionNotifier {
     }
 
     _reconnectTimer = Timer(_currentBackoff, () => connect(authToken));
-    final nextMs =
-        (_currentBackoff.inMilliseconds * 2).clamp(0, _kMaxBackoff.inMilliseconds);
+    final nextMs = (_currentBackoff.inMilliseconds * 2).clamp(
+      0,
+      _kMaxBackoff.inMilliseconds,
+    );
     _currentBackoff = Duration(milliseconds: nextMs);
   }
 }

@@ -115,10 +115,12 @@ void main() {
     // pending acks) never throws and doesn't trigger an outbound POST.
     when(() => local.getLastSyncTimestamp()).thenReturn(null);
     when(() => local.getPendingAcks()).thenReturn(const <String>[]);
-    when(() => repo.syncMissedEvents(any()))
-        .thenAnswer((_) async => <SystemEventEntity>[]);
-    when(() => repo.fetchUnacknowledgedCritical())
-        .thenAnswer((_) async => <SystemEventEntity>[]);
+    when(
+      () => repo.syncMissedEvents(any()),
+    ).thenAnswer((_) async => <SystemEventEntity>[]);
+    when(
+      () => repo.fetchUnacknowledgedCritical(),
+    ).thenAnswer((_) async => <SystemEventEntity>[]);
     when(() => repo.acknowledgeEvents(any())).thenAnswer((_) async {});
   });
 
@@ -137,8 +139,7 @@ void main() {
       expect(state, WsConnectionStatus.disconnected);
     });
 
-    test(
-        'W2 — disconnect() with no live socket: state stays disconnected; no '
+    test('W2 — disconnect() with no live socket: state stays disconnected; no '
         'pending reconnect timer; no exception', () {
       fakeAsync((async) {
         final container = _container(repo: repo, local: local);
@@ -158,8 +159,7 @@ void main() {
   // ─── Tier B — with injected factory ────────────────────────────────────
 
   group('Tier B — fake channel injection', () {
-    test(
-        'W3 — connect succeeds: connecting → connected; cascade triggers '
+    test('W3 — connect succeeds: connecting → connected; cascade triggers '
         'syncMissedEvents()', () {
       fakeAsync((async) {
         final fake = _FakeWebSocketChannel();
@@ -193,32 +193,34 @@ void main() {
       });
     });
 
-    test('W4 — handshake fails: state == reconnecting; reconnect scheduled', () {
-      fakeAsync((async) {
-        final fake = _FakeWebSocketChannel();
-        WsConnectionNotifier.channelFactoryForTesting = (_) {
-          // Defer failReady so connect()'s `await ready` listener is attached
-          // before the error lands — otherwise it surfaces as unhandled.
-          scheduleMicrotask(() => fake.failReady(Exception('handshake')));
-          return fake;
-        };
-
-        final container = _container(repo: repo, local: local);
-        final notifier = container.read(wsConnectionProvider.notifier);
-
-        unawaited(notifier.connect('tok'));
-        async.flushMicrotasks();
-
-        expect(
-          container.read(wsConnectionProvider),
-          WsConnectionStatus.reconnecting,
-        );
-        expect(async.pendingTimers, isNotEmpty);
-      });
-    });
-
     test(
-        'W5 — backoff progression: 1s, 2s, 4s, 8s, 16s, 30s, 30s, 30s '
+      'W4 — handshake fails: state == reconnecting; reconnect scheduled',
+      () {
+        fakeAsync((async) {
+          final fake = _FakeWebSocketChannel();
+          WsConnectionNotifier.channelFactoryForTesting = (_) {
+            // Defer failReady so connect()'s `await ready` listener is attached
+            // before the error lands — otherwise it surfaces as unhandled.
+            scheduleMicrotask(() => fake.failReady(Exception('handshake')));
+            return fake;
+          };
+
+          final container = _container(repo: repo, local: local);
+          final notifier = container.read(wsConnectionProvider.notifier);
+
+          unawaited(notifier.connect('tok'));
+          async.flushMicrotasks();
+
+          expect(
+            container.read(wsConnectionProvider),
+            WsConnectionStatus.reconnecting,
+          );
+          expect(async.pendingTimers, isNotEmpty);
+        });
+      },
+    );
+
+    test('W5 — backoff progression: 1s, 2s, 4s, 8s, 16s, 30s, 30s, 30s '
         '(doubling, capped at 30s)', () {
       fakeAsync((async) {
         WsConnectionNotifier.channelFactoryForTesting = (_) {
@@ -258,8 +260,7 @@ void main() {
       });
     });
 
-    test(
-        'W6 — after 11 consecutive failures: state == failed; timer still '
+    test('W6 — after 11 consecutive failures: state == failed; timer still '
         'scheduled at 30s cap; further failures keep state == failed', () {
       fakeAsync((async) {
         WsConnectionNotifier.channelFactoryForTesting = (_) {
@@ -282,10 +283,7 @@ void main() {
           async.flushMicrotasks();
         }
 
-        expect(
-          container.read(wsConnectionProvider),
-          WsConnectionStatus.failed,
-        );
+        expect(container.read(wsConnectionProvider), WsConnectionStatus.failed);
         expect(
           async.pendingTimers.single.duration,
           const Duration(seconds: 30),
@@ -295,10 +293,7 @@ void main() {
         async.elapse(const Duration(seconds: 30));
         async.flushMicrotasks();
 
-        expect(
-          container.read(wsConnectionProvider),
-          WsConnectionStatus.failed,
-        );
+        expect(container.read(wsConnectionProvider), WsConnectionStatus.failed);
         expect(
           async.pendingTimers.single.duration,
           const Duration(seconds: 30),
@@ -307,64 +302,65 @@ void main() {
     });
 
     test(
-        'W7 — stream onDone WITHOUT manual disconnect → reconnect scheduled',
-        () {
-      fakeAsync((async) {
-        final fake = _FakeWebSocketChannel();
-        WsConnectionNotifier.channelFactoryForTesting = (_) => fake;
-        fake.completeReady();
+      'W7 — stream onDone WITHOUT manual disconnect → reconnect scheduled',
+      () {
+        fakeAsync((async) {
+          final fake = _FakeWebSocketChannel();
+          WsConnectionNotifier.channelFactoryForTesting = (_) => fake;
+          fake.completeReady();
 
-        final container = _container(repo: repo, local: local);
-        final notifier = container.read(wsConnectionProvider.notifier);
+          final container = _container(repo: repo, local: local);
+          final notifier = container.read(wsConnectionProvider.notifier);
 
-        unawaited(notifier.connect('tok'));
-        async.flushMicrotasks();
-        expect(
-          container.read(wsConnectionProvider),
-          WsConnectionStatus.connected,
-        );
+          unawaited(notifier.connect('tok'));
+          async.flushMicrotasks();
+          expect(
+            container.read(wsConnectionProvider),
+            WsConnectionStatus.connected,
+          );
 
-        unawaited(fake.closeStream());
-        async.flushMicrotasks();
+          unawaited(fake.closeStream());
+          async.flushMicrotasks();
 
-        expect(
-          container.read(wsConnectionProvider),
-          WsConnectionStatus.reconnecting,
-        );
-        expect(async.pendingTimers, isNotEmpty);
-      });
-    });
-
-    test(
-        'W8 — stream onDone WITH manual disconnect → no reconnect scheduled',
-        () {
-      fakeAsync((async) {
-        final fake = _FakeWebSocketChannel();
-        WsConnectionNotifier.channelFactoryForTesting = (_) => fake;
-        fake.completeReady();
-
-        final container = _container(repo: repo, local: local);
-        final notifier = container.read(wsConnectionProvider.notifier);
-
-        unawaited(notifier.connect('tok'));
-        async.flushMicrotasks();
-
-        notifier.disconnect();
-        // Even pushing a stream close after disconnect must not trigger a
-        // reconnect — the subscription is cancelled and the manual flag is set.
-        unawaited(fake.closeStream());
-        async.flushMicrotasks();
-
-        expect(
-          container.read(wsConnectionProvider),
-          WsConnectionStatus.disconnected,
-        );
-        expect(async.pendingTimers, isEmpty);
-      });
-    });
+          expect(
+            container.read(wsConnectionProvider),
+            WsConnectionStatus.reconnecting,
+          );
+          expect(async.pendingTimers, isNotEmpty);
+        });
+      },
+    );
 
     test(
-        'W9 — _onMessage with valid JSON frame → systemEventNotifier receives '
+      'W8 — stream onDone WITH manual disconnect → no reconnect scheduled',
+      () {
+        fakeAsync((async) {
+          final fake = _FakeWebSocketChannel();
+          WsConnectionNotifier.channelFactoryForTesting = (_) => fake;
+          fake.completeReady();
+
+          final container = _container(repo: repo, local: local);
+          final notifier = container.read(wsConnectionProvider.notifier);
+
+          unawaited(notifier.connect('tok'));
+          async.flushMicrotasks();
+
+          notifier.disconnect();
+          // Even pushing a stream close after disconnect must not trigger a
+          // reconnect — the subscription is cancelled and the manual flag is set.
+          unawaited(fake.closeStream());
+          async.flushMicrotasks();
+
+          expect(
+            container.read(wsConnectionProvider),
+            WsConnectionStatus.disconnected,
+          );
+          expect(async.pendingTimers, isEmpty);
+        });
+      },
+    );
+
+    test('W9 — _onMessage with valid JSON frame → systemEventNotifier receives '
         'mapped entity', () {
       fakeAsync((async) {
         final fake = _FakeWebSocketChannel();
@@ -388,39 +384,33 @@ void main() {
         fake.pushFrame(frame);
         async.flushMicrotasks();
 
-        expect(
-          container.read(systemEventProvider).latestEvent?.id,
-          'evt-w9',
-        );
+        expect(container.read(systemEventProvider).latestEvent?.id, 'evt-w9');
       });
     });
 
     test(
-        'W10 — _onMessage with malformed JSON → caught, processEvent NOT called',
-        () {
-      fakeAsync((async) {
-        final fake = _FakeWebSocketChannel();
-        WsConnectionNotifier.channelFactoryForTesting = (_) => fake;
-        fake.completeReady();
+      'W10 — _onMessage with malformed JSON → caught, processEvent NOT called',
+      () {
+        fakeAsync((async) {
+          final fake = _FakeWebSocketChannel();
+          WsConnectionNotifier.channelFactoryForTesting = (_) => fake;
+          fake.completeReady();
 
-        final container = _container(repo: repo, local: local);
-        final notifier = container.read(wsConnectionProvider.notifier);
+          final container = _container(repo: repo, local: local);
+          final notifier = container.read(wsConnectionProvider.notifier);
 
-        unawaited(notifier.connect('tok'));
-        async.flushMicrotasks();
+          unawaited(notifier.connect('tok'));
+          async.flushMicrotasks();
 
-        fake.pushFrame('not json {{{');
-        async.flushMicrotasks();
+          fake.pushFrame('not json {{{');
+          async.flushMicrotasks();
 
-        expect(
-          container.read(systemEventProvider).latestEvent,
-          isNull,
-        );
-      });
-    });
+          expect(container.read(systemEventProvider).latestEvent, isNull);
+        });
+      },
+    );
 
-    test(
-        'W11 — _onMessage with frame whose toDomain() returns null (bad '
+    test('W11 — _onMessage with frame whose toDomain() returns null (bad '
         'timestamp) → processEvent NOT called', () {
       fakeAsync((async) {
         final fake = _FakeWebSocketChannel();
@@ -444,10 +434,137 @@ void main() {
         fake.pushFrame(frame);
         async.flushMicrotasks();
 
-        expect(
-          container.read(systemEventProvider).latestEvent,
-          isNull,
-        );
+        expect(container.read(systemEventProvider).latestEvent, isNull);
+      });
+    });
+  });
+
+  // ─── Tier D — session 4: sendUpstream + connectionEvents ──────────────
+  //
+  // Two new public surfaces added by session 4:
+  //   • `sendUpstream(Map)` — writes JSON to the live socket sink. Used
+  //     by `TrackingSubscriptionController` for subscribe_tracking /
+  //     unsubscribe_tracking envelopes.
+  //   • `connectionEvents` — broadcast Stream<WsConnectionEvent> with
+  //     WsConnected / WsDisconnected events. Consumers replay upstream
+  //     state on every WsConnected.
+
+  group('Tier D — session 4 sendUpstream + connectionEvents', () {
+    test('S4-1 — sendUpstream JSON-encodes and writes to the live sink', () {
+      fakeAsync((async) {
+        final fake = _FakeWebSocketChannel();
+        WsConnectionNotifier.channelFactoryForTesting = (_) => fake;
+        fake.completeReady();
+
+        final container = _container(repo: repo, local: local);
+        final notifier = container.read(wsConnectionProvider.notifier);
+
+        unawaited(notifier.connect('tok'));
+        async.flushMicrotasks();
+
+        notifier.sendUpstream({
+          'action': 'subscribe_tracking',
+          'booking_id': 42,
+        });
+
+        expect(fake.sentItems, hasLength(1));
+        final decoded =
+            jsonDecode(fake.sentItems.first as String) as Map<String, dynamic>;
+        expect(decoded['action'], 'subscribe_tracking');
+        expect(decoded['booking_id'], 42);
+      });
+    });
+
+    test('S4-2 — sendUpstream is a silent no-op when not connected', () {
+      // No channel injected → connect() never called → _channel is null.
+      // sendUpstream should drop silently. The TrackingSubscriptionController's
+      // connectionEvents listener is what re-issues on next connect.
+      final container = _container(repo: repo, local: local);
+      final notifier = container.read(wsConnectionProvider.notifier);
+
+      // Should not throw.
+      notifier.sendUpstream({'action': 'subscribe_tracking', 'booking_id': 1});
+    });
+
+    test(
+      'S4-3 — connectionEvents emits WsConnected after successful handshake',
+      () {
+        fakeAsync((async) {
+          final fake = _FakeWebSocketChannel();
+          WsConnectionNotifier.channelFactoryForTesting = (_) => fake;
+          fake.completeReady();
+
+          final container = _container(repo: repo, local: local);
+          final notifier = container.read(wsConnectionProvider.notifier);
+
+          final received = <WsConnectionEvent>[];
+          notifier.connectionEvents.listen(received.add);
+
+          unawaited(notifier.connect('tok'));
+          async.flushMicrotasks();
+
+          expect(received, hasLength(1));
+          expect(received.first, isA<WsConnected>());
+        });
+      },
+    );
+
+    test('S4-4 — connectionEvents emits WsDisconnected on disconnect()', () {
+      fakeAsync((async) {
+        final fake = _FakeWebSocketChannel();
+        WsConnectionNotifier.channelFactoryForTesting = (_) => fake;
+        fake.completeReady();
+
+        final container = _container(repo: repo, local: local);
+        final notifier = container.read(wsConnectionProvider.notifier);
+
+        unawaited(notifier.connect('tok'));
+        async.flushMicrotasks();
+
+        final received = <WsConnectionEvent>[];
+        notifier.connectionEvents.listen(received.add);
+
+        notifier.disconnect();
+        async.flushMicrotasks();
+
+        // Expect exactly one WsDisconnected (we subscribed AFTER connect,
+        // so the prior WsConnected was missed — that's the documented
+        // late-subscriber contract).
+        expect(received, hasLength(1));
+        expect(received.first, isA<WsDisconnected>());
+      });
+    });
+
+    test('S4-5 — connectionEvents emits Connected → Disconnected → Connected '
+        'across an explicit reconnect by the caller', () {
+      fakeAsync((async) {
+        WsConnectionNotifier.channelFactoryForTesting = (_) {
+          final f = _FakeWebSocketChannel();
+          f.completeReady();
+          return f;
+        };
+
+        final container = _container(repo: repo, local: local);
+        final notifier = container.read(wsConnectionProvider.notifier);
+
+        final received = <WsConnectionEvent>[];
+        notifier.connectionEvents.listen(received.add);
+
+        unawaited(notifier.connect('tok'));
+        async.flushMicrotasks();
+
+        notifier.disconnect();
+        async.flushMicrotasks();
+
+        unawaited(notifier.connect('tok'));
+        async.flushMicrotasks();
+
+        // Two Connected events (initial + reconnect) and one Disconnected
+        // between them — proves the broadcast Stream re-emits across the
+        // reconnect cycle, which is what `TrackingSubscriptionController`
+        // depends on for re-issuing subscribe_tracking.
+        expect(received.whereType<WsConnected>(), hasLength(2));
+        expect(received.whereType<WsDisconnected>(), hasLength(1));
       });
     });
   });
