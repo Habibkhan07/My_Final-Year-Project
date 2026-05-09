@@ -16,6 +16,9 @@ import 'package:latlong2/latlong.dart';
 
 import '../../../../../core/widgets/map/live_tracking_map.dart';
 import '../../../../customer/bookings/domain/entities/booking_status.dart';
+import '../../../../technician/location_broadcaster/domain/entities/broadcast_state.dart';
+import '../../../../technician/location_broadcaster/presentation/providers/foreground_location_service_controller.dart';
+import '../../../../technician/location_broadcaster/presentation/widgets/broadcast_state_banner.dart';
 import '../../../domain/entities/booking_detail.dart';
 import '../../../domain/entities/booking_orchestrator_role.dart';
 import '../../../domain/entities/booking_quote.dart';
@@ -62,14 +65,20 @@ class EnRouteBodyStub extends ConsumerWidget {
     }
     final frame = ref.watch(technicianLocationStreamProvider(booking.id));
     final destination = LatLng(addr.latitude, addr.longitude);
-    final callPhone = booking.viewerRole == BookingOrchestratorRole.technician
-        ? booking.customer.phoneNo
-        : null;
+    final isTech = booking.viewerRole == BookingOrchestratorRole.technician;
+    final callPhone = isTech ? booking.customer.phoneNo : null;
+    // Audit C6: surface non-running BroadcastState to the tech so they
+    // know their location is NOT being shared. Customer view never sees
+    // the banner — the controller stays `idle` for non-tech viewers.
+    final broadcastState = isTech
+        ? ref.watch(foregroundLocationServiceControllerProvider(booking.id))
+        : BroadcastState.idle;
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          BroadcastStateBanner(state: broadcastState),
           // Map fills the body. SizedBox + Expanded gives the map all
           // remaining vertical space minus the body text caption.
           Expanded(
@@ -84,10 +93,7 @@ class EnRouteBodyStub extends ConsumerWidget {
                 destination: destination,
                 phase: TrackingPhase.enRoute,
                 callPhoneNumber: callPhone,
-                callTooltip:
-                    booking.viewerRole == BookingOrchestratorRole.technician
-                    ? 'Call customer'
-                    : 'Call technician',
+                callTooltip: isTech ? 'Call customer' : 'Call technician',
               ),
             ),
           ),
@@ -122,14 +128,17 @@ class ArrivedBodyStub extends ConsumerWidget {
     }
     final frame = ref.watch(technicianLocationStreamProvider(booking.id));
     final destination = LatLng(addr.latitude, addr.longitude);
-    final callPhone = booking.viewerRole == BookingOrchestratorRole.technician
-        ? booking.customer.phoneNo
-        : null;
+    final isTech = booking.viewerRole == BookingOrchestratorRole.technician;
+    final callPhone = isTech ? booking.customer.phoneNo : null;
+    final broadcastState = isTech
+        ? ref.watch(foregroundLocationServiceControllerProvider(booking.id))
+        : BroadcastState.idle;
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          BroadcastStateBanner(state: broadcastState),
           SizedBox(
             height: 220,
             child: ClipRRect(
@@ -143,10 +152,7 @@ class ArrivedBodyStub extends ConsumerWidget {
                 destination: destination,
                 phase: TrackingPhase.arrived,
                 callPhoneNumber: callPhone,
-                callTooltip:
-                    booking.viewerRole == BookingOrchestratorRole.technician
-                    ? 'Call customer'
-                    : 'Call technician',
+                callTooltip: isTech ? 'Call customer' : 'Call technician',
               ),
             ),
           ),
