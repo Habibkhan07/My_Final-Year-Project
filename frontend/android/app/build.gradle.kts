@@ -35,6 +35,15 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
+        // Booking orchestrator session 4 — Google Maps API key plumbing.
+        // The manifest's `<meta-data android:name="com.google.android.geo.API_KEY">`
+        // reads ${GOOGLE_MAPS_API_KEY}; this resolves it from the build env.
+        // Empty string is acceptable — the OSM provider is the dev default
+        // and Google Maps will simply render blank tiles when the key is
+        // empty (flag #16 footgun, deliberately surfaced visually).
+        manifestPlaceholders["GOOGLE_MAPS_API_KEY"] =
+            System.getenv("GOOGLE_MAPS_API_KEY") ?: ""
     }
 
     buildTypes {

@@ -32,6 +32,19 @@
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_color"
             android:resource="@color/notification_color" />
+
+        <!--
+            Booking orchestrator session 4 — Google Maps API key.
+            Resolved by `manifestPlaceholders["GOOGLE_MAPS_API_KEY"]` in
+            app/build.gradle.kts (which reads the GOOGLE_MAPS_API_KEY env
+            var at build time). Empty when running the OSM provider; the
+            map widget logs a clear warning if `MAP_PROVIDER=google` is
+            paired with an empty key (flag #16 footgun).
+        -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="${GOOGLE_MAPS_API_KEY}" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

@@ -1,5 +1,14 @@
 import 'package:flutter/foundation.dart';
 
+/// Booking orchestrator (session 4): which map vendor renders the
+/// `LiveTrackingMap`. Selected once at app boot via `--dart-define=
+/// MAP_PROVIDER=osm|google` and consumed by the adapter factories
+/// (`mapProviderTypeProvider` in `core/widgets/map/map_provider.dart`).
+/// Per memory `project_maps_strategy`: default `osm` until a Google
+/// Maps API key is provisioned. Runtime flipping is intentionally NOT
+/// supported — would require widget-tree rebuild on every screen.
+enum MapProviderType { osm, google }
+
 class AppConstants {
   // We added the /api prefix here so the Remote Data Sources don't have to!
   static const String baseUrl = kIsWeb
@@ -13,4 +22,30 @@ class AppConstants {
   static const String baseWsUrl = kIsWeb
       ? 'ws://127.0.0.1:8000'
       : 'ws://127.0.0.1:8000';
+
+  // ─── Map provider (session 4) ──────────────────────────────────────────
+  //
+  // Read once at boot via --dart-define. Anything other than the literal
+  // string "google" falls back to OSM — the dev default that requires no
+  // API key. The fallback is deliberately permissive (any typo / missing
+  // value lands on OSM, never on a broken Google build).
+  static const String _mapProviderRaw = String.fromEnvironment(
+    'MAP_PROVIDER',
+    defaultValue: 'osm',
+  );
+
+  static MapProviderType get mapProvider => switch (_mapProviderRaw) {
+    'google' => MapProviderType.google,
+    _ => MapProviderType.osm,
+  };
+
+  /// API key for Google Maps + Google Directions. Empty when running on the
+  /// OSM provider (the default), or when the Google build forgot to pass
+  /// the key. The map widget logs a clear warning at first build time if
+  /// `mapProvider == google` but this is empty — see flag #16 for the
+  /// silent-fallback footgun and the planned production-mode assertion.
+  static const String googleMapsApiKey = String.fromEnvironment(
+    'GOOGLE_MAPS_API_KEY',
+    defaultValue: '',
+  );
 }
