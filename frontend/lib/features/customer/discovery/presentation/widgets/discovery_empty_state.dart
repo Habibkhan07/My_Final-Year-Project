@@ -4,10 +4,7 @@ import 'package:flutter/material.dart';
 class DiscoveryEmptyState extends StatelessWidget {
   final VoidCallback? onClearFilters;
 
-  const DiscoveryEmptyState({
-    super.key,
-    this.onClearFilters,
-  });
+  const DiscoveryEmptyState({super.key, this.onClearFilters});
 
   @override
   Widget build(BuildContext context) {
@@ -25,9 +22,9 @@ class DiscoveryEmptyState extends StatelessWidget {
             const SizedBox(height: 16.0),
             Text(
               'No technicians found',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8.0),
             Text(
@@ -44,7 +41,7 @@ class DiscoveryEmptyState extends StatelessWidget {
                 icon: const Icon(Icons.clear_all),
                 label: const Text('Clear Filters'),
               ),
-            ]
+            ],
           ],
         ),
       ),

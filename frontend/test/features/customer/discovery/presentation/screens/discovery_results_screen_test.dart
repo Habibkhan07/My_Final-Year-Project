@@ -79,9 +79,7 @@ void main() {
     results: [],
   );
 
-  Widget createWidgetUnderTest({
-    required AsyncValue<DiscoveryState> state,
-  }) {
+  Widget createWidgetUnderTest({required AsyncValue<DiscoveryState> state}) {
     return ProviderScope(
       overrides: [
         discoveryProvider(
@@ -91,49 +89,60 @@ void main() {
           promotionId: null,
           lat: null,
           lng: null,
-        ).overrideWith(
-          () => FakeDiscoveryNotifier(state),
-        ),
+        ).overrideWith(() => FakeDiscoveryNotifier(state)),
       ],
       child: const MaterialApp(
-        home: DiscoveryResultsScreen(
-          title: 'Electricians',
-          serviceId: 2,
-        ),
+        home: DiscoveryResultsScreen(title: 'Electricians', serviceId: 2),
       ),
     );
   }
 
   group('DiscoveryResultsScreen Tests', () {
     testWidgets('should show skeleton on initial fetch', (tester) async {
-      await tester.pumpWidget(createWidgetUnderTest(state: const AsyncLoading()));
+      await tester.pumpWidget(
+        createWidgetUnderTest(state: const AsyncLoading()),
+      );
 
       expect(find.byType(TechnicianCardSkeleton), findsWidgets);
     });
 
-    testWidgets('should show DiscoveryErrorView on initial failure', (tester) async {
+    testWidgets('should show DiscoveryErrorView on initial failure', (
+      tester,
+    ) async {
       const failure = DiscoveryNetworkFailure('No Internet');
-      await tester.pumpWidget(createWidgetUnderTest(state: AsyncError(failure, StackTrace.empty)));
+      await tester.pumpWidget(
+        createWidgetUnderTest(state: AsyncError(failure, StackTrace.empty)),
+      );
       await tester.pump(); // Pump again to let error state settle if needed
 
       expect(find.byType(DiscoveryErrorView), findsOneWidget);
       expect(find.text('No Internet Connection'), findsOneWidget);
     });
 
-    testWidgets('should render empty state when results are empty', (tester) async {
-      await tester.pumpWidget(createWidgetUnderTest(
-        state: const AsyncData(DiscoveryState(discoveryResult: tEmptyResult))
-      ));
+    testWidgets('should render empty state when results are empty', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        createWidgetUnderTest(
+          state: const AsyncData(DiscoveryState(discoveryResult: tEmptyResult)),
+        ),
+      );
       await tester.pump();
 
       expect(find.byType(DiscoveryEmptyState), findsOneWidget);
       expect(find.text('No technicians found'), findsOneWidget);
     });
 
-    testWidgets('should render list of technicians and promo banner', (tester) async {
-      await tester.pumpWidget(createWidgetUnderTest(
-        state: const AsyncData(DiscoveryState(discoveryResult: tResultWithPromo))
-      ));
+    testWidgets('should render list of technicians and promo banner', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        createWidgetUnderTest(
+          state: const AsyncData(
+            DiscoveryState(discoveryResult: tResultWithPromo),
+          ),
+        ),
+      );
       await tester.pump();
 
       expect(find.byType(DiscoveryPromoBanner), findsOneWidget);
@@ -142,19 +151,29 @@ void main() {
       expect(find.text('Ali Raza'), findsOneWidget);
     });
 
-    testWidgets('should render a bottom loader when isPaginationLoading is true', (tester) async {
-      await tester.pumpWidget(createWidgetUnderTest(
-        state: const AsyncData(DiscoveryState(
-          discoveryResult: tResultWithPromo, 
-          isPaginationLoading: true
-        ))
-      ));
-      await tester.pump();
+    testWidgets(
+      'should render a bottom loader when isPaginationLoading is true',
+      (tester) async {
+        await tester.pumpWidget(
+          createWidgetUnderTest(
+            state: const AsyncData(
+              DiscoveryState(
+                discoveryResult: tResultWithPromo,
+                isPaginationLoading: true,
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
 
-      expect(find.byType(TechnicianCard), findsOneWidget); // Data is preserved
-      
-      // Bottom loader check
-      expect(find.byType(CircularProgressIndicator), findsOneWidget);
-    });
+        expect(
+          find.byType(TechnicianCard),
+          findsOneWidget,
+        ); // Data is preserved
+
+        // Bottom loader check
+        expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      },
+    );
   });
 }

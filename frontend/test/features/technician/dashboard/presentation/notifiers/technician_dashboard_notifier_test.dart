@@ -103,17 +103,13 @@ void main() {
     test('re-fetches and replaces the cached dashboard', () async {
       final first = _entity(walletBalance: 1000);
       final second = _entity(walletBalance: 2500);
-      when(() => repo.getDashboard())
-          .thenAnswer((_) async => first);
+      when(() => repo.getDashboard()).thenAnswer((_) async => first);
 
       await container.read(technicianDashboardProvider.future);
 
-      when(() => repo.getDashboard())
-          .thenAnswer((_) async => second);
+      when(() => repo.getDashboard()).thenAnswer((_) async => second);
 
-      await container
-          .read(technicianDashboardProvider.notifier)
-          .refresh();
+      await container.read(technicianDashboardProvider.notifier).refresh();
 
       final state = container.read(technicianDashboardProvider).requireValue;
       expect(state.dashboard.walletBalance, 2500);
@@ -125,12 +121,11 @@ void main() {
       when(() => repo.getDashboard()).thenAnswer((_) async => first);
       await container.read(technicianDashboardProvider.future);
 
-      when(() => repo.getDashboard())
-          .thenAnswer((_) async => throw const DashboardServerFailure('boom'));
+      when(
+        () => repo.getDashboard(),
+      ).thenAnswer((_) async => throw const DashboardServerFailure('boom'));
 
-      await container
-          .read(technicianDashboardProvider.notifier)
-          .refresh();
+      await container.read(technicianDashboardProvider.notifier).refresh();
 
       final state = container.read(technicianDashboardProvider);
       expect(state, isA<AsyncError<TechnicianDashboardState>>());
@@ -138,24 +133,28 @@ void main() {
   });
 
   group('setOnline()', () {
-    test('optimistically flips isOnline and settles toggleStatus to data',
-        () async {
-      when(() => repo.getDashboard())
-          .thenAnswer((_) async => _entity(isOnline: false));
-      await container.read(technicianDashboardProvider.future);
+    test(
+      'optimistically flips isOnline and settles toggleStatus to data',
+      () async {
+        when(
+          () => repo.getDashboard(),
+        ).thenAnswer((_) async => _entity(isOnline: false));
+        await container.read(technicianDashboardProvider.future);
 
-      await container
-          .read(technicianDashboardProvider.notifier)
-          .setOnline(true);
+        await container
+            .read(technicianDashboardProvider.notifier)
+            .setOnline(true);
 
-      final state = container.read(technicianDashboardProvider).requireValue;
-      expect(state.dashboard.isOnline, true);
-      expect(state.toggleStatus, const AsyncData<void>(null));
-    });
+        final state = container.read(technicianDashboardProvider).requireValue;
+        expect(state.dashboard.isOnline, true);
+        expect(state.toggleStatus, const AsyncData<void>(null));
+      },
+    );
 
     test('is a no-op when desired matches current state', () async {
-      when(() => repo.getDashboard())
-          .thenAnswer((_) async => _entity(isOnline: true));
+      when(
+        () => repo.getDashboard(),
+      ).thenAnswer((_) async => _entity(isOnline: true));
       await container.read(technicianDashboardProvider.future);
 
       final before = container.read(technicianDashboardProvider).requireValue;
@@ -171,8 +170,9 @@ void main() {
     test('is a no-op when state has not loaded yet', () async {
       // Stub getDashboard with a never-completing future so build() stays
       // in AsyncLoading for the duration of this test.
-      when(() => repo.getDashboard())
-          .thenAnswer((_) => Completer<TechnicianDashboardEntity>().future);
+      when(
+        () => repo.getDashboard(),
+      ).thenAnswer((_) => Completer<TechnicianDashboardEntity>().future);
 
       await container
           .read(technicianDashboardProvider.notifier)
@@ -184,27 +184,30 @@ void main() {
   });
 
   group('onWalletBalanceEvent()', () {
-    test('patches only the wallet balance, leaves other fields intact',
-        () async {
-      final entity = _entity(walletBalance: 1500);
-      when(() => repo.getDashboard()).thenAnswer((_) async => entity);
-      await container.read(technicianDashboardProvider.future);
+    test(
+      'patches only the wallet balance, leaves other fields intact',
+      () async {
+        final entity = _entity(walletBalance: 1500);
+        when(() => repo.getDashboard()).thenAnswer((_) async => entity);
+        await container.read(technicianDashboardProvider.future);
 
-      container
-          .read(technicianDashboardProvider.notifier)
-          .onWalletBalanceEvent(2750);
+        container
+            .read(technicianDashboardProvider.notifier)
+            .onWalletBalanceEvent(2750);
 
-      final state = container.read(technicianDashboardProvider).requireValue;
-      expect(state.dashboard.walletBalance, 2750);
-      expect(state.dashboard.isOnline, entity.isOnline);
-      expect(state.dashboard.upNextJob, entity.upNextJob);
-      expect(state.dashboard.laterTodayJobs, entity.laterTodayJobs);
-      expect(state.dashboard.metrics, entity.metrics);
-    });
+        final state = container.read(technicianDashboardProvider).requireValue;
+        expect(state.dashboard.walletBalance, 2750);
+        expect(state.dashboard.isOnline, entity.isOnline);
+        expect(state.dashboard.upNextJob, entity.upNextJob);
+        expect(state.dashboard.laterTodayJobs, entity.laterTodayJobs);
+        expect(state.dashboard.metrics, entity.metrics);
+      },
+    );
 
     test('is a no-op when state has not loaded yet', () async {
-      when(() => repo.getDashboard())
-          .thenAnswer((_) => Completer<TechnicianDashboardEntity>().future);
+      when(
+        () => repo.getDashboard(),
+      ).thenAnswer((_) => Completer<TechnicianDashboardEntity>().future);
 
       container
           .read(technicianDashboardProvider.notifier)
@@ -217,8 +220,9 @@ void main() {
 
   group('onForcedOfflineEvent()', () {
     test('flips isOnline to false when currently online', () async {
-      when(() => repo.getDashboard())
-          .thenAnswer((_) async => _entity(isOnline: true));
+      when(
+        () => repo.getDashboard(),
+      ).thenAnswer((_) async => _entity(isOnline: true));
       await container.read(technicianDashboardProvider.future);
 
       container
@@ -230,8 +234,9 @@ void main() {
     });
 
     test('is idempotent when already offline', () async {
-      when(() => repo.getDashboard())
-          .thenAnswer((_) async => _entity(isOnline: false));
+      when(
+        () => repo.getDashboard(),
+      ).thenAnswer((_) async => _entity(isOnline: false));
       await container.read(technicianDashboardProvider.future);
 
       final before = container.read(technicianDashboardProvider).requireValue;
@@ -245,8 +250,9 @@ void main() {
     });
 
     test('is a no-op when state has not loaded yet', () async {
-      when(() => repo.getDashboard())
-          .thenAnswer((_) => Completer<TechnicianDashboardEntity>().future);
+      when(
+        () => repo.getDashboard(),
+      ).thenAnswer((_) => Completer<TechnicianDashboardEntity>().future);
 
       container
           .read(technicianDashboardProvider.notifier)

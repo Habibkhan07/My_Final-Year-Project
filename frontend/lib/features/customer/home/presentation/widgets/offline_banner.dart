@@ -29,8 +29,11 @@ class OfflineBanner extends StatelessWidget {
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               foregroundColor: Colors.red.shade900,
             ),
-            child: const Text("RETRY", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-          )
+            child: const Text(
+              "RETRY",
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+            ),
+          ),
         ],
       ),
     );

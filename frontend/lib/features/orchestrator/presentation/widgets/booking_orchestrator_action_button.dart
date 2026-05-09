@@ -177,10 +177,12 @@ class _BookingOrchestratorActionButtonState
           'A richer cancel flow with timing-aware copy + reason picker ships in session 6. Tapping confirm will cancel with the default reason.',
       confirmLabel: 'Cancel booking',
       confirmIsDestructive: true,
-      onConfirm: () => ref.read(bookingActionExecutorProvider).execute(
-        widget.action,
-        body: const {'cancel_reason': 'customer_cancelled'},
-      ),
+      onConfirm: () => ref
+          .read(bookingActionExecutorProvider)
+          .execute(
+            widget.action,
+            body: const {'cancel_reason': 'customer_cancelled'},
+          ),
     );
     // Only refresh when the action actually ran. Sheet dismissal (Keep
     // booking / tap-outside / system back) returns false/null and must
@@ -201,10 +203,12 @@ class _BookingOrchestratorActionButtonState
           'Cancelling counts against your reliability score. The full cancel form ships in session 6; tapping confirm cancels with the default reason.',
       confirmLabel: 'Cancel job',
       confirmIsDestructive: true,
-      onConfirm: () => ref.read(bookingActionExecutorProvider).execute(
-        widget.action,
-        body: const {'cancel_reason': 'technician_cancelled'},
-      ),
+      onConfirm: () => ref
+          .read(bookingActionExecutorProvider)
+          .execute(
+            widget.action,
+            body: const {'cancel_reason': 'technician_cancelled'},
+          ),
     );
     if (result == true && mounted) {
       ref.invalidate(bookingDetailProvider(widget.booking.id));

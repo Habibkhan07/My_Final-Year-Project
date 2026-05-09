@@ -28,9 +28,7 @@ typedef BgHandlerRegistrar = void Function(BackgroundMessageHandler);
 typedef SharedPrefsLoader = Future<SharedPreferences> Function();
 
 Future<void> _defaultFirebaseInit() async {
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 }
 
 /// Builds the app's root widget. Extracted from `main()` so the widget
@@ -88,9 +86,8 @@ Future<Widget> bootApp({
         // ``select`` so the override only re-runs when the id itself
         // changes — every other AsyncValue transition (loading flips,
         // unrelated AuthState mutations) is filtered out.
-        (ref) => ref.watch(
-          authProvider.select((async) => async.value?.user?.id),
-        ),
+        (ref) =>
+            ref.watch(authProvider.select((async) => async.value?.user?.id)),
       ),
     ],
     child: const _Bootstrap(),

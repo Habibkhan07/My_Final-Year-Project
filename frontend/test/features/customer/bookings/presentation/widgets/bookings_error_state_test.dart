@@ -15,10 +15,10 @@ void main() {
       expect(find.byIcon(Icons.cloud_off_outlined), findsOneWidget);
     });
 
-    testWidgets('.server() variant renders the server-error copy', (tester) async {
-      await tester.pumpWidget(
-        _wrap(BookingsErrorState.server(onRetry: () {})),
-      );
+    testWidgets('.server() variant renders the server-error copy', (
+      tester,
+    ) async {
+      await tester.pumpWidget(_wrap(BookingsErrorState.server(onRetry: () {})));
       expect(find.text("Couldn't load your bookings"), findsOneWidget);
       expect(find.textContaining('our end'), findsOneWidget);
       expect(find.byIcon(Icons.error_outline), findsOneWidget);

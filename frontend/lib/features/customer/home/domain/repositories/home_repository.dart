@@ -4,8 +4,8 @@ import '../failures/home_failure.dart';
 
 abstract class HomeRepository {
   /// Fetches the aggregated home feed for the customer discovery screen.
-  /// 
-  /// The [lat] and [lng] parameters are optional. If provided, the backend 
+  ///
+  /// The [lat] and [lng] parameters are optional. If provided, the backend
   /// calculates [distanceKm] for the technicians using Haversine logic.
   /// If omitted or invalid, the backend safely falls back to a global list.
   ///

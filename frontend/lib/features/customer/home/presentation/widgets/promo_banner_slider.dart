@@ -27,7 +27,7 @@ class PromoBannerSlider extends StatelessWidget {
                   color: Colors.blue.withValues(alpha: 0.2),
                   blurRadius: 10,
                   offset: const Offset(0, 5),
-                )
+                ),
               ],
             ),
             child: ClipRRect(
@@ -55,7 +55,7 @@ class PromoBannerSlider extends StatelessWidget {
                       ),
                     ),
                   ),
-                  
+
                   // Semi-transparent Overlay to ensure text readability
                   Container(
                     decoration: BoxDecoration(
@@ -78,7 +78,10 @@ class PromoBannerSlider extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
                           decoration: BoxDecoration(
                             color: Colors.white.withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(4),
@@ -108,7 +111,10 @@ class PromoBannerSlider extends StatelessWidget {
                             Expanded(
                               child: Text(
                                 promo.promoDescription,
-                                style: const TextStyle(color: Colors.white, fontSize: 13),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 13,
+                                ),
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                               ),
@@ -117,13 +123,15 @@ class PromoBannerSlider extends StatelessWidget {
                             ElevatedButton(
                               onPressed: () {
                                 // Navigate to discovery with promo filter
-                                context.push(Uri(
-                                  path: '/discovery',
-                                  queryParameters: {
-                                    'title': promo.title,
-                                    'promotionId': promo.id.toString(),
-                                  },
-                                ).toString());
+                                context.push(
+                                  Uri(
+                                    path: '/discovery',
+                                    queryParameters: {
+                                      'title': promo.title,
+                                      'promotionId': promo.id.toString(),
+                                    },
+                                  ).toString(),
+                                );
                               },
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.white,
@@ -131,12 +139,18 @@ class PromoBannerSlider extends StatelessWidget {
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(20),
                                 ),
-                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 8,
+                                ),
                                 elevation: 0,
                               ),
                               child: Text(
                                 promo.buttonText,
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                ),
                               ),
                             ),
                           ],
@@ -156,5 +170,5 @@ class PromoBannerSlider extends StatelessWidget {
 
 class LinearFromLeftToRight extends LinearGradient {
   const LinearFromLeftToRight({required super.colors})
-      : super(begin: Alignment.centerLeft, end: Alignment.centerRight);
+    : super(begin: Alignment.centerLeft, end: Alignment.centerRight);
 }

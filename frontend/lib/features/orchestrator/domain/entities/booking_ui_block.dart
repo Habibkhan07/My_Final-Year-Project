@@ -75,9 +75,9 @@ enum BookingUiActionStyle {
   unknown;
 
   static BookingUiActionStyle fromWire(String? raw) => switch (raw) {
-        'primary' => BookingUiActionStyle.primary,
-        'destructive' => BookingUiActionStyle.destructive,
-        'neutral' => BookingUiActionStyle.neutral,
-        _ => BookingUiActionStyle.unknown,
-      };
+    'primary' => BookingUiActionStyle.primary,
+    'destructive' => BookingUiActionStyle.destructive,
+    'neutral' => BookingUiActionStyle.neutral,
+    _ => BookingUiActionStyle.unknown,
+  };
 }

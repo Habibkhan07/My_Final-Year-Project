@@ -55,8 +55,7 @@ class _MockAuthRepository extends Mock implements AuthRepository {}
 
 class _MockFCMHandler extends Mock implements FCMHandler {}
 
-class _MockEventLocalDataSource extends Mock
-    implements EventLocalDataSource {}
+class _MockEventLocalDataSource extends Mock implements EventLocalDataSource {}
 
 class _RecordingWsNotifier extends WsConnectionNotifier {
   final List<String> connectCalls = [];
@@ -104,20 +103,20 @@ class _RecordingSystemEventNotifier extends SystemEventNotifier {
 void _setupLocalNotificationsMock(List<MethodCall> sink) {
   TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
       .setMockMethodCallHandler(
-    const MethodChannel('dexterous.com/flutter/local_notifications'),
-    (call) async {
-      sink.add(call);
-      return null;
-    },
-  );
+        const MethodChannel('dexterous.com/flutter/local_notifications'),
+        (call) async {
+          sink.add(call);
+          return null;
+        },
+      );
 }
 
 void _teardownLocalNotificationsMock() {
   TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
       .setMockMethodCallHandler(
-    const MethodChannel('dexterous.com/flutter/local_notifications'),
-    null,
-  );
+        const MethodChannel('dexterous.com/flutter/local_notifications'),
+        null,
+      );
 }
 
 ProviderContainer? _lastContainer;
@@ -132,39 +131,40 @@ Widget _wrapAppRoot({
   required SharedPreferences prefs,
 }) {
   return UncontrolledProviderScope(
-    container: _lastContainer = ProviderContainer(overrides: [
-      // SharedPreferences override — same one bootApp's ProviderScope
-      // would set, but here injected by the test wrapper.
-      sharedPreferencesProvider.overrideWithValue(prefs),
+    container: _lastContainer = ProviderContainer(
+      overrides: [
+        // SharedPreferences override — same one bootApp's ProviderScope
+        // would set, but here injected by the test wrapper.
+        sharedPreferencesProvider.overrideWithValue(prefs),
 
-      // Auth: mocked repo so getCachedUser is deterministic per test.
-      auth_di.authRepositoryProvider.overrideWithValue(authRepo),
+        // Auth: mocked repo so getCachedUser is deterministic per test.
+        auth_di.authRepositoryProvider.overrideWithValue(authRepo),
 
-      // flag #19 — mirror bootApp's production override so the realtime
-      // recipient filter sees the authenticated user's id. Existing tests
-      // that don't set ``UserEntity.id`` keep getting null here (no
-      // behavioural change); tests that exercise the recipient filter
-      // can rely on this chain producing the right id.
-      realtime_di.currentAuthUserIdProvider.overrideWith(
-        (ref) => ref.watch(
-          authProvider.select((async) => async.value?.user?.id),
+        // flag #19 — mirror bootApp's production override so the realtime
+        // recipient filter sees the authenticated user's id. Existing tests
+        // that don't set ``UserEntity.id`` keep getting null here (no
+        // behavioural change); tests that exercise the recipient filter
+        // can rely on this chain producing the right id.
+        realtime_di.currentAuthUserIdProvider.overrideWith(
+          (ref) =>
+              ref.watch(authProvider.select((async) => async.value?.user?.id)),
         ),
-      ),
 
-      // Realtime: empty boot-hooks registry so we don't drag in
-      // incomingJobQueueProvider's full feature DI tree.
-      realtimeBootHooksProvider.overrideWith((ref) => const []),
+        // Realtime: empty boot-hooks registry so we don't drag in
+        // incomingJobQueueProvider's full feature DI tree.
+        realtimeBootHooksProvider.overrideWith((ref) => const []),
 
-      // Realtime: replace the production FCMHandler / WsConnectionNotifier
-      // / EventSyncNotifier / SystemEventNotifier with mocks/recorders so
-      // pumping doesn't kick off real Firebase / WebSocket / SharedPrefs
-      // work.
-      realtime_di.fcmHandlerProvider.overrideWithValue(fcm),
-      realtime_di.eventLocalDataSourceProvider.overrideWithValue(local),
-      eventSyncProvider.overrideWith(_RecordingEventSyncNotifier.new),
-      wsConnectionProvider.overrideWith(_RecordingWsNotifier.new),
-      systemEventProvider.overrideWith(_RecordingSystemEventNotifier.new),
-    ]),
+        // Realtime: replace the production FCMHandler / WsConnectionNotifier
+        // / EventSyncNotifier / SystemEventNotifier with mocks/recorders so
+        // pumping doesn't kick off real Firebase / WebSocket / SharedPrefs
+        // work.
+        realtime_di.fcmHandlerProvider.overrideWithValue(fcm),
+        realtime_di.eventLocalDataSourceProvider.overrideWithValue(local),
+        eventSyncProvider.overrideWith(_RecordingEventSyncNotifier.new),
+        wsConnectionProvider.overrideWith(_RecordingWsNotifier.new),
+        systemEventProvider.overrideWith(_RecordingSystemEventNotifier.new),
+      ],
+    ),
     child: buildAppRootWidget(),
   );
 }
@@ -203,76 +203,93 @@ void main() {
         sharedPrefsLoader: SharedPreferences.getInstance,
       );
 
-      expect(calls, 1,
-          reason:
-              'a future refactor that drops `Firebase.initializeApp()` '
-              'from bootApp would silently break foreground FCM listeners '
-              '(`onMessage`, `onMessageOpenedApp`, `getInitialMessage`) '
-              'and `getToken()` — exactly the original flag #7 bug class');
+      expect(
+        calls,
+        1,
+        reason:
+            'a future refactor that drops `Firebase.initializeApp()` '
+            'from bootApp would silently break foreground FCM listeners '
+            '(`onMessage`, `onMessageOpenedApp`, `getInitialMessage`) '
+            'and `getToken()` — exactly the original flag #7 bug class',
+      );
     });
 
-    test('W2 — firebaseMessagingBackgroundHandler is registered exactly once',
-        () async {
-      BackgroundMessageHandler? registered;
-      var registrationCount = 0;
-      await bootApp(
-        firebaseInit: () async {},
-        bgHandlerRegistrar: (handler) {
-          registered = handler;
-          registrationCount++;
-        },
-        sharedPrefsLoader: SharedPreferences.getInstance,
-      );
+    test(
+      'W2 — firebaseMessagingBackgroundHandler is registered exactly once',
+      () async {
+        BackgroundMessageHandler? registered;
+        var registrationCount = 0;
+        await bootApp(
+          firebaseInit: () async {},
+          bgHandlerRegistrar: (handler) {
+            registered = handler;
+            registrationCount++;
+          },
+          sharedPrefsLoader: SharedPreferences.getInstance,
+        );
 
-      expect(registrationCount, 1,
+        expect(
+          registrationCount,
+          1,
           reason:
               'BG handler registration is what lets the OS wake a Dart '
               'isolate for FCM data messages while the app is killed; '
-              'must run exactly once before runApp');
-      expect(registered, isNotNull);
-      // Identity check — must be the top-level function, since instance
-      // methods aren't addressable from the BG isolate.
-      expect(
-        identical(registered, firebaseMessagingBackgroundHandler),
-        isTrue,
-        reason:
-            'must be the @pragma(\'vm:entry-point\') top-level function — '
-            'instance methods are not addressable from the BG isolate',
-      );
-    });
+              'must run exactly once before runApp',
+        );
+        expect(registered, isNotNull);
+        // Identity check — must be the top-level function, since instance
+        // methods aren't addressable from the BG isolate.
+        expect(
+          identical(registered, firebaseMessagingBackgroundHandler),
+          isTrue,
+          reason:
+              'must be the @pragma(\'vm:entry-point\') top-level function — '
+              'instance methods are not addressable from the BG isolate',
+        );
+      },
+    );
 
-    test('W3 — SharedPreferences is loaded before the widget is returned',
-        () async {
-      var prefsCallCount = 0;
-      Widget? returned;
+    test(
+      'W3 — SharedPreferences is loaded before the widget is returned',
+      () async {
+        var prefsCallCount = 0;
+        Widget? returned;
 
-      await SharedPreferences.getInstance(); // ensure default loaded once
-      final widget = await bootApp(
-        firebaseInit: () async {},
-        bgHandlerRegistrar: (_) {},
-        sharedPrefsLoader: () async {
-          prefsCallCount++;
-          return SharedPreferences.getInstance();
-        },
-      );
-      returned = widget;
+        await SharedPreferences.getInstance(); // ensure default loaded once
+        final widget = await bootApp(
+          firebaseInit: () async {},
+          bgHandlerRegistrar: (_) {},
+          sharedPrefsLoader: () async {
+            prefsCallCount++;
+            return SharedPreferences.getInstance();
+          },
+        );
+        returned = widget;
 
-      expect(prefsCallCount, 1,
+        expect(
+          prefsCallCount,
+          1,
           reason:
               'sharedPreferencesProvider override needs the resolved '
               'SharedPreferences instance; loading it after the widget is '
               'built would create a window where storage reads silently '
-              'return null');
-      expect(returned, isA<ProviderScope>(),
-          reason: 'bootApp returns a ProviderScope');
-    });
+              'return null',
+        );
+        expect(
+          returned,
+          isA<ProviderScope>(),
+          reason: 'bootApp returns a ProviderScope',
+        );
+      },
+    );
   });
 
   // ─── W4–W6 — pumped tree composition ──────────────────────────────────
 
   group('mounted tree composition', () {
-    testWidgets('W4 — pumped tree contains AppLifecycleOrchestrator',
-        (tester) async {
+    testWidgets('W4 — pumped tree contains AppLifecycleOrchestrator', (
+      tester,
+    ) async {
       final calls = <MethodCall>[];
       _setupLocalNotificationsMock(calls);
 
@@ -287,23 +304,22 @@ void main() {
 
       final prefs = await SharedPreferences.getInstance();
 
-      await tester.pumpWidget(_wrapAppRoot(
-        authRepo: authRepo,
-        fcm: fcm,
-        local: local,
-        prefs: prefs,
-      ));
+      await tester.pumpWidget(
+        _wrapAppRoot(authRepo: authRepo, fcm: fcm, local: local, prefs: prefs),
+      );
       await tester.pump();
 
-      expect(find.byType(AppLifecycleOrchestrator), findsOneWidget,
-          reason:
-              'the orchestrator MUST be in the production tree — without '
-              'it, `ref.listenManual(systemEventProvider, …)` is never set '
-              'up and no events get routed (the original flag #7 bug)');
+      expect(
+        find.byType(AppLifecycleOrchestrator),
+        findsOneWidget,
+        reason:
+            'the orchestrator MUST be in the production tree — without '
+            'it, `ref.listenManual(systemEventProvider, …)` is never set '
+            'up and no events get routed (the original flag #7 bug)',
+      );
     });
 
-    testWidgets(
-        'W5 — orchestrator\'s navigatorKey is the same instance the '
+    testWidgets('W5 — orchestrator\'s navigatorKey is the same instance the '
         'navigatorKeyProvider returns', (tester) async {
       final calls = <MethodCall>[];
       _setupLocalNotificationsMock(calls);
@@ -319,73 +335,82 @@ void main() {
 
       final prefs = await SharedPreferences.getInstance();
 
-      await tester.pumpWidget(_wrapAppRoot(
-        authRepo: authRepo,
-        fcm: fcm,
-        local: local,
-        prefs: prefs,
-      ));
+      await tester.pumpWidget(
+        _wrapAppRoot(authRepo: authRepo, fcm: fcm, local: local, prefs: prefs),
+      );
       await tester.pump();
 
       final orchestrator = tester.widget<AppLifecycleOrchestrator>(
         find.byType(AppLifecycleOrchestrator),
       );
-      final providerKey =
-          _lastContainer!.read(realtime_di.navigatorKeyProvider);
+      final providerKey = _lastContainer!.read(
+        realtime_di.navigatorKeyProvider,
+      );
 
-      expect(identical(orchestrator.navigatorKey, providerKey), isTrue,
-          reason:
-              'EventUrgencyRouter and GoRouter must both read the SAME '
-              'navigatorKey instance via navigatorKeyProvider — passing a '
-              'fresh GlobalKey to the orchestrator would silently break '
-              'route pushes from realtime events');
+      expect(
+        identical(orchestrator.navigatorKey, providerKey),
+        isTrue,
+        reason:
+            'EventUrgencyRouter and GoRouter must both read the SAME '
+            'navigatorKey instance via navigatorKeyProvider — passing a '
+            'fresh GlobalKey to the orchestrator would silently break '
+            'route pushes from realtime events',
+      );
     });
 
     testWidgets(
-        'W6 — orchestrator\'s scaffoldMessengerKey is the same instance '
-        'the scaffoldMessengerKeyProvider returns', (tester) async {
-      final calls = <MethodCall>[];
-      _setupLocalNotificationsMock(calls);
+      'W6 — orchestrator\'s scaffoldMessengerKey is the same instance '
+      'the scaffoldMessengerKeyProvider returns',
+      (tester) async {
+        final calls = <MethodCall>[];
+        _setupLocalNotificationsMock(calls);
 
-      final authRepo = _MockAuthRepository();
-      when(() => authRepo.getCachedUser()).thenAnswer((_) async => null);
+        final authRepo = _MockAuthRepository();
+        when(() => authRepo.getCachedUser()).thenAnswer((_) async => null);
 
-      final fcm = _MockFCMHandler();
-      when(() => fcm.initialize()).thenAnswer((_) async {});
+        final fcm = _MockFCMHandler();
+        when(() => fcm.initialize()).thenAnswer((_) async {});
 
-      final local = _MockEventLocalDataSource();
-      when(() => local.getLastSyncTimestamp()).thenReturn(null);
+        final local = _MockEventLocalDataSource();
+        when(() => local.getLastSyncTimestamp()).thenReturn(null);
 
-      final prefs = await SharedPreferences.getInstance();
+        final prefs = await SharedPreferences.getInstance();
 
-      await tester.pumpWidget(_wrapAppRoot(
-        authRepo: authRepo,
-        fcm: fcm,
-        local: local,
-        prefs: prefs,
-      ));
-      await tester.pump();
+        await tester.pumpWidget(
+          _wrapAppRoot(
+            authRepo: authRepo,
+            fcm: fcm,
+            local: local,
+            prefs: prefs,
+          ),
+        );
+        await tester.pump();
 
-      final orchestrator = tester.widget<AppLifecycleOrchestrator>(
-        find.byType(AppLifecycleOrchestrator),
-      );
-      final providerKey =
-          _lastContainer!.read(realtime_di.scaffoldMessengerKeyProvider);
+        final orchestrator = tester.widget<AppLifecycleOrchestrator>(
+          find.byType(AppLifecycleOrchestrator),
+        );
+        final providerKey = _lastContainer!.read(
+          realtime_di.scaffoldMessengerKeyProvider,
+        );
 
-      expect(identical(orchestrator.scaffoldMessengerKey, providerKey),
+        expect(
+          identical(orchestrator.scaffoldMessengerKey, providerKey),
           isTrue,
           reason:
               'EventUrgencyRouter posts banners through the messenger key; '
               'MaterialApp.router\'s key must match or the live tree never '
-              'sees them');
-    });
+              'sees them',
+        );
+      },
+    );
   });
 
   // ─── W7–W8 — tree builds without exceptions ───────────────────────────
 
   group('mounted tree resilience', () {
-    testWidgets('W7 — unauthenticated user: tree builds without throwing',
-        (tester) async {
+    testWidgets('W7 — unauthenticated user: tree builds without throwing', (
+      tester,
+    ) async {
       final calls = <MethodCall>[];
       _setupLocalNotificationsMock(calls);
 
@@ -400,12 +425,9 @@ void main() {
 
       final prefs = await SharedPreferences.getInstance();
 
-      await tester.pumpWidget(_wrapAppRoot(
-        authRepo: authRepo,
-        fcm: fcm,
-        local: local,
-        prefs: prefs,
-      ));
+      await tester.pumpWidget(
+        _wrapAppRoot(authRepo: authRepo, fcm: fcm, local: local, prefs: prefs),
+      );
       // First frame mounts the tree; second pump lets the GoRouter
       // redirect to /login resolve. We deliberately do NOT pumpAndSettle
       // because LoginScreen's deeper deps (which we haven't mocked) would
@@ -414,17 +436,20 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      expect(tester.takeException(), isNull,
-          reason:
-              'unauthenticated boot must not throw — getCachedUser returns '
-              'null, AuthNotifier settles to AsyncData(AuthState()), '
-              'router redirects to /login');
+      expect(
+        tester.takeException(),
+        isNull,
+        reason:
+            'unauthenticated boot must not throw — getCachedUser returns '
+            'null, AuthNotifier settles to AsyncData(AuthState()), '
+            'router redirects to /login',
+      );
     });
 
-    testWidgets(
-        'W8 — authenticated user (cached, nameRequired): bridge fires '
-        'bootAfterAuth with the cached token through the full composition',
-        (tester) async {
+    testWidgets('W8 — authenticated user (cached, nameRequired): bridge fires '
+        'bootAfterAuth with the cached token through the full composition', (
+      tester,
+    ) async {
       final calls = <MethodCall>[];
       _setupLocalNotificationsMock(calls);
 
@@ -443,8 +468,7 @@ void main() {
       );
 
       final authRepo = _MockAuthRepository();
-      when(() => authRepo.getCachedUser())
-          .thenAnswer((_) async => cachedUser);
+      when(() => authRepo.getCachedUser()).thenAnswer((_) async => cachedUser);
 
       final fcm = _MockFCMHandler();
       when(() => fcm.initialize()).thenAnswer((_) async {});
@@ -454,12 +478,9 @@ void main() {
 
       final prefs = await SharedPreferences.getInstance();
 
-      await tester.pumpWidget(_wrapAppRoot(
-        authRepo: authRepo,
-        fcm: fcm,
-        local: local,
-        prefs: prefs,
-      ));
+      await tester.pumpWidget(
+        _wrapAppRoot(authRepo: authRepo, fcm: fcm, local: local, prefs: prefs),
+      );
       // Two pumps + microtask drain cover: (1) initial mount, (2) router
       // redirect to /profile-setup, (3) the unawaited _scheduleBoot chain
       // inside AuthNotifier.build resolving through bootAfterAuth.
@@ -471,14 +492,18 @@ void main() {
       await tester.pump();
 
       verify(() => fcm.initialize()).called(1);
-      final ws = _lastContainer!.read(wsConnectionProvider.notifier)
-          as _RecordingWsNotifier;
-      expect(ws.connectCalls, ['cached-tok'],
-          reason:
-              'authenticated cold-start must wire WS with the cached '
-              'token through the boot composition — the full path from '
-              'bootApp → ProviderScope → AppLifecycleOrchestrator → '
-              'AuthNotifier → bootAfterAuth → ws.connect');
+      final ws =
+          _lastContainer!.read(wsConnectionProvider.notifier)
+              as _RecordingWsNotifier;
+      expect(
+        ws.connectCalls,
+        ['cached-tok'],
+        reason:
+            'authenticated cold-start must wire WS with the cached '
+            'token through the boot composition — the full path from '
+            'bootApp → ProviderScope → AppLifecycleOrchestrator → '
+            'AuthNotifier → bootAfterAuth → ws.connect',
+      );
     });
 
     // ─── W9 — flag #19: currentAuthUserIdProvider override ─────────────
@@ -491,8 +516,7 @@ void main() {
     // override, otherwise the recipient filter is dormant in production even
     // though the backend is now emitting recipient_user_id (Phase A).
 
-    testWidgets(
-        'W9 — flag #19: currentAuthUserIdProvider returns auth user id '
+    testWidgets('W9 — flag #19: currentAuthUserIdProvider returns auth user id '
         'after cached login resolves', (tester) async {
       final calls = <MethodCall>[];
       _setupLocalNotificationsMock(calls);
@@ -508,8 +532,7 @@ void main() {
       );
 
       final authRepo = _MockAuthRepository();
-      when(() => authRepo.getCachedUser())
-          .thenAnswer((_) async => cachedUser);
+      when(() => authRepo.getCachedUser()).thenAnswer((_) async => cachedUser);
 
       final fcm = _MockFCMHandler();
       when(() => fcm.initialize()).thenAnswer((_) async {});
@@ -519,12 +542,9 @@ void main() {
 
       final prefs = await SharedPreferences.getInstance();
 
-      await tester.pumpWidget(_wrapAppRoot(
-        authRepo: authRepo,
-        fcm: fcm,
-        local: local,
-        prefs: prefs,
-      ));
+      await tester.pumpWidget(
+        _wrapAppRoot(authRepo: authRepo, fcm: fcm, local: local, prefs: prefs),
+      );
       // AuthNotifier.build is async — pump until getCachedUser resolves and
       // the AsyncData transition runs the select-driven override.
       await tester.pump();
@@ -543,8 +563,7 @@ void main() {
       );
     });
 
-    testWidgets(
-        'W10 — flag #19: currentAuthUserIdProvider stays null when no '
+    testWidgets('W10 — flag #19: currentAuthUserIdProvider stays null when no '
         'user is cached', (tester) async {
       final calls = <MethodCall>[];
       _setupLocalNotificationsMock(calls);
@@ -560,12 +579,9 @@ void main() {
 
       final prefs = await SharedPreferences.getInstance();
 
-      await tester.pumpWidget(_wrapAppRoot(
-        authRepo: authRepo,
-        fcm: fcm,
-        local: local,
-        prefs: prefs,
-      ));
+      await tester.pumpWidget(
+        _wrapAppRoot(authRepo: authRepo, fcm: fcm, local: local, prefs: prefs),
+      );
       await tester.pump();
       await tester.runAsync(() async {
         await Future<void>.delayed(Duration.zero);

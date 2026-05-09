@@ -4,7 +4,9 @@ import 'package:frontend/features/customer/search/presentation/widgets/suggestio
 
 void main() {
   group('SuggestionResultTile', () {
-    testWidgets('renders title and category correctly', (WidgetTester tester) async {
+    testWidgets('renders title and category correctly', (
+      WidgetTester tester,
+    ) async {
       const String testTitle = 'Fix Leaking Pipe';
       const String testCategory = 'Plumbing';
       bool tapped = false;
@@ -24,17 +26,20 @@ void main() {
       );
 
       // Icons also render as RichText, so we iterate over all RichTexts
-      final richTextWidgets = tester.widgetList<RichText>(find.byType(RichText));
+      final richTextWidgets = tester.widgetList<RichText>(
+        find.byType(RichText),
+      );
       bool foundMatchingText = false;
-      
+
       for (final richText in richTextWidgets) {
         final textSpan = richText.text as TextSpan?;
-        if (textSpan != null && textSpan.toPlainText() == '$testTitle • $testCategory') {
+        if (textSpan != null &&
+            textSpan.toPlainText() == '$testTitle • $testCategory') {
           foundMatchingText = true;
           break;
         }
       }
-      
+
       expect(foundMatchingText, isTrue);
 
       // Verify icons are present

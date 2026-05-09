@@ -25,13 +25,15 @@ void main() {
     'bookingDetailRepository throws StateError when auth user id is null (#B-19)',
     () async {
       final prefs = await SharedPreferences.getInstance();
-      final container = ProviderContainer(overrides: [
-        onboarding_di.sharedPreferencesProvider.overrideWithValue(prefs),
-        // Force the auth user id to null — simulates "this provider got
-        // constructed without an authenticated user" (the bug we want
-        // to crash on, not paper over).
-        currentAuthUserIdProvider.overrideWithValue(null),
-      ]);
+      final container = ProviderContainer(
+        overrides: [
+          onboarding_di.sharedPreferencesProvider.overrideWithValue(prefs),
+          // Force the auth user id to null — simulates "this provider got
+          // constructed without an authenticated user" (the bug we want
+          // to crash on, not paper over).
+          currentAuthUserIdProvider.overrideWithValue(null),
+        ],
+      );
       addTearDown(container.dispose);
 
       // Riverpod 3 wraps provider-construction errors in ProviderException.
@@ -39,10 +41,12 @@ void main() {
       // is the most stable assertion (the wrapping type is internal).
       expect(
         () => container.read(bookingDetailRepositoryProvider),
-        throwsA(predicate(
-          (e) => e.toString().contains('authenticated user'),
-          'wraps StateError mentioning authenticated user',
-        )),
+        throwsA(
+          predicate(
+            (e) => e.toString().contains('authenticated user'),
+            'wraps StateError mentioning authenticated user',
+          ),
+        ),
       );
     },
   );
@@ -51,10 +55,12 @@ void main() {
     'bookingDetailRepository constructs successfully when user id is present',
     () async {
       final prefs = await SharedPreferences.getInstance();
-      final container = ProviderContainer(overrides: [
-        onboarding_di.sharedPreferencesProvider.overrideWithValue(prefs),
-        currentAuthUserIdProvider.overrideWithValue(7),
-      ]);
+      final container = ProviderContainer(
+        overrides: [
+          onboarding_di.sharedPreferencesProvider.overrideWithValue(prefs),
+          currentAuthUserIdProvider.overrideWithValue(7),
+        ],
+      );
       addTearDown(container.dispose);
 
       final repo = container.read(bookingDetailRepositoryProvider);

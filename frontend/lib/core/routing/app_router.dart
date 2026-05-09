@@ -39,7 +39,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/profile-setup',
         builder: (context, state) => const ProfileSetupScreen(),
-      ), 
+      ),
       GoRoute(
         path: '/technician/onboarding',
         builder: (context, state) => const OnboardingMainScreen(),
@@ -79,9 +79,15 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) {
           final title = state.uri.queryParameters['title'] ?? 'Discover';
           final query = state.uri.queryParameters['query'];
-          final serviceId = int.tryParse(state.uri.queryParameters['serviceId'] ?? '');
-          final subServiceId = int.tryParse(state.uri.queryParameters['subServiceId'] ?? '');
-          final promotionId = int.tryParse(state.uri.queryParameters['promotionId'] ?? '');
+          final serviceId = int.tryParse(
+            state.uri.queryParameters['serviceId'] ?? '',
+          );
+          final subServiceId = int.tryParse(
+            state.uri.queryParameters['subServiceId'] ?? '',
+          );
+          final promotionId = int.tryParse(
+            state.uri.queryParameters['promotionId'] ?? '',
+          );
           final lat = double.tryParse(state.uri.queryParameters['lat'] ?? '');
           final lng = double.tryParse(state.uri.queryParameters['lng'] ?? '');
 
@@ -132,9 +138,15 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/technician-profile/:id',
         builder: (context, state) {
           final id = int.tryParse(state.pathParameters['id'] ?? '') ?? 0;
-          final serviceId = int.tryParse(state.uri.queryParameters['serviceId'] ?? '');
-          final subServiceId = int.tryParse(state.uri.queryParameters['subServiceId'] ?? '');
-          final promotionId = int.tryParse(state.uri.queryParameters['promotionId'] ?? '');
+          final serviceId = int.tryParse(
+            state.uri.queryParameters['serviceId'] ?? '',
+          );
+          final subServiceId = int.tryParse(
+            state.uri.queryParameters['subServiceId'] ?? '',
+          );
+          final promotionId = int.tryParse(
+            state.uri.queryParameters['promotionId'] ?? '',
+          );
           final lat = double.tryParse(state.uri.queryParameters['lat'] ?? '');
           final lng = double.tryParse(state.uri.queryParameters['lng'] ?? '');
 
@@ -195,8 +207,10 @@ class _InvalidBookingLinkScreen extends StatelessWidget {
             children: [
               Icon(Icons.link_off, size: 56, color: theme.colorScheme.error),
               const SizedBox(height: 16),
-              Text("This link isn't a valid booking.",
-                  style: theme.textTheme.titleMedium),
+              Text(
+                "This link isn't a valid booking.",
+                style: theme.textTheme.titleMedium,
+              ),
               const SizedBox(height: 8),
               Text(
                 'The booking id is missing or malformed. Try opening the booking from your bookings list instead.',
@@ -217,4 +231,3 @@ class _InvalidBookingLinkScreen extends StatelessWidget {
     );
   }
 }
-

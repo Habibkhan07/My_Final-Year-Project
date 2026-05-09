@@ -23,7 +23,7 @@ class Search extends _$Search {
   void onQueryChanged(String query) {
     // We use .value to get the current state without triggering a rebuild if it's not ready
     final current = state.value ?? const SearchState();
-    
+
     // 1. Immediately update the query text in state
     state = AsyncData(current.copyWith(query: query));
 
@@ -32,9 +32,9 @@ class Search extends _$Search {
 
     // 3. Logic: If < 2 chars, reset suggestions. Else, start debounce.
     if (query.trim().length < 2) {
-      state = AsyncData(state.requireValue.copyWith(
-        suggestions: const AsyncData([]),
-      ));
+      state = AsyncData(
+        state.requireValue.copyWith(suggestions: const AsyncData([])),
+      );
       return;
     }
 
@@ -48,9 +48,7 @@ class Search extends _$Search {
     final current = state.requireValue;
 
     // Set suggestions sub-state to loading
-    state = AsyncData(current.copyWith(
-      suggestions: const AsyncLoading(),
-    ));
+    state = AsyncData(current.copyWith(suggestions: const AsyncLoading()));
 
     // Mandatory AsyncValue.guard for all asynchronous mutations (Section 3C)
     final result = await AsyncValue.guard(() async {
@@ -58,23 +56,21 @@ class Search extends _$Search {
     });
 
     // --- BULLETPROOF PROTECTION: Race Condition Check ---
-    // If the user continued typing while this request was in flight, 
+    // If the user continued typing while this request was in flight,
     // the query in the state will no longer match the query we searched for.
     if (!ref.mounted || state.requireValue.query != query) {
       return;
     }
 
     // Update state with the result (success or error)
-    state = AsyncData(state.requireValue.copyWith(
-      suggestions: result,
-    ));
+    state = AsyncData(state.requireValue.copyWith(suggestions: result));
   }
 
   Future<void> saveSearch(String query) async {
     if (query.trim().isEmpty) return;
-    
+
     await ref.read(saveRecentSearchUseCaseProvider).execute(query.trim());
-    
+
     // Sync local state
     final recent = await ref.read(getRecentSearchesUseCaseProvider).execute();
     state = AsyncData(state.requireValue.copyWith(recentSearches: recent));

@@ -7,7 +7,8 @@ abstract class TechnicianDashboardLocalDataSource {
   Future<TechnicianDashboardModel?> getCachedDashboard();
 }
 
-class TechnicianDashboardLocalDataSourceImpl implements TechnicianDashboardLocalDataSource {
+class TechnicianDashboardLocalDataSourceImpl
+    implements TechnicianDashboardLocalDataSource {
   final SharedPreferences sharedPreferences;
   static const String _cacheKey = 'CACHED_TECHNICIAN_DASHBOARD';
 

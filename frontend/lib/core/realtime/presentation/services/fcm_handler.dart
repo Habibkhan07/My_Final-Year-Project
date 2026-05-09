@@ -53,10 +53,10 @@ class FCMHandler {
     required EventSyncNotifier syncNotifier,
     required EventRepository repository,
     required EventLocalDataSource localDataSource,
-  })  : _eventNotifier = eventNotifier,
-        _syncNotifier = syncNotifier,
-        _repository = repository,
-        _localDataSource = localDataSource;
+  }) : _eventNotifier = eventNotifier,
+       _syncNotifier = syncNotifier,
+       _repository = repository,
+       _localDataSource = localDataSource;
 
   /// Idempotent wiring. Call exactly once on app start, after
   /// `Firebase.initializeApp()` has completed in the main isolate.
@@ -109,8 +109,9 @@ class FCMHandler {
     }
 
     _tokenRefreshSub?.cancel();
-    _tokenRefreshSub =
-        FirebaseMessaging.instance.onTokenRefresh.listen((token) async {
+    _tokenRefreshSub = FirebaseMessaging.instance.onTokenRefresh.listen((
+      token,
+    ) async {
       _currentToken = token;
       try {
         await _repository.registerDevice(
@@ -139,8 +140,7 @@ class FCMHandler {
 
   Future<void> _setupBackgroundTapHandlers() async {
     _openedAppSub?.cancel();
-    _openedAppSub =
-        FirebaseMessaging.onMessageOpenedApp.listen((message) {
+    _openedAppSub = FirebaseMessaging.onMessageOpenedApp.listen((message) {
       processRemoteMessage(message.data);
     });
 

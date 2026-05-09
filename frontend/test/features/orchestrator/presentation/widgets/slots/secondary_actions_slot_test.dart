@@ -42,62 +42,75 @@ BookingDetail _booking({
 
 void main() {
   group('SecondaryActionsSlot', () {
-    testWidgets('Wrap.runSpacing is positive (#B-56 regression guard)',
-        (tester) async {
+    testWidgets('Wrap.runSpacing is positive (#B-56 regression guard)', (
+      tester,
+    ) async {
       // The bug was `runSpacing: -4`, which made adjacent rows overlap
       // visually after a reflow. Pin the contract: > 0.
-      final booking = _booking(secondary: [
-        {
-          'label': 'A',
-          'endpoint': '/bookings/1/cancel/',
-          'method': 'POST',
-          'style': 'neutral',
-        },
-      ]);
-      await tester.pumpWidget(ProviderScope(
-        child: MaterialApp(
-          home: Scaffold(body: SecondaryActionsSlot(booking: booking)),
+      final booking = _booking(
+        secondary: [
+          {
+            'label': 'A',
+            'endpoint': '/bookings/1/cancel/',
+            'method': 'POST',
+            'style': 'neutral',
+          },
+        ],
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            home: Scaffold(body: SecondaryActionsSlot(booking: booking)),
+          ),
         ),
-      ));
+      );
 
       final wrap = tester.widget<Wrap>(find.byType(Wrap));
       expect(wrap.runSpacing, greaterThan(0));
       expect(wrap.spacing, greaterThan(0));
     });
 
-    testWidgets('renders the dispute button when showDisputeButton is true',
-        (tester) async {
+    testWidgets('renders the dispute button when showDisputeButton is true', (
+      tester,
+    ) async {
       final booking = _booking(showDispute: true);
-      await tester.pumpWidget(ProviderScope(
-        child: MaterialApp(
-          home: Scaffold(body: SecondaryActionsSlot(booking: booking)),
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            home: Scaffold(body: SecondaryActionsSlot(booking: booking)),
+          ),
         ),
-      ));
+      );
       expect(find.text('Open dispute'), findsOneWidget);
     });
 
-    testWidgets(
-        'omits the dispute button when showDisputeButton is false',
-        (tester) async {
+    testWidgets('omits the dispute button when showDisputeButton is false', (
+      tester,
+    ) async {
       final booking = _booking(showDispute: false);
-      await tester.pumpWidget(ProviderScope(
-        child: MaterialApp(
-          home: Scaffold(body: SecondaryActionsSlot(booking: booking)),
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            home: Scaffold(body: SecondaryActionsSlot(booking: booking)),
+          ),
         ),
-      ));
+      );
       expect(find.text('Open dispute'), findsNothing);
     });
 
-    testWidgets('renders nothing (SizedBox.shrink) when slot is empty',
-        (tester) async {
+    testWidgets('renders nothing (SizedBox.shrink) when slot is empty', (
+      tester,
+    ) async {
       // No actions, no dispute → the slot must short-circuit so it
       // doesn't take vertical space above the primary action button.
       final booking = _booking();
-      await tester.pumpWidget(ProviderScope(
-        child: MaterialApp(
-          home: Scaffold(body: SecondaryActionsSlot(booking: booking)),
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            home: Scaffold(body: SecondaryActionsSlot(booking: booking)),
+          ),
         ),
-      ));
+      );
       // No Wrap should be in the tree under this slot.
       expect(find.byType(Wrap), findsNothing);
     });

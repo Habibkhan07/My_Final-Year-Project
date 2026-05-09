@@ -22,37 +22,37 @@ class UpNextJobModel {
   });
 
   factory UpNextJobModel.fromJson(Map<String, dynamic> json) => UpNextJobModel(
-        jobId: json['job_id'],
-        serviceTitle: json['service_title'],
-        scheduledTime: DateTime.parse(json['scheduled_time']),
-        customerName: json['customer_name'],
-        customerPhone: json['customer_phone'] as String?,
-        addressText: json['address_text'],
-        lat: (json['lat'] as num).toDouble(),
-        lng: (json['lng'] as num).toDouble(),
-      );
+    jobId: json['job_id'],
+    serviceTitle: json['service_title'],
+    scheduledTime: DateTime.parse(json['scheduled_time']),
+    customerName: json['customer_name'],
+    customerPhone: json['customer_phone'] as String?,
+    addressText: json['address_text'],
+    lat: (json['lat'] as num).toDouble(),
+    lng: (json['lng'] as num).toDouble(),
+  );
 
   Map<String, dynamic> toJson() => {
-        'job_id': jobId,
-        'service_title': serviceTitle,
-        'scheduled_time': scheduledTime.toIso8601String(),
-        'customer_name': customerName,
-        'customer_phone': customerPhone,
-        'address_text': addressText,
-        'lat': lat,
-        'lng': lng,
-      };
+    'job_id': jobId,
+    'service_title': serviceTitle,
+    'scheduled_time': scheduledTime.toIso8601String(),
+    'customer_name': customerName,
+    'customer_phone': customerPhone,
+    'address_text': addressText,
+    'lat': lat,
+    'lng': lng,
+  };
 
   UpNextJobEntity toEntity() => UpNextJobEntity(
-        jobId: jobId,
-        serviceTitle: serviceTitle,
-        scheduledTime: scheduledTime,
-        customerName: customerName,
-        customerPhone: customerPhone,
-        addressText: addressText,
-        lat: lat,
-        lng: lng,
-      );
+    jobId: jobId,
+    serviceTitle: serviceTitle,
+    scheduledTime: scheduledTime,
+    customerName: customerName,
+    customerPhone: customerPhone,
+    addressText: addressText,
+    lat: lat,
+    lng: lng,
+  );
 
   @override
   bool operator ==(Object other) =>
@@ -93,7 +93,8 @@ class LaterTodayJobModel {
     required this.addressText,
   });
 
-  factory LaterTodayJobModel.fromJson(Map<String, dynamic> json) => LaterTodayJobModel(
+  factory LaterTodayJobModel.fromJson(Map<String, dynamic> json) =>
+      LaterTodayJobModel(
         jobId: json['job_id'],
         serviceTitle: json['service_title'],
         scheduledTime: DateTime.parse(json['scheduled_time']),
@@ -101,18 +102,18 @@ class LaterTodayJobModel {
       );
 
   Map<String, dynamic> toJson() => {
-        'job_id': jobId,
-        'service_title': serviceTitle,
-        'scheduled_time': scheduledTime.toIso8601String(),
-        'address_text': addressText,
-      };
+    'job_id': jobId,
+    'service_title': serviceTitle,
+    'scheduled_time': scheduledTime.toIso8601String(),
+    'address_text': addressText,
+  };
 
   LaterTodayJobEntity toEntity() => LaterTodayJobEntity(
-        jobId: jobId,
-        serviceTitle: serviceTitle,
-        scheduledTime: scheduledTime,
-        addressText: addressText,
-      );
+    jobId: jobId,
+    serviceTitle: serviceTitle,
+    scheduledTime: scheduledTime,
+    addressText: addressText,
+  );
 
   @override
   bool operator ==(Object other) =>
@@ -126,7 +127,10 @@ class LaterTodayJobModel {
 
   @override
   int get hashCode =>
-      jobId.hashCode ^ serviceTitle.hashCode ^ scheduledTime.hashCode ^ addressText.hashCode;
+      jobId.hashCode ^
+      serviceTitle.hashCode ^
+      scheduledTime.hashCode ^
+      addressText.hashCode;
 }
 
 class DashboardMetricsModel {
@@ -138,20 +142,21 @@ class DashboardMetricsModel {
     required this.cashCollectedToday,
   });
 
-  factory DashboardMetricsModel.fromJson(Map<String, dynamic> json) => DashboardMetricsModel(
+  factory DashboardMetricsModel.fromJson(Map<String, dynamic> json) =>
+      DashboardMetricsModel(
         jobsCompletedToday: json['jobs_completed_today'],
         cashCollectedToday: (json['cash_collected_today'] as num).toDouble(),
       );
 
   Map<String, dynamic> toJson() => {
-        'jobs_completed_today': jobsCompletedToday,
-        'cash_collected_today': cashCollectedToday,
-      };
+    'jobs_completed_today': jobsCompletedToday,
+    'cash_collected_today': cashCollectedToday,
+  };
 
   DashboardMetricsEntity toEntity() => DashboardMetricsEntity(
-        jobsCompletedToday: jobsCompletedToday,
-        cashCollectedToday: cashCollectedToday,
-      );
+    jobsCompletedToday: jobsCompletedToday,
+    cashCollectedToday: cashCollectedToday,
+  );
 
   @override
   bool operator ==(Object other) =>
@@ -182,32 +187,37 @@ class TechnicianDashboardModel {
     required this.metrics,
   });
 
-  factory TechnicianDashboardModel.fromJson(Map<String, dynamic> json) => TechnicianDashboardModel(
+  factory TechnicianDashboardModel.fromJson(Map<String, dynamic> json) =>
+      TechnicianDashboardModel(
         walletBalance: (json['wallet_balance'] as num).toDouble(),
         isOnline: json['is_online'],
         profilePicture: json['profile_picture'],
-        upNextJob: json['up_next_job'] != null ? UpNextJobModel.fromJson(json['up_next_job']) : null,
-        laterTodayJobs: (json['later_today_jobs'] as List).map((i) => LaterTodayJobModel.fromJson(i)).toList(),
+        upNextJob: json['up_next_job'] != null
+            ? UpNextJobModel.fromJson(json['up_next_job'])
+            : null,
+        laterTodayJobs: (json['later_today_jobs'] as List)
+            .map((i) => LaterTodayJobModel.fromJson(i))
+            .toList(),
         metrics: DashboardMetricsModel.fromJson(json['metrics']),
       );
 
   Map<String, dynamic> toJson() => {
-        'wallet_balance': walletBalance,
-        'is_online': isOnline,
-        'profile_picture': profilePicture,
-        'up_next_job': upNextJob?.toJson(),
-        'later_today_jobs': laterTodayJobs.map((i) => i.toJson()).toList(),
-        'metrics': metrics.toJson(),
-      };
+    'wallet_balance': walletBalance,
+    'is_online': isOnline,
+    'profile_picture': profilePicture,
+    'up_next_job': upNextJob?.toJson(),
+    'later_today_jobs': laterTodayJobs.map((i) => i.toJson()).toList(),
+    'metrics': metrics.toJson(),
+  };
 
   TechnicianDashboardEntity toEntity() => TechnicianDashboardEntity(
-        walletBalance: walletBalance,
-        isOnline: isOnline,
-        profilePicture: profilePicture,
-        upNextJob: upNextJob?.toEntity(),
-        laterTodayJobs: laterTodayJobs.map((i) => i.toEntity()).toList(),
-        metrics: metrics.toEntity(),
-      );
+    walletBalance: walletBalance,
+    isOnline: isOnline,
+    profilePicture: profilePicture,
+    upNextJob: upNextJob?.toEntity(),
+    laterTodayJobs: laterTodayJobs.map((i) => i.toEntity()).toList(),
+    metrics: metrics.toEntity(),
+  );
 
   @override
   bool operator ==(Object other) =>

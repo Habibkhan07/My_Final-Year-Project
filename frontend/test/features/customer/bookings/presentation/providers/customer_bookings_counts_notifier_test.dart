@@ -66,10 +66,7 @@ BookingsCounts _counts({int upcoming = 1, int past = 12}) {
   );
 }
 
-SystemEventEntity _jobAcceptedEvent({
-  required String id,
-  int jobId = 99482,
-}) {
+SystemEventEntity _jobAcceptedEvent({required String id, int jobId = 99482}) {
   return SystemEventEntity.fromComponents(
     id: id,
     rawType: 'job_accepted',
@@ -118,10 +115,12 @@ ProviderContainer _build({
   required _FakeRepo repo,
   required EventLocalDataSource eventLocal,
 }) {
-  final container = ProviderContainer(overrides: [
-    customerBookingsRepositoryProvider.overrideWithValue(repo),
-    eventLocalDataSourceProvider.overrideWithValue(eventLocal),
-  ]);
+  final container = ProviderContainer(
+    overrides: [
+      customerBookingsRepositoryProvider.overrideWithValue(repo),
+      eventLocalDataSourceProvider.overrideWithValue(eventLocal),
+    ],
+  );
   addTearDown(container.dispose);
   return container;
 }
@@ -158,8 +157,9 @@ void main() {
       repo.queuedCounts.add(_counts(upcoming: 7, past: 13));
       final container = _build(repo: repo, eventLocal: eventLocal);
 
-      final counts =
-          await container.read(customerBookingsCountsProvider.future);
+      final counts = await container.read(
+        customerBookingsCountsProvider.future,
+      );
 
       expect(counts.upcoming, 7);
       expect(counts.past, 13);
@@ -199,12 +199,11 @@ void main() {
       await container.read(customerBookingsCountsProvider.future);
 
       repo.queuedCounts.add(_counts(upcoming: 2, past: 5));
-      await container
-          .read(customerBookingsCountsProvider.notifier)
-          .refresh();
+      await container.read(customerBookingsCountsProvider.notifier).refresh();
 
-      final counts =
-          container.read(customerBookingsCountsProvider).requireValue;
+      final counts = container
+          .read(customerBookingsCountsProvider)
+          .requireValue;
       expect(counts.upcoming, 2);
       expect(counts.past, 5);
       expect(repo.countsCallCount, 2);
@@ -216,9 +215,7 @@ void main() {
       await container.read(customerBookingsCountsProvider.future);
 
       repo.queuedThrows.add(const CustomerBookingsServerFailure());
-      await container
-          .read(customerBookingsCountsProvider.notifier)
-          .refresh();
+      await container.read(customerBookingsCountsProvider.notifier).refresh();
 
       final state = container.read(customerBookingsCountsProvider);
       expect(state.hasError, isTrue);
@@ -229,15 +226,10 @@ void main() {
       final container = _build(repo: repo, eventLocal: eventLocal);
       container.read(customerBookingsCountsProvider);
       await _waitForCountsResolution(container);
-      expect(
-        container.read(customerBookingsCountsProvider).hasError,
-        isTrue,
-      );
+      expect(container.read(customerBookingsCountsProvider).hasError, isTrue);
 
       repo.queuedCounts.add(_counts(upcoming: 9, past: 0));
-      await container
-          .read(customerBookingsCountsProvider.notifier)
-          .refresh();
+      await container.read(customerBookingsCountsProvider.notifier).refresh();
 
       expect(
         container.read(customerBookingsCountsProvider).requireValue.upcoming,
@@ -255,16 +247,17 @@ void main() {
 
       // Subsequent refresh request triggered by the listener.
       repo.queuedCounts.add(_counts(upcoming: 4, past: 1));
-      container.read(systemEventProvider.notifier).processEvent(
-            _jobAcceptedEvent(id: 'evt-1'),
-          );
+      container
+          .read(systemEventProvider.notifier)
+          .processEvent(_jobAcceptedEvent(id: 'evt-1'));
 
       // Refresh is fire-and-forget; let the microtask + future settle.
       await _settle();
 
       expect(repo.countsCallCount, 2);
-      final counts =
-          container.read(customerBookingsCountsProvider).requireValue;
+      final counts = container
+          .read(customerBookingsCountsProvider)
+          .requireValue;
       expect(counts.upcoming, 4);
       expect(counts.past, 1);
     });
@@ -275,14 +268,15 @@ void main() {
       await container.read(customerBookingsCountsProvider.future);
 
       repo.queuedCounts.add(_counts(upcoming: 2, past: 8));
-      container.read(systemEventProvider.notifier).processEvent(
-            _bookingRejectedEvent(id: 'evt-r1'),
-          );
+      container
+          .read(systemEventProvider.notifier)
+          .processEvent(_bookingRejectedEvent(id: 'evt-r1'));
       await _settle();
 
       expect(repo.countsCallCount, 2);
-      final counts =
-          container.read(customerBookingsCountsProvider).requireValue;
+      final counts = container
+          .read(customerBookingsCountsProvider)
+          .requireValue;
       expect(counts.upcoming, 2);
       expect(counts.past, 8);
     });
@@ -293,17 +287,16 @@ void main() {
       await container.read(customerBookingsCountsProvider.future);
       expect(repo.countsCallCount, 1);
 
-      container.read(systemEventProvider.notifier).processEvent(
-            _chatMessageEvent(),
-          );
+      container
+          .read(systemEventProvider.notifier)
+          .processEvent(_chatMessageEvent());
       await _settle();
 
       // No additional fetch — count is unchanged.
       expect(repo.countsCallCount, 1);
     });
 
-    test('same-id event repeat does not trigger a second refresh',
-        () async {
+    test('same-id event repeat does not trigger a second refresh', () async {
       // SystemEventNotifier dedupes by id; the listener's
       // `previous?.latestEvent?.id == next.latestEvent?.id` guard
       // covers the housekeeping-rebuild case. Confirm only ONE refresh
@@ -315,14 +308,14 @@ void main() {
       // Queue counts for the (hopefully single) refresh that fires.
       repo.queuedCounts.add(_counts(upcoming: 4, past: 1));
 
-      container.read(systemEventProvider.notifier).processEvent(
-            _jobAcceptedEvent(id: 'evt-once'),
-          );
+      container
+          .read(systemEventProvider.notifier)
+          .processEvent(_jobAcceptedEvent(id: 'evt-once'));
       // Try again with the same id — the upstream notifier dedupes,
       // so the listener's `latestEvent` doesn't change.
-      container.read(systemEventProvider.notifier).processEvent(
-            _jobAcceptedEvent(id: 'evt-once'),
-          );
+      container
+          .read(systemEventProvider.notifier)
+          .processEvent(_jobAcceptedEvent(id: 'evt-once'));
 
       await _settle();
 

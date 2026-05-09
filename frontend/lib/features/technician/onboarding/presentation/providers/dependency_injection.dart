@@ -17,7 +17,9 @@ part 'dependency_injection.g.dart';
 
 @Riverpod(keepAlive: true)
 SharedPreferences sharedPreferences(Ref ref) {
-  throw UnimplementedError('sharedPreferencesProvider must be overridden in ProviderScope');
+  throw UnimplementedError(
+    'sharedPreferencesProvider must be overridden in ProviderScope',
+  );
 }
 
 @Riverpod(keepAlive: true)
@@ -27,14 +29,18 @@ OnboardingLocalDataSource onboardingLocalDataSource(Ref ref) {
 }
 
 @riverpod
-TechnicianOnboardingRemoteDataSource technicianOnboardingRemoteDataSource(Ref ref) {
+TechnicianOnboardingRemoteDataSource technicianOnboardingRemoteDataSource(
+  Ref ref,
+) {
   final authLocalDataSource = ref.watch(authLocalDataSourceProvider);
   return TechnicianOnboardingRemoteDataSource(authLocalDataSource);
 }
 
 @riverpod
 TechnicianRepositoryImpl technicianRepository(Ref ref) {
-  final remoteDataSource = ref.watch(technicianOnboardingRemoteDataSourceProvider);
+  final remoteDataSource = ref.watch(
+    technicianOnboardingRemoteDataSourceProvider,
+  );
   final localDataSource = ref.watch(onboardingLocalDataSourceProvider);
   return TechnicianRepositoryImpl(remoteDataSource, localDataSource);
 }

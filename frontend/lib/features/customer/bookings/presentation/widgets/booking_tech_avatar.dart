@@ -63,9 +63,13 @@ class BookingTechAvatar extends StatelessWidget {
   static String _initialsOf(String name) {
     final trimmed = name.trim();
     if (trimmed.isEmpty) return '';
-    final parts = trimmed.split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+    final parts = trimmed
+        .split(RegExp(r'\s+'))
+        .where((p) => p.isNotEmpty)
+        .toList();
     if (parts.isEmpty) return '';
     if (parts.length == 1) return parts.first.characters.first.toUpperCase();
-    return (parts.first.characters.first + parts.last.characters.first).toUpperCase();
+    return (parts.first.characters.first + parts.last.characters.first)
+        .toUpperCase();
   }
 }

@@ -22,9 +22,7 @@ IDiscoveryRemoteDataSource discoveryRemoteDataSource(Ref ref) {
 @Riverpod(keepAlive: true)
 IDiscoveryRepository discoveryRepository(Ref ref) {
   final remote = ref.watch(discoveryRemoteDataSourceProvider);
-  return DiscoveryRepositoryImpl(
-    remoteDataSource: remote,
-  );
+  return DiscoveryRepositoryImpl(remoteDataSource: remote);
 }
 
 @Riverpod(keepAlive: true)

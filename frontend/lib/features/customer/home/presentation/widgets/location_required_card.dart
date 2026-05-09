@@ -30,7 +30,7 @@ class LocationRequiredCard extends StatelessWidget {
                         color: const Color(0xFF0051AE).withOpacity(0.1),
                         blurRadius: 10,
                         offset: const Offset(0, 4),
-                      )
+                      ),
                     ],
                   ),
                   child: const Icon(

@@ -16,8 +16,7 @@ import '../models/job_new_request_payload_model.dart';
 class JobNewRequestMapper {
   JobNewRequestMapper._();
 
-  static const _logName =
-      'features.technician.incoming_job_requests.mapper';
+  static const _logName = 'features.technician.incoming_job_requests.mapper';
 
   /// Wire enum strings → typed [BookingType]. Inputs are case-sensitive per
   /// the backend contract (`INSPECTION` / `FIXED_GIG` / `LABOR_GIG`).

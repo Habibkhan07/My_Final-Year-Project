@@ -48,77 +48,102 @@ void main() {
           'primary_price': 'Rs. 500',
           'price_context': 'per visit',
           'promo_tag': null,
-          'ui_subtitle_text': 'Expert'
-        }
-      ]
+          'ui_subtitle_text': 'Expert',
+        },
+      ],
     };
 
-    test('should perform a GET request on a URL with query parameters', () async {
-      // Arrange
-      when(() => mockHttpClient.get(any())).thenAnswer(
-        (_) async => http.Response(jsonEncode(tDiscoveryResultJson), 200),
-      );
+    test(
+      'should perform a GET request on a URL with query parameters',
+      () async {
+        // Arrange
+        when(() => mockHttpClient.get(any())).thenAnswer(
+          (_) async => http.Response(jsonEncode(tDiscoveryResultJson), 200),
+        );
 
-      // Act
-      await dataSource.getNearbyTechnicians(lat: tLat, lng: tLng, query: tQuery, page: tPage);
+        // Act
+        await dataSource.getNearbyTechnicians(
+          lat: tLat,
+          lng: tLng,
+          query: tQuery,
+          page: tPage,
+        );
 
-      // Assert
-      final capturedUri = verify(() => mockHttpClient.get(captureAny())).captured.first as Uri;
-      expect(capturedUri.queryParameters['lat'], tLat.toString());
-      expect(capturedUri.queryParameters['lng'], tLng.toString());
-      expect(capturedUri.queryParameters['q'], tQuery);
-      expect(capturedUri.queryParameters['page'], tPage.toString());
-    });
+        // Assert
+        final capturedUri =
+            verify(() => mockHttpClient.get(captureAny())).captured.first
+                as Uri;
+        expect(capturedUri.queryParameters['lat'], tLat.toString());
+        expect(capturedUri.queryParameters['lng'], tLng.toString());
+        expect(capturedUri.queryParameters['q'], tQuery);
+        expect(capturedUri.queryParameters['page'], tPage.toString());
+      },
+    );
 
-    test('should return DiscoveryResultModel when the response code is 200 (success)', () async {
-      // Arrange
-      when(() => mockHttpClient.get(any())).thenAnswer(
-        (_) async => http.Response(jsonEncode(tDiscoveryResultJson), 200),
-      );
+    test(
+      'should return DiscoveryResultModel when the response code is 200 (success)',
+      () async {
+        // Arrange
+        when(() => mockHttpClient.get(any())).thenAnswer(
+          (_) async => http.Response(jsonEncode(tDiscoveryResultJson), 200),
+        );
 
-      // Act
-      final result = await dataSource.getNearbyTechnicians();
+        // Act
+        final result = await dataSource.getNearbyTechnicians();
 
-      // Assert
-      expect(result, isA<DiscoveryResultModel>());
-      expect(result.count, 1);
-      expect(result.results.first.fullName, 'Ali Raza');
-    });
+        // Assert
+        expect(result, isA<DiscoveryResultModel>());
+        expect(result.count, 1);
+        expect(result.results.first.fullName, 'Ali Raza');
+      },
+    );
 
-    test('should throw HttpFailure when the response code is 400 (validation_error)', () async {
-      // Arrange
-      final errorJson = {
-        'code': 'validation_error',
-        'message': 'Invalid query',
-        'errors': {'q': ['Too short']}
-      };
-      when(() => mockHttpClient.get(any())).thenAnswer(
-        (_) async => http.Response(jsonEncode(errorJson), 400),
-      );
+    test(
+      'should throw HttpFailure when the response code is 400 (validation_error)',
+      () async {
+        // Arrange
+        final errorJson = {
+          'code': 'validation_error',
+          'message': 'Invalid query',
+          'errors': {
+            'q': ['Too short'],
+          },
+        };
+        when(
+          () => mockHttpClient.get(any()),
+        ).thenAnswer((_) async => http.Response(jsonEncode(errorJson), 400));
 
-      // Act & Assert
-      expect(
-        () => dataSource.getNearbyTechnicians(),
-        throwsA(isA<HttpFailure>()
-            .having((e) => e.statusCode, 'statusCode', 400)
-            .having((e) => e.code, 'code', 'validation_error')
-            .having((e) => e.message, 'message', 'Invalid query')),
-      );
-    });
+        // Act & Assert
+        expect(
+          () => dataSource.getNearbyTechnicians(),
+          throwsA(
+            isA<HttpFailure>()
+                .having((e) => e.statusCode, 'statusCode', 400)
+                .having((e) => e.code, 'code', 'validation_error')
+                .having((e) => e.message, 'message', 'Invalid query'),
+          ),
+        );
+      },
+    );
 
-    test('should throw HttpFailure with server_error when response is 500 and body is not JSON', () async {
-      // Arrange
-      when(() => mockHttpClient.get(any())).thenAnswer(
-        (_) async => http.Response('Server Crash', 500),
-      );
+    test(
+      'should throw HttpFailure with server_error when response is 500 and body is not JSON',
+      () async {
+        // Arrange
+        when(
+          () => mockHttpClient.get(any()),
+        ).thenAnswer((_) async => http.Response('Server Crash', 500));
 
-      // Act & Assert
-      expect(
-        () => dataSource.getNearbyTechnicians(),
-        throwsA(isA<HttpFailure>()
-            .having((e) => e.statusCode, 'statusCode', 500)
-            .having((e) => e.code, 'code', 'server_error')),
-      );
-    });
+        // Act & Assert
+        expect(
+          () => dataSource.getNearbyTechnicians(),
+          throwsA(
+            isA<HttpFailure>()
+                .having((e) => e.statusCode, 'statusCode', 500)
+                .having((e) => e.code, 'code', 'server_error'),
+          ),
+        );
+      },
+    );
   });
 }

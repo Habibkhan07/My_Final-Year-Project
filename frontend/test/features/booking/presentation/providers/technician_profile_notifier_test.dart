@@ -29,11 +29,15 @@ void main() {
     createdAt: '2024-01-01',
   );
 
-  ProviderContainer makeProviderContainer(MockGetTechnicianProfileUseCase useCase) {
+  ProviderContainer makeProviderContainer(
+    MockGetTechnicianProfileUseCase useCase,
+  ) {
     final container = ProviderContainer(
       overrides: [
         getTechnicianProfileUseCaseProvider.overrideWithValue(useCase),
-        addressesProvider.overrideWith((ref) => Future.value([tDefaultAddress])),
+        addressesProvider.overrideWith(
+          (ref) => Future.value([tDefaultAddress]),
+        ),
       ],
     );
     addTearDown(container.dispose);
@@ -63,26 +67,25 @@ void main() {
   );
 
   test('build() returns TechnicianProfileEntity on success', () async {
-    when(() => mockUseCase.call(
-          id: any(named: 'id'),
-          lat: any(named: 'lat'),
-          lng: any(named: 'lng'),
-          serviceId: any(named: 'serviceId'),
-          subServiceId: any(named: 'subServiceId'),
-          promotionId: any(named: 'promotionId'),
-        )).thenAnswer((_) async => tProfileEntity);
+    when(
+      () => mockUseCase.call(
+        id: any(named: 'id'),
+        lat: any(named: 'lat'),
+        lng: any(named: 'lng'),
+        serviceId: any(named: 'serviceId'),
+        subServiceId: any(named: 'subServiceId'),
+        promotionId: any(named: 'promotionId'),
+      ),
+    ).thenAnswer((_) async => tProfileEntity);
 
     final container = makeProviderContainer(mockUseCase);
     final provider = technicianProfileProvider(id: tId);
-    
+
     // Listen to prevent auto-dispose
     final sub = container.listen(provider, (_, __) {});
 
     // Initial state is loading
-    expect(
-      sub.read(),
-      const AsyncLoading<TechnicianProfileEntity>(),
-    );
+    expect(sub.read(), const AsyncLoading<TechnicianProfileEntity>());
 
     // Wait for the build to finish
     final result = await container.read(provider.future);
@@ -92,18 +95,22 @@ void main() {
       sub.read(),
       const AsyncData<TechnicianProfileEntity>(tProfileEntity),
     );
-    verify(() => mockUseCase.call(id: tId, lat: 31.5204, lng: 74.3587)).called(1);
+    verify(
+      () => mockUseCase.call(id: tId, lat: 31.5204, lng: 74.3587),
+    ).called(1);
   });
 
   test('build() returns AsyncError on failure', () async {
-    when(() => mockUseCase.call(
-          id: any(named: 'id'),
-          lat: any(named: 'lat'),
-          lng: any(named: 'lng'),
-          serviceId: any(named: 'serviceId'),
-          subServiceId: any(named: 'subServiceId'),
-          promotionId: any(named: 'promotionId'),
-        )).thenThrow(const BookingTechnicianNotFoundFailure());
+    when(
+      () => mockUseCase.call(
+        id: any(named: 'id'),
+        lat: any(named: 'lat'),
+        lng: any(named: 'lng'),
+        serviceId: any(named: 'serviceId'),
+        subServiceId: any(named: 'subServiceId'),
+        promotionId: any(named: 'promotionId'),
+      ),
+    ).thenThrow(const BookingTechnicianNotFoundFailure());
 
     final container = makeProviderContainer(mockUseCase);
     final provider = technicianProfileProvider(id: tId);

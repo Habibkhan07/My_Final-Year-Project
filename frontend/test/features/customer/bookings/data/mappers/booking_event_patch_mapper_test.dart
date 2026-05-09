@@ -77,30 +77,21 @@ void main() {
   group('jobIdFromPayload', () {
     test('int passes through', () {
       final id = BookingEventPatchMapper.jobIdFromPayload(
-        _event(
-          type: SystemEventType.jobAccepted,
-          payload: {'job_id': 42},
-        ),
+        _event(type: SystemEventType.jobAccepted, payload: {'job_id': 42}),
       );
       expect(id, 42);
     });
 
     test('numeric (double) coerces to int', () {
       final id = BookingEventPatchMapper.jobIdFromPayload(
-        _event(
-          type: SystemEventType.jobAccepted,
-          payload: {'job_id': 42.0},
-        ),
+        _event(type: SystemEventType.jobAccepted, payload: {'job_id': 42.0}),
       );
       expect(id, 42);
     });
 
     test('numeric string parses to int', () {
       final id = BookingEventPatchMapper.jobIdFromPayload(
-        _event(
-          type: SystemEventType.jobAccepted,
-          payload: {'job_id': '42'},
-        ),
+        _event(type: SystemEventType.jobAccepted, payload: {'job_id': '42'}),
       );
       expect(id, 42);
     });
@@ -117,20 +108,14 @@ void main() {
 
     test('missing key returns null', () {
       final id = BookingEventPatchMapper.jobIdFromPayload(
-        _event(
-          type: SystemEventType.jobAccepted,
-          payload: const {},
-        ),
+        _event(type: SystemEventType.jobAccepted, payload: const {}),
       );
       expect(id, isNull);
     });
 
     test('explicit null value returns null', () {
       final id = BookingEventPatchMapper.jobIdFromPayload(
-        _event(
-          type: SystemEventType.jobAccepted,
-          payload: {'job_id': null},
-        ),
+        _event(type: SystemEventType.jobAccepted, payload: {'job_id': null}),
       );
       expect(id, isNull);
     });
@@ -204,10 +189,7 @@ void main() {
         _existingAwaiting(techName: 'Ahmed Khan'),
         _event(
           type: SystemEventType.bookingRejected,
-          payload: const {
-            'job_id': 99482,
-            'reason': 'technician_declined',
-          },
+          payload: const {'job_id': 99482, 'reason': 'technician_declined'},
         ),
       );
 
@@ -217,24 +199,23 @@ void main() {
       expect(patched.ui.headline, "Ahmed Khan couldn't take this");
     });
 
-    test('reason=sla_timeout → "Timed out" + negative tone + tailored copy',
-        () {
-      final patched = BookingEventPatchMapper.applyBookingRejected(
-        _existingAwaiting(techName: 'Ahmed Khan'),
-        _event(
-          type: SystemEventType.bookingRejected,
-          payload: const {
-            'job_id': 99482,
-            'reason': 'sla_timeout',
-          },
-        ),
-      );
+    test(
+      'reason=sla_timeout → "Timed out" + negative tone + tailored copy',
+      () {
+        final patched = BookingEventPatchMapper.applyBookingRejected(
+          _existingAwaiting(techName: 'Ahmed Khan'),
+          _event(
+            type: SystemEventType.bookingRejected,
+            payload: const {'job_id': 99482, 'reason': 'sla_timeout'},
+          ),
+        );
 
-      expect(patched.status, BookingStatus.rejected);
-      expect(patched.ui.badgeText, 'Timed out');
-      expect(patched.ui.badgeTone, BookingUiTone.negative);
-      expect(patched.ui.headline, "Ahmed Khan didn't respond in time");
-    });
+        expect(patched.status, BookingStatus.rejected);
+        expect(patched.ui.badgeText, 'Timed out');
+        expect(patched.ui.badgeTone, BookingUiTone.negative);
+        expect(patched.ui.headline, "Ahmed Khan didn't respond in time");
+      },
+    );
 
     test('unknown reason → defaults to technician_declined copy', () {
       // Forward-compat: a future backend reason string must not crash
@@ -243,10 +224,7 @@ void main() {
         _existingAwaiting(techName: 'Ahmed Khan'),
         _event(
           type: SystemEventType.bookingRejected,
-          payload: const {
-            'job_id': 99482,
-            'reason': 'some_future_reason',
-          },
+          payload: const {'job_id': 99482, 'reason': 'some_future_reason'},
         ),
       );
       expect(patched.ui.badgeText, 'Unavailable');
@@ -267,8 +245,7 @@ void main() {
       expect(patched.ui.badgeTone, BookingUiTone.negative);
     });
 
-    test('keeps existing technician — booking_rejected is the same tech',
-        () {
+    test('keeps existing technician — booking_rejected is the same tech', () {
       // The decline / timeout pathway is for the originally-assigned
       // tech; we should not blank or replace the technician block.
       final original = _existingAwaiting(techName: 'Ahmed Khan');
@@ -276,10 +253,7 @@ void main() {
         original,
         _event(
           type: SystemEventType.bookingRejected,
-          payload: const {
-            'job_id': 99482,
-            'reason': 'technician_declined',
-          },
+          payload: const {'job_id': 99482, 'reason': 'technician_declined'},
         ),
       );
       expect(patched.technician, original.technician);
@@ -291,10 +265,7 @@ void main() {
         original,
         _event(
           type: SystemEventType.bookingRejected,
-          payload: const {
-            'job_id': 99482,
-            'reason': 'sla_timeout',
-          },
+          payload: const {'job_id': 99482, 'reason': 'sla_timeout'},
         ),
       );
       expect(patched.service, original.service);

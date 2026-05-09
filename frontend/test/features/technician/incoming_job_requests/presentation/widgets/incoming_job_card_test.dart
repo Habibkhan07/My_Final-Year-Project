@@ -50,8 +50,9 @@ void main() {
     test(
       'scheduledStart 31 minutes out → not ASAP (boundary, falls into Today)',
       () {
-        final r =
-            _request(scheduledStart: now.add(const Duration(minutes: 31)));
+        final r = _request(
+          scheduledStart: now.add(const Duration(minutes: 31)),
+        );
         final parts = eyebrowTimeParts(r, now: now);
         expect(parts.isAsap, isFalse);
         expect(parts.day, 'Today');
@@ -59,20 +60,21 @@ void main() {
       },
     );
 
-    test('scheduledStart later today (well past ASAP window) → Today + clock',
-        () {
-      final r = _request(scheduledStart: now.add(const Duration(hours: 4)));
-      final parts = eyebrowTimeParts(r, now: now);
-      expect(parts.isAsap, isFalse);
-      expect(parts.day, 'Today');
-      // Match digits + AM/PM (intl 0.19+ uses U+202F narrow no-break space
-      // between time and meridiem, intl 0.18 uses a regular space).
-      expect(parts.clock, matches(RegExp(r'^6:30\s+PM$')));
-    });
+    test(
+      'scheduledStart later today (well past ASAP window) → Today + clock',
+      () {
+        final r = _request(scheduledStart: now.add(const Duration(hours: 4)));
+        final parts = eyebrowTimeParts(r, now: now);
+        expect(parts.isAsap, isFalse);
+        expect(parts.day, 'Today');
+        // Match digits + AM/PM (intl 0.19+ uses U+202F narrow no-break space
+        // between time and meridiem, intl 0.18 uses a regular space).
+        expect(parts.clock, matches(RegExp(r'^6:30\s+PM$')));
+      },
+    );
 
     test('scheduledStart tomorrow morning → Tomorrow + clock', () {
-      final tomorrow900 =
-          DateTime(now.year, now.month, now.day + 1, 9, 0);
+      final tomorrow900 = DateTime(now.year, now.month, now.day + 1, 9, 0);
       final r = _request(scheduledStart: tomorrow900);
       final parts = eyebrowTimeParts(r, now: now);
       expect(parts.isAsap, isFalse);
@@ -81,8 +83,7 @@ void main() {
     });
 
     test('scheduledStart a few days out → "EEE, MMM d" + clock', () {
-      final laterThisWeek =
-          DateTime(now.year, now.month, now.day + 3, 11, 15);
+      final laterThisWeek = DateTime(now.year, now.month, now.day + 3, 11, 15);
       final r = _request(scheduledStart: laterThisWeek);
       final parts = eyebrowTimeParts(r, now: now);
       expect(parts.isAsap, isFalse);

@@ -34,7 +34,10 @@ class CategoryGrid extends ConsumerWidget {
               ),
               TextButton(
                 onPressed: () {},
-                child: const Text("See all", style: TextStyle(fontWeight: FontWeight.bold)),
+                child: const Text(
+                  "See all",
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
               ),
             ],
           ),
@@ -58,13 +61,15 @@ class CategoryGrid extends ConsumerWidget {
                     }
 
                     // Navigate to discovery with category filter
-                    context.push(Uri(
-                      path: '/discovery',
-                      queryParameters: {
-                        'title': category.name,
-                        'serviceId': category.id.toString(),
-                      },
-                    ).toString());
+                    context.push(
+                      Uri(
+                        path: '/discovery',
+                        queryParameters: {
+                          'title': category.name,
+                          'serviceId': category.id.toString(),
+                        },
+                      ).toString(),
+                    );
                   },
                   child: Column(
                     children: [
@@ -81,8 +86,8 @@ class CategoryGrid extends ConsumerWidget {
                               color: Colors.grey.withValues(alpha: 0.05),
                               blurRadius: 10,
                               offset: const Offset(0, 5),
-                            )
-                          ]
+                            ),
+                          ],
                         ),
                         child: SvgPicture.asset(
                           IconAssets.path(category.iconName),
@@ -92,7 +97,11 @@ class CategoryGrid extends ConsumerWidget {
                       const SizedBox(height: 8),
                       Text(
                         category.name,
-                        style: TextStyle(fontSize: 12, color: Colors.grey.shade800, fontWeight: FontWeight.w500),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade800,
+                          fontWeight: FontWeight.w500,
+                        ),
                         textAlign: TextAlign.center,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,

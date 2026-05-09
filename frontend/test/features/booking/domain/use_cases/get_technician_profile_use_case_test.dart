@@ -37,37 +37,44 @@ void main() {
     recentReviews: [],
   );
 
-  test('should delegate to repository and return TechnicianProfileEntity', () async {
-    // Arrange
-    when(() => mockRepository.getTechnicianProfile(
+  test(
+    'should delegate to repository and return TechnicianProfileEntity',
+    () async {
+      // Arrange
+      when(
+        () => mockRepository.getTechnicianProfile(
           id: any(named: 'id'),
           lat: any(named: 'lat'),
           lng: any(named: 'lng'),
           serviceId: any(named: 'serviceId'),
           subServiceId: any(named: 'subServiceId'),
           promotionId: any(named: 'promotionId'),
-        )).thenAnswer((_) async => tProfileEntity);
+        ),
+      ).thenAnswer((_) async => tProfileEntity);
 
-    // Act
-    final result = await useCase.call(
-      id: tId,
-      lat: 31.5,
-      lng: 74.3,
-      serviceId: 1,
-      subServiceId: 2,
-      promotionId: 3,
-    );
+      // Act
+      final result = await useCase.call(
+        id: tId,
+        lat: 31.5,
+        lng: 74.3,
+        serviceId: 1,
+        subServiceId: 2,
+        promotionId: 3,
+      );
 
-    // Assert
-    expect(result, tProfileEntity);
-    verify(() => mockRepository.getTechnicianProfile(
+      // Assert
+      expect(result, tProfileEntity);
+      verify(
+        () => mockRepository.getTechnicianProfile(
           id: tId,
           lat: 31.5,
           lng: 74.3,
           serviceId: 1,
           subServiceId: 2,
           promotionId: 3,
-        )).called(1);
-    verifyNoMoreInteractions(mockRepository);
-  });
+        ),
+      ).called(1);
+      verifyNoMoreInteractions(mockRepository);
+    },
+  );
 }

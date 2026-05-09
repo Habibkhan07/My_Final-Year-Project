@@ -137,10 +137,7 @@ class EventLocalDataSource {
       existing.removeRange(0, overflow);
     }
     try {
-      await _prefs.setString(
-        _keyPendingBackgroundEvents,
-        jsonEncode(existing),
-      );
+      await _prefs.setString(_keyPendingBackgroundEvents, jsonEncode(existing));
     } catch (e, stack) {
       log(
         'savePendingBackgroundEvent: failed to write queue: $e',
@@ -163,9 +160,7 @@ class EventLocalDataSource {
     if (raw == null || raw.isEmpty) return <Map<String, dynamic>>[];
     try {
       final decoded = jsonDecode(raw) as List<dynamic>;
-      return decoded
-          .whereType<Map<String, dynamic>>()
-          .toList();
+      return decoded.whereType<Map<String, dynamic>>().toList();
     } catch (e, stack) {
       log(
         '_readPendingBackgroundList: corrupt queue, discarding: $e',

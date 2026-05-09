@@ -17,7 +17,9 @@ class OnboardingNotifier extends _$OnboardingNotifier {
   @override
   FutureOr<OnboardingState> build() async {
     // 1. Fetch Metadata (The "Source of Truth")
-    final services = await ref.read(getOnboardingMetadataUseCaseProvider).execute();
+    final services = await ref
+        .read(getOnboardingMetadataUseCaseProvider)
+        .execute();
 
     // 2. Read (not watch) user info — onboarding only needs the initial value to
     //    pre-populate fields. Using ref.watch here would re-trigger build() every
@@ -33,7 +35,9 @@ class OnboardingNotifier extends _$OnboardingNotifier {
 
   Future<void> fetchMetadata() async {
     state = await AsyncValue.guard(() async {
-      final services = await ref.read(getOnboardingMetadataUseCaseProvider).execute();
+      final services = await ref
+          .read(getOnboardingMetadataUseCaseProvider)
+          .execute();
       // .value is safe here: state may be AsyncError when Retry is pressed,
       // so we can't use requireValue (it throws on error state).
       // .value returns null for both AsyncLoading and AsyncError.
@@ -60,7 +64,7 @@ class OnboardingNotifier extends _$OnboardingNotifier {
     String? cnic,
   }) {
     // requireValue is safer than value! because it guarantees data exists
-    final current = state.requireValue; 
+    final current = state.requireValue;
     state = AsyncData(
       current.copyWith(
         firstName: firstName ?? current.firstName,
@@ -82,22 +86,30 @@ class OnboardingNotifier extends _$OnboardingNotifier {
       final token = ref.read(authenticatedUserProvider)?.token;
 
       if (token == null) {
-        throw const OnboardingUnauthorized("Session expired. Please log in again.");
+        throw const OnboardingUnauthorized(
+          "Session expired. Please log in again.",
+        );
       }
 
-      final uuid = await ref.read(uploadMediaUseCaseProvider).execute(file, token);
+      final uuid = await ref
+          .read(uploadMediaUseCaseProvider)
+          .execute(file, token);
 
       if (type == 'license' && serviceId != null) {
         final updatedLicenses = currentData.categoryLicenses
             .where((l) => l.serviceId != serviceId)
             .toList();
-        updatedLicenses.add(CategoryLicenseEntity(serviceId: serviceId, mediaUuid: uuid));
-        
+        updatedLicenses.add(
+          CategoryLicenseEntity(serviceId: serviceId, mediaUuid: uuid),
+        );
+
         return currentData.copyWith(categoryLicenses: updatedLicenses);
       }
-      
+
       return currentData.copyWith(
-        profilePictureUuid: type == 'profile' ? uuid : currentData.profilePictureUuid,
+        profilePictureUuid: type == 'profile'
+            ? uuid
+            : currentData.profilePictureUuid,
         cnicPictureUuid: type == 'cnic' ? uuid : currentData.cnicPictureUuid,
       );
     });
@@ -112,7 +124,9 @@ class OnboardingNotifier extends _$OnboardingNotifier {
     if (index != -1) {
       skills.removeAt(index);
     } else {
-      skills.add(SkillSelectionEntity(subServiceId: subServiceId, yearsOfExperience: 0));
+      skills.add(
+        SkillSelectionEntity(subServiceId: subServiceId, yearsOfExperience: 0),
+      );
     }
     state = AsyncData(current.copyWith(selectedSkills: skills));
   }
@@ -120,13 +134,15 @@ class OnboardingNotifier extends _$OnboardingNotifier {
   void updateSkillExperience(int subServiceId, int years) {
     final current = state.requireValue;
     final updated = current.selectedSkills
-        .map((s) => s.subServiceId == subServiceId
-            ? SkillSelectionEntity(
-                subServiceId: s.subServiceId,
-                yearsOfExperience: years,
-                laborRate: s.laborRate,
-              )
-            : s)
+        .map(
+          (s) => s.subServiceId == subServiceId
+              ? SkillSelectionEntity(
+                  subServiceId: s.subServiceId,
+                  yearsOfExperience: years,
+                  laborRate: s.laborRate,
+                )
+              : s,
+        )
         .toList();
     state = AsyncData(current.copyWith(selectedSkills: updated));
   }
@@ -134,13 +150,15 @@ class OnboardingNotifier extends _$OnboardingNotifier {
   void updateSkillRate(int subServiceId, {String? laborRate}) {
     final current = state.requireValue;
     final updated = current.selectedSkills
-        .map((s) => s.subServiceId == subServiceId
-            ? SkillSelectionEntity(
-                subServiceId: s.subServiceId,
-                yearsOfExperience: s.yearsOfExperience,
-                laborRate: laborRate ?? s.laborRate,
-              )
-            : s)
+        .map(
+          (s) => s.subServiceId == subServiceId
+              ? SkillSelectionEntity(
+                  subServiceId: s.subServiceId,
+                  yearsOfExperience: s.yearsOfExperience,
+                  laborRate: laborRate ?? s.laborRate,
+                )
+              : s,
+        )
         .toList();
     state = AsyncData(current.copyWith(selectedSkills: updated));
   }
@@ -165,39 +183,47 @@ class OnboardingNotifier extends _$OnboardingNotifier {
 
     if (user?.token == null) {
       // Safely insert the error directly into the sub-state without ruining the form
-      state = AsyncData(s.copyWith(
-        submissionStatus: AsyncError(
-          const OnboardingUnauthorized("Session expired. Please log in again."), 
-          StackTrace.current,
-        )
-      ));
+      state = AsyncData(
+        s.copyWith(
+          submissionStatus: AsyncError(
+            const OnboardingUnauthorized(
+              "Session expired. Please log in again.",
+            ),
+            StackTrace.current,
+          ),
+        ),
+      );
       return;
     }
 
     // 1. Set the specific button status to Loading (keeps the rest of the form intact)
     state = AsyncData(s.copyWith(submissionStatus: const AsyncLoading()));
 
-  // 2. Perform the network request and capture it in a guard
+    // 2. Perform the network request and capture it in a guard
     final result = await AsyncValue.guard(() async {
-      final technician = await ref.read(registerTechnicianUseCaseProvider).execute(
-        token: user!.token!,
-        firstName: s.firstName,
-        lastName: s.lastName,
-        profilePictureUuid: s.profilePictureUuid!,
-        city: s.city,
-        cnicNumber: s.cnicNumber,
-        cnicPictureUuid: s.cnicPictureUuid!,
-        bio: s.bio,
-        experienceYears: s.experienceYears,
-        categoryLicenses: s.categoryLicenses,
-        skills: s.selectedSkills,
-      );
+      final technician = await ref
+          .read(registerTechnicianUseCaseProvider)
+          .execute(
+            token: user!.token!,
+            firstName: s.firstName,
+            lastName: s.lastName,
+            profilePictureUuid: s.profilePictureUuid!,
+            city: s.city,
+            cnicNumber: s.cnicNumber,
+            cnicPictureUuid: s.cnicPictureUuid!,
+            bio: s.bio,
+            experienceYears: s.experienceYears,
+            categoryLicenses: s.categoryLicenses,
+            skills: s.selectedSkills,
+          );
 
       // 3. THE RIVERPOD 3 FIX: Explicit Domain Mutation
       // Tell the Auth domain to safely update the names in memory
-      ref.read(authProvider.notifier).updateProfileNames(s.firstName, s.lastName);
+      ref
+          .read(authProvider.notifier)
+          .updateProfileNames(s.firstName, s.lastName);
 
-      return technician; 
+      return technician;
     });
 
     // 4. Wrap the result in the local submission status
@@ -207,5 +233,5 @@ class OnboardingNotifier extends _$OnboardingNotifier {
 
 @riverpod
 UserEntity? authenticatedUser(Ref ref) {
-  return ref.watch(authProvider).value?.user; 
+  return ref.watch(authProvider).value?.user;
 }

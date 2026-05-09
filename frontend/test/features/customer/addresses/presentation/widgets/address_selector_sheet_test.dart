@@ -47,15 +47,14 @@ void main() {
         addressesProvider.overrideWith(override),
         updateAddressUseCaseProvider.overrideWithValue(mockUpdateUseCase),
       ],
-      child: const MaterialApp(
-        home: Scaffold(body: AddressSelectorSheet()),
-      ),
+      child: const MaterialApp(home: Scaffold(body: AddressSelectorSheet())),
     );
   }
 
   group('AddressSelectorSheet', () {
-    testWidgets('shows loading indicator while addresses are loading',
-        (tester) async {
+    testWidgets('shows loading indicator while addresses are loading', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         createWidgetUnderTest(
           (_) => Completer<List<CustomerAddressEntity>>().future,
@@ -65,8 +64,9 @@ void main() {
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
     });
 
-    testWidgets('shows error message when addresses fail to load',
-        (tester) async {
+    testWidgets('shows error message when addresses fail to load', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         createWidgetUnderTest(
           (_) => Future.error(Exception('network failure')),
@@ -77,8 +77,9 @@ void main() {
       expect(find.text('Could not load addresses.'), findsOneWidget);
     });
 
-    testWidgets('renders a tile for each address with correct state',
-        (tester) async {
+    testWidgets('renders a tile for each address with correct state', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         createWidgetUnderTest((_) async => [tDefault, tNonDefault]),
       );
@@ -87,40 +88,42 @@ void main() {
       // Labels are now uppercase in the polished design
       expect(find.text('HOME'), findsOneWidget);
       expect(find.text('OFFICE'), findsOneWidget);
-      
+
       // Default address has a check circle
       expect(find.byIcon(Icons.check_circle_rounded), findsOneWidget);
-      
+
       // Verify icon types (Home icon for Home label)
       expect(find.byIcon(Icons.home_rounded), findsOneWidget);
       expect(find.byIcon(Icons.work_rounded), findsOneWidget);
     });
 
-    testWidgets('tapping non-default address calls update and closes sheet',
-        (tester) async {
-      when(() => mockUpdateUseCase.call(
-            id: any(named: 'id'),
-            isDefault: any(named: 'isDefault'),
-          )).thenAnswer((_) async => tNonDefault.copyWith(isDefault: true));
+    testWidgets('tapping non-default address calls update and closes sheet', (
+      tester,
+    ) async {
+      when(
+        () => mockUpdateUseCase.call(
+          id: any(named: 'id'),
+          isDefault: any(named: 'isDefault'),
+        ),
+      ).thenAnswer((_) async => tNonDefault.copyWith(isDefault: true));
 
       await tester.pumpWidget(
         createWidgetUnderTest((_) async => [tDefault, tNonDefault]),
       );
       await tester.pump();
 
-      // Tap the "OFFICE" tile (using text containment or case insensitive if possible, 
+      // Tap the "OFFICE" tile (using text containment or case insensitive if possible,
       // but here we know it's uppercase)
       await tester.tap(find.text('OFFICE'));
       await tester.pumpAndSettle();
 
       verify(() => mockUpdateUseCase.call(id: 2, isDefault: true)).called(1);
-      
+
       // Verify sheet is dismissed
       expect(find.byType(AddressSelectorSheet), findsNothing);
     });
 
-    testWidgets('tapping already default address does nothing',
-        (tester) async {
+    testWidgets('tapping already default address does nothing', (tester) async {
       await tester.pumpWidget(
         createWidgetUnderTest((_) async => [tDefault, tNonDefault]),
       );
@@ -130,11 +133,13 @@ void main() {
       await tester.tap(find.text('HOME'));
       await tester.pump();
 
-      verifyNever(() => mockUpdateUseCase.call(
-            id: any(named: 'id'),
-            isDefault: any(named: 'isDefault'),
-          ));
-      
+      verifyNever(
+        () => mockUpdateUseCase.call(
+          id: any(named: 'id'),
+          isDefault: any(named: 'isDefault'),
+        ),
+      );
+
       // Sheet should remain open
       expect(find.byType(AddressSelectorSheet), findsOneWidget);
     });

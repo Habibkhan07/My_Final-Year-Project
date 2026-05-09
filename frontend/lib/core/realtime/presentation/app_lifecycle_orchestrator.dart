@@ -272,8 +272,9 @@ class _AppLifecycleOrchestratorState
     final auth = ref.read(authProvider).value;
     final user = auth?.user;
     if (user == null) return;
-    final role =
-        user.isTechnician ? TargetRole.technician : TargetRole.customer;
+    final role = user.isTechnician
+        ? TargetRole.technician
+        : TargetRole.customer;
     _router.handleEvent(event, role, ref);
   }
 

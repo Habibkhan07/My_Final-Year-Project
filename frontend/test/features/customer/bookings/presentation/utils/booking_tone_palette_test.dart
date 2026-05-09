@@ -18,28 +18,19 @@ void main() {
 
     test('warning → tertiaryFixedDim @20% + onTertiaryFixed', () {
       final p = BookingTonePalette.of(BookingUiTone.warning);
-      expect(
-        p.background,
-        AppColors.tertiaryFixedDim.withValues(alpha: 0.20),
-      );
+      expect(p.background, AppColors.tertiaryFixedDim.withValues(alpha: 0.20));
       expect(p.foreground, AppColors.onTertiaryFixed);
     });
 
     test('negative → errorContainer @30% + onErrorContainer', () {
       final p = BookingTonePalette.of(BookingUiTone.negative);
-      expect(
-        p.background,
-        AppColors.errorContainer.withValues(alpha: 0.30),
-      );
+      expect(p.background, AppColors.errorContainer.withValues(alpha: 0.30));
       expect(p.foreground, AppColors.onErrorContainer);
     });
 
     test('info → primaryContainer @15% + primary', () {
       final p = BookingTonePalette.of(BookingUiTone.info);
-      expect(
-        p.background,
-        AppColors.primaryContainer.withValues(alpha: 0.15),
-      );
+      expect(p.background, AppColors.primaryContainer.withValues(alpha: 0.15));
       expect(p.foreground, AppColors.primary);
     });
 

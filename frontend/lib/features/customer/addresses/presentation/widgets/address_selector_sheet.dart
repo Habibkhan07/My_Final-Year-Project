@@ -54,14 +54,20 @@ class AddressSelectorSheet extends ConsumerWidget {
           addressesAsync.when(
             loading: () => const Padding(
               padding: EdgeInsets.symmetric(vertical: 48),
-              child: Center(child: CircularProgressIndicator(color: Color(0xFF0051AE))),
+              child: Center(
+                child: CircularProgressIndicator(color: Color(0xFF0051AE)),
+              ),
             ),
             error: (e, _) => Padding(
               padding: const EdgeInsets.symmetric(vertical: 24),
               child: Center(
                 child: Column(
                   children: [
-                    Icon(Icons.error_outline, size: 48, color: Colors.red.shade200),
+                    Icon(
+                      Icons.error_outline,
+                      size: 48,
+                      color: Colors.red.shade200,
+                    ),
                     const SizedBox(height: 12),
                     Text(
                       'Could not load addresses.',
@@ -103,7 +109,10 @@ class AddressSelectorSheet extends ConsumerWidget {
                       const Text(
                         'Add a location to quickly book services.',
                         textAlign: TextAlign.center,
-                        style: TextStyle(color: Color(0xFF727785), fontSize: 13),
+                        style: TextStyle(
+                          color: Color(0xFF727785),
+                          fontSize: 13,
+                        ),
                       ),
                       const SizedBox(height: 24),
                     ],
@@ -162,10 +171,9 @@ class _AddressTile extends ConsumerWidget {
             ? null
             : () async {
                 try {
-                  await ref.read(updateAddressUseCaseProvider).call(
-                        id: address.id,
-                        isDefault: true,
-                      );
+                  await ref
+                      .read(updateAddressUseCaseProvider)
+                      .call(id: address.id, isDefault: true);
                   ref.invalidate(addressesProvider);
                   if (context.mounted) Navigator.pop(context);
                 } catch (e) {
@@ -187,11 +195,13 @@ class _AddressTile extends ConsumerWidget {
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: const Color(0xFF0051AE).withOpacity(address.isDefault ? 0.08 : 0.04),
+            color: const Color(
+              0xFF0051AE,
+            ).withOpacity(address.isDefault ? 0.08 : 0.04),
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: address.isDefault 
-                  ? const Color(0xFF0051AE).withOpacity(0.2) 
+              color: address.isDefault
+                  ? const Color(0xFF0051AE).withOpacity(0.2)
                   : Colors.transparent,
               width: 1.5,
             ),
@@ -237,7 +247,9 @@ class _AddressTile extends ConsumerWidget {
                           const SizedBox(width: 8),
                           Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 2),
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
                               color: const Color(0xFF0051AE),
                               borderRadius: BorderRadius.circular(4),

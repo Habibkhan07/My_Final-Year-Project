@@ -62,14 +62,26 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           child: TextField(
             controller: _controller,
             focusNode: _focusNode,
-            onChanged: (val) => ref.read(searchProvider.notifier).onQueryChanged(val),
+            onChanged: (val) =>
+                ref.read(searchProvider.notifier).onQueryChanged(val),
             decoration: InputDecoration(
               hintText: 'Search for services...',
-              hintStyle: const TextStyle(color: Color(0xFF9CA3AF), fontSize: 15),
-              prefixIcon: const Icon(Icons.search, color: Color(0xFF9CA3AF), size: 20),
+              hintStyle: const TextStyle(
+                color: Color(0xFF9CA3AF),
+                fontSize: 15,
+              ),
+              prefixIcon: const Icon(
+                Icons.search,
+                color: Color(0xFF9CA3AF),
+                size: 20,
+              ),
               suffixIcon: _controller.text.isNotEmpty
                   ? IconButton(
-                      icon: const Icon(Icons.cancel, color: Color(0xFFD1D5DB), size: 20),
+                      icon: const Icon(
+                        Icons.cancel,
+                        color: Color(0xFFD1D5DB),
+                        size: 20,
+                      ),
                       onPressed: () {
                         _controller.clear();
                         ref.read(searchProvider.notifier).onQueryChanged('');
@@ -98,7 +110,11 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     );
   }
 
-  Widget _buildInitialDiscoveryView(BuildContext context, SearchState state, AsyncValue<HomeState> homeState) {
+  Widget _buildInitialDiscoveryView(
+    BuildContext context,
+    SearchState state,
+    AsyncValue<HomeState> homeState,
+  ) {
     return ListView(
       children: [
         // 1. Recent Searches Section
@@ -110,22 +126,34 @@ class _SearchPageState extends ConsumerState<SearchPage> {
               children: [
                 const Text(
                   'Recent Searches',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black),
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black,
+                  ),
                 ),
                 TextButton(
-                  onPressed: () => ref.read(searchProvider.notifier).clearHistory(),
-                  child: const Text('Clear All', style: TextStyle(color: Colors.blue)),
+                  onPressed: () =>
+                      ref.read(searchProvider.notifier).clearHistory(),
+                  child: const Text(
+                    'Clear All',
+                    style: TextStyle(color: Colors.blue),
+                  ),
                 ),
               ],
             ),
           ),
-          ...state.recentSearches.take(5).map((q) => SearchHistoryTile(
-                query: q,
-                onTap: () {
-                  _controller.text = q;
-                  ref.read(searchProvider.notifier).onQueryChanged(q);
-                },
-              )),
+          ...state.recentSearches
+              .take(5)
+              .map(
+                (q) => SearchHistoryTile(
+                  query: q,
+                  onTap: () {
+                    _controller.text = q;
+                    ref.read(searchProvider.notifier).onQueryChanged(q);
+                  },
+                ),
+              ),
         ],
 
         // 2. Browse Categories Section (Fed by Home Metadata)
@@ -133,7 +161,11 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           padding: EdgeInsets.fromLTRB(16, 24, 16, 12),
           child: Text(
             'Browse Categories',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black),
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Colors.black,
+            ),
           ),
         ),
         homeState.when(
@@ -142,20 +174,24 @@ class _SearchPageState extends ConsumerState<SearchPage> {
             if (categories.isEmpty) return const SizedBox();
             return Column(
               children: categories
-                  .map((cat) => CategoryBrowseTile(
-                        name: cat.name,
-                        iconUrl: cat.iconName,
-                        onTap: () {
-                          // Navigate to Category results
-                          context.push(Uri(
+                  .map(
+                    (cat) => CategoryBrowseTile(
+                      name: cat.name,
+                      iconUrl: cat.iconName,
+                      onTap: () {
+                        // Navigate to Category results
+                        context.push(
+                          Uri(
                             path: '/discovery',
                             queryParameters: {
                               'title': cat.name,
                               'serviceId': cat.id.toString(),
                             },
-                          ).toString());
-                        },
-                      ))
+                          ).toString(),
+                        );
+                      },
+                    ),
+                  )
                   .toList(),
             );
           },
@@ -172,7 +208,9 @@ class _SearchPageState extends ConsumerState<SearchPage> {
         if (results.isEmpty) {
           return const Padding(
             padding: EdgeInsets.all(20),
-            child: Center(child: Text('No services found matching your search.')),
+            child: Center(
+              child: Text('No services found matching your search.'),
+            ),
           );
         }
         return ListView.builder(
@@ -185,13 +223,12 @@ class _SearchPageState extends ConsumerState<SearchPage> {
               onTap: () {
                 ref.read(searchProvider.notifier).saveSearch(item.name);
                 // Navigate to results
-                context.push(Uri(
-                  path: '/discovery',
-                  queryParameters: {
-                    'title': item.name,
-                    'query': item.name,
-                  },
-                ).toString());
+                context.push(
+                  Uri(
+                    path: '/discovery',
+                    queryParameters: {'title': item.name, 'query': item.name},
+                  ).toString(),
+                );
               },
             );
           },
@@ -208,11 +245,12 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       highlightColor: Colors.grey[100]!,
       child: Column(
         children: List.generate(
-            3,
-            (index) => ListTile(
-                  leading: Container(width: 40, height: 40, color: Colors.white),
-                  title: Container(width: 100, height: 16, color: Colors.white),
-                )),
+          3,
+          (index) => ListTile(
+            leading: Container(width: 40, height: 40, color: Colors.white),
+            title: Container(width: 100, height: 16, color: Colors.white),
+          ),
+        ),
       ),
     );
   }
@@ -224,7 +262,10 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       child: ListView.builder(
         itemCount: 5,
         itemBuilder: (_, index) => ListTile(
-          leading: const CircleAvatar(radius: 12, backgroundColor: Colors.white),
+          leading: const CircleAvatar(
+            radius: 12,
+            backgroundColor: Colors.white,
+          ),
           title: Container(height: 16, color: Colors.white),
         ),
       ),

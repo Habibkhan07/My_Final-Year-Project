@@ -39,8 +39,8 @@ class EventRemoteDataSource {
   const EventRemoteDataSource({
     required http.Client client,
     required FlutterSecureStorage secureStorage,
-  })  : _client = client,
-        _secureStorage = secureStorage;
+  }) : _client = client,
+       _secureStorage = secureStorage;
 
   /// `GET /api/events/sync/?since=<iso>&limit=<n>` — fetch events missed
   /// while the WebSocket was disconnected.
@@ -50,9 +50,9 @@ class EventRemoteDataSource {
     String isoTimestamp, {
     int limit = 50,
   }) async {
-    final uri = Uri.parse('$_eventsUrl/sync/').replace(
-      queryParameters: {'since': isoTimestamp, 'limit': '$limit'},
-    );
+    final uri = Uri.parse(
+      '$_eventsUrl/sync/',
+    ).replace(queryParameters: {'since': isoTimestamp, 'limit': '$limit'});
     final response = await _client
         .get(uri, headers: await _authHeaders())
         .timeout(_timeout);
@@ -104,10 +104,7 @@ class EventRemoteDataSource {
         .post(
           uri,
           headers: await _authHeaders(contentType: true),
-          body: jsonEncode({
-            'device_token': token,
-            'device_type': deviceType,
-          }),
+          body: jsonEncode({'device_token': token, 'device_type': deviceType}),
         )
         .timeout(_timeout);
     _handleResponse(response);
@@ -147,8 +144,7 @@ class EventRemoteDataSource {
         throw HttpFailure(
           statusCode: response.statusCode,
           code: body['code'] as String,
-          message:
-              body['message'] as String? ?? 'An error occurred',
+          message: body['message'] as String? ?? 'An error occurred',
           errors: (body['errors'] as Map<String, dynamic>?) ?? const {},
         );
       }

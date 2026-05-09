@@ -21,5 +21,6 @@ abstract class UserEntity with _$UserEntity {
     @Default(false) bool nameRequired,
   }) = _UserEntity;
 
-  factory UserEntity.fromJson(Map<String, dynamic> json) => _$UserEntityFromJson(json);
+  factory UserEntity.fromJson(Map<String, dynamic> json) =>
+      _$UserEntityFromJson(json);
 }

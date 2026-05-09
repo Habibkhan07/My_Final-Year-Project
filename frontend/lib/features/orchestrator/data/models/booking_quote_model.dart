@@ -18,7 +18,8 @@ abstract class BookingQuoteModel with _$BookingQuoteModel {
     required String status,
     @JsonKey(name: 'total_amount') required String totalAmount,
     @JsonKey(name: 'is_upsell') required bool isUpsell,
-    @JsonKey(name: 'line_items') required List<BookingQuoteLineItemModel> lineItems,
+    @JsonKey(name: 'line_items')
+    required List<BookingQuoteLineItemModel> lineItems,
     @JsonKey(name: 'submitted_at') String? submittedAt,
   }) = _BookingQuoteModel;
 

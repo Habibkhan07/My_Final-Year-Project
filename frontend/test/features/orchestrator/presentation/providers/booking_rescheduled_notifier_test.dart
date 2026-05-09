@@ -39,25 +39,26 @@ SystemEventEntity event({
   required String id,
   required SystemEventType type,
   required Map<String, dynamic> payload,
-}) =>
-    SystemEventEntity(
-      id: id,
-      rawType: type.name,
-      eventType: type,
-      targetRole: TargetRole.customer,
-      timestamp: DateTime.utc(2026, 5, 9, 10, 0, 0),
-      payload: payload,
-      urgency: EventUrgency.lowUrgency,
-      isCritical: false,
-    );
+}) => SystemEventEntity(
+  id: id,
+  rawType: type.name,
+  eventType: type,
+  targetRole: TargetRole.customer,
+  timestamp: DateTime.utc(2026, 5, 9, 10, 0, 0),
+  payload: payload,
+  urgency: EventUrgency.lowUrgency,
+  isCritical: false,
+);
 
 Future<({ProviderContainer container, _FakeSystemEventNotifier fake})>
-    _pumpHost(WidgetTester tester, {required int jobId}) async {
+_pumpHost(WidgetTester tester, {required int jobId}) async {
   final navKey = GlobalKey<NavigatorState>();
-  final container = ProviderContainer(overrides: [
-    navigatorKeyProvider.overrideWithValue(navKey),
-    systemEventProvider.overrideWith(_FakeSystemEventNotifier.new),
-  ]);
+  final container = ProviderContainer(
+    overrides: [
+      navigatorKeyProvider.overrideWithValue(navKey),
+      systemEventProvider.overrideWith(_FakeSystemEventNotifier.new),
+    ],
+  );
   addTearDown(container.dispose);
 
   // Subscribe the rescheduled notifier so it begins listening.
@@ -79,16 +80,19 @@ Future<({ProviderContainer container, _FakeSystemEventNotifier fake})>
     ],
   );
 
-  await tester.pumpWidget(UncontrolledProviderScope(
-    container: container,
-    child: MaterialApp.router(routerConfig: router),
-  ));
+  await tester.pumpWidget(
+    UncontrolledProviderScope(
+      container: container,
+      child: MaterialApp.router(routerConfig: router),
+    ),
+  );
   await tester.pumpAndSettle();
 
   return (
     container: container,
-    fake: container.read(systemEventProvider.notifier)
-        as _FakeSystemEventNotifier,
+    fake:
+        container.read(systemEventProvider.notifier)
+            as _FakeSystemEventNotifier,
   );
 }
 
@@ -100,11 +104,13 @@ void main() {
       // We start on /booking/42.
       expect(find.byKey(const ValueKey('b-42')), findsOneWidget);
 
-      h.fake.push(event(
-        id: 'evt-rs',
-        type: SystemEventType.bookingRescheduled,
-        payload: {'job_id': 42, 'child_booking_id': 99},
-      ));
+      h.fake.push(
+        event(
+          id: 'evt-rs',
+          type: SystemEventType.bookingRescheduled,
+          payload: {'job_id': 42, 'child_booking_id': 99},
+        ),
+      );
       await tester.pumpAndSettle();
 
       // Now on /booking/99. The original screen is gone (replaced).
@@ -119,11 +125,13 @@ void main() {
     // A tech_en_route event with a stray child_booking_id MUST be
     // ignored — the early-out in `extractChildBookingId` is what
     // prevents accidental nav.
-    h.fake.push(event(
-      id: 'evt-other',
-      type: SystemEventType.techEnRoute,
-      payload: {'job_id': 42, 'child_booking_id': 99},
-    ));
+    h.fake.push(
+      event(
+        id: 'evt-other',
+        type: SystemEventType.techEnRoute,
+        payload: {'job_id': 42, 'child_booking_id': 99},
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(find.byKey(const ValueKey('b-42')), findsOneWidget);
@@ -133,26 +141,31 @@ void main() {
   testWidgets('does not navigate when job_id mismatches', (tester) async {
     final h = await _pumpHost(tester, jobId: 42);
 
-    h.fake.push(event(
-      id: 'evt-rs-other',
-      type: SystemEventType.bookingRescheduled,
-      payload: {'job_id': 999, 'child_booking_id': 1234},
-    ));
+    h.fake.push(
+      event(
+        id: 'evt-rs-other',
+        type: SystemEventType.bookingRescheduled,
+        payload: {'job_id': 999, 'child_booking_id': 1234},
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(find.byKey(const ValueKey('b-42')), findsOneWidget);
     expect(find.byKey(const ValueKey('b-1234')), findsNothing);
   });
 
-  testWidgets('does not navigate when child_booking_id is missing',
-      (tester) async {
+  testWidgets('does not navigate when child_booking_id is missing', (
+    tester,
+  ) async {
     final h = await _pumpHost(tester, jobId: 42);
 
-    h.fake.push(event(
-      id: 'evt-rs-nokid',
-      type: SystemEventType.bookingRescheduled,
-      payload: {'job_id': 42}, // no child_booking_id
-    ));
+    h.fake.push(
+      event(
+        id: 'evt-rs-nokid',
+        type: SystemEventType.bookingRescheduled,
+        payload: {'job_id': 42}, // no child_booking_id
+      ),
+    );
     await tester.pumpAndSettle();
 
     // Stay on the original — the dev-log is fired, but no nav.

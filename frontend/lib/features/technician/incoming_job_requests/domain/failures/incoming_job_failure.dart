@@ -22,8 +22,9 @@ sealed class IncomingJobFailure implements Exception {
 /// completeness and for the test contract that asserts the malformed-payload
 /// path doesn't throw into the dispatcher.
 class MalformedJobPayload extends IncomingJobFailure {
-  const MalformedJobPayload(
-      [super.message = 'Incoming job request payload was malformed.']);
+  const MalformedJobPayload([
+    super.message = 'Incoming job request payload was malformed.',
+  ]);
 }
 
 /// Thrown when accept/decline arrives after the booking has already left
@@ -74,8 +75,9 @@ class OfferNoLongerAvailable extends IncomingJobFailure {
 /// callback is gated on the in-flight set so the offer card does not pop
 /// out from under the user while their request is still hanging.
 class IncomingJobNetworkFailure extends IncomingJobFailure {
-  const IncomingJobNetworkFailure(
-      [super.message = 'Network unavailable. Check your connection and try again.']);
+  const IncomingJobNetworkFailure([
+    super.message = 'Network unavailable. Check your connection and try again.',
+  ]);
 }
 
 /// HTTP 5xx — the server hit an internal error.
@@ -84,8 +86,9 @@ class IncomingJobNetworkFailure extends IncomingJobFailure {
 /// retry surfaced) but the snackbar copy hints at server-side trouble so
 /// the technician understands their device isn't the problem.
 class IncomingJobServerFailure extends IncomingJobFailure {
-  const IncomingJobServerFailure(
-      [super.message = 'Server error. Please try again in a moment.']);
+  const IncomingJobServerFailure([
+    super.message = 'Server error. Please try again in a moment.',
+  ]);
 }
 
 /// Catch-all for any other unexpected error path the repository hasn't
@@ -100,6 +103,7 @@ class IncomingJobServerFailure extends IncomingJobFailure {
 /// this offer," this one means "try again." Distinguishing them is the
 /// reason this hierarchy exists at all.
 class UnknownIncomingJobFailure extends IncomingJobFailure {
-  const UnknownIncomingJobFailure(
-      [super.message = 'Something went wrong. Please try again.']);
+  const UnknownIncomingJobFailure([
+    super.message = 'Something went wrong. Please try again.',
+  ]);
 }

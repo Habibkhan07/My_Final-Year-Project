@@ -41,7 +41,11 @@ CustomerBooking _booking({
     scheduledStart: DateTime(2026, 5, 6, 15, 0),
     scheduledEnd: DateTime(2026, 5, 6, 17, 0),
     createdAt: DateTime(2026, 5, 5, 9, 0),
-    price: BookingPrice(amount: 2500, context: priceContext, uiLabel: priceLabel),
+    price: BookingPrice(
+      amount: 2500,
+      context: priceContext,
+      uiLabel: priceLabel,
+    ),
     ui: BookingUi(badgeText: badgeText, badgeTone: tone, headline: headline),
   );
 }
@@ -50,15 +54,16 @@ GoRouter _router(Widget cardHost, {ValueChanged<int>? onPushed}) {
   return GoRouter(
     initialLocation: '/list',
     routes: [
-      GoRoute(path: '/list', builder: (_, _) => Scaffold(body: cardHost)),
+      GoRoute(
+        path: '/list',
+        builder: (_, _) => Scaffold(body: cardHost),
+      ),
       GoRoute(
         path: '/booking/:job_id',
         builder: (_, state) {
           final id = int.parse(state.pathParameters['job_id']!);
           onPushed?.call(id);
-          return Scaffold(
-            body: Center(child: Text('detail-$id')),
-          );
+          return Scaffold(body: Center(child: Text('detail-$id')));
         },
       ),
     ],
@@ -77,90 +82,112 @@ Widget _wrap(CustomerBooking booking, {BookingSegment? segment}) {
 void main() {
   group('BookingCard — status row renders', () {
     testWidgets('AWAITING', (tester) async {
-      await tester.pumpWidget(_wrap(_booking(
-        status: BookingStatus.awaiting,
-        tone: BookingUiTone.warning,
-        badgeText: 'Awaiting tech',
-        headline: 'Waiting for Ahmed Khan to confirm',
-      )));
+      await tester.pumpWidget(
+        _wrap(
+          _booking(
+            status: BookingStatus.awaiting,
+            tone: BookingUiTone.warning,
+            badgeText: 'Awaiting tech',
+            headline: 'Waiting for Ahmed Khan to confirm',
+          ),
+        ),
+      );
       expect(find.text('AWAITING TECH'), findsOneWidget);
       expect(find.text('Waiting for Ahmed Khan to confirm'), findsOneWidget);
     });
 
     testWidgets('CONFIRMED', (tester) async {
-      await tester.pumpWidget(_wrap(_booking(
-        status: BookingStatus.confirmed,
-        tone: BookingUiTone.positive,
-        badgeText: 'Confirmed',
-        headline: 'Confirmed with Ahmed Khan',
-      )));
+      await tester.pumpWidget(
+        _wrap(
+          _booking(
+            status: BookingStatus.confirmed,
+            tone: BookingUiTone.positive,
+            badgeText: 'Confirmed',
+            headline: 'Confirmed with Ahmed Khan',
+          ),
+        ),
+      );
       expect(find.text('CONFIRMED'), findsOneWidget);
       expect(find.text('Confirmed with Ahmed Khan'), findsOneWidget);
     });
 
     testWidgets('COMPLETED', (tester) async {
-      await tester.pumpWidget(_wrap(
-        _booking(
-          status: BookingStatus.completed,
-          tone: BookingUiTone.positive,
-          badgeText: 'Completed',
-          headline: 'Completed by Ahmed Khan',
+      await tester.pumpWidget(
+        _wrap(
+          _booking(
+            status: BookingStatus.completed,
+            tone: BookingUiTone.positive,
+            badgeText: 'Completed',
+            headline: 'Completed by Ahmed Khan',
+          ),
+          segment: BookingSegment.past,
         ),
-        segment: BookingSegment.past,
-      ));
+      );
       expect(find.text('COMPLETED'), findsOneWidget);
       expect(find.text('Completed by Ahmed Khan'), findsOneWidget);
     });
 
-    testWidgets('CANCELLED with neutral tone (overrides Stitch)', (tester) async {
-      await tester.pumpWidget(_wrap(
-        _booking(
-          status: BookingStatus.cancelled,
-          tone: BookingUiTone.neutral,
-          badgeText: 'Cancelled',
-          headline: 'You cancelled this booking',
+    testWidgets('CANCELLED with neutral tone (overrides Stitch)', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _wrap(
+          _booking(
+            status: BookingStatus.cancelled,
+            tone: BookingUiTone.neutral,
+            badgeText: 'Cancelled',
+            headline: 'You cancelled this booking',
+          ),
+          segment: BookingSegment.past,
         ),
-        segment: BookingSegment.past,
-      ));
+      );
       expect(find.text('CANCELLED'), findsOneWidget);
       expect(find.text('You cancelled this booking'), findsOneWidget);
     });
 
     testWidgets('REJECTED — technician_declined', (tester) async {
-      await tester.pumpWidget(_wrap(
-        _booking(
-          status: BookingStatus.rejected,
-          tone: BookingUiTone.negative,
-          badgeText: 'Unavailable',
-          headline: "Ahmed Khan couldn't take this",
+      await tester.pumpWidget(
+        _wrap(
+          _booking(
+            status: BookingStatus.rejected,
+            tone: BookingUiTone.negative,
+            badgeText: 'Unavailable',
+            headline: "Ahmed Khan couldn't take this",
+          ),
+          segment: BookingSegment.past,
         ),
-        segment: BookingSegment.past,
-      ));
+      );
       expect(find.text('UNAVAILABLE'), findsOneWidget);
       expect(find.text("Ahmed Khan couldn't take this"), findsOneWidget);
     });
 
     testWidgets('REJECTED — sla_timeout', (tester) async {
-      await tester.pumpWidget(_wrap(
-        _booking(
-          status: BookingStatus.rejected,
-          tone: BookingUiTone.negative,
-          badgeText: 'Timed out',
-          headline: "Ahmed Khan didn't respond in time",
+      await tester.pumpWidget(
+        _wrap(
+          _booking(
+            status: BookingStatus.rejected,
+            tone: BookingUiTone.negative,
+            badgeText: 'Timed out',
+            headline: "Ahmed Khan didn't respond in time",
+          ),
+          segment: BookingSegment.past,
         ),
-        segment: BookingSegment.past,
-      ));
+      );
       expect(find.text('TIMED OUT'), findsOneWidget);
       expect(find.text("Ahmed Khan didn't respond in time"), findsOneWidget);
     });
 
     testWidgets('PENDING (legacy)', (tester) async {
-      await tester.pumpWidget(_wrap(_booking(
-        status: BookingStatus.pending,
-        tone: BookingUiTone.neutral,
-        badgeText: 'Pending',
-        headline: 'Booking is being prepared',
-      )));
+      await tester.pumpWidget(
+        _wrap(
+          _booking(
+            status: BookingStatus.pending,
+            tone: BookingUiTone.neutral,
+            badgeText: 'Pending',
+            headline: 'Booking is being prepared',
+          ),
+        ),
+      );
       expect(find.text('PENDING'), findsOneWidget);
       expect(find.text('Booking is being prepared'), findsOneWidget);
     });
@@ -172,12 +199,16 @@ void main() {
       expect(find.byIcon(Icons.location_on_outlined), findsNothing);
     });
 
-    testWidgets('profilePictureUrl == null shows initials avatar', (tester) async {
+    testWidgets('profilePictureUrl == null shows initials avatar', (
+      tester,
+    ) async {
       await tester.pumpWidget(_wrap(_booking(profilePictureUrl: null)));
       expect(find.text('AK'), findsOneWidget);
     });
 
-    testWidgets('price.context == "" hides the context icon + text', (tester) async {
+    testWidgets('price.context == "" hides the context icon + text', (
+      tester,
+    ) async {
       await tester.pumpWidget(_wrap(_booking(priceContext: '')));
       expect(find.byIcon(Icons.payments_outlined), findsNothing);
       // The price label itself still renders.
@@ -194,9 +225,11 @@ void main() {
         segment: BookingSegment.upcoming,
         serverTime: DateTime(2026, 5, 5, 12, 0),
       );
-      await tester.pumpWidget(MaterialApp.router(
-        routerConfig: _router(card, onPushed: (id) => pushedId = id),
-      ));
+      await tester.pumpWidget(
+        MaterialApp.router(
+          routerConfig: _router(card, onPushed: (id) => pushedId = id),
+        ),
+      );
 
       await tester.tap(find.byType(InkWell).first);
       await tester.pumpAndSettle();
@@ -214,15 +247,17 @@ void main() {
 
   group('BookingCard — Cancelled visual treatment', () {
     testWidgets('cancelled card wraps body in 0.85 opacity', (tester) async {
-      await tester.pumpWidget(_wrap(
-        _booking(
-          status: BookingStatus.cancelled,
-          tone: BookingUiTone.neutral,
-          badgeText: 'Cancelled',
-          headline: 'You cancelled this booking',
+      await tester.pumpWidget(
+        _wrap(
+          _booking(
+            status: BookingStatus.cancelled,
+            tone: BookingUiTone.neutral,
+            badgeText: 'Cancelled',
+            headline: 'You cancelled this booking',
+          ),
+          segment: BookingSegment.past,
         ),
-        segment: BookingSegment.past,
-      ));
+      );
       // The outer Opacity(0.85) wraps the card body for cancelled status.
       final opacities = tester
           .widgetList<Opacity>(find.byType(Opacity))
@@ -234,16 +269,18 @@ void main() {
     testWidgets(
       'address row renders with line-through decoration when cancelled',
       (tester) async {
-        await tester.pumpWidget(_wrap(
-          _booking(
-            status: BookingStatus.cancelled,
-            tone: BookingUiTone.neutral,
-            badgeText: 'Cancelled',
-            headline: 'You cancelled this booking',
-            addressLabel: 'Home — DHA Phase 5',
+        await tester.pumpWidget(
+          _wrap(
+            _booking(
+              status: BookingStatus.cancelled,
+              tone: BookingUiTone.neutral,
+              badgeText: 'Cancelled',
+              headline: 'You cancelled this booking',
+              addressLabel: 'Home — DHA Phase 5',
+            ),
+            segment: BookingSegment.past,
           ),
-          segment: BookingSegment.past,
-        ));
+        );
         final addressText = tester.widget<Text>(
           find.text('Home — DHA Phase 5'),
         );

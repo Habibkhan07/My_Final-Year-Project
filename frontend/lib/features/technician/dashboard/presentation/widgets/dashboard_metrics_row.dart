@@ -28,7 +28,9 @@ class DashboardMetricsRow extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.surfaceContainerLowest,
         borderRadius: BorderRadius.circular(AppShapes.radiusMD),
-        border: Border.all(color: AppColors.outlineVariant.withValues(alpha: 0.4)),
+        border: Border.all(
+          color: AppColors.outlineVariant.withValues(alpha: 0.4),
+        ),
         boxShadow: [
           BoxShadow(
             color: AppColors.onSurface.withValues(alpha: 0.08),
@@ -82,8 +84,9 @@ class _Stat extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
-      crossAxisAlignment:
-          alignEnd ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+      crossAxisAlignment: alignEnd
+          ? CrossAxisAlignment.end
+          : CrossAxisAlignment.start,
       children: [
         Text(
           label.toUpperCase(),

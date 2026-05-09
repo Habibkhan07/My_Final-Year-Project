@@ -212,8 +212,7 @@ class EventUrgencyRouter {
     // ("There is no GoRouterState above the current context"). Read the current
     // URI from the GoRouter instance instead, which is available at any context
     // at or below the GoRouter widget.
-    final currentUri =
-        GoRouter.of(ctx).routerDelegate.currentConfiguration.uri;
+    final currentUri = GoRouter.of(ctx).routerDelegate.currentConfiguration.uri;
     final currentLocation = currentUri.path;
 
     // For templated routes (`/booking/:job_id`), match against the static

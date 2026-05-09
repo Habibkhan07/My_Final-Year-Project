@@ -167,7 +167,9 @@ class AddressRepositoryImpl implements IAddressRepository {
       final native = await locationDataSource.getCurrentLocation();
       try {
         final details = await geocodingDataSource.reverseGeocode(
-            native.latitude, native.longitude);
+          native.latitude,
+          native.longitude,
+        );
         return details;
       } catch (_) {
         return native;
@@ -197,7 +199,10 @@ class AddressRepositoryImpl implements IAddressRepository {
   }
 
   @override
-  Future<List<PlaceSearchEntity>> searchPlaces(String query, String sessionToken) async {
+  Future<List<PlaceSearchEntity>> searchPlaces(
+    String query,
+    String sessionToken,
+  ) async {
     try {
       return await geocodingDataSource.searchPlaces(query, sessionToken);
     } on SocketException {
@@ -210,7 +215,10 @@ class AddressRepositoryImpl implements IAddressRepository {
   }
 
   @override
-  Future<PlaceDetails> getPlaceDetails(String placeId, String sessionToken) async {
+  Future<PlaceDetails> getPlaceDetails(
+    String placeId,
+    String sessionToken,
+  ) async {
     try {
       return await geocodingDataSource.getPlaceDetails(placeId, sessionToken);
     } on SocketException {

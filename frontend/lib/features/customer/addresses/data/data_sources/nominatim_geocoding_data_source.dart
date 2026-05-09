@@ -25,7 +25,9 @@ class NominatimGeocodingDataSource implements GeocodingDataSource {
 
   @override
   Future<List<PlaceSearchEntity>> searchPlaces(
-      String query, String sessionToken) async {
+    String query,
+    String sessionToken,
+  ) async {
     if (query.isEmpty) return const [];
 
     final url = Uri.parse(
@@ -36,7 +38,8 @@ class NominatimGeocodingDataSource implements GeocodingDataSource {
     final response = await _client.get(url, headers: _headers);
     if (response.statusCode != 200) return const [];
 
-    final list = (jsonDecode(response.body) as List).cast<Map<String, dynamic>>();
+    final list = (jsonDecode(response.body) as List)
+        .cast<Map<String, dynamic>>();
     return list.map((p) {
       final display = p['display_name'] as String? ?? '';
       final firstComma = display.indexOf(',');
@@ -51,7 +54,9 @@ class NominatimGeocodingDataSource implements GeocodingDataSource {
 
   @override
   Future<PlaceDetails> getPlaceDetails(
-      String placeId, String sessionToken) async {
+    String placeId,
+    String sessionToken,
+  ) async {
     // Nominatim's `details` endpoint requires `osm_type` + `osm_id`, and the
     // `place_id` from `search` is unstable across servers. The pragmatic
     // approach for the dev path: re-query the same query string is overkill,
@@ -69,9 +74,16 @@ class NominatimGeocodingDataSource implements GeocodingDataSource {
     final json = jsonDecode(response.body) as Map<String, dynamic>;
     final centroid = json['centroid'] as Map<String, dynamic>?;
     final coords = centroid?['coordinates'] as List?;
-    final lng = (coords != null && coords.length >= 2) ? (coords[0] as num).toDouble() : 0.0;
-    final lat = (coords != null && coords.length >= 2) ? (coords[1] as num).toDouble() : 0.0;
-    final formatted = (json['localname'] as String?) ?? (json['display_name'] as String?) ?? '$lat, $lng';
+    final lng = (coords != null && coords.length >= 2)
+        ? (coords[0] as num).toDouble()
+        : 0.0;
+    final lat = (coords != null && coords.length >= 2)
+        ? (coords[1] as num).toDouble()
+        : 0.0;
+    final formatted =
+        (json['localname'] as String?) ??
+        (json['display_name'] as String?) ??
+        '$lat, $lng';
 
     return _parseAddressBlock(
       formatted: formatted,
@@ -124,14 +136,16 @@ class NominatimGeocodingDataSource implements GeocodingDataSource {
       suburb: get(const ['suburb', 'city_district']),
       city: get(const ['city', 'town', 'village', 'municipality']),
       state: get(const ['state', 'region']),
-      country: (countryCode != null && countryCode.isNotEmpty) ? countryCode : null,
+      country: (countryCode != null && countryCode.isNotEmpty)
+          ? countryCode
+          : null,
       postalCode: get(const ['postcode']),
     );
   }
 
   PlaceDetails _coordOnly(double lat, double lng) => PlaceDetails(
-        formattedAddress: '$lat, $lng',
-        latitude: lat,
-        longitude: lng,
-      );
+    formattedAddress: '$lat, $lng',
+    latitude: lat,
+    longitude: lng,
+  );
 }

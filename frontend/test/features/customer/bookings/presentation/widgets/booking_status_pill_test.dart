@@ -4,27 +4,32 @@ import 'package:frontend/features/customer/bookings/domain/entities/booking_ui_t
 import 'package:frontend/features/customer/bookings/presentation/utils/booking_tone_palette.dart';
 import 'package:frontend/features/customer/bookings/presentation/widgets/booking_status_pill.dart';
 
-Widget _wrap(Widget child) =>
-    MaterialApp(home: Scaffold(body: Center(child: child)));
+Widget _wrap(Widget child) => MaterialApp(
+  home: Scaffold(body: Center(child: child)),
+);
 
 void main() {
   group('BookingStatusPill', () {
     testWidgets('renders text in uppercase', (tester) async {
       await tester.pumpWidget(
-        _wrap(const BookingStatusPill(
-          text: 'Awaiting tech',
-          tone: BookingUiTone.warning,
-        )),
+        _wrap(
+          const BookingStatusPill(
+            text: 'Awaiting tech',
+            tone: BookingUiTone.warning,
+          ),
+        ),
       );
       expect(find.text('AWAITING TECH'), findsOneWidget);
     });
 
     testWidgets('paints with the tone palette background', (tester) async {
       await tester.pumpWidget(
-        _wrap(const BookingStatusPill(
-          text: 'Confirmed',
-          tone: BookingUiTone.positive,
-        )),
+        _wrap(
+          const BookingStatusPill(
+            text: 'Confirmed',
+            tone: BookingUiTone.positive,
+          ),
+        ),
       );
       final container = tester.widget<Container>(
         find.ancestor(

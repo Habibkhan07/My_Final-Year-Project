@@ -26,37 +26,46 @@ void main() {
     period: 'AM',
   );
 
-  test('delegates all params to repository.getAvailability unchanged', () async {
-    when(() => mockRepository.getAvailability(
+  test(
+    'delegates all params to repository.getAvailability unchanged',
+    () async {
+      when(
+        () => mockRepository.getAvailability(
           technicianId: any(named: 'technicianId'),
           date: any(named: 'date'),
           serviceId: any(named: 'serviceId'),
           subServiceId: any(named: 'subServiceId'),
-        )).thenAnswer((_) async => [tSlot]);
+        ),
+      ).thenAnswer((_) async => [tSlot]);
 
-    final result = await useCase.call(
-      technicianId: tTechnicianId,
-      date: tDate,
-      serviceId: 3,
-      subServiceId: 7,
-    );
+      final result = await useCase.call(
+        technicianId: tTechnicianId,
+        date: tDate,
+        serviceId: 3,
+        subServiceId: 7,
+      );
 
-    expect(result, [tSlot]);
-    verify(() => mockRepository.getAvailability(
+      expect(result, [tSlot]);
+      verify(
+        () => mockRepository.getAvailability(
           technicianId: tTechnicianId,
           date: tDate,
           serviceId: 3,
           subServiceId: 7,
-        )).called(1);
-  });
+        ),
+      ).called(1);
+    },
+  );
 
   test('propagates BookingNetworkFailure from repository', () {
-    when(() => mockRepository.getAvailability(
-          technicianId: any(named: 'technicianId'),
-          date: any(named: 'date'),
-          serviceId: any(named: 'serviceId'),
-          subServiceId: any(named: 'subServiceId'),
-        )).thenThrow(const BookingNetworkFailure());
+    when(
+      () => mockRepository.getAvailability(
+        technicianId: any(named: 'technicianId'),
+        date: any(named: 'date'),
+        serviceId: any(named: 'serviceId'),
+        subServiceId: any(named: 'subServiceId'),
+      ),
+    ).thenThrow(const BookingNetworkFailure());
 
     expect(
       () => useCase.call(technicianId: tTechnicianId, date: tDate),

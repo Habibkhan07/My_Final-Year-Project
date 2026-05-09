@@ -16,9 +16,7 @@ class LocationSearchNotifier extends _$LocationSearchNotifier {
 
   @override
   LocationSearchState build() {
-    return LocationSearchState(
-      sessionToken: _uuid.v4(),
-    );
+    return LocationSearchState(sessionToken: _uuid.v4());
   }
 
   void onQueryChanged(String query) {
@@ -42,13 +40,10 @@ class LocationSearchNotifier extends _$LocationSearchNotifier {
     try {
       final searchPlaces = ref.read(searchPlacesUseCaseProvider);
       final results = await searchPlaces(query, state.sessionToken);
-      
+
       // Ensure the query hasn't changed while we were fetching
       if (state.query == query) {
-        state = state.copyWith(
-          results: results,
-          isLoading: false,
-        );
+        state = state.copyWith(results: results, isLoading: false);
       }
     } on AddressFailure catch (e) {
       if (state.query == query) {
@@ -81,22 +76,16 @@ class LocationSearchNotifier extends _$LocationSearchNotifier {
     try {
       final getDetails = ref.read(getPlaceDetailsUseCaseProvider);
       final details = await getDetails(place.placeId, state.sessionToken);
-      
+
       // Tell MapPicker to move to this location. The full PlaceDetails carries
       // the structured locality fields that the map picker will forward to the
       // backend on save.
       ref.read(mapPickerProvider.notifier).updateLocation(details);
 
       // Reset the session token for the next full search session
-      state = state.copyWith(
-        isLoading: false,
-        sessionToken: _uuid.v4(),
-      );
+      state = state.copyWith(isLoading: false, sessionToken: _uuid.v4());
     } on AddressFailure catch (e) {
-      state = state.copyWith(
-        isLoading: false,
-        errorMessage: e.message,
-      );
+      state = state.copyWith(isLoading: false, errorMessage: e.message);
     } catch (e) {
       state = state.copyWith(
         isLoading: false,

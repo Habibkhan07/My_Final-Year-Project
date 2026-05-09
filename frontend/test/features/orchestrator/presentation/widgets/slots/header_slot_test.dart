@@ -24,11 +24,13 @@ BookingDetail _booking({
   int currentUserId = 7,
 }) {
   return BookingDetailMapper.toDomain(
-    BookingDetailModel.fromJson(bookingDetailJson(
-      status: status,
-      parentBookingId: parentBookingId,
-      childBookingId: childBookingId,
-    )),
+    BookingDetailModel.fromJson(
+      bookingDetailJson(
+        status: status,
+        parentBookingId: parentBookingId,
+        childBookingId: childBookingId,
+      ),
+    ),
     currentUserId: currentUserId,
   );
 }
@@ -40,13 +42,17 @@ Widget _wrap(Widget child) {
   final router = GoRouter(
     initialLocation: '/host',
     routes: [
-      GoRoute(path: '/host', builder: (_, _) => Scaffold(body: child)),
+      GoRoute(
+        path: '/host',
+        builder: (_, _) => Scaffold(body: child),
+      ),
       GoRoute(
         path: '/booking/:job_id',
         builder: (_, state) => Scaffold(
           body: Text(
-              'CHILD ${state.pathParameters['job_id']}',
-              key: const ValueKey('child-screen')),
+            'CHILD ${state.pathParameters['job_id']}',
+            key: const ValueKey('child-screen'),
+          ),
         ),
       ),
     ],
@@ -57,36 +63,40 @@ Widget _wrap(Widget child) {
 void main() {
   group('HeaderSlot', () {
     testWidgets(
-        'shows "Continued on #N" link when CANCELLED + childBookingId set',
-        (tester) async {
-      // The exact precondition: this booking is the cancelled parent of
-      // a reschedule chain. The user MUST have a forward path.
-      final booking = _booking(status: 'CANCELLED', childBookingId: 123);
-      await tester.pumpWidget(_wrap(HeaderSlot(booking: booking)));
-      expect(find.text('Continued on #123'), findsOneWidget);
-    });
+      'shows "Continued on #N" link when CANCELLED + childBookingId set',
+      (tester) async {
+        // The exact precondition: this booking is the cancelled parent of
+        // a reschedule chain. The user MUST have a forward path.
+        final booking = _booking(status: 'CANCELLED', childBookingId: 123);
+        await tester.pumpWidget(_wrap(HeaderSlot(booking: booking)));
+        expect(find.text('Continued on #123'), findsOneWidget);
+      },
+    );
 
     testWidgets(
-        'omits the link when childBookingId is null even on CANCELLED',
-        (tester) async {
-      final booking = _booking(status: 'CANCELLED');
-      await tester.pumpWidget(_wrap(HeaderSlot(booking: booking)));
-      expect(find.textContaining('Continued on'), findsNothing);
-    });
+      'omits the link when childBookingId is null even on CANCELLED',
+      (tester) async {
+        final booking = _booking(status: 'CANCELLED');
+        await tester.pumpWidget(_wrap(HeaderSlot(booking: booking)));
+        expect(find.textContaining('Continued on'), findsNothing);
+      },
+    );
 
     testWidgets(
-        'omits the link when childBookingId is set but status is not CANCELLED',
-        (tester) async {
-      // A live booking with a child id is unusual but possible during
-      // intermediate state. Don't surface a forward link mid-job — the
-      // user is on the active booking already.
-      final booking = _booking(status: 'CONFIRMED', childBookingId: 123);
-      await tester.pumpWidget(_wrap(HeaderSlot(booking: booking)));
-      expect(find.textContaining('Continued on'), findsNothing);
-    });
+      'omits the link when childBookingId is set but status is not CANCELLED',
+      (tester) async {
+        // A live booking with a child id is unusual but possible during
+        // intermediate state. Don't surface a forward link mid-job — the
+        // user is on the active booking already.
+        final booking = _booking(status: 'CONFIRMED', childBookingId: 123);
+        await tester.pumpWidget(_wrap(HeaderSlot(booking: booking)));
+        expect(find.textContaining('Continued on'), findsNothing);
+      },
+    );
 
-    testWidgets('tap on "Continued on #N" navigates to /booking/<child>',
-        (tester) async {
+    testWidgets('tap on "Continued on #N" navigates to /booking/<child>', (
+      tester,
+    ) async {
       final booking = _booking(status: 'CANCELLED', childBookingId: 456);
       await tester.pumpWidget(_wrap(HeaderSlot(booking: booking)));
 
@@ -97,8 +107,9 @@ void main() {
       expect(find.text('CHILD 456'), findsOneWidget);
     });
 
-    testWidgets('shows "Rescheduled from #N" when parentBookingId is set',
-        (tester) async {
+    testWidgets('shows "Rescheduled from #N" when parentBookingId is set', (
+      tester,
+    ) async {
       final booking = _booking(parentBookingId: 41);
       await tester.pumpWidget(_wrap(HeaderSlot(booking: booking)));
       expect(find.text('Rescheduled from #41'), findsOneWidget);

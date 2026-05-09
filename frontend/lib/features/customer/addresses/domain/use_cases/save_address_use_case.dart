@@ -22,19 +22,18 @@ class SaveAddressUseCase {
     String? country,
     String? postalCode,
     String? localityLabel,
-  }) =>
-      repository.saveAddress(
-        label: label,
-        streetAddress: streetAddress,
-        latitude: latitude,
-        longitude: longitude,
-        isDefault: isDefault,
-        neighborhood: neighborhood,
-        suburb: suburb,
-        city: city,
-        state: state,
-        country: country,
-        postalCode: postalCode,
-        localityLabel: localityLabel,
-      );
+  }) => repository.saveAddress(
+    label: label,
+    streetAddress: streetAddress,
+    latitude: latitude,
+    longitude: longitude,
+    isDefault: isDefault,
+    neighborhood: neighborhood,
+    suburb: suburb,
+    city: city,
+    state: state,
+    country: country,
+    postalCode: postalCode,
+    localityLabel: localityLabel,
+  );
 }

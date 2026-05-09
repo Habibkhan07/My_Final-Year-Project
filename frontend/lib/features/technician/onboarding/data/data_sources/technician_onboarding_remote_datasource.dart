@@ -28,7 +28,7 @@ class TechnicianOnboardingRemoteDataSource {
   Future<String> uploadTemporaryMedia(XFile file, String token) async {
     String authToken = token;
     if (authToken.isEmpty) {
-        authToken = await authLocalDataSource.getToken() ?? '';
+      authToken = await authLocalDataSource.getToken() ?? '';
     }
 
     final request = http.MultipartRequest(
@@ -63,7 +63,7 @@ class TechnicianOnboardingRemoteDataSource {
   ) async {
     String authToken = token;
     if (authToken.isEmpty) {
-        authToken = await authLocalDataSource.getToken() ?? '';
+      authToken = await authLocalDataSource.getToken() ?? '';
     }
 
     final response = await http.post(

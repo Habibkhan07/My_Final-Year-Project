@@ -85,7 +85,11 @@ class _AvatarFallback extends StatelessWidget {
     return const CircleAvatar(
       radius: 20,
       backgroundColor: AppColors.primaryFixed,
-      child: Icon(Icons.person_outline, color: AppColors.primaryContainer, size: 22),
+      child: Icon(
+        Icons.person_outline,
+        color: AppColors.primaryContainer,
+        size: 22,
+      ),
     );
   }
 }
@@ -115,7 +119,9 @@ class _Greeting extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final name = (firstName == null || firstName!.isEmpty) ? 'there' : firstName!;
+    final name = (firstName == null || firstName!.isEmpty)
+        ? 'there'
+        : firstName!;
     return Text(
       'Hi, $name',
       style: const TextStyle(

@@ -5,20 +5,24 @@ import 'package:frontend/core/widgets/map/app_map_state_views.dart';
 void main() {
   testWidgets('AppMapSkeleton renders correctly', (tester) async {
     await tester.pumpWidget(
-      const MaterialApp(
-        home: Scaffold(
-          body: AppMapSkeleton(),
-        ),
-      ),
+      const MaterialApp(home: Scaffold(body: AppMapSkeleton())),
     );
 
     // Verify presence of grey placeholder and card handle
     expect(find.byType(AppMapSkeleton), findsOneWidget);
-    expect(find.descendant(of: find.byType(AppMapSkeleton), matching: find.byType(Stack)), findsAtLeastNWidgets(1));
+    expect(
+      find.descendant(
+        of: find.byType(AppMapSkeleton),
+        matching: find.byType(Stack),
+      ),
+      findsAtLeastNWidgets(1),
+    );
     expect(find.byType(Column), findsOneWidget);
   });
 
-  testWidgets('AppMapErrorView renders message and retry button', (tester) async {
+  testWidgets('AppMapErrorView renders message and retry button', (
+    tester,
+  ) async {
     bool retryCalled = false;
     await tester.pumpWidget(
       MaterialApp(

@@ -50,12 +50,8 @@ Widget dashboardScope({
 }) {
   return ProviderScope(
     overrides: [
-      authProvider.overrideWith(
-        () => FakeAuthNotifier(user ?? fakeUser),
-      ),
-      currentPositionProvider.overrideWith(
-        () => FakeCurrentPosition(position),
-      ),
+      authProvider.overrideWith(() => FakeAuthNotifier(user ?? fakeUser)),
+      currentPositionProvider.overrideWith(() => FakeCurrentPosition(position)),
     ],
     child: child,
   );

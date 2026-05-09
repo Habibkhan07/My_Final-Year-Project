@@ -40,20 +40,21 @@ class AuthNotifier extends _$AuthNotifier {
   void _scheduleBoot(String? token) {
     if (token == null || token.isEmpty) return;
     unawaited(
-      AppLifecycleOrchestrator.bootAfterAuth(ref, token).catchError(
-        (Object e, StackTrace st) {
-          developer.log(
-            'bootAfterAuth failed: $e',
-            name: 'auth_notifier',
-            stackTrace: st,
-          );
-        },
-      ),
+      AppLifecycleOrchestrator.bootAfterAuth(ref, token).catchError((
+        Object e,
+        StackTrace st,
+      ) {
+        developer.log(
+          'bootAfterAuth failed: $e',
+          name: 'auth_notifier',
+          stackTrace: st,
+        );
+      }),
     );
   }
 
   Future<void> requestOtp(String phone) async {
-    if (state.isLoading) return; 
+    if (state.isLoading) return;
 
     state = const AsyncLoading();
     try {
@@ -89,17 +90,23 @@ class AuthNotifier extends _$AuthNotifier {
       final currentUser = state.value?.user;
 
       if (currentUser?.token == null) {
-        throw const Unauthorized("Authentication token missing. Please login again.");
+        throw const Unauthorized(
+          "Authentication token missing. Please login again.",
+        );
       }
 
-      final message = await useCase.execute(firstName, lastName, currentUser!.token!);
+      final message = await useCase.execute(
+        firstName,
+        lastName,
+        currentUser!.token!,
+      );
 
       final updatedUser = currentUser.copyWith(
         firstName: firstName,
         lastName: lastName,
         nameRequired: false,
       );
-      
+
       // Update local cache with the new name info
       await repository.persistUser(updatedUser);
 
@@ -120,9 +127,7 @@ class AuthNotifier extends _$AuthNotifier {
     // Update local cache
     await ref.read(authRepositoryProvider).persistUser(updatedUser);
 
-    state = AsyncData(
-      state.requireValue.copyWith(user: updatedUser),
-    );
+    state = AsyncData(state.requireValue.copyWith(user: updatedUser));
   }
 
   Future<void> logout() async {

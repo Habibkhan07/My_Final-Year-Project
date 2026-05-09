@@ -15,9 +15,7 @@ class Step1Verification extends ConsumerWidget {
       imageQuality: 80,
     );
     if (picked != null) {
-      ref
-          .read(onboardingProvider.notifier)
-          .uploadDocument(picked, type);
+      ref.read(onboardingProvider.notifier).uploadDocument(picked, type);
     }
   }
 

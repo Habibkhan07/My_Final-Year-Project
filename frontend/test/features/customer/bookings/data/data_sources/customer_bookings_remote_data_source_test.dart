@@ -89,8 +89,9 @@ void main() {
 
   setUp(() {
     storage = _MockSecureStorage();
-    when(() => storage.read(key: any(named: 'key')))
-        .thenAnswer((_) async => 'test-token');
+    when(
+      () => storage.read(key: any(named: 'key')),
+    ).thenAnswer((_) async => 'test-token');
   });
 
   // ─── getBookings — URL composition ──────────────────────────────────
@@ -103,8 +104,10 @@ void main() {
         return http.Response(jsonEncode(_envelope()), 200);
       });
 
-      await _build(client: client, storage: storage)
-          .getBookings(segment: BookingSegment.upcoming);
+      await _build(
+        client: client,
+        storage: storage,
+      ).getBookings(segment: BookingSegment.upcoming);
 
       final req = captured.request!;
       expect(req.method, 'GET');
@@ -121,8 +124,10 @@ void main() {
         captured.request = request;
         return http.Response(jsonEncode(_envelope()), 200);
       });
-      await _build(client: client, storage: storage)
-          .getBookings(segment: BookingSegment.past);
+      await _build(
+        client: client,
+        storage: storage,
+      ).getBookings(segment: BookingSegment.past);
       expect(captured.request!.url.queryParameters['segment'], 'past');
     });
 
@@ -148,10 +153,10 @@ void main() {
         captured.request = request;
         return http.Response(jsonEncode(_envelope()), 200);
       });
-      await _build(client: client, storage: storage).getBookings(
-        segment: BookingSegment.upcoming,
-        cursor: '',
-      );
+      await _build(
+        client: client,
+        storage: storage,
+      ).getBookings(segment: BookingSegment.upcoming, cursor: '');
       expect(
         captured.request!.url.queryParameters.containsKey('cursor'),
         isFalse,
@@ -164,10 +169,10 @@ void main() {
         captured.request = request;
         return http.Response(jsonEncode(_envelope()), 200);
       });
-      await _build(client: client, storage: storage).getBookings(
-        segment: BookingSegment.upcoming,
-        pageSize: 50,
-      );
+      await _build(
+        client: client,
+        storage: storage,
+      ).getBookings(segment: BookingSegment.upcoming, pageSize: 50);
       expect(captured.request!.url.queryParameters['page_size'], '50');
     });
 
@@ -215,10 +220,10 @@ void main() {
         captured.request = request;
         return http.Response(jsonEncode(_envelope()), 200);
       });
-      await _build(client: client, storage: storage).getBookings(
-        segment: BookingSegment.upcoming,
-        statusFilter: const [],
-      );
+      await _build(
+        client: client,
+        storage: storage,
+      ).getBookings(segment: BookingSegment.upcoming, statusFilter: const []);
       expect(
         captured.request!.url.queryParameters.containsKey('status'),
         isFalse,
@@ -229,32 +234,33 @@ void main() {
   // ─── getBookings — Auth header ──────────────────────────────────────
 
   group('getBookings — auth header', () {
-    test('attaches Authorization: Token <token> from secure storage',
-        () async {
+    test('attaches Authorization: Token <token> from secure storage', () async {
       final captured = _Captured();
       final client = MockClient((request) async {
         captured.request = request;
         return http.Response(jsonEncode(_envelope()), 200);
       });
-      await _build(client: client, storage: storage)
-          .getBookings(segment: BookingSegment.upcoming);
+      await _build(
+        client: client,
+        storage: storage,
+      ).getBookings(segment: BookingSegment.upcoming);
       expect(captured.request!.headers['authorization'], 'Token test-token');
     });
 
     test('omits Authorization header when no token stored', () async {
-      when(() => storage.read(key: any(named: 'key')))
-          .thenAnswer((_) async => null);
+      when(
+        () => storage.read(key: any(named: 'key')),
+      ).thenAnswer((_) async => null);
       final captured = _Captured();
       final client = MockClient((request) async {
         captured.request = request;
         return http.Response(jsonEncode(_envelope()), 200);
       });
-      await _build(client: client, storage: storage)
-          .getBookings(segment: BookingSegment.upcoming);
-      expect(
-        captured.request!.headers.containsKey('authorization'),
-        isFalse,
-      );
+      await _build(
+        client: client,
+        storage: storage,
+      ).getBookings(segment: BookingSegment.upcoming);
+      expect(captured.request!.headers.containsKey('authorization'), isFalse);
     });
   });
 
@@ -264,17 +270,21 @@ void main() {
     test('decodes envelope into BookingsListResponseModel', () async {
       final client = MockClient(
         (_) async => http.Response(
-          jsonEncode(_envelope(
-            items: [_sampleItem(id: 99482)],
-            nextCursor: 'cursor-page-2',
-            hasMore: true,
-          )),
+          jsonEncode(
+            _envelope(
+              items: [_sampleItem(id: 99482)],
+              nextCursor: 'cursor-page-2',
+              hasMore: true,
+            ),
+          ),
           200,
         ),
       );
 
-      final response = await _build(client: client, storage: storage)
-          .getBookings(segment: BookingSegment.upcoming);
+      final response = await _build(
+        client: client,
+        storage: storage,
+      ).getBookings(segment: BookingSegment.upcoming);
 
       expect(response.items, hasLength(1));
       expect(response.items.first.id, 99482);
@@ -289,8 +299,10 @@ void main() {
         (_) async => http.Response(jsonEncode(_envelope()), 200),
       );
 
-      final response = await _build(client: client, storage: storage)
-          .getBookings(segment: BookingSegment.upcoming);
+      final response = await _build(
+        client: client,
+        storage: storage,
+      ).getBookings(segment: BookingSegment.upcoming);
 
       expect(response.items, isEmpty);
       expect(response.hasMore, isFalse);
@@ -316,8 +328,10 @@ void main() {
         ),
       );
       try {
-        await _build(client: client, storage: storage)
-            .getBookings(segment: BookingSegment.upcoming);
+        await _build(
+          client: client,
+          storage: storage,
+        ).getBookings(segment: BookingSegment.upcoming);
         fail('expected HttpFailure');
       } on HttpFailure catch (e) {
         expect(e.statusCode, 400);
@@ -341,8 +355,10 @@ void main() {
         ),
       );
       try {
-        await _build(client: client, storage: storage)
-            .getBookings(segment: BookingSegment.upcoming);
+        await _build(
+          client: client,
+          storage: storage,
+        ).getBookings(segment: BookingSegment.upcoming);
         fail('expected HttpFailure');
       } on HttpFailure catch (e) {
         expect(e.code, 'invalid_status_filter');
@@ -362,8 +378,10 @@ void main() {
         ),
       );
       try {
-        await _build(client: client, storage: storage)
-            .getBookings(segment: BookingSegment.upcoming);
+        await _build(
+          client: client,
+          storage: storage,
+        ).getBookings(segment: BookingSegment.upcoming);
         fail('expected HttpFailure');
       } on HttpFailure catch (e) {
         expect(e.statusCode, 401);
@@ -384,8 +402,10 @@ void main() {
         ),
       );
       try {
-        await _build(client: client, storage: storage)
-            .getBookings(segment: BookingSegment.upcoming);
+        await _build(
+          client: client,
+          storage: storage,
+        ).getBookings(segment: BookingSegment.upcoming);
         fail('expected HttpFailure');
       } on HttpFailure catch (e) {
         expect(e.statusCode, 500);
@@ -398,8 +418,10 @@ void main() {
         (_) async => http.Response('<html>Bad Gateway</html>', 502),
       );
       try {
-        await _build(client: client, storage: storage)
-            .getBookings(segment: BookingSegment.upcoming);
+        await _build(
+          client: client,
+          storage: storage,
+        ).getBookings(segment: BookingSegment.upcoming);
         fail('expected HttpFailure');
       } on HttpFailure catch (e) {
         expect(e.statusCode, 502);
@@ -407,25 +429,29 @@ void main() {
       }
     });
 
-    test('JSON without `code` field → synthetic unknown / server_error',
-        () async {
-      // Body is JSON but doesn't carry the standard envelope.
-      final client = MockClient(
-        (_) async => http.Response(
-          jsonEncode({'detail': 'something went wrong'}),
-          400,
-        ),
-      );
-      try {
-        await _build(client: client, storage: storage)
-            .getBookings(segment: BookingSegment.upcoming);
-        fail('expected HttpFailure');
-      } on HttpFailure catch (e) {
-        // Unknown body shape — code is `unknown` per the helper.
-        expect(e.statusCode, 400);
-        expect(e.code, anyOf(equals('unknown'), equals('server_error')));
-      }
-    });
+    test(
+      'JSON without `code` field → synthetic unknown / server_error',
+      () async {
+        // Body is JSON but doesn't carry the standard envelope.
+        final client = MockClient(
+          (_) async => http.Response(
+            jsonEncode({'detail': 'something went wrong'}),
+            400,
+          ),
+        );
+        try {
+          await _build(
+            client: client,
+            storage: storage,
+          ).getBookings(segment: BookingSegment.upcoming);
+          fail('expected HttpFailure');
+        } on HttpFailure catch (e) {
+          // Unknown body shape — code is `unknown` per the helper.
+          expect(e.statusCode, 400);
+          expect(e.code, anyOf(equals('unknown'), equals('server_error')));
+        }
+      },
+    );
   });
 
   // ─── getCounts ──────────────────────────────────────────────────────
@@ -463,17 +489,14 @@ void main() {
           200,
         ),
       );
-      final result =
-          await _build(client: client, storage: storage).getCounts();
+      final result = await _build(client: client, storage: storage).getCounts();
       expect(result.upcoming, 7);
       expect(result.past, 13);
       expect(result.serverTime, '2026-05-05T12:34:56+00:00');
     });
 
     test('counts 5xx falls back to synthetic server_error', () async {
-      final client = MockClient(
-        (_) async => http.Response('outage', 503),
-      );
+      final client = MockClient((_) async => http.Response('outage', 503));
       try {
         await _build(client: client, storage: storage).getCounts();
         fail('expected HttpFailure');

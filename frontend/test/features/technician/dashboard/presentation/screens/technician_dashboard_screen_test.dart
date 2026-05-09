@@ -46,49 +46,47 @@ TechnicianDashboardEntity _entity({
   bool isOnline = true,
   double walletBalance = 1500.0,
   bool includeUpNextJob = true,
-}) =>
-    TechnicianDashboardEntity(
-      walletBalance: walletBalance,
-      isOnline: isOnline,
-      profilePicture: 'https://example.com/pic.jpg',
-      upNextJob: includeUpNextJob
-          ? UpNextJobEntity(
-              jobId: 1,
-              serviceTitle: 'AC Deep Wash',
-              scheduledTime: DateTime.now().add(const Duration(hours: 1)),
-              customerName: 'Ali R.',
-              customerPhone: '+923001234567',
-              addressText: '14 Street, Gulberg III',
-              lat: 31.5204,
-              lng: 74.3587,
-            )
-          : null,
-      laterTodayJobs: [
-        LaterTodayJobEntity(
-          jobId: 2,
-          serviceTitle: 'Ceiling Fan Repair',
-          scheduledTime: DateTime.now().add(const Duration(hours: 3)),
-          addressText: 'DHA Phase 5',
-        ),
-      ],
-      metrics: const DashboardMetricsEntity(
-        jobsCompletedToday: 2,
-        cashCollectedToday: 3500.0,
-      ),
-    );
+}) => TechnicianDashboardEntity(
+  walletBalance: walletBalance,
+  isOnline: isOnline,
+  profilePicture: 'https://example.com/pic.jpg',
+  upNextJob: includeUpNextJob
+      ? UpNextJobEntity(
+          jobId: 1,
+          serviceTitle: 'AC Deep Wash',
+          scheduledTime: DateTime.now().add(const Duration(hours: 1)),
+          customerName: 'Ali R.',
+          customerPhone: '+923001234567',
+          addressText: '14 Street, Gulberg III',
+          lat: 31.5204,
+          lng: 74.3587,
+        )
+      : null,
+  laterTodayJobs: [
+    LaterTodayJobEntity(
+      jobId: 2,
+      serviceTitle: 'Ceiling Fan Repair',
+      scheduledTime: DateTime.now().add(const Duration(hours: 3)),
+      addressText: 'DHA Phase 5',
+    ),
+  ],
+  metrics: const DashboardMetricsEntity(
+    jobsCompletedToday: 2,
+    cashCollectedToday: 3500.0,
+  ),
+);
 
 TechnicianDashboardState _state({
   bool isOnline = true,
   double walletBalance = 1500.0,
   bool includeUpNextJob = true,
-}) =>
-    TechnicianDashboardState(
-      dashboard: _entity(
-        isOnline: isOnline,
-        walletBalance: walletBalance,
-        includeUpNextJob: includeUpNextJob,
-      ),
-    );
+}) => TechnicianDashboardState(
+  dashboard: _entity(
+    isOnline: isOnline,
+    walletBalance: walletBalance,
+    includeUpNextJob: includeUpNextJob,
+  ),
+);
 
 // ---------------------------------------------------------------------------
 // Helper
@@ -129,10 +127,14 @@ void main() {
 
     // -----------------------------------------------------------------------
     group('AsyncError — error states', () {
-      testWidgets('shows network failure message and Retry button', (tester) async {
-        await tester.pumpWidget(buildScreen(
-          AsyncError(const DashboardNetworkFailure(), StackTrace.empty),
-        ));
+      testWidgets('shows network failure message and Retry button', (
+        tester,
+      ) async {
+        await tester.pumpWidget(
+          buildScreen(
+            AsyncError(const DashboardNetworkFailure(), StackTrace.empty),
+          ),
+        );
         await tester.pumpAndSettle();
 
         expect(find.textContaining('No internet connection'), findsOneWidget);
@@ -140,30 +142,36 @@ void main() {
       });
 
       testWidgets('shows permission failure message', (tester) async {
-        await tester.pumpWidget(buildScreen(
-          AsyncError(const DashboardPermissionFailure(), StackTrace.empty),
-        ));
+        await tester.pumpWidget(
+          buildScreen(
+            AsyncError(const DashboardPermissionFailure(), StackTrace.empty),
+          ),
+        );
         await tester.pumpAndSettle();
 
         expect(find.textContaining('permission'), findsOneWidget);
       });
 
       testWidgets('shows server failure message verbatim', (tester) async {
-        await tester.pumpWidget(buildScreen(
-          AsyncError(
-            const DashboardServerFailure('Backend is down.'),
-            StackTrace.empty,
+        await tester.pumpWidget(
+          buildScreen(
+            AsyncError(
+              const DashboardServerFailure('Backend is down.'),
+              StackTrace.empty,
+            ),
           ),
-        ));
+        );
         await tester.pumpAndSettle();
 
         expect(find.text('Backend is down.'), findsOneWidget);
       });
 
       testWidgets('shows parsing failure message', (tester) async {
-        await tester.pumpWidget(buildScreen(
-          AsyncError(const DashboardParsingFailure(), StackTrace.empty),
-        ));
+        await tester.pumpWidget(
+          buildScreen(
+            AsyncError(const DashboardParsingFailure(), StackTrace.empty),
+          ),
+        );
         await tester.pumpAndSettle();
 
         expect(find.textContaining('Could not read'), findsOneWidget);
@@ -172,7 +180,9 @@ void main() {
 
     // -----------------------------------------------------------------------
     group('AsyncData — job card', () {
-      testWidgets('renders service title when upNextJob is present', (tester) async {
+      testWidgets('renders service title when upNextJob is present', (
+        tester,
+      ) async {
         await mockNetworkImagesFor(() async {
           await tester.pumpWidget(buildScreen(AsyncData(_state())));
           await tester.pump();
@@ -181,7 +191,9 @@ void main() {
         });
       });
 
-      testWidgets('renders customer name and address when job is present', (tester) async {
+      testWidgets('renders customer name and address when job is present', (
+        tester,
+      ) async {
         await mockNetworkImagesFor(() async {
           await tester.pumpWidget(buildScreen(AsyncData(_state())));
           await tester.pump();
@@ -191,7 +203,9 @@ void main() {
         });
       });
 
-      testWidgets('renders empty-state card when upNextJob is null', (tester) async {
+      testWidgets('renders empty-state card when upNextJob is null', (
+        tester,
+      ) async {
         await mockNetworkImagesFor(() async {
           await tester.pumpWidget(
             buildScreen(AsyncData(_state(includeUpNextJob: false))),
@@ -206,16 +220,22 @@ void main() {
 
     // -----------------------------------------------------------------------
     group('AsyncData — header', () {
-      testWidgets('renders ONLINE toggle when isOnline is true', (tester) async {
+      testWidgets('renders ONLINE toggle when isOnline is true', (
+        tester,
+      ) async {
         await mockNetworkImagesFor(() async {
-          await tester.pumpWidget(buildScreen(AsyncData(_state(isOnline: true))));
+          await tester.pumpWidget(
+            buildScreen(AsyncData(_state(isOnline: true))),
+          );
           await tester.pump();
 
           expect(find.text('ONLINE'), findsOneWidget);
         });
       });
 
-      testWidgets('renders OFFLINE toggle when isOnline is false', (tester) async {
+      testWidgets('renders OFFLINE toggle when isOnline is false', (
+        tester,
+      ) async {
         await mockNetworkImagesFor(() async {
           await tester.pumpWidget(
             buildScreen(AsyncData(_state(isOnline: false))),
@@ -226,7 +246,9 @@ void main() {
         });
       });
 
-      testWidgets('renders wallet balance with "Wallet:" label', (tester) async {
+      testWidgets('renders wallet balance with "Wallet:" label', (
+        tester,
+      ) async {
         await mockNetworkImagesFor(() async {
           await tester.pumpWidget(
             buildScreen(AsyncData(_state(walletBalance: 1500))),
@@ -237,18 +259,20 @@ void main() {
         });
       });
 
-      testWidgets('renders greeting with technician firstName from auth cache',
-          (tester) async {
-        await mockNetworkImagesFor(() async {
-          await tester.pumpWidget(buildScreen(AsyncData(_state())));
-          // Two pumps: one to resolve the dashboard provider, one to resolve
-          // the auth provider's async build() before the greeting renders.
-          await tester.pump();
-          await tester.pump();
+      testWidgets(
+        'renders greeting with technician firstName from auth cache',
+        (tester) async {
+          await mockNetworkImagesFor(() async {
+            await tester.pumpWidget(buildScreen(AsyncData(_state())));
+            // Two pumps: one to resolve the dashboard provider, one to resolve
+            // the auth provider's async build() before the greeting renders.
+            await tester.pump();
+            await tester.pump();
 
-          expect(find.text('Hi, Ali'), findsOneWidget);
-        });
-      });
+            expect(find.text('Hi, Ali'), findsOneWidget);
+          });
+        },
+      );
     });
 
     // -----------------------------------------------------------------------
@@ -265,7 +289,9 @@ void main() {
 
     // -----------------------------------------------------------------------
     group('AsyncData — metrics row', () {
-      testWidgets('renders jobs count and formatted cash amount', (tester) async {
+      testWidgets('renders jobs count and formatted cash amount', (
+        tester,
+      ) async {
         await mockNetworkImagesFor(() async {
           await tester.pumpWidget(buildScreen(AsyncData(_state())));
           await tester.pump();

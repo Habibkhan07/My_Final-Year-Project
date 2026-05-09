@@ -28,7 +28,8 @@ class CategoryBrowseTile extends StatelessWidget {
                 imageUrl: iconUrl!,
                 width: 24,
                 height: 24,
-                errorWidget: (context, url, error) => const Icon(Icons.category, size: 24),
+                errorWidget: (context, url, error) =>
+                    const Icon(Icons.category, size: 24),
               )
             : const Icon(Icons.category, size: 24, color: Color(0xFF6B7280)),
       ),

@@ -68,7 +68,8 @@ class EventSyncNotifier extends _$EventSyncNotifier {
   Future<void> syncMissedEvents() async {
     await _runGuarded(() async {
       final eventNotifier = ref.read(systemEventProvider.notifier);
-      final cursor = eventNotifier.getLastSyncTimestamp() ??
+      final cursor =
+          eventNotifier.getLastSyncTimestamp() ??
           DateTime.now().subtract(_kDefaultSyncWindow);
       final isoTimestamp = cursor.toUtc().toIso8601String();
 

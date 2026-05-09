@@ -16,11 +16,13 @@ abstract class TechnicianRegistrationModel with _$TechnicianRegistrationModel {
     required String bio,
     @JsonKey(name: 'profile_picture_uuid') required String profilePictureUuid,
     @JsonKey(name: 'cnic_picture_uuid') required String cnicPictureUuid,
-    @JsonKey(name: 'category_licenses') required List<CategoryLicenseInputModel> categoryLicenses,
+    @JsonKey(name: 'category_licenses')
+    required List<CategoryLicenseInputModel> categoryLicenses,
     required List<SkillInputModel> skills,
   }) = _TechnicianRegistrationModel;
 
-  factory TechnicianRegistrationModel.fromJson(Map<String, dynamic> json) => _$TechnicianRegistrationModelFromJson(json);
+  factory TechnicianRegistrationModel.fromJson(Map<String, dynamic> json) =>
+      _$TechnicianRegistrationModelFromJson(json);
 }
 
 /// [CategoryLicenseInputModel] maps to CategoryLicenseInputSerializer in Django.
@@ -31,7 +33,8 @@ abstract class CategoryLicenseInputModel with _$CategoryLicenseInputModel {
     @JsonKey(name: 'media_uuid') required String mediaUuid,
   }) = _CategoryLicenseInputModel;
 
-  factory CategoryLicenseInputModel.fromJson(Map<String, dynamic> json) => _$CategoryLicenseInputModelFromJson(json);
+  factory CategoryLicenseInputModel.fromJson(Map<String, dynamic> json) =>
+      _$CategoryLicenseInputModelFromJson(json);
 }
 
 /// [SkillInputModel] represents the technician's selected skills and labor rate.
@@ -43,5 +46,6 @@ abstract class SkillInputModel with _$SkillInputModel {
     @JsonKey(name: 'labor_rate') String? laborRate,
   }) = _SkillInputModel;
 
-  factory SkillInputModel.fromJson(Map<String, dynamic> json) => _$SkillInputModelFromJson(json);
+  factory SkillInputModel.fromJson(Map<String, dynamic> json) =>
+      _$SkillInputModelFromJson(json);
 }

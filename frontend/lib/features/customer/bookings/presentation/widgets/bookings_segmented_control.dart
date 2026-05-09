@@ -86,7 +86,9 @@ class _Segment extends StatelessWidget {
         duration: const Duration(milliseconds: 200),
         curve: Curves.easeOut,
         decoration: BoxDecoration(
-          color: isActive ? AppColors.surfaceContainerLowest : Colors.transparent,
+          color: isActive
+              ? AppColors.surfaceContainerLowest
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(4),
           boxShadow: isActive
               ? [
@@ -117,7 +119,9 @@ class _Segment extends StatelessWidget {
                   fontSize: 14,
                   height: 20 / 14,
                   fontWeight: FontWeight.w700,
-                  color: isActive ? AppColors.primary : AppColors.onSurfaceVariant,
+                  color: isActive
+                      ? AppColors.primary
+                      : AppColors.onSurfaceVariant,
                 ),
               ),
             ),

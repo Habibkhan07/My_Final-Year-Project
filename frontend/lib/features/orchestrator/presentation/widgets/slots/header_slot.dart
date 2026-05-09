@@ -23,8 +23,8 @@ class HeaderSlot extends StatelessWidget {
 
     final counterpartyName =
         booking.viewerRole == BookingOrchestratorRole.customer
-            ? booking.technician.displayName
-            : booking.customer.fullName;
+        ? booking.technician.displayName
+        : booking.customer.fullName;
 
     final tonePalette = _palette(colors, booking.ui.tone);
 
@@ -95,8 +95,9 @@ class HeaderSlot extends StatelessWidget {
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   foregroundColor: colors.primary,
                 ),
-                onPressed: () =>
-                    GoRouter.of(context).push('/booking/${booking.childBookingId}'),
+                onPressed: () => GoRouter.of(
+                  context,
+                ).push('/booking/${booking.childBookingId}'),
                 icon: const Icon(Icons.arrow_forward, size: 16),
                 label: Text('Continued on #${booking.childBookingId}'),
               ),
@@ -108,27 +109,27 @@ class HeaderSlot extends StatelessWidget {
   }
 
   _Palette _palette(ColorScheme colors, BookingUiTone tone) => switch (tone) {
-        BookingUiTone.positive => _Palette(
-            background: colors.primaryContainer.withValues(alpha: 0.45),
-            foreground: colors.primary,
-          ),
-        BookingUiTone.warning => _Palette(
-            background: colors.tertiaryContainer.withValues(alpha: 0.45),
-            foreground: colors.tertiary,
-          ),
-        BookingUiTone.negative => _Palette(
-            background: colors.errorContainer.withValues(alpha: 0.45),
-            foreground: colors.error,
-          ),
-        BookingUiTone.info => _Palette(
-            background: colors.secondaryContainer.withValues(alpha: 0.45),
-            foreground: colors.secondary,
-          ),
-        BookingUiTone.neutral || BookingUiTone.unknown => _Palette(
-            background: colors.surfaceContainerLow,
-            foreground: colors.onSurfaceVariant,
-          ),
-      };
+    BookingUiTone.positive => _Palette(
+      background: colors.primaryContainer.withValues(alpha: 0.45),
+      foreground: colors.primary,
+    ),
+    BookingUiTone.warning => _Palette(
+      background: colors.tertiaryContainer.withValues(alpha: 0.45),
+      foreground: colors.tertiary,
+    ),
+    BookingUiTone.negative => _Palette(
+      background: colors.errorContainer.withValues(alpha: 0.45),
+      foreground: colors.error,
+    ),
+    BookingUiTone.info => _Palette(
+      background: colors.secondaryContainer.withValues(alpha: 0.45),
+      foreground: colors.secondary,
+    ),
+    BookingUiTone.neutral || BookingUiTone.unknown => _Palette(
+      background: colors.surfaceContainerLow,
+      foreground: colors.onSurfaceVariant,
+    ),
+  };
 }
 
 class _Palette {

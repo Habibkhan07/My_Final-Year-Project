@@ -41,27 +41,24 @@ void main() {
       await expectLater(repo.acceptJobRequest(42), completes);
     });
 
-    test(
-      '409 booking_no_longer_available → OfferNoLongerAvailable carrying '
-      'the echoed current_status',
-      () async {
-        ds.toThrow = const HttpFailure(
-          statusCode: 409,
-          code: 'booking_no_longer_available',
-          message: 'This job is no longer available.',
-          errors: {
-            'current_status': ['REJECTED'],
-          },
-        );
-        try {
-          await repo.acceptJobRequest(42);
-          fail('expected OfferNoLongerAvailable');
-        } on OfferNoLongerAvailable catch (e) {
-          expect(e.currentStatus, 'REJECTED');
-          expect(e.message, 'This job is no longer available.');
-        }
-      },
-    );
+    test('409 booking_no_longer_available → OfferNoLongerAvailable carrying '
+        'the echoed current_status', () async {
+      ds.toThrow = const HttpFailure(
+        statusCode: 409,
+        code: 'booking_no_longer_available',
+        message: 'This job is no longer available.',
+        errors: {
+          'current_status': ['REJECTED'],
+        },
+      );
+      try {
+        await repo.acceptJobRequest(42);
+        fail('expected OfferNoLongerAvailable');
+      } on OfferNoLongerAvailable catch (e) {
+        expect(e.currentStatus, 'REJECTED');
+        expect(e.message, 'This job is no longer available.');
+      }
+    });
 
     test(
       '409 with empty errors → OfferNoLongerAvailable with null currentStatus',
@@ -80,24 +77,21 @@ void main() {
       },
     );
 
-    test(
-      '404 not_found → OfferNoLongerAvailable (IDOR-safe collapse — '
-      'missing OR wrong-owner both mean "the offer is gone")',
-      () async {
-        ds.toThrow = const HttpFailure(
-          statusCode: 404,
-          code: 'not_found',
-          message: 'Booking not found.',
-        );
-        try {
-          await repo.acceptJobRequest(42);
-          fail('expected OfferNoLongerAvailable');
-        } on OfferNoLongerAvailable catch (e) {
-          // Server didn't disclose row state — currentStatus must be null.
-          expect(e.currentStatus, isNull);
-        }
-      },
-    );
+    test('404 not_found → OfferNoLongerAvailable (IDOR-safe collapse — '
+        'missing OR wrong-owner both mean "the offer is gone")', () async {
+      ds.toThrow = const HttpFailure(
+        statusCode: 404,
+        code: 'not_found',
+        message: 'Booking not found.',
+      );
+      try {
+        await repo.acceptJobRequest(42);
+        fail('expected OfferNoLongerAvailable');
+      } on OfferNoLongerAvailable catch (e) {
+        // Server didn't disclose row state — currentStatus must be null.
+        expect(e.currentStatus, isNull);
+      }
+    });
 
     test('500 → IncomingJobServerFailure', () async {
       ds.toThrow = const HttpFailure(
@@ -131,37 +125,31 @@ void main() {
       );
     });
 
-    test(
-      'HttpFailure with an unhandled code → UnknownIncomingJobFailure '
-      'carrying the wire message',
-      () async {
-        ds.toThrow = const HttpFailure(
-          statusCode: 418,
-          code: 'teapot',
-          message: 'I am a teapot.',
-        );
-        try {
-          await repo.acceptJobRequest(42);
-          fail('expected UnknownIncomingJobFailure');
-        } on UnknownIncomingJobFailure catch (e) {
-          expect(e.message, 'I am a teapot.');
-        }
-      },
-    );
+    test('HttpFailure with an unhandled code → UnknownIncomingJobFailure '
+        'carrying the wire message', () async {
+      ds.toThrow = const HttpFailure(
+        statusCode: 418,
+        code: 'teapot',
+        message: 'I am a teapot.',
+      );
+      try {
+        await repo.acceptJobRequest(42);
+        fail('expected UnknownIncomingJobFailure');
+      } on UnknownIncomingJobFailure catch (e) {
+        expect(e.message, 'I am a teapot.');
+      }
+    });
 
-    test(
-      'A nested IncomingJobFailure thrown directly is rethrown verbatim '
-      '(no double-wrap as UnknownIncomingJobFailure)',
-      () async {
-        ds.toThrow = const OfferNoLongerAvailable(currentStatus: 'CANCELLED');
-        try {
-          await repo.acceptJobRequest(42);
-          fail('expected the nested failure to propagate');
-        } on OfferNoLongerAvailable catch (e) {
-          expect(e.currentStatus, 'CANCELLED');
-        }
-      },
-    );
+    test('A nested IncomingJobFailure thrown directly is rethrown verbatim '
+        '(no double-wrap as UnknownIncomingJobFailure)', () async {
+      ds.toThrow = const OfferNoLongerAvailable(currentStatus: 'CANCELLED');
+      try {
+        await repo.acceptJobRequest(42);
+        fail('expected the nested failure to propagate');
+      } on OfferNoLongerAvailable catch (e) {
+        expect(e.currentStatus, 'CANCELLED');
+      }
+    });
 
     test('Untyped exception → UnknownIncomingJobFailure', () async {
       ds.toThrow = const FormatException('bogus json');

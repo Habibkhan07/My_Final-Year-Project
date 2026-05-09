@@ -18,7 +18,8 @@ abstract class IDiscoveryRemoteDataSource {
 
 class DiscoveryRemoteDataSource implements IDiscoveryRemoteDataSource {
   final http.Client client;
-  final String baseUrl = "${AppConstants.baseUrl}/customers/nearby-technicians/";
+  final String baseUrl =
+      "${AppConstants.baseUrl}/customers/nearby-technicians/";
 
   DiscoveryRemoteDataSource({required this.client});
 
@@ -43,7 +44,7 @@ class DiscoveryRemoteDataSource implements IDiscoveryRemoteDataSource {
     };
 
     final uri = Uri.parse(baseUrl).replace(queryParameters: queryParams);
-    
+
     final response = await client.get(uri);
 
     _handleResponse(response);
@@ -76,7 +77,7 @@ class DiscoveryRemoteDataSource implements IDiscoveryRemoteDataSource {
       );
     } catch (e) {
       if (e is HttpFailure) rethrow;
-      
+
       throw HttpFailure(
         statusCode: response.statusCode,
         code: 'server_error',

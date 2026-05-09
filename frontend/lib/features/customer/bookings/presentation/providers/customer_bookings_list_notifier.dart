@@ -101,7 +101,9 @@ class CustomerBookingsList extends _$CustomerBookingsList {
   /// against the previous data.
   Future<void> refresh() async {
     final segment = ref.read(selectedSegmentProvider);
-    state = const AsyncLoading<CustomerBookingsListState>().copyWithPrevious(state);
+    state = const AsyncLoading<CustomerBookingsListState>().copyWithPrevious(
+      state,
+    );
     state = await AsyncValue.guard(() async {
       final useCase = ref.read(getCustomerBookingsUseCaseProvider);
       final page = await useCase.call(segment: segment);
@@ -146,29 +148,27 @@ class CustomerBookingsList extends _$CustomerBookingsList {
       final after = state.value;
       if (after == null) return;
 
-      state = AsyncData(after.copyWith(
-        items: [...after.items, ...page.items],
-        nextCursor: page.nextCursor,
-        hasMore: page.hasMore,
-        isLoadingMore: false,
-        // pagination should never put the list into stale-cache mode —
-        // the repo throws OfflineNoCache for non-first pages on
-        // SocketException — but defensively clear the flag just in case
-        // the upstream contract widens later.
-        isStaleCache: false,
-        cachedAt: null,
-        serverTime: page.serverTime,
-      ));
+      state = AsyncData(
+        after.copyWith(
+          items: [...after.items, ...page.items],
+          nextCursor: page.nextCursor,
+          hasMore: page.hasMore,
+          isLoadingMore: false,
+          // pagination should never put the list into stale-cache mode —
+          // the repo throws OfflineNoCache for non-first pages on
+          // SocketException — but defensively clear the flag just in case
+          // the upstream contract widens later.
+          isStaleCache: false,
+          cachedAt: null,
+          serverTime: page.serverTime,
+        ),
+      );
     } catch (e, stack) {
       // Don't blow away the list on a pagination error — the user can
       // still scroll back through what they have. Just clear the
       // loading flag and log; surface a snackbar via a SnackError state
       // would be nice but is screen-side polish (next sprint).
-      log(
-        'loadMore() failed: $e',
-        name: _logName,
-        stackTrace: stack,
-      );
+      log('loadMore() failed: $e', name: _logName, stackTrace: stack);
       final after = state.value;
       if (after != null) {
         state = AsyncData(after.copyWith(isLoadingMore: false));

@@ -66,10 +66,7 @@ class BookingsOfflineBanner extends StatelessWidget {
           IconButton(
             onPressed: onRefresh,
             padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(
-              minHeight: 32,
-              minWidth: 32,
-            ),
+            constraints: const BoxConstraints(minHeight: 32, minWidth: 32),
             visualDensity: VisualDensity.compact,
             tooltip: 'Refresh',
             icon: const Icon(

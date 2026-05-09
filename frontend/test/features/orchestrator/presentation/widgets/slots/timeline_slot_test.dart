@@ -60,9 +60,11 @@ String? _currentPhaseLabel(WidgetTester tester) {
 }
 
 Future<void> _pump(WidgetTester tester, BookingDetail b) async {
-  await tester.pumpWidget(MaterialApp(
-    home: Scaffold(body: TimelineSlot(booking: b)),
-  ));
+  await tester.pumpWidget(
+    MaterialApp(
+      home: Scaffold(body: TimelineSlot(booking: b)),
+    ),
+  );
 }
 
 void main() {
@@ -83,8 +85,9 @@ void main() {
     ];
 
     for (final (status, expectedLabel) in cases) {
-      testWidgets('${status.name} → "$expectedLabel" is current',
-          (tester) async {
+      testWidgets('${status.name} → "$expectedLabel" is current', (
+        tester,
+      ) async {
         await _pump(tester, _booking(status));
         expect(_currentPhaseLabel(tester), expectedLabel);
       });

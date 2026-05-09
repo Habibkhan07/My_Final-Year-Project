@@ -23,7 +23,9 @@ class AvailabilityNotifier extends _$AvailabilityNotifier {
     int? serviceId,
     int? subServiceId,
   }) async {
-    final slots = await ref.read(getAvailabilityUseCaseProvider).call(
+    final slots = await ref
+        .read(getAvailabilityUseCaseProvider)
+        .call(
           technicianId: technicianId,
           date: date,
           serviceId: serviceId,

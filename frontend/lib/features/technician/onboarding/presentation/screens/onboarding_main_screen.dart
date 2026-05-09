@@ -25,7 +25,7 @@ class OnboardingMainScreen extends ConsumerStatefulWidget {
 
 class _OnboardingMainScreenState extends ConsumerState<OnboardingMainScreen> {
   final PageController _pageController = PageController();
-  final int _totalSteps = 6; 
+  final int _totalSteps = 6;
 
   @override
   void dispose() {
@@ -102,7 +102,10 @@ class _OnboardingMainScreenState extends ConsumerState<OnboardingMainScreen> {
     // ==========================================
     // PILLAR 1 & 2: ERRORS & SUBMISSION STATUS
     // ==========================================
-    ref.listen<AsyncValue<OnboardingState>>(onboardingProvider, (previous, next) {
+    ref.listen<AsyncValue<OnboardingState>>(onboardingProvider, (
+      previous,
+      next,
+    ) {
       // A. Catch top-level state errors (e.g. metadata failed to fetch)
       if (next.hasError && !next.isLoading) {
         if (previous == null || !previous.hasError) {
@@ -129,11 +132,16 @@ class _OnboardingMainScreenState extends ConsumerState<OnboardingMainScreen> {
     // ==========================================
     // PILLAR 3: PAGE NAVIGATION (UI State)
     // ==========================================
-    ref.listen<AsyncValue<OnboardingState>>(onboardingProvider, (previous, next) {
+    ref.listen<AsyncValue<OnboardingState>>(onboardingProvider, (
+      previous,
+      next,
+    ) {
       final prevStep = previous?.value?.currentStep;
       final nextStep = next.value?.currentStep;
 
-      if (nextStep != null && nextStep != prevStep && _pageController.hasClients) {
+      if (nextStep != null &&
+          nextStep != prevStep &&
+          _pageController.hasClients) {
         if (_pageController.page?.round() != nextStep) {
           _pageController.animateToPage(
             nextStep,
@@ -176,7 +184,8 @@ class _OnboardingMainScreenState extends ConsumerState<OnboardingMainScreen> {
               ),
               const SizedBox(height: 8),
               ElevatedButton(
-                onPressed: () => ref.read(onboardingProvider.notifier).fetchMetadata(),
+                onPressed: () =>
+                    ref.read(onboardingProvider.notifier).fetchMetadata(),
                 child: const Text("Retry"),
               ),
             ],
@@ -186,7 +195,10 @@ class _OnboardingMainScreenState extends ConsumerState<OnboardingMainScreen> {
           return Column(
             children: [
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24.0,
+                  vertical: 8.0,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -254,7 +266,9 @@ class _OnboardingMainScreenState extends ConsumerState<OnboardingMainScreen> {
                   children: [
                     if (state.currentStep > 0)
                       TextButton(
-                        onPressed: () => ref.read(onboardingProvider.notifier).previousStep(),
+                        onPressed: () => ref
+                            .read(onboardingProvider.notifier)
+                            .previousStep(),
                         child: const Text("Back"),
                       )
                     else
@@ -263,10 +277,15 @@ class _OnboardingMainScreenState extends ConsumerState<OnboardingMainScreen> {
                     if (state.currentStep < (_totalSteps - 1))
                       ElevatedButton(
                         onPressed: _canAdvance(state)
-                            ? () => ref.read(onboardingProvider.notifier).nextStep()
+                            ? () => ref
+                                  .read(onboardingProvider.notifier)
+                                  .nextStep()
                             : null,
                         style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 32,
+                            vertical: 12,
+                          ),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
@@ -276,13 +295,20 @@ class _OnboardingMainScreenState extends ConsumerState<OnboardingMainScreen> {
                       )
                     else
                       ElevatedButton(
-                        onPressed: (state.submissionStatus.isLoading || state.selectedSkills.isEmpty)
+                        onPressed:
+                            (state.submissionStatus.isLoading ||
+                                state.selectedSkills.isEmpty)
                             ? null
-                            : () => ref.read(onboardingProvider.notifier).finalize(),
+                            : () => ref
+                                  .read(onboardingProvider.notifier)
+                                  .finalize(),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Theme.of(context).primaryColor,
                           foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 32,
+                            vertical: 12,
+                          ),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
@@ -291,7 +317,10 @@ class _OnboardingMainScreenState extends ConsumerState<OnboardingMainScreen> {
                             ? const SizedBox(
                                 width: 20,
                                 height: 20,
-                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
                               )
                             : const Text("Submit Application"),
                       ),

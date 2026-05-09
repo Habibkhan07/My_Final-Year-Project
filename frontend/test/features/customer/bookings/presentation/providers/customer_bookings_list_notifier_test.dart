@@ -117,11 +117,7 @@ CustomerBooking _booking({
       context: 'Fixed Price',
       uiLabel: 'Rs. 2,500',
     ),
-    ui: BookingUi(
-      badgeText: badgeText,
-      badgeTone: tone,
-      headline: headline,
-    ),
+    ui: BookingUi(badgeText: badgeText, badgeTone: tone, headline: headline),
   );
 }
 
@@ -197,10 +193,12 @@ ProviderContainer _build({
   required _FakeRepo repo,
   required EventLocalDataSource eventLocal,
 }) {
-  final container = ProviderContainer(overrides: [
-    customerBookingsRepositoryProvider.overrideWithValue(repo),
-    eventLocalDataSourceProvider.overrideWithValue(eventLocal),
-  ]);
+  final container = ProviderContainer(
+    overrides: [
+      customerBookingsRepositoryProvider.overrideWithValue(repo),
+      eventLocalDataSourceProvider.overrideWithValue(eventLocal),
+    ],
+  );
   addTearDown(container.dispose);
   return container;
 }
@@ -245,11 +243,13 @@ void main() {
 
   group('build()', () {
     test('happy path produces AsyncData with the page contents', () async {
-      repo.queuedPages.add(_page(
-        items: [_booking(id: 1), _booking(id: 2)],
-        nextCursor: 'cur-1',
-        hasMore: true,
-      ));
+      repo.queuedPages.add(
+        _page(
+          items: [_booking(id: 1), _booking(id: 2)],
+          nextCursor: 'cur-1',
+          hasMore: true,
+        ),
+      );
       final container = _build(repo: repo, eventLocal: eventLocal);
 
       // CLAUDE.md warm-up: await the future before reading state.
@@ -277,25 +277,27 @@ void main() {
       expect(repo.calls.single['segment'], BookingSegment.past);
     });
 
-    test('initial fetch failure surfaces as AsyncError carrying typed failure',
-        () async {
-      // Note: we drive the wait via container.listen() rather than
-      // awaiting `.future` because Riverpod 2's AsyncNotifier `.future`
-      // accessor can hang when the very first build throws (the
-      // internal completer stays unresolved during a test container's
-      // dispose). Polling for hasError/hasValue is the documented
-      // testing workaround.
-      repo.queuedThrows.add(const CustomerBookingsServerFailure());
-      final container = _build(repo: repo, eventLocal: eventLocal);
+    test(
+      'initial fetch failure surfaces as AsyncError carrying typed failure',
+      () async {
+        // Note: we drive the wait via container.listen() rather than
+        // awaiting `.future` because Riverpod 2's AsyncNotifier `.future`
+        // accessor can hang when the very first build throws (the
+        // internal completer stays unresolved during a test container's
+        // dispose). Polling for hasError/hasValue is the documented
+        // testing workaround.
+        repo.queuedThrows.add(const CustomerBookingsServerFailure());
+        final container = _build(repo: repo, eventLocal: eventLocal);
 
-      // Trigger build by reading; subscribe to state transitions.
-      container.read(customerBookingsListProvider);
-      await _waitForResolution(container);
+        // Trigger build by reading; subscribe to state transitions.
+        container.read(customerBookingsListProvider);
+        await _waitForResolution(container);
 
-      final state = container.read(customerBookingsListProvider);
-      expect(state.hasError, isTrue);
-      expect(state.error, isA<CustomerBookingsServerFailure>());
-    });
+        final state = container.read(customerBookingsListProvider);
+        expect(state.hasError, isTrue);
+        expect(state.error, isA<CustomerBookingsServerFailure>());
+      },
+    );
 
     test('OfflineNoCache surfaces verbatim as AsyncError', () async {
       repo.queuedThrows.add(const CustomerBookingsOfflineNoCache());
@@ -311,11 +313,9 @@ void main() {
 
     test('stale-cache page surfaces with isStaleCache=true', () async {
       final cachedAt = DateTime.utc(2026, 5, 5, 12, 0, 0);
-      repo.queuedPages.add(_page(
-        items: [_booking(id: 1)],
-        isStaleCache: true,
-        cachedAt: cachedAt,
-      ));
+      repo.queuedPages.add(
+        _page(items: [_booking(id: 1)], isStaleCache: true, cachedAt: cachedAt),
+      );
       final container = _build(repo: repo, eventLocal: eventLocal);
 
       await container.read(customerBookingsListProvider.future);
@@ -343,19 +343,21 @@ void main() {
       expect(data.items.map((b) => b.id), [99]);
     });
 
-    test('failure during refresh becomes AsyncError but preserves prior data',
-        () async {
-      repo.queuedPages.add(_page(items: [_booking(id: 1)]));
-      final container = _build(repo: repo, eventLocal: eventLocal);
-      await container.read(customerBookingsListProvider.future);
+    test(
+      'failure during refresh becomes AsyncError but preserves prior data',
+      () async {
+        repo.queuedPages.add(_page(items: [_booking(id: 1)]));
+        final container = _build(repo: repo, eventLocal: eventLocal);
+        await container.read(customerBookingsListProvider.future);
 
-      repo.queuedThrows.add(const CustomerBookingsServerFailure());
-      await container.read(customerBookingsListProvider.notifier).refresh();
+        repo.queuedThrows.add(const CustomerBookingsServerFailure());
+        await container.read(customerBookingsListProvider.notifier).refresh();
 
-      final state = container.read(customerBookingsListProvider);
-      expect(state.hasError, isTrue);
-      expect(state.error, isA<CustomerBookingsServerFailure>());
-    });
+        final state = container.read(customerBookingsListProvider);
+        expect(state.hasError, isTrue);
+        expect(state.error, isA<CustomerBookingsServerFailure>());
+      },
+    );
 
     test('refresh after error recovers cleanly to AsyncData', () async {
       repo.queuedThrows.add(const CustomerBookingsServerFailure());
@@ -366,10 +368,7 @@ void main() {
       // rationale).
       container.read(customerBookingsListProvider);
       await _waitForResolution(container);
-      expect(
-        container.read(customerBookingsListProvider).hasError,
-        isTrue,
-      );
+      expect(container.read(customerBookingsListProvider).hasError, isTrue);
 
       // Refresh succeeds.
       repo.queuedPages.add(_page(items: [_booking(id: 7)]));
@@ -387,19 +386,15 @@ void main() {
 
   group('loadMore()', () {
     test('appends next page and advances cursor', () async {
-      repo.queuedPages.add(_page(
-        items: [_booking(id: 1)],
-        nextCursor: 'cur-1',
-        hasMore: true,
-      ));
+      repo.queuedPages.add(
+        _page(items: [_booking(id: 1)], nextCursor: 'cur-1', hasMore: true),
+      );
       final container = _build(repo: repo, eventLocal: eventLocal);
       await container.read(customerBookingsListProvider.future);
 
-      repo.queuedPages.add(_page(
-        items: [_booking(id: 2)],
-        nextCursor: 'cur-2',
-        hasMore: true,
-      ));
+      repo.queuedPages.add(
+        _page(items: [_booking(id: 2)], nextCursor: 'cur-2', hasMore: true),
+      );
       await container.read(customerBookingsListProvider.notifier).loadMore();
 
       final data = container.read(customerBookingsListProvider).requireValue;
@@ -410,11 +405,9 @@ void main() {
     });
 
     test('forwards the previous next_cursor to the repo', () async {
-      repo.queuedPages.add(_page(
-        items: [_booking(id: 1)],
-        nextCursor: 'cur-1',
-        hasMore: true,
-      ));
+      repo.queuedPages.add(
+        _page(items: [_booking(id: 1)], nextCursor: 'cur-1', hasMore: true),
+      );
       final container = _build(repo: repo, eventLocal: eventLocal);
       await container.read(customerBookingsListProvider.future);
 
@@ -437,30 +430,32 @@ void main() {
       expect(repo.calls.length, 1);
     });
 
-    test('no-op when nextCursor is null even if hasMore=true (defensive)',
-        () async {
-      repo.queuedPages.add(_page(
-        items: [_booking(id: 1)],
-        nextCursor: null,
-        hasMore: true,
-      ));
-      final container = _build(repo: repo, eventLocal: eventLocal);
-      await container.read(customerBookingsListProvider.future);
+    test(
+      'no-op when nextCursor is null even if hasMore=true (defensive)',
+      () async {
+        repo.queuedPages.add(
+          _page(items: [_booking(id: 1)], nextCursor: null, hasMore: true),
+        );
+        final container = _build(repo: repo, eventLocal: eventLocal);
+        await container.read(customerBookingsListProvider.future);
 
-      await container.read(customerBookingsListProvider.notifier).loadMore();
-      expect(repo.calls.length, 1);
-    });
+        await container.read(customerBookingsListProvider.notifier).loadMore();
+        expect(repo.calls.length, 1);
+      },
+    );
 
     test('no-op when isStaleCache is true (offline)', () async {
       // Stale cache means the cursor is meaningless — repo would
       // immediately hit OfflineNoCache for cursor != null.
-      repo.queuedPages.add(_page(
-        items: [_booking(id: 1)],
-        nextCursor: 'cur-1',
-        hasMore: true,
-        isStaleCache: true,
-        cachedAt: DateTime.utc(2026, 5, 5, 12, 0, 0),
-      ));
+      repo.queuedPages.add(
+        _page(
+          items: [_booking(id: 1)],
+          nextCursor: 'cur-1',
+          hasMore: true,
+          isStaleCache: true,
+          cachedAt: DateTime.utc(2026, 5, 5, 12, 0, 0),
+        ),
+      );
       final container = _build(repo: repo, eventLocal: eventLocal);
       await container.read(customerBookingsListProvider.future);
 
@@ -471,11 +466,9 @@ void main() {
 
     test('failure during loadMore preserves existing items + clears '
         'isLoadingMore', () async {
-      repo.queuedPages.add(_page(
-        items: [_booking(id: 1)],
-        nextCursor: 'cur-1',
-        hasMore: true,
-      ));
+      repo.queuedPages.add(
+        _page(items: [_booking(id: 1)], nextCursor: 'cur-1', hasMore: true),
+      );
       final container = _build(repo: repo, eventLocal: eventLocal);
       await container.read(customerBookingsListProvider.future);
 
@@ -494,28 +487,32 @@ void main() {
   // ──────────────────────────────────────────────────────────────────
 
   group('segment switch rebuilds', () {
-    test('switching segment triggers a fresh fetch for the new segment',
-        () async {
-      repo.queuedPages.add(_page(items: [_booking(id: 1)]));
-      final container = _build(repo: repo, eventLocal: eventLocal);
-      await container.read(customerBookingsListProvider.future);
+    test(
+      'switching segment triggers a fresh fetch for the new segment',
+      () async {
+        repo.queuedPages.add(_page(items: [_booking(id: 1)]));
+        final container = _build(repo: repo, eventLocal: eventLocal);
+        await container.read(customerBookingsListProvider.future);
 
-      // Switch — build() runs again with the new segment.
-      repo.queuedPages.add(_page(items: [_booking(id: 99)]));
-      container.read(selectedSegmentProvider.notifier).set(BookingSegment.past);
+        // Switch — build() runs again with the new segment.
+        repo.queuedPages.add(_page(items: [_booking(id: 99)]));
+        container
+            .read(selectedSegmentProvider.notifier)
+            .set(BookingSegment.past);
 
-      // Wait for the rebuilt future.
-      await container.read(customerBookingsListProvider.future);
+        // Wait for the rebuilt future.
+        await container.read(customerBookingsListProvider.future);
 
-      // Two calls: original (upcoming) + rebuild (past).
-      expect(repo.calls.length, 2);
-      expect(repo.calls[0]['segment'], BookingSegment.upcoming);
-      expect(repo.calls[1]['segment'], BookingSegment.past);
+        // Two calls: original (upcoming) + rebuild (past).
+        expect(repo.calls.length, 2);
+        expect(repo.calls[0]['segment'], BookingSegment.upcoming);
+        expect(repo.calls[1]['segment'], BookingSegment.past);
 
-      final data = container.read(customerBookingsListProvider).requireValue;
-      expect(data.segment, BookingSegment.past);
-      expect(data.items.single.id, 99);
-    });
+        final data = container.read(customerBookingsListProvider).requireValue;
+        expect(data.segment, BookingSegment.past);
+        expect(data.items.single.id, 99);
+      },
+    );
 
     test('setting the same segment is a no-op', () async {
       repo.queuedPages.add(_page(items: const []));
@@ -537,54 +534,64 @@ void main() {
   // ──────────────────────────────────────────────────────────────────
 
   group('realtime patches', () {
-    test('jobAccepted: finds item by job_id and applies mapper transform',
-        () async {
-      repo.queuedPages.add(_page(items: [_booking(id: 99482)]));
-      final container = _build(repo: repo, eventLocal: eventLocal);
-      await container.read(customerBookingsListProvider.future);
+    test(
+      'jobAccepted: finds item by job_id and applies mapper transform',
+      () async {
+        repo.queuedPages.add(_page(items: [_booking(id: 99482)]));
+        final container = _build(repo: repo, eventLocal: eventLocal);
+        await container.read(customerBookingsListProvider.future);
 
-      container.read(systemEventProvider.notifier).processEvent(
-            _jobAcceptedEvent(
-              id: 'evt-1',
-              jobId: 99482,
-              techName: 'Ali Khan',
-            ),
-          );
+        container
+            .read(systemEventProvider.notifier)
+            .processEvent(
+              _jobAcceptedEvent(
+                id: 'evt-1',
+                jobId: 99482,
+                techName: 'Ali Khan',
+              ),
+            );
 
-      final data = container.read(customerBookingsListProvider).requireValue;
-      expect(data.items.single.status, BookingStatus.confirmed);
-      expect(data.items.single.technician.displayName, 'Ali Khan');
-      expect(data.items.single.ui.badgeText, 'Confirmed');
-      expect(data.items.single.ui.badgeTone, BookingUiTone.positive);
-      expect(data.items.single.ui.headline, 'Confirmed with Ali Khan');
-    });
+        final data = container.read(customerBookingsListProvider).requireValue;
+        expect(data.items.single.status, BookingStatus.confirmed);
+        expect(data.items.single.technician.displayName, 'Ali Khan');
+        expect(data.items.single.ui.badgeText, 'Confirmed');
+        expect(data.items.single.ui.badgeTone, BookingUiTone.positive);
+        expect(data.items.single.ui.headline, 'Confirmed with Ali Khan');
+      },
+    );
 
-    test('bookingRejected (technician_declined): negative tone + Unavailable',
-        () async {
-      repo.queuedPages.add(_page(items: [_booking(id: 99482)]));
-      final container = _build(repo: repo, eventLocal: eventLocal);
-      await container.read(customerBookingsListProvider.future);
+    test(
+      'bookingRejected (technician_declined): negative tone + Unavailable',
+      () async {
+        repo.queuedPages.add(_page(items: [_booking(id: 99482)]));
+        final container = _build(repo: repo, eventLocal: eventLocal);
+        await container.read(customerBookingsListProvider.future);
 
-      container.read(systemEventProvider.notifier).processEvent(
-            _bookingRejectedEvent(
-              id: 'evt-r1',
-              jobId: 99482,
-              reason: 'technician_declined',
-            ),
-          );
+        container
+            .read(systemEventProvider.notifier)
+            .processEvent(
+              _bookingRejectedEvent(
+                id: 'evt-r1',
+                jobId: 99482,
+                reason: 'technician_declined',
+              ),
+            );
 
-      final data = container.read(customerBookingsListProvider).requireValue;
-      expect(data.items.single.status, BookingStatus.rejected);
-      expect(data.items.single.ui.badgeText, 'Unavailable');
-      expect(data.items.single.ui.badgeTone, BookingUiTone.negative);
-    });
+        final data = container.read(customerBookingsListProvider).requireValue;
+        expect(data.items.single.status, BookingStatus.rejected);
+        expect(data.items.single.ui.badgeText, 'Unavailable');
+        expect(data.items.single.ui.badgeTone, BookingUiTone.negative);
+      },
+    );
 
     test('bookingRejected (sla_timeout): Timed out copy', () async {
       repo.queuedPages.add(_page(items: [_booking(id: 99482)]));
       final container = _build(repo: repo, eventLocal: eventLocal);
       await container.read(customerBookingsListProvider.future);
 
-      container.read(systemEventProvider.notifier).processEvent(
+      container
+          .read(systemEventProvider.notifier)
+          .processEvent(
             _bookingRejectedEvent(
               id: 'evt-r2',
               jobId: 99482,
@@ -602,9 +609,9 @@ void main() {
       await container.read(customerBookingsListProvider.future);
 
       // Event for booking 99999 — not in the list.
-      container.read(systemEventProvider.notifier).processEvent(
-            _jobAcceptedEvent(id: 'evt-x', jobId: 99999),
-          );
+      container
+          .read(systemEventProvider.notifier)
+          .processEvent(_jobAcceptedEvent(id: 'evt-x', jobId: 99999));
 
       // Existing item untouched.
       final data = container.read(customerBookingsListProvider).requireValue;
@@ -627,9 +634,7 @@ void main() {
           'technician_display_name': 'Ali',
         },
       );
-      container
-          .read(systemEventProvider.notifier)
-          .processEvent(eventNoJobId);
+      container.read(systemEventProvider.notifier).processEvent(eventNoJobId);
 
       final data = container.read(customerBookingsListProvider).requireValue;
       expect(data.items.single.status, BookingStatus.awaiting);
@@ -640,9 +645,9 @@ void main() {
       final container = _build(repo: repo, eventLocal: eventLocal);
       await container.read(customerBookingsListProvider.future);
 
-      container.read(systemEventProvider.notifier).processEvent(
-            _unrelatedEvent(),
-          );
+      container
+          .read(systemEventProvider.notifier)
+          .processEvent(_unrelatedEvent());
 
       final data = container.read(customerBookingsListProvider).requireValue;
       expect(data.items.single.status, BookingStatus.awaiting);
@@ -657,9 +662,9 @@ void main() {
         await _waitForResolution(container);
 
         // Event arrives — must not crash.
-        container.read(systemEventProvider.notifier).processEvent(
-              _jobAcceptedEvent(id: 'evt-z', jobId: 1),
-            );
+        container
+            .read(systemEventProvider.notifier)
+            .processEvent(_jobAcceptedEvent(id: 'evt-z', jobId: 1));
 
         // Still in error.
         expect(container.read(customerBookingsListProvider).hasError, isTrue);
@@ -674,10 +679,14 @@ void main() {
       // Realistically only one transition happens per booking, but test
       // that the patch path is idempotent / commutative under repeated
       // arrivals (e.g. dedup-window edge case).
-      container.read(systemEventProvider.notifier).processEvent(
+      container
+          .read(systemEventProvider.notifier)
+          .processEvent(
             _jobAcceptedEvent(id: 'a-1', jobId: 99482, techName: 'Ali'),
           );
-      container.read(systemEventProvider.notifier).processEvent(
+      container
+          .read(systemEventProvider.notifier)
+          .processEvent(
             _bookingRejectedEvent(
               id: 'r-1',
               jobId: 99482,

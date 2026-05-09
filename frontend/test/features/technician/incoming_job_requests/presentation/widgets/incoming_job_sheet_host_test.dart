@@ -99,16 +99,16 @@ Future<_HostHarness> _pumpHost(WidgetTester tester) async {
         realtime_di.eventLocalDataSourceProvider.overrideWithValue(local),
         incomingJobSoundPlayerProvider.overrideWithValue(sound),
         incomingJobRepositoryProvider.overrideWithValue(repo),
-        acceptJobRequestUseCaseProvider
-            .overrideWithValue(AcceptJobRequestUseCase(repo)),
-        declineJobRequestUseCaseProvider
-            .overrideWithValue(DeclineJobRequestUseCase(repo)),
+        acceptJobRequestUseCaseProvider.overrideWithValue(
+          AcceptJobRequestUseCase(repo),
+        ),
+        declineJobRequestUseCaseProvider.overrideWithValue(
+          DeclineJobRequestUseCase(repo),
+        ),
       ],
       child: const MaterialApp(
         home: Scaffold(
-          body: IncomingJobSheetHost(
-            child: Center(child: Text('background')),
-          ),
+          body: IncomingJobSheetHost(child: Center(child: Text('background'))),
         ),
       ),
     ),
@@ -144,99 +144,122 @@ void main() {
       (tester) async {
         final harness = await _pumpHost(tester);
 
-        expect(find.byType(IncomingJobSheet), findsNothing,
-            reason: 'no offers yet → no sheet');
+        expect(
+          find.byType(IncomingJobSheet),
+          findsNothing,
+          reason: 'no offers yet → no sheet',
+        );
 
-        harness.container.read(systemEventProvider.notifier).processEvent(
-              _liveEvent(id: 'e1', jobId: 1, serviceName: 'Plumbing Inspection'),
+        harness.container
+            .read(systemEventProvider.notifier)
+            .processEvent(
+              _liveEvent(
+                id: 'e1',
+                jobId: 1,
+                serviceName: 'Plumbing Inspection',
+              ),
             );
 
         await _pumpSlideIn(tester);
 
         expect(find.byType(IncomingJobSheet), findsOneWidget);
         expect(find.text('Plumbing Inspection'), findsOneWidget);
-        expect(harness.sound.callCount, 0,
-            reason: 'first arrival is not a head-change ceremony');
+        expect(
+          harness.sound.callCount,
+          0,
+          reason: 'first arrival is not a head-change ceremony',
+        );
       },
     );
 
-    testWidgets(
-      'case 2: non-empty → empty slides the sheet out and unmounts',
-      (tester) async {
-        final harness = await _pumpHost(tester);
+    testWidgets('case 2: non-empty → empty slides the sheet out and unmounts', (
+      tester,
+    ) async {
+      final harness = await _pumpHost(tester);
 
-        harness.container.read(systemEventProvider.notifier).processEvent(
-              _liveEvent(id: 'e1', jobId: 1, serviceName: 'AC Repair'),
-            );
-        await _pumpSlideIn(tester);
-        expect(find.byType(IncomingJobSheet), findsOneWidget);
+      harness.container
+          .read(systemEventProvider.notifier)
+          .processEvent(
+            _liveEvent(id: 'e1', jobId: 1, serviceName: 'AC Repair'),
+          );
+      await _pumpSlideIn(tester);
+      expect(find.byType(IncomingJobSheet), findsOneWidget);
 
-        // Resolve the only offer in the queue (decline / expire would have
-        // the same effect).
-        harness.container
-            .read(incomingJobQueueProvider.notifier)
-            .removeRequest(1);
-        await _pumpSlideOut(tester);
+      // Resolve the only offer in the queue (decline / expire would have
+      // the same effect).
+      harness.container
+          .read(incomingJobQueueProvider.notifier)
+          .removeRequest(1);
+      await _pumpSlideOut(tester);
 
-        expect(find.byType(IncomingJobSheet), findsNothing);
-        expect(harness.sound.callCount, 0,
-            reason: 'queue emptied — no new offer to announce');
-      },
-    );
+      expect(find.byType(IncomingJobSheet), findsNothing);
+      expect(
+        harness.sound.callCount,
+        0,
+        reason: 'queue emptied — no new offer to announce',
+      );
+    });
 
-    testWidgets(
-      'case 3: head change runs the vanish-reappear ceremony — sheet '
-      'slide-out, pause, sound, slide-in with new content',
-      (tester) async {
-        final harness = await _pumpHost(tester);
+    testWidgets('case 3: head change runs the vanish-reappear ceremony — sheet '
+        'slide-out, pause, sound, slide-in with new content', (tester) async {
+      final harness = await _pumpHost(tester);
 
-        // Seed two offers — A first (head), B second (tail). agedBy ensures
-        // distinct monotonic timestamps so SystemEventNotifier's order guard
-        // accepts both.
-        harness.container.read(systemEventProvider.notifier).processEvent(
-              _liveEvent(
-                id: 'e1',
-                jobId: 1,
-                serviceName: 'Job Alpha',
-                agedBy: const Duration(seconds: 2),
-              ),
-            );
-        harness.container.read(systemEventProvider.notifier).processEvent(
-              _liveEvent(id: 'e2', jobId: 2, serviceName: 'Job Bravo'),
-            );
+      // Seed two offers — A first (head), B second (tail). agedBy ensures
+      // distinct monotonic timestamps so SystemEventNotifier's order guard
+      // accepts both.
+      harness.container
+          .read(systemEventProvider.notifier)
+          .processEvent(
+            _liveEvent(
+              id: 'e1',
+              jobId: 1,
+              serviceName: 'Job Alpha',
+              agedBy: const Duration(seconds: 2),
+            ),
+          );
+      harness.container
+          .read(systemEventProvider.notifier)
+          .processEvent(
+            _liveEvent(id: 'e2', jobId: 2, serviceName: 'Job Bravo'),
+          );
 
-        await _pumpSlideIn(tester);
+      await _pumpSlideIn(tester);
 
-        // Job Alpha is the head and is visible. Sound has not fired (case
-        // 4 — tail-only growth — does not fire it).
-        expect(find.text('Job Alpha'), findsOneWidget);
-        expect(find.text('Job Bravo'), findsNothing);
-        expect(harness.sound.callCount, 0);
+      // Job Alpha is the head and is visible. Sound has not fired (case
+      // 4 — tail-only growth — does not fire it).
+      expect(find.text('Job Alpha'), findsOneWidget);
+      expect(find.text('Job Bravo'), findsNothing);
+      expect(harness.sound.callCount, 0);
 
-        // Resolve the head — triggers the head-change ceremony.
-        harness.container
-            .read(incomingJobQueueProvider.notifier)
-            .removeRequest(1);
+      // Resolve the head — triggers the head-change ceremony.
+      harness.container
+          .read(incomingJobQueueProvider.notifier)
+          .removeRequest(1);
 
-        // After ~220ms the slide-out completes. We're now in the 250ms
-        // pause; the sound has not fired yet.
-        await tester.pump();
-        await tester.pump(const Duration(milliseconds: 230));
-        expect(harness.sound.callCount, 0,
-            reason: 'sound fires AFTER the pause, not during slide-out');
+      // After ~220ms the slide-out completes. We're now in the 250ms
+      // pause; the sound has not fired yet.
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 230));
+      expect(
+        harness.sound.callCount,
+        0,
+        reason: 'sound fires AFTER the pause, not during slide-out',
+      );
 
-        // After the pause completes the sound fires once.
-        await tester.pump(const Duration(milliseconds: 260));
-        expect(harness.sound.callCount, 1,
-            reason: 'ceremony plays exactly one new-offer sound');
+      // After the pause completes the sound fires once.
+      await tester.pump(const Duration(milliseconds: 260));
+      expect(
+        harness.sound.callCount,
+        1,
+        reason: 'ceremony plays exactly one new-offer sound',
+      );
 
-        // After the slide-in completes Job Bravo is visible; Job Alpha is
-        // gone from the tree.
-        await tester.pump(const Duration(milliseconds: 320));
-        expect(find.text('Job Bravo'), findsOneWidget);
-        expect(find.text('Job Alpha'), findsNothing);
-      },
-    );
+      // After the slide-in completes Job Bravo is visible; Job Alpha is
+      // gone from the tree.
+      await tester.pump(const Duration(milliseconds: 320));
+      expect(find.text('Job Bravo'), findsOneWidget);
+      expect(find.text('Job Alpha'), findsNothing);
+    });
 
     testWidgets(
       'case 4: tail-only growth keeps the head visible and does NOT fire '
@@ -244,7 +267,9 @@ void main() {
       (tester) async {
         final harness = await _pumpHost(tester);
 
-        harness.container.read(systemEventProvider.notifier).processEvent(
+        harness.container
+            .read(systemEventProvider.notifier)
+            .processEvent(
               _liveEvent(
                 id: 'e1',
                 jobId: 1,
@@ -257,19 +282,30 @@ void main() {
         expect(harness.sound.callCount, 0);
 
         // Tail growth — head stays Alpha.
-        harness.container.read(systemEventProvider.notifier).processEvent(
+        harness.container
+            .read(systemEventProvider.notifier)
+            .processEvent(
               _liveEvent(id: 'e2', jobId: 2, serviceName: 'Job Bravo'),
             );
 
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 100));
 
-        expect(find.text('Job Alpha'), findsOneWidget,
-            reason: 'head-sticky — visible card does not swap');
-        expect(find.text('Job Bravo'), findsNothing,
-            reason: 'tail entry must not appear in the rendered card');
-        expect(harness.sound.callCount, 0,
-            reason: 'no head-change → no ceremony → no sound');
+        expect(
+          find.text('Job Alpha'),
+          findsOneWidget,
+          reason: 'head-sticky — visible card does not swap',
+        );
+        expect(
+          find.text('Job Bravo'),
+          findsNothing,
+          reason: 'tail entry must not appear in the rendered card',
+        );
+        expect(
+          harness.sound.callCount,
+          0,
+          reason: 'no head-change → no ceremony → no sound',
+        );
       },
     );
   });
@@ -288,7 +324,9 @@ void main() {
         // doesn't change what this test is here to verify.
         final harness = await _pumpHost(tester);
 
-        harness.container.read(systemEventProvider.notifier).processEvent(
+        harness.container
+            .read(systemEventProvider.notifier)
+            .processEvent(
               _liveEvent(id: 'e1', jobId: 1, serviceName: 'Job Alpha'),
             );
         await _pumpSlideIn(tester);
@@ -305,7 +343,8 @@ void main() {
         expect(
           harness.container.read(incomingJobQueueProvider).queue.length,
           1,
-          reason: 'removeRequest must wait until the confirm animation has '
+          reason:
+              'removeRequest must wait until the confirm animation has '
               'played; the head should still be in the queue mid-hold',
         );
 

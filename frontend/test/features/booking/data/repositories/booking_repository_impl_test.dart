@@ -69,16 +69,17 @@ void main() {
       recentReviews: [],
     );
 
-
     test('success — returns TechnicianProfileEntity', () async {
-      when(() => mockRemote.getTechnicianProfile(
-            id: any(named: 'id'),
-            lat: any(named: 'lat'),
-            lng: any(named: 'lng'),
-            serviceId: any(named: 'serviceId'),
-            subServiceId: any(named: 'subServiceId'),
-            promotionId: any(named: 'promotionId'),
-          )).thenAnswer((_) async => tProfileModel);
+      when(
+        () => mockRemote.getTechnicianProfile(
+          id: any(named: 'id'),
+          lat: any(named: 'lat'),
+          lng: any(named: 'lng'),
+          serviceId: any(named: 'serviceId'),
+          subServiceId: any(named: 'subServiceId'),
+          promotionId: any(named: 'promotionId'),
+        ),
+      ).thenAnswer((_) async => tProfileModel);
 
       final result = await repository.getTechnicianProfile(id: tId);
 
@@ -92,15 +93,19 @@ void main() {
   // ---------------------------------------------------------------------------
   group('getAvailability', () {
     test('success — returns list of AvailabilitySlotEntity', () async {
-      when(() => mockRemote.getAvailability(
-            technicianId: any(named: 'technicianId'),
-            date: any(named: 'date'),
-            serviceId: any(named: 'serviceId'),
-            subServiceId: any(named: 'subServiceId'),
-          )).thenAnswer((_) async => [tSlotModel]);
+      when(
+        () => mockRemote.getAvailability(
+          technicianId: any(named: 'technicianId'),
+          date: any(named: 'date'),
+          serviceId: any(named: 'serviceId'),
+          subServiceId: any(named: 'subServiceId'),
+        ),
+      ).thenAnswer((_) async => [tSlotModel]);
 
       final result = await repository.getAvailability(
-          technicianId: tTechnicianId, date: tDate);
+        technicianId: tTechnicianId,
+        date: tDate,
+      );
 
       expect(result, isA<List<AvailabilitySlotEntity>>());
       expect(result.length, 1);
@@ -108,15 +113,19 @@ void main() {
     });
 
     test('success — empty list is returned as-is (no schedule case)', () async {
-      when(() => mockRemote.getAvailability(
-            technicianId: any(named: 'technicianId'),
-            date: any(named: 'date'),
-            serviceId: any(named: 'serviceId'),
-            subServiceId: any(named: 'subServiceId'),
-          )).thenAnswer((_) async => []);
+      when(
+        () => mockRemote.getAvailability(
+          technicianId: any(named: 'technicianId'),
+          date: any(named: 'date'),
+          serviceId: any(named: 'serviceId'),
+          subServiceId: any(named: 'subServiceId'),
+        ),
+      ).thenAnswer((_) async => []);
 
       final result = await repository.getAvailability(
-          technicianId: tTechnicianId, date: tDate);
+        technicianId: tTechnicianId,
+        date: tDate,
+      );
 
       expect(result, isEmpty);
     });
@@ -126,45 +135,54 @@ void main() {
   // createInstantBooking — success
   // ---------------------------------------------------------------------------
   group('createInstantBooking', () {
-    test('success — returns CreatedBookingEntity with correct bookingId', () async {
-      when(() => mockRemote.createInstantBooking(any()))
-          .thenAnswer((_) async => tResponseModel);
+    test(
+      'success — returns CreatedBookingEntity with correct bookingId',
+      () async {
+        when(
+          () => mockRemote.createInstantBooking(any()),
+        ).thenAnswer((_) async => tResponseModel);
 
-      final result = await repository.createInstantBooking(
-        technicianId: tTechnicianId,
-        addressId: 7,
-        serviceId: 3,
-        subServiceId: 17,
-        scheduledStart: '2026-04-07T10:00:00+05:00',
-        scheduledEnd: '2026-04-07T11:00:00+05:00',
-      );
+        final result = await repository.createInstantBooking(
+          technicianId: tTechnicianId,
+          addressId: 7,
+          serviceId: 3,
+          subServiceId: 17,
+          scheduledStart: '2026-04-07T10:00:00+05:00',
+          scheduledEnd: '2026-04-07T11:00:00+05:00',
+        );
 
-      expect(result, isA<CreatedBookingEntity>());
-      expect(result.bookingId, 99);
-    });
+        expect(result, isA<CreatedBookingEntity>());
+        expect(result.bookingId, 99);
+      },
+    );
 
-    test('forwards serviceId / subServiceId / promotionId to the request model',
-        () async {
-      InstantBookingRequestModel? captured;
-      when(() => mockRemote.createInstantBooking(any())).thenAnswer((inv) async {
-        captured = inv.positionalArguments.first as InstantBookingRequestModel;
-        return tResponseModel;
-      });
+    test(
+      'forwards serviceId / subServiceId / promotionId to the request model',
+      () async {
+        InstantBookingRequestModel? captured;
+        when(() => mockRemote.createInstantBooking(any())).thenAnswer((
+          inv,
+        ) async {
+          captured =
+              inv.positionalArguments.first as InstantBookingRequestModel;
+          return tResponseModel;
+        });
 
-      await repository.createInstantBooking(
-        technicianId: 42,
-        addressId: 7,
-        serviceId: 3,
-        promotionId: 9,
-        scheduledStart: '2026-04-08T10:00:00+05:00',
-        scheduledEnd: '2026-04-08T11:00:00+05:00',
-      );
+        await repository.createInstantBooking(
+          technicianId: 42,
+          addressId: 7,
+          serviceId: 3,
+          promotionId: 9,
+          scheduledStart: '2026-04-08T10:00:00+05:00',
+          scheduledEnd: '2026-04-08T11:00:00+05:00',
+        );
 
-      expect(captured, isNotNull);
-      expect(captured!.serviceId, 3);
-      expect(captured!.subServiceId, isNull);
-      expect(captured!.promotionId, 9);
-    });
+        expect(captured, isNotNull);
+        expect(captured!.serviceId, 3);
+        expect(captured!.subServiceId, isNull);
+        expect(captured!.promotionId, 9);
+      },
+    );
   });
 
   // ---------------------------------------------------------------------------
@@ -175,12 +193,14 @@ void main() {
   // ---------------------------------------------------------------------------
   group('Error Propagation Pipeline', () {
     void stubAvailabilityThrows(Object e) {
-      when(() => mockRemote.getAvailability(
-            technicianId: any(named: 'technicianId'),
-            date: any(named: 'date'),
-            serviceId: any(named: 'serviceId'),
-            subServiceId: any(named: 'subServiceId'),
-          )).thenThrow(e);
+      when(
+        () => mockRemote.getAvailability(
+          technicianId: any(named: 'technicianId'),
+          date: any(named: 'date'),
+          serviceId: any(named: 'serviceId'),
+          subServiceId: any(named: 'subServiceId'),
+        ),
+      ).thenThrow(e);
     }
 
     void stubBookingThrows(Object e) {
@@ -188,12 +208,12 @@ void main() {
     }
 
     Future<void> callBooking() => repository.createInstantBooking(
-          technicianId: tTechnicianId,
-          addressId: 7,
-          serviceId: 3,
-          scheduledStart: '2026-04-07T10:00:00+05:00',
-          scheduledEnd: '2026-04-07T11:00:00+05:00',
-        );
+      technicianId: tTechnicianId,
+      addressId: 7,
+      serviceId: 3,
+      scheduledStart: '2026-04-07T10:00:00+05:00',
+      scheduledEnd: '2026-04-07T11:00:00+05:00',
+    );
 
     test('SocketException → BookingNetworkFailure', () {
       stubBookingThrows(const SocketException('No internet'));
@@ -203,7 +223,10 @@ void main() {
     test('SocketException on availability → BookingNetworkFailure', () {
       stubAvailabilityThrows(const SocketException('No internet'));
       expect(
-        () => repository.getAvailability(technicianId: tTechnicianId, date: tDate),
+        () => repository.getAvailability(
+          technicianId: tTechnicianId,
+          date: tDate,
+        ),
         throwsA(isA<BookingNetworkFailure>()),
       );
     });
@@ -214,51 +237,88 @@ void main() {
     });
 
     test('not_found → BookingTechnicianNotFoundFailure', () {
-      stubBookingThrows(HttpFailure(
-          statusCode: 404, code: 'not_found', message: 'Technician not found.'));
+      stubBookingThrows(
+        HttpFailure(
+          statusCode: 404,
+          code: 'not_found',
+          message: 'Technician not found.',
+        ),
+      );
       expect(callBooking, throwsA(isA<BookingTechnicianNotFoundFailure>()));
     });
 
-    test('out_of_service_area → BookingOutOfServiceAreaFailure with message pass-through', () {
-      const tMessage = 'Your address is 14.2 km away (limit: 10 km).';
-      stubBookingThrows(HttpFailure(
-          statusCode: 400, code: 'out_of_service_area', message: tMessage));
-      expect(
-        callBooking,
-        throwsA(isA<BookingOutOfServiceAreaFailure>()
-            .having((e) => e.message, 'message', tMessage)),
-      );
-    });
+    test(
+      'out_of_service_area → BookingOutOfServiceAreaFailure with message pass-through',
+      () {
+        const tMessage = 'Your address is 14.2 km away (limit: 10 km).';
+        stubBookingThrows(
+          HttpFailure(
+            statusCode: 400,
+            code: 'out_of_service_area',
+            message: tMessage,
+          ),
+        );
+        expect(
+          callBooking,
+          throwsA(
+            isA<BookingOutOfServiceAreaFailure>().having(
+              (e) => e.message,
+              'message',
+              tMessage,
+            ),
+          ),
+        );
+      },
+    );
 
     test('slot_unavailable → BookingSlotUnavailableFailure', () {
-      stubBookingThrows(HttpFailure(
+      stubBookingThrows(
+        HttpFailure(
           statusCode: 409,
           code: 'slot_unavailable',
-          message: 'This time slot was just booked.'));
+          message: 'This time slot was just booked.',
+        ),
+      );
       expect(callBooking, throwsA(isA<BookingSlotUnavailableFailure>()));
     });
 
-    test('validation_error with address_id key → BookingInvalidAddressFailure', () {
-      stubBookingThrows(HttpFailure(
-        statusCode: 400,
-        code: 'validation_error',
-        message: 'Invalid address.',
-        errors: {'address_id': ['No matching address found for this account.']},
-      ));
-      expect(callBooking, throwsA(isA<BookingInvalidAddressFailure>()));
-    });
+    test(
+      'validation_error with address_id key → BookingInvalidAddressFailure',
+      () {
+        stubBookingThrows(
+          HttpFailure(
+            statusCode: 400,
+            code: 'validation_error',
+            message: 'Invalid address.',
+            errors: {
+              'address_id': ['No matching address found for this account.'],
+            },
+          ),
+        );
+        expect(callBooking, throwsA(isA<BookingInvalidAddressFailure>()));
+      },
+    );
 
     test('validation_error without address_id → BookingValidationFailure', () {
-      stubBookingThrows(HttpFailure(
-        statusCode: 400,
-        code: 'validation_error',
-        message: 'Invalid booking data.',
-        errors: {'scheduled_end': ['Must be after scheduled_start.']},
-      ));
+      stubBookingThrows(
+        HttpFailure(
+          statusCode: 400,
+          code: 'validation_error',
+          message: 'Invalid booking data.',
+          errors: {
+            'scheduled_end': ['Must be after scheduled_start.'],
+          },
+        ),
+      );
       expect(
         callBooking,
-        throwsA(isA<BookingValidationFailure>()
-            .having((e) => e.message, 'message', 'Invalid booking data.')),
+        throwsA(
+          isA<BookingValidationFailure>().having(
+            (e) => e.message,
+            'message',
+            'Invalid booking data.',
+          ),
+        ),
       );
     });
 
@@ -268,42 +328,77 @@ void main() {
     // layer is responsible for mapping each key to a specific toast.
     test('validation_error with sub_service_id → BookingValidationFailure '
         'preserves the field key for the UI dictionary', () {
-      stubBookingThrows(HttpFailure(
-        statusCode: 400,
-        code: 'validation_error',
-        message: 'Inconsistent booking intent.',
-        errors: {'sub_service_id': ['Sub-service does not belong to the supplied service.']},
-      ));
+      stubBookingThrows(
+        HttpFailure(
+          statusCode: 400,
+          code: 'validation_error',
+          message: 'Inconsistent booking intent.',
+          errors: {
+            'sub_service_id': [
+              'Sub-service does not belong to the supplied service.',
+            ],
+          },
+        ),
+      );
       expect(
         callBooking,
-        throwsA(isA<BookingValidationFailure>().having(
-            (e) => e.errors?.keys, 'errors keys', contains('sub_service_id'))),
+        throwsA(
+          isA<BookingValidationFailure>().having(
+            (e) => e.errors?.keys,
+            'errors keys',
+            contains('sub_service_id'),
+          ),
+        ),
       );
     });
 
-    test('validation_error with promotion_id → BookingValidationFailure (firewall)', () {
-      stubBookingThrows(HttpFailure(
-        statusCode: 400,
-        code: 'validation_error',
-        message: 'Promotions cannot be applied to fixed-price gigs.',
-        errors: {'promotion_id': ['Discount stacking is not allowed on fixed-price sub-services.']},
-      ));
-      expect(
-        callBooking,
-        throwsA(isA<BookingValidationFailure>()
-            .having((e) => e.errors?.keys, 'errors keys', contains('promotion_id'))),
-      );
-    });
+    test(
+      'validation_error with promotion_id → BookingValidationFailure (firewall)',
+      () {
+        stubBookingThrows(
+          HttpFailure(
+            statusCode: 400,
+            code: 'validation_error',
+            message: 'Promotions cannot be applied to fixed-price gigs.',
+            errors: {
+              'promotion_id': [
+                'Discount stacking is not allowed on fixed-price sub-services.',
+              ],
+            },
+          ),
+        );
+        expect(
+          callBooking,
+          throwsA(
+            isA<BookingValidationFailure>().having(
+              (e) => e.errors?.keys,
+              'errors keys',
+              contains('promotion_id'),
+            ),
+          ),
+        );
+      },
+    );
 
     test('server_error → BookingServerFailure', () {
-      stubBookingThrows(HttpFailure(
-          statusCode: 500, code: 'server_error', message: 'Server error: 500'));
+      stubBookingThrows(
+        HttpFailure(
+          statusCode: 500,
+          code: 'server_error',
+          message: 'Server error: 500',
+        ),
+      );
       expect(callBooking, throwsA(isA<BookingServerFailure>()));
     });
 
     test('unknown code → BookingUnexpectedFailure', () {
-      stubBookingThrows(HttpFailure(
-          statusCode: 400, code: 'unknown_xyz', message: 'Mystery error'));
+      stubBookingThrows(
+        HttpFailure(
+          statusCode: 400,
+          code: 'unknown_xyz',
+          message: 'Mystery error',
+        ),
+      );
       expect(callBooking, throwsA(isA<BookingUnexpectedFailure>()));
     });
   });

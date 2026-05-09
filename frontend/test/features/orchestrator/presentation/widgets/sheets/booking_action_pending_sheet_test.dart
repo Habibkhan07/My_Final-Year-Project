@@ -15,19 +15,22 @@ import 'package:frontend/features/orchestrator/presentation/widgets/sheets/booki
 
 void main() {
   group('BookingActionPendingSheet', () {
-    testWidgets('long body content is scrollable (#B-69 regression guard)',
-        (tester) async {
+    testWidgets('long body content is scrollable (#B-69 regression guard)', (
+      tester,
+    ) async {
       // Construct a body long enough that, without scrolling, it would
       // overflow the bottom-sheet area on a small phone.
       final longBody = List.generate(40, (i) => 'Paragraph $i').join('\n\n');
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: BookingActionPendingSheet(
-            title: 'Coming soon',
-            body: longBody,
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: BookingActionPendingSheet(
+              title: 'Coming soon',
+              body: longBody,
+            ),
           ),
         ),
-      ));
+      );
 
       // The sheet wraps its Column in a SingleChildScrollView so long
       // bodies don't overflow. Finding it descended from the sheet
@@ -42,19 +45,22 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('renders confirm + dismiss buttons when confirmLabel set',
-        (tester) async {
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: BookingActionPendingSheet(
-            title: 'Cancel booking?',
-            body: 'You will need to rebook.',
-            confirmLabel: 'Cancel booking',
-            confirmIsDestructive: true,
-            onConfirm: () async {},
+    testWidgets('renders confirm + dismiss buttons when confirmLabel set', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: BookingActionPendingSheet(
+              title: 'Cancel booking?',
+              body: 'You will need to rebook.',
+              confirmLabel: 'Cancel booking',
+              confirmIsDestructive: true,
+              onConfirm: () async {},
+            ),
           ),
         ),
-      ));
+      );
 
       expect(find.text('Cancel booking'), findsOneWidget);
       // Dismiss copy is "Keep it" when confirm is destructive — guards
@@ -62,63 +68,73 @@ void main() {
       expect(find.text('Keep it'), findsOneWidget);
     });
 
-    testWidgets('renders Got it dismiss when no confirm action set',
-        (tester) async {
-      await tester.pumpWidget(const MaterialApp(
-        home: Scaffold(
-          body: BookingActionPendingSheet(
-            title: 'Coming soon',
-            body: 'Ships in session 6.',
+    testWidgets('renders Got it dismiss when no confirm action set', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: BookingActionPendingSheet(
+              title: 'Coming soon',
+              body: 'Ships in session 6.',
+            ),
           ),
         ),
-      ));
+      );
       expect(find.text('Got it'), findsOneWidget);
     });
 
-    testWidgets('HttpFailure from onConfirm renders inline error and stays open',
-        (tester) async {
-      Future<void> onConfirm() async {
-        throw const HttpFailure(
-          statusCode: 400,
-          code: 'bad_amount',
-          message: 'Amount mismatch',
-          errors: {},
+    testWidgets(
+      'HttpFailure from onConfirm renders inline error and stays open',
+      (tester) async {
+        Future<void> onConfirm() async {
+          throw const HttpFailure(
+            statusCode: 400,
+            code: 'bad_amount',
+            message: 'Amount mismatch',
+            errors: {},
+          );
+        }
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: BookingActionPendingSheet(
+                title: 'Confirm cash',
+                body: 'Confirm Rs. 500 received.',
+                confirmLabel: 'Confirm',
+                onConfirm: onConfirm,
+              ),
+            ),
+          ),
         );
-      }
 
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: BookingActionPendingSheet(
-            title: 'Confirm cash',
-            body: 'Confirm Rs. 500 received.',
-            confirmLabel: 'Confirm',
-            onConfirm: onConfirm,
+        await tester.tap(find.text('Confirm'));
+        await tester.pump(); // run the future
+        await tester.pump(); // settle the setState
+
+        // Error message rendered inline — sheet stays open.
+        expect(find.text('Amount mismatch'), findsOneWidget);
+        // Sheet still mounted (its widget instance is still in the tree).
+        expect(find.byType(BookingActionPendingSheet), findsOneWidget);
+      },
+    );
+
+    testWidgets('generic exception from onConfirm renders fallback message', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: BookingActionPendingSheet(
+              title: 'Confirm',
+              body: '...',
+              confirmLabel: 'Do it',
+              onConfirm: () async => throw Exception('boom'),
+            ),
           ),
         ),
-      ));
-
-      await tester.tap(find.text('Confirm'));
-      await tester.pump(); // run the future
-      await tester.pump(); // settle the setState
-
-      // Error message rendered inline — sheet stays open.
-      expect(find.text('Amount mismatch'), findsOneWidget);
-      // Sheet still mounted (its widget instance is still in the tree).
-      expect(find.byType(BookingActionPendingSheet), findsOneWidget);
-    });
-
-    testWidgets('generic exception from onConfirm renders fallback message',
-        (tester) async {
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: BookingActionPendingSheet(
-            title: 'Confirm',
-            body: '...',
-            confirmLabel: 'Do it',
-            onConfirm: () async => throw Exception('boom'),
-          ),
-        ),
-      ));
+      );
 
       await tester.tap(find.text('Do it'));
       await tester.pump();

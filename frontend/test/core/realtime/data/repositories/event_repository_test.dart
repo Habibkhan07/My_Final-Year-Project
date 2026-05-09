@@ -65,51 +65,61 @@ void main() {
 
       await repo.syncMissedEvents('2024-12-01T00:00:00Z');
 
-      verify(() => local.saveLastSyncTimestamp('2025-01-03T00:00:00Z'))
-          .called(1);
+      verify(
+        () => local.saveLastSyncTimestamp('2025-01-03T00:00:00Z'),
+      ).called(1);
     });
 
     test(
-        'P2 — empty batch caches empty list but does NOT advance cursor',
-        () async {
-      when(() => remote.fetchEventsSince(any())).thenAnswer((_) async => []);
+      'P2 — empty batch caches empty list but does NOT advance cursor',
+      () async {
+        when(() => remote.fetchEventsSince(any())).thenAnswer((_) async => []);
 
-      await repo.syncMissedEvents('2024-12-01T00:00:00Z');
+        await repo.syncMissedEvents('2024-12-01T00:00:00Z');
 
-      verify(() => local.cacheEventList(<SystemEventModel>[])).called(1);
-      verifyNever(() => local.saveLastSyncTimestamp(any()));
-    });
+        verify(() => local.cacheEventList(<SystemEventModel>[])).called(1);
+        verifyNever(() => local.saveLastSyncTimestamp(any()));
+      },
+    );
   });
 
   // ─── syncMissedEvents — offline-first ──────────────────────────────────
 
   group('syncMissedEvents — offline-first', () {
-    test('P3 — SocketException + cache present → returns cached entities', () async {
-      when(() => remote.fetchEventsSince(any()))
-          .thenThrow(const SocketException('offline'));
-      when(() => local.getCachedEventList()).thenReturn([_event()]);
+    test(
+      'P3 — SocketException + cache present → returns cached entities',
+      () async {
+        when(
+          () => remote.fetchEventsSince(any()),
+        ).thenThrow(const SocketException('offline'));
+        when(() => local.getCachedEventList()).thenReturn([_event()]);
 
-      final result = await repo.syncMissedEvents('2024-12-01T00:00:00Z');
+        final result = await repo.syncMissedEvents('2024-12-01T00:00:00Z');
 
-      expect(result.length, 1);
-      expect(result.first.id, 'evt-1');
-    });
+        expect(result.length, 1);
+        expect(result.first.id, 'evt-1');
+      },
+    );
 
-    test('P4 — SocketException + cache absent → throws EventSyncNetworkFailure',
-        () async {
-      when(() => remote.fetchEventsSince(any()))
-          .thenThrow(const SocketException('offline'));
-      when(() => local.getCachedEventList()).thenReturn(null);
+    test(
+      'P4 — SocketException + cache absent → throws EventSyncNetworkFailure',
+      () async {
+        when(
+          () => remote.fetchEventsSince(any()),
+        ).thenThrow(const SocketException('offline'));
+        when(() => local.getCachedEventList()).thenReturn(null);
 
-      await expectLater(
-        () => repo.syncMissedEvents('2024-12-01T00:00:00Z'),
-        throwsA(isA<EventSyncNetworkFailure>()),
-      );
-    });
+        await expectLater(
+          () => repo.syncMissedEvents('2024-12-01T00:00:00Z'),
+          throwsA(isA<EventSyncNetworkFailure>()),
+        );
+      },
+    );
 
     test('P5 — TimeoutException + cache present → returns cached', () async {
-      when(() => remote.fetchEventsSince(any()))
-          .thenThrow(TimeoutException('timeout'));
+      when(
+        () => remote.fetchEventsSince(any()),
+      ).thenThrow(TimeoutException('timeout'));
       when(() => local.getCachedEventList()).thenReturn([_event()]);
 
       final result = await repo.syncMissedEvents('2024-12-01T00:00:00Z');
@@ -117,17 +127,20 @@ void main() {
       expect(result.length, 1);
     });
 
-    test('P6 — TimeoutException + cache absent → throws EventSyncNetworkFailure',
-        () async {
-      when(() => remote.fetchEventsSince(any()))
-          .thenThrow(TimeoutException('timeout'));
-      when(() => local.getCachedEventList()).thenReturn(null);
+    test(
+      'P6 — TimeoutException + cache absent → throws EventSyncNetworkFailure',
+      () async {
+        when(
+          () => remote.fetchEventsSince(any()),
+        ).thenThrow(TimeoutException('timeout'));
+        when(() => local.getCachedEventList()).thenReturn(null);
 
-      await expectLater(
-        () => repo.syncMissedEvents('2024-12-01T00:00:00Z'),
-        throwsA(isA<EventSyncNetworkFailure>()),
-      );
-    });
+        await expectLater(
+          () => repo.syncMissedEvents('2024-12-01T00:00:00Z'),
+          throwsA(isA<EventSyncNetworkFailure>()),
+        );
+      },
+    );
   });
 
   // ─── syncMissedEvents — error mapping ──────────────────────────────────
@@ -136,7 +149,10 @@ void main() {
     test('P7 — HttpFailure(401) → EventSyncUnauthorized', () async {
       when(() => remote.fetchEventsSince(any())).thenThrow(
         const HttpFailure(
-            statusCode: 401, code: 'unauthorized', message: 'expired'),
+          statusCode: 401,
+          code: 'unauthorized',
+          message: 'expired',
+        ),
       );
 
       await expectLater(
@@ -145,66 +161,85 @@ void main() {
       );
     });
 
-    test('P8 — HttpFailure(500, "backend down") → EventSyncServerFailure preserves message',
-        () async {
-      when(() => remote.fetchEventsSince(any())).thenThrow(
-        const HttpFailure(
-            statusCode: 500, code: 'internal_error', message: 'backend down'),
-      );
+    test(
+      'P8 — HttpFailure(500, "backend down") → EventSyncServerFailure preserves message',
+      () async {
+        when(() => remote.fetchEventsSince(any())).thenThrow(
+          const HttpFailure(
+            statusCode: 500,
+            code: 'internal_error',
+            message: 'backend down',
+          ),
+        );
 
-      await expectLater(
-        () => repo.syncMissedEvents('2024-12-01T00:00:00Z'),
-        throwsA(isA<EventSyncServerFailure>()
-            .having((f) => f.message, 'message', 'backend down')),
-      );
-    });
+        await expectLater(
+          () => repo.syncMissedEvents('2024-12-01T00:00:00Z'),
+          throwsA(
+            isA<EventSyncServerFailure>().having(
+              (f) => f.message,
+              'message',
+              'backend down',
+            ),
+          ),
+        );
+      },
+    );
 
-    test('P9 — HttpFailure(403) → EventSyncServerFailure (non-401 → ServerFailure)',
-        () async {
-      when(() => remote.fetchEventsSince(any())).thenThrow(
-        const HttpFailure(
-            statusCode: 403, code: 'forbidden', message: 'no perms'),
-      );
+    test(
+      'P9 — HttpFailure(403) → EventSyncServerFailure (non-401 → ServerFailure)',
+      () async {
+        when(() => remote.fetchEventsSince(any())).thenThrow(
+          const HttpFailure(
+            statusCode: 403,
+            code: 'forbidden',
+            message: 'no perms',
+          ),
+        );
 
-      await expectLater(
-        () => repo.syncMissedEvents('2024-12-01T00:00:00Z'),
-        throwsA(isA<EventSyncServerFailure>()),
-      );
-    });
+        await expectLater(
+          () => repo.syncMissedEvents('2024-12-01T00:00:00Z'),
+          throwsA(isA<EventSyncServerFailure>()),
+        );
+      },
+    );
   });
 
   // ─── fetchUnacknowledgedCritical ───────────────────────────────────────
 
   group('fetchUnacknowledgedCritical', () {
-    test('P10 — happy path returns mapped entities and caches model list',
-        () async {
-      final batch = [_event(id: 'a'), _event(id: 'b')];
-      when(() => remote.fetchUnacknowledgedCritical())
-          .thenAnswer((_) async => batch);
+    test(
+      'P10 — happy path returns mapped entities and caches model list',
+      () async {
+        final batch = [_event(id: 'a'), _event(id: 'b')];
+        when(
+          () => remote.fetchUnacknowledgedCritical(),
+        ).thenAnswer((_) async => batch);
 
-      final result = await repo.fetchUnacknowledgedCritical();
+        final result = await repo.fetchUnacknowledgedCritical();
 
-      expect(result.length, 2);
-      verify(() => local.cacheEventList(batch)).called(1);
-    });
+        expect(result.length, 2);
+        verify(() => local.cacheEventList(batch)).called(1);
+      },
+    );
 
     test(
-        'P11 — NEVER advances saveLastSyncTimestamp (resurfacing must not regress cursor)',
-        () async {
-      final batch = [
-        _event(id: 'a', timestamp: '2025-01-05T00:00:00Z'),
-      ];
-      when(() => remote.fetchUnacknowledgedCritical())
-          .thenAnswer((_) async => batch);
+      'P11 — NEVER advances saveLastSyncTimestamp (resurfacing must not regress cursor)',
+      () async {
+        final batch = [_event(id: 'a', timestamp: '2025-01-05T00:00:00Z')];
+        when(
+          () => remote.fetchUnacknowledgedCritical(),
+        ).thenAnswer((_) async => batch);
 
-      await repo.fetchUnacknowledgedCritical();
+        await repo.fetchUnacknowledgedCritical();
 
-      verifyNever(() => local.saveLastSyncTimestamp(any()));
-    });
+        verifyNever(() => local.saveLastSyncTimestamp(any()));
+      },
+    );
 
     test('P12 — SocketException + cache present → returns cached', () async {
-      when(() => remote.fetchUnacknowledgedCritical())
-          .thenThrow(const SocketException('offline'));
+      when(
+        () => remote.fetchUnacknowledgedCritical(),
+      ).thenThrow(const SocketException('offline'));
       when(() => local.getCachedEventList()).thenReturn([_event()]);
 
       final result = await repo.fetchUnacknowledgedCritical();
@@ -212,22 +247,28 @@ void main() {
       expect(result.length, 1);
     });
 
-    test('P13 — SocketException + cache absent → throws EventSyncNetworkFailure',
-        () async {
-      when(() => remote.fetchUnacknowledgedCritical())
-          .thenThrow(const SocketException('offline'));
-      when(() => local.getCachedEventList()).thenReturn(null);
+    test(
+      'P13 — SocketException + cache absent → throws EventSyncNetworkFailure',
+      () async {
+        when(
+          () => remote.fetchUnacknowledgedCritical(),
+        ).thenThrow(const SocketException('offline'));
+        when(() => local.getCachedEventList()).thenReturn(null);
 
-      await expectLater(
-        () => repo.fetchUnacknowledgedCritical(),
-        throwsA(isA<EventSyncNetworkFailure>()),
-      );
-    });
+        await expectLater(
+          () => repo.fetchUnacknowledgedCritical(),
+          throwsA(isA<EventSyncNetworkFailure>()),
+        );
+      },
+    );
 
     test('P14 — HttpFailure(401) → EventSyncUnauthorized', () async {
       when(() => remote.fetchUnacknowledgedCritical()).thenThrow(
         const HttpFailure(
-            statusCode: 401, code: 'unauthorized', message: 'expired'),
+          statusCode: 401,
+          code: 'unauthorized',
+          message: 'expired',
+        ),
       );
 
       await expectLater(
@@ -239,7 +280,10 @@ void main() {
     test('P15 — HttpFailure(non-401) → EventSyncServerFailure', () async {
       when(() => remote.fetchUnacknowledgedCritical()).thenThrow(
         const HttpFailure(
-            statusCode: 500, code: 'internal_error', message: 'down'),
+          statusCode: 500,
+          code: 'internal_error',
+          message: 'down',
+        ),
       );
 
       await expectLater(
@@ -252,16 +296,15 @@ void main() {
   // ─── acknowledgeEvents — never-throws contract ─────────────────────────
 
   group('acknowledgeEvents', () {
-    test(
-        'P16 — inputs merged with pending and deduped before POST',
-        () async {
+    test('P16 — inputs merged with pending and deduped before POST', () async {
       when(() => local.getPendingAcks()).thenReturn(['b', 'c']);
       when(() => remote.acknowledgeEvents(any())).thenAnswer((_) async {});
 
       await repo.acknowledgeEvents(['a', 'b']);
 
-      final captured =
-          verify(() => remote.acknowledgeEvents(captureAny())).captured;
+      final captured = verify(
+        () => remote.acknowledgeEvents(captureAny()),
+      ).captured;
       expect(captured.length, 1);
       final sent = (captured.single as List<String>).toSet();
       expect(sent, {'a', 'b', 'c'});
@@ -277,60 +320,73 @@ void main() {
       verifyNever(() => local.clearPendingAcks());
     });
 
-    test('P18 — empty input + non-empty pending → POSTs the existing pending set',
-        () async {
-      when(() => local.getPendingAcks()).thenReturn(['x', 'y']);
-      when(() => remote.acknowledgeEvents(any())).thenAnswer((_) async {});
+    test(
+      'P18 — empty input + non-empty pending → POSTs the existing pending set',
+      () async {
+        when(() => local.getPendingAcks()).thenReturn(['x', 'y']);
+        when(() => remote.acknowledgeEvents(any())).thenAnswer((_) async {});
 
-      await repo.acknowledgeEvents(const []);
+        await repo.acknowledgeEvents(const []);
 
-      final captured =
-          verify(() => remote.acknowledgeEvents(captureAny())).captured;
-      final sent = (captured.single as List<String>).toSet();
-      expect(sent, {'x', 'y'});
-    });
+        final captured = verify(
+          () => remote.acknowledgeEvents(captureAny()),
+        ).captured;
+        final sent = (captured.single as List<String>).toSet();
+        expect(sent, {'x', 'y'});
+      },
+    );
 
-    test('P19 — POST succeeds → clearPendingAcks called; savePendingAcks NOT called',
-        () async {
-      when(() => remote.acknowledgeEvents(any())).thenAnswer((_) async {});
+    test(
+      'P19 — POST succeeds → clearPendingAcks called; savePendingAcks NOT called',
+      () async {
+        when(() => remote.acknowledgeEvents(any())).thenAnswer((_) async {});
 
-      await repo.acknowledgeEvents(['a']);
+        await repo.acknowledgeEvents(['a']);
 
-      verify(() => local.clearPendingAcks()).called(1);
-      verifyNever(() => local.savePendingAcks(any()));
-    });
+        verify(() => local.clearPendingAcks()).called(1);
+        verifyNever(() => local.savePendingAcks(any()));
+      },
+    );
 
-    group('P20 — POST throws → savePendingAcks(merged) and no exception escapes',
-        () {
-      Future<void> runFor(Object error) async {
-        when(() => local.getPendingAcks()).thenReturn(['existing']);
-        when(() => remote.acknowledgeEvents(any())).thenThrow(error);
+    group(
+      'P20 — POST throws → savePendingAcks(merged) and no exception escapes',
+      () {
+        Future<void> runFor(Object error) async {
+          when(() => local.getPendingAcks()).thenReturn(['existing']);
+          when(() => remote.acknowledgeEvents(any())).thenThrow(error);
 
-        await expectLater(
-          () => repo.acknowledgeEvents(['new']),
-          returnsNormally,
-        );
+          await expectLater(
+            () => repo.acknowledgeEvents(['new']),
+            returnsNormally,
+          );
 
-        final captured =
-            verify(() => local.savePendingAcks(captureAny())).captured;
-        final saved = (captured.single as List<String>).toSet();
-        expect(saved, {'existing', 'new'});
-        verifyNever(() => local.clearPendingAcks());
-      }
+          final captured = verify(
+            () => local.savePendingAcks(captureAny()),
+          ).captured;
+          final saved = (captured.single as List<String>).toSet();
+          expect(saved, {'existing', 'new'});
+          verifyNever(() => local.clearPendingAcks());
+        }
 
-      test('HttpFailure', () async {
-        await runFor(const HttpFailure(
-            statusCode: 500, code: 'internal_error', message: 'fail'));
-      });
+        test('HttpFailure', () async {
+          await runFor(
+            const HttpFailure(
+              statusCode: 500,
+              code: 'internal_error',
+              message: 'fail',
+            ),
+          );
+        });
 
-      test('SocketException', () async {
-        await runFor(const SocketException('offline'));
-      });
+        test('SocketException', () async {
+          await runFor(const SocketException('offline'));
+        });
 
-      test('TimeoutException', () async {
-        await runFor(TimeoutException('timeout'));
-      });
-    });
+        test('TimeoutException', () async {
+          await runFor(TimeoutException('timeout'));
+        });
+      },
+    );
   });
 
   // ─── registerDevice ────────────────────────────────────────────────────
@@ -346,8 +402,9 @@ void main() {
 
     group('P22 — network errors → DeviceRegistrationNetworkFailure', () {
       test('SocketException', () async {
-        when(() => remote.registerDevice(any(), any()))
-            .thenThrow(const SocketException('offline'));
+        when(
+          () => remote.registerDevice(any(), any()),
+        ).thenThrow(const SocketException('offline'));
 
         await expectLater(
           () => repo.registerDevice('tok', 'android'),
@@ -356,8 +413,9 @@ void main() {
       });
 
       test('TimeoutException', () async {
-        when(() => remote.registerDevice(any(), any()))
-            .thenThrow(TimeoutException('timeout'));
+        when(
+          () => remote.registerDevice(any(), any()),
+        ).thenThrow(TimeoutException('timeout'));
 
         await expectLater(
           () => repo.registerDevice('tok', 'android'),
@@ -366,21 +424,29 @@ void main() {
       });
     });
 
-    test('P23 — HttpFailure → DeviceRegistrationServerFailure preserves message',
-        () async {
-      when(() => remote.registerDevice(any(), any())).thenThrow(
-        const HttpFailure(
+    test(
+      'P23 — HttpFailure → DeviceRegistrationServerFailure preserves message',
+      () async {
+        when(() => remote.registerDevice(any(), any())).thenThrow(
+          const HttpFailure(
             statusCode: 500,
             code: 'internal_error',
-            message: 'down for maintenance'),
-      );
+            message: 'down for maintenance',
+          ),
+        );
 
-      await expectLater(
-        () => repo.registerDevice('tok', 'android'),
-        throwsA(isA<DeviceRegistrationServerFailure>()
-            .having((f) => f.message, 'message', 'down for maintenance')),
-      );
-    });
+        await expectLater(
+          () => repo.registerDevice('tok', 'android'),
+          throwsA(
+            isA<DeviceRegistrationServerFailure>().having(
+              (f) => f.message,
+              'message',
+              'down for maintenance',
+            ),
+          ),
+        );
+      },
+    );
   });
 
   // ─── unregisterDevice — best-effort, never-throws ──────────────────────
@@ -396,25 +462,23 @@ void main() {
 
     group('P25 — any exception is swallowed', () {
       test('SocketException', () async {
-        when(() => remote.unregisterDevice(any()))
-            .thenThrow(const SocketException('offline'));
+        when(
+          () => remote.unregisterDevice(any()),
+        ).thenThrow(const SocketException('offline'));
 
-        await expectLater(
-          () => repo.unregisterDevice('tok'),
-          returnsNormally,
-        );
+        await expectLater(() => repo.unregisterDevice('tok'), returnsNormally);
       });
 
       test('HttpFailure(500)', () async {
         when(() => remote.unregisterDevice(any())).thenThrow(
           const HttpFailure(
-              statusCode: 500, code: 'internal_error', message: 'fail'),
+            statusCode: 500,
+            code: 'internal_error',
+            message: 'fail',
+          ),
         );
 
-        await expectLater(
-          () => repo.unregisterDevice('tok'),
-          returnsNormally,
-        );
+        await expectLater(() => repo.unregisterDevice('tok'), returnsNormally);
       });
     });
   });

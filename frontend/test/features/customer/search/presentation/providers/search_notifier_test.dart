@@ -11,10 +11,17 @@ import 'package:frontend/features/customer/search/domain/use_cases/clear_recent_
 import 'package:frontend/features/customer/search/presentation/providers/search_notifier.dart';
 import 'package:frontend/features/customer/search/presentation/providers/dependency_injection.dart';
 
-class MockGetSearchSuggestionsUseCase extends Mock implements GetSearchSuggestionsUseCase {}
-class MockGetRecentSearchesUseCase extends Mock implements GetRecentSearchesUseCase {}
-class MockSaveRecentSearchUseCase extends Mock implements SaveRecentSearchUseCase {}
-class MockClearRecentSearchesUseCase extends Mock implements ClearRecentSearchesUseCase {}
+class MockGetSearchSuggestionsUseCase extends Mock
+    implements GetSearchSuggestionsUseCase {}
+
+class MockGetRecentSearchesUseCase extends Mock
+    implements GetRecentSearchesUseCase {}
+
+class MockSaveRecentSearchUseCase extends Mock
+    implements SaveRecentSearchUseCase {}
+
+class MockClearRecentSearchesUseCase extends Mock
+    implements ClearRecentSearchesUseCase {}
 
 void main() {
   late MockGetSearchSuggestionsUseCase mockSuggestions;
@@ -31,7 +38,7 @@ void main() {
       categoryName: 'Plumbing',
       basePrice: '500.00',
       isFixedPrice: true,
-    )
+    ),
   ];
 
   setUp(() {
@@ -59,121 +66,161 @@ void main() {
   }
 
   group('SearchNotifier (State & Debouncing)', () {
-    test('initial state loads recent searches correctly', () => fakeAsync((async) {
-      final container = initContainer(async);
-      
-      final state = container.read(searchProvider).requireValue;
-      expect(state.recentSearches, tRecent);
-      expect(state.query, '');
-      expect(state.suggestions.value, isEmpty);
-    }));
+    test(
+      'initial state loads recent searches correctly',
+      () => fakeAsync((async) {
+        final container = initContainer(async);
 
-    test('onQueryChanged updates query text immediately', () => fakeAsync((async) {
-      final container = initContainer(async);
+        final state = container.read(searchProvider).requireValue;
+        expect(state.recentSearches, tRecent);
+        expect(state.query, '');
+        expect(state.suggestions.value, isEmpty);
+      }),
+    );
 
-      container.read(searchProvider.notifier).onQueryChanged('p');
-      async.flushMicrotasks();
-      
-      final state = container.read(searchProvider).requireValue;
-      expect(state.query, 'p');
-    }));
+    test(
+      'onQueryChanged updates query text immediately',
+      () => fakeAsync((async) {
+        final container = initContainer(async);
 
-    test('advanced debouncing: triggers API call only after 500ms', () => fakeAsync((async) {
-      final container = initContainer(async);
-      when(() => mockSuggestions.execute(any())).thenAnswer((_) async => tResults);
+        container.read(searchProvider.notifier).onQueryChanged('p');
+        async.flushMicrotasks();
 
-      // Act
-      container.read(searchProvider.notifier).onQueryChanged(tQuery);
-      async.flushMicrotasks();
+        final state = container.read(searchProvider).requireValue;
+        expect(state.query, 'p');
+      }),
+    );
 
-      // Verify NO API call immediately
-      verifyNever(() => mockSuggestions.execute(any()));
+    test(
+      'advanced debouncing: triggers API call only after 500ms',
+      () => fakeAsync((async) {
+        final container = initContainer(async);
+        when(
+          () => mockSuggestions.execute(any()),
+        ).thenAnswer((_) async => tResults);
 
-      // Wait for debounce timer (500ms)
-      async.elapse(const Duration(milliseconds: 500));
-      async.flushMicrotasks();
+        // Act
+        container.read(searchProvider.notifier).onQueryChanged(tQuery);
+        async.flushMicrotasks();
 
-      // Verify API call
-      verify(() => mockSuggestions.execute(tQuery)).called(1);
-      
-      final state = container.read(searchProvider).requireValue;
-      expect(state.suggestions.value, tResults);
-    }));
+        // Verify NO API call immediately
+        verifyNever(() => mockSuggestions.execute(any()));
 
-    test('advanced debouncing: multiple rapid keystrokes triggers only ONE API call', () => fakeAsync((async) {
-      final container = initContainer(async);
-      when(() => mockSuggestions.execute(any())).thenAnswer((_) async => tResults);
+        // Wait for debounce timer (500ms)
+        async.elapse(const Duration(milliseconds: 500));
+        async.flushMicrotasks();
 
-      // Rapid fire keystrokes
-      container.read(searchProvider.notifier).onQueryChanged('p');
-      async.elapse(const Duration(milliseconds: 100));
-      container.read(searchProvider.notifier).onQueryChanged('pl');
-      async.elapse(const Duration(milliseconds: 100));
-      container.read(searchProvider.notifier).onQueryChanged('plu');
-      async.flushMicrotasks();
+        // Verify API call
+        verify(() => mockSuggestions.execute(tQuery)).called(1);
 
-      // Still should not have called because timer reset twice
-      verifyNever(() => mockSuggestions.execute(any()));
+        final state = container.read(searchProvider).requireValue;
+        expect(state.suggestions.value, tResults);
+      }),
+    );
 
-      // Wait for final timer
-      async.elapse(const Duration(milliseconds: 500));
-      async.flushMicrotasks();
+    test(
+      'advanced debouncing: multiple rapid keystrokes triggers only ONE API call',
+      () => fakeAsync((async) {
+        final container = initContainer(async);
+        when(
+          () => mockSuggestions.execute(any()),
+        ).thenAnswer((_) async => tResults);
 
-      verify(() => mockSuggestions.execute('plu')).called(1);
-      verifyNever(() => mockSuggestions.execute('p'));
-      verifyNever(() => mockSuggestions.execute('pl'));
-    }));
+        // Rapid fire keystrokes
+        container.read(searchProvider.notifier).onQueryChanged('p');
+        async.elapse(const Duration(milliseconds: 100));
+        container.read(searchProvider.notifier).onQueryChanged('pl');
+        async.elapse(const Duration(milliseconds: 100));
+        container.read(searchProvider.notifier).onQueryChanged('plu');
+        async.flushMicrotasks();
 
-    test('min-character failsafe: does not search if query < 2 chars', () => fakeAsync((async) {
-      final container = initContainer(async);
-      
-      container.read(searchProvider.notifier).onQueryChanged('a');
-      async.elapse(const Duration(milliseconds: 600));
-      async.flushMicrotasks();
+        // Still should not have called because timer reset twice
+        verifyNever(() => mockSuggestions.execute(any()));
 
-      verifyNever(() => mockSuggestions.execute(any()));
-    }));
+        // Wait for final timer
+        async.elapse(const Duration(milliseconds: 500));
+        async.flushMicrotasks();
 
-    test('error propagation: suggestions sub-state captures AsyncError', () => fakeAsync((async) {
-      final container = initContainer(async);
-      const tError = SearchServerFailure('Server exploded');
-      when(() => mockSuggestions.execute(any())).thenThrow(tError);
+        verify(() => mockSuggestions.execute('plu')).called(1);
+        verifyNever(() => mockSuggestions.execute('p'));
+        verifyNever(() => mockSuggestions.execute('pl'));
+      }),
+    );
 
-      container.read(searchProvider.notifier).onQueryChanged(tQuery);
-      async.elapse(const Duration(milliseconds: 500));
-      async.flushMicrotasks();
+    test(
+      'min-character failsafe: does not search if query < 2 chars',
+      () => fakeAsync((async) {
+        final container = initContainer(async);
 
-      final state = container.read(searchProvider).requireValue;
-      expect(state.suggestions, isA<AsyncError>());
-      expect(state.suggestions.error, tError);
-    }));
+        container.read(searchProvider.notifier).onQueryChanged('a');
+        async.elapse(const Duration(milliseconds: 600));
+        async.flushMicrotasks();
+
+        verifyNever(() => mockSuggestions.execute(any()));
+      }),
+    );
+
+    test(
+      'error propagation: suggestions sub-state captures AsyncError',
+      () => fakeAsync((async) {
+        final container = initContainer(async);
+        const tError = SearchServerFailure('Server exploded');
+        when(() => mockSuggestions.execute(any())).thenThrow(tError);
+
+        container.read(searchProvider.notifier).onQueryChanged(tQuery);
+        async.elapse(const Duration(milliseconds: 500));
+        async.flushMicrotasks();
+
+        final state = container.read(searchProvider).requireValue;
+        expect(state.suggestions, isA<AsyncError>());
+        expect(state.suggestions.error, tError);
+      }),
+    );
   });
 
   group('SearchNotifier (History Actions)', () {
-    test('saveSearch updates local state and repository', () => fakeAsync((async) {
-      final container = initContainer(async);
-      final newSearch = 'new query';
-      final updatedHistory = [newSearch, ...tRecent];
-      
-      when(() => mockSaveRecent.execute(any())).thenAnswer((_) async => Future.value());
-      when(() => mockGetRecent.execute()).thenAnswer((_) async => updatedHistory);
+    test(
+      'saveSearch updates local state and repository',
+      () => fakeAsync((async) {
+        final container = initContainer(async);
+        final newSearch = 'new query';
+        final updatedHistory = [newSearch, ...tRecent];
 
-      container.read(searchProvider.notifier).saveSearch(newSearch);
-      async.flushMicrotasks();
+        when(
+          () => mockSaveRecent.execute(any()),
+        ).thenAnswer((_) async => Future.value());
+        when(
+          () => mockGetRecent.execute(),
+        ).thenAnswer((_) async => updatedHistory);
 
-      verify(() => mockSaveRecent.execute(newSearch)).called(1);
-      expect(container.read(searchProvider).requireValue.recentSearches, updatedHistory);
-    }));
+        container.read(searchProvider.notifier).saveSearch(newSearch);
+        async.flushMicrotasks();
 
-    test('clearHistory resets recent searches', () => fakeAsync((async) {
-      final container = initContainer(async);
-      when(() => mockClearRecent.execute()).thenAnswer((_) async => Future.value());
+        verify(() => mockSaveRecent.execute(newSearch)).called(1);
+        expect(
+          container.read(searchProvider).requireValue.recentSearches,
+          updatedHistory,
+        );
+      }),
+    );
 
-      container.read(searchProvider.notifier).clearHistory();
-      async.flushMicrotasks();
+    test(
+      'clearHistory resets recent searches',
+      () => fakeAsync((async) {
+        final container = initContainer(async);
+        when(
+          () => mockClearRecent.execute(),
+        ).thenAnswer((_) async => Future.value());
 
-      verify(() => mockClearRecent.execute()).called(1);
-      expect(container.read(searchProvider).requireValue.recentSearches, isEmpty);
-    }));
+        container.read(searchProvider.notifier).clearHistory();
+        async.flushMicrotasks();
+
+        verify(() => mockClearRecent.execute()).called(1);
+        expect(
+          container.read(searchProvider).requireValue.recentSearches,
+          isEmpty,
+        );
+      }),
+    );
   });
 }

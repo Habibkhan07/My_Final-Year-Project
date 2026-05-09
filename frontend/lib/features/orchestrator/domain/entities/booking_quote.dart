@@ -45,11 +45,11 @@ enum BookingQuoteStatus {
   unknown;
 
   static BookingQuoteStatus fromWire(String? raw) => switch (raw) {
-        'DRAFT' => BookingQuoteStatus.draft,
-        'SUBMITTED' => BookingQuoteStatus.submitted,
-        'APPROVED' => BookingQuoteStatus.approved,
-        'DECLINED' => BookingQuoteStatus.declined,
-        'SUPERSEDED' => BookingQuoteStatus.superseded,
-        _ => BookingQuoteStatus.unknown,
-      };
+    'DRAFT' => BookingQuoteStatus.draft,
+    'SUBMITTED' => BookingQuoteStatus.submitted,
+    'APPROVED' => BookingQuoteStatus.approved,
+    'DECLINED' => BookingQuoteStatus.declined,
+    'SUPERSEDED' => BookingQuoteStatus.superseded,
+    _ => BookingQuoteStatus.unknown,
+  };
 }

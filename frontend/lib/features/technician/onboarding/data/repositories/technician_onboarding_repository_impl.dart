@@ -23,10 +23,10 @@ class TechnicianRepositoryImpl implements TechnicianRepository {
     try {
       // 1. Try to fetch from RemoteDataSource
       final models = await remoteDataSource.getOnboardingMetadata();
-      
+
       // 2. If successful, cache the data immediately
       await localDataSource.saveOnboardingMetadata(models);
-      
+
       return _mapModelsToEntities(models);
     } on SocketException catch (_) {
       // 3. Network error: fallback to LocalDataSource
@@ -44,7 +44,7 @@ class TechnicianRepositoryImpl implements TechnicianRepository {
       return _mapFailures(() => Future.error(e));
     }
   }
-  
+
   List<ServiceEntity> _mapModelsToEntities(List<ServiceModel> models) {
     return models
         .map(

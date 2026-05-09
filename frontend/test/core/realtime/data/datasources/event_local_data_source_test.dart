@@ -39,36 +39,45 @@ void main() {
         expect(cached, isNull);
       });
 
-      test('L3 — getCachedEventList returns null on corrupt stored JSON', () async {
-        await prefs.setString('event_sync_cached_events', '{ invalid json ]');
-        final cached = dataSource.getCachedEventList();
-        expect(cached, isNull);
-      });
+      test(
+        'L3 — getCachedEventList returns null on corrupt stored JSON',
+        () async {
+          await prefs.setString('event_sync_cached_events', '{ invalid json ]');
+          final cached = dataSource.getCachedEventList();
+          expect(cached, isNull);
+        },
+      );
 
-      test('L4 — cacheEventList with item that fails toJson leaves prior cache intact, never throws', () async {
-        await dataSource.cacheEventList([sampleEvent]);
-        
-        // This will fail jsonEncode because Object() is not encodable.
-        final badEvent = sampleEvent.copyWith(payload: {'bad': Object()});
-        
-        await expectLater(
-          () => dataSource.cacheEventList([badEvent]),
-          returnsNormally,
-        );
+      test(
+        'L4 — cacheEventList with item that fails toJson leaves prior cache intact, never throws',
+        () async {
+          await dataSource.cacheEventList([sampleEvent]);
 
-        final cached = dataSource.getCachedEventList();
-        expect(cached, isNotNull);
-        expect(cached!.length, 1);
-        expect(cached.first.id, '123');
-      });
+          // This will fail jsonEncode because Object() is not encodable.
+          final badEvent = sampleEvent.copyWith(payload: {'bad': Object()});
+
+          await expectLater(
+            () => dataSource.cacheEventList([badEvent]),
+            returnsNormally,
+          );
+
+          final cached = dataSource.getCachedEventList();
+          expect(cached, isNotNull);
+          expect(cached!.length, 1);
+          expect(cached.first.id, '123');
+        },
+      );
     });
 
     group('Sync timestamp', () {
-      test('L5 — saveLastSyncTimestamp / getLastSyncTimestamp round-trip', () async {
-        await dataSource.saveLastSyncTimestamp('2023-01-01T12:00:00.000Z');
-        final timestamp = dataSource.getLastSyncTimestamp();
-        expect(timestamp, '2023-01-01T12:00:00.000Z');
-      });
+      test(
+        'L5 — saveLastSyncTimestamp / getLastSyncTimestamp round-trip',
+        () async {
+          await dataSource.saveLastSyncTimestamp('2023-01-01T12:00:00.000Z');
+          final timestamp = dataSource.getLastSyncTimestamp();
+          expect(timestamp, '2023-01-01T12:00:00.000Z');
+        },
+      );
 
       test('L6 — getLastSyncTimestamp returns null when absent', () {
         final timestamp = dataSource.getLastSyncTimestamp();
@@ -77,43 +86,55 @@ void main() {
     });
 
     group('Pending background events', () {
-      test('L7 — savePendingBackgroundEvent appends to existing queue, preserves prior items + ordering', () async {
-        await dataSource.savePendingBackgroundEvent({'id': '1'});
-        await dataSource.savePendingBackgroundEvent({'id': '2'});
+      test(
+        'L7 — savePendingBackgroundEvent appends to existing queue, preserves prior items + ordering',
+        () async {
+          await dataSource.savePendingBackgroundEvent({'id': '1'});
+          await dataSource.savePendingBackgroundEvent({'id': '2'});
 
-        final events = await dataSource.consumePendingBackgroundEvents();
-        expect(events.length, 2);
-        expect(events[0]['id'], '1');
-        expect(events[1]['id'], '2');
-      });
+          final events = await dataSource.consumePendingBackgroundEvents();
+          expect(events.length, 2);
+          expect(events[0]['id'], '1');
+          expect(events[1]['id'], '2');
+        },
+      );
 
-      test('L8 — savePendingBackgroundEvent on empty queue creates fresh list', () async {
-        await dataSource.savePendingBackgroundEvent({'id': '1'});
-        final events = await dataSource.consumePendingBackgroundEvents();
-        expect(events.length, 1);
-        expect(events[0]['id'], '1');
-      });
+      test(
+        'L8 — savePendingBackgroundEvent on empty queue creates fresh list',
+        () async {
+          await dataSource.savePendingBackgroundEvent({'id': '1'});
+          final events = await dataSource.consumePendingBackgroundEvents();
+          expect(events.length, 1);
+          expect(events[0]['id'], '1');
+        },
+      );
 
-      test('L9 — consumePendingBackgroundEvents returns and clears queue', () async {
-        await dataSource.savePendingBackgroundEvent({'id': '1'});
-        
-        final events = await dataSource.consumePendingBackgroundEvents();
-        expect(events.length, 1);
+      test(
+        'L9 — consumePendingBackgroundEvents returns and clears queue',
+        () async {
+          await dataSource.savePendingBackgroundEvent({'id': '1'});
 
-        final eventsAfter = await dataSource.consumePendingBackgroundEvents();
-        expect(eventsAfter, isEmpty);
-      });
+          final events = await dataSource.consumePendingBackgroundEvents();
+          expect(events.length, 1);
 
-      test('L10 — consumePendingBackgroundEvents returns [] on absent or corrupt data, never throws', () async {
-        // Absent
-        var events = await dataSource.consumePendingBackgroundEvents();
-        expect(events, isEmpty);
+          final eventsAfter = await dataSource.consumePendingBackgroundEvents();
+          expect(eventsAfter, isEmpty);
+        },
+      );
 
-        // Corrupt
-        await prefs.setString('event_sync_pending_bg_events', '{ bad json ]');
-        events = await dataSource.consumePendingBackgroundEvents();
-        expect(events, isEmpty);
-      });
+      test(
+        'L10 — consumePendingBackgroundEvents returns [] on absent or corrupt data, never throws',
+        () async {
+          // Absent
+          var events = await dataSource.consumePendingBackgroundEvents();
+          expect(events, isEmpty);
+
+          // Corrupt
+          await prefs.setString('event_sync_pending_bg_events', '{ bad json ]');
+          events = await dataSource.consumePendingBackgroundEvents();
+          expect(events, isEmpty);
+        },
+      );
 
       test('L11 — cross-isolate constant lock-in', () async {
         await dataSource.savePendingBackgroundEvent({'id': '1'});
@@ -124,28 +145,35 @@ void main() {
         expect(decoded[0]['id'], '1');
       });
 
-      test(
-        'L11a — flag #19 family: pending-bg queue is FIFO-capped at 50; '
-        'oldest entries drop when the cap is exceeded',
-        () async {
-          // Append 60 events. Cap is 50. After every save the queue is
-          // truncated from the front, so the final state holds the 50
-          // newest (ids 11..60).
-          for (var i = 1; i <= 60; i++) {
-            await dataSource.savePendingBackgroundEvent({'id': '$i'});
-          }
+      test('L11a — flag #19 family: pending-bg queue is FIFO-capped at 50; '
+          'oldest entries drop when the cap is exceeded', () async {
+        // Append 60 events. Cap is 50. After every save the queue is
+        // truncated from the front, so the final state holds the 50
+        // newest (ids 11..60).
+        for (var i = 1; i <= 60; i++) {
+          await dataSource.savePendingBackgroundEvent({'id': '$i'});
+        }
 
-          final events = await dataSource.consumePendingBackgroundEvents();
-          expect(events.length, 50,
-              reason: 'cap must hold even if save is called more than 50 '
-                  'times — defends against a wedged FCM init in the main '
-                  'isolate that never drains the queue');
-          expect(events.first['id'], '11',
-              reason: 'oldest 10 (ids 1..10) must be dropped');
-          expect(events.last['id'], '60',
-              reason: 'newest entry must be retained');
-        },
-      );
+        final events = await dataSource.consumePendingBackgroundEvents();
+        expect(
+          events.length,
+          50,
+          reason:
+              'cap must hold even if save is called more than 50 '
+              'times — defends against a wedged FCM init in the main '
+              'isolate that never drains the queue',
+        );
+        expect(
+          events.first['id'],
+          '11',
+          reason: 'oldest 10 (ids 1..10) must be dropped',
+        );
+        expect(
+          events.last['id'],
+          '60',
+          reason: 'newest entry must be retained',
+        );
+      });
     });
 
     group('Pending ACKs', () {
@@ -163,11 +191,14 @@ void main() {
         expect(acks, isEmpty);
       });
 
-      test('L14 — getPendingAcks returns [] on corrupt JSON, never throws', () async {
-        await prefs.setString('event_sync_pending_acks', '{ bad json ]');
-        final acks = dataSource.getPendingAcks();
-        expect(acks, isEmpty);
-      });
+      test(
+        'L14 — getPendingAcks returns [] on corrupt JSON, never throws',
+        () async {
+          await prefs.setString('event_sync_pending_acks', '{ bad json ]');
+          final acks = dataSource.getPendingAcks();
+          expect(acks, isEmpty);
+        },
+      );
 
       test('L15 — clearPendingAcks removes the key', () async {
         await dataSource.savePendingAcks(['1']);

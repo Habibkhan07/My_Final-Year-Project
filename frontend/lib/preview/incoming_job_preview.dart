@@ -71,8 +71,9 @@ class _PreviewHome extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final queueLen =
-        ref.watch(incomingJobQueueProvider.select((s) => s.queue.length));
+    final queueLen = ref.watch(
+      incomingJobQueueProvider.select((s) => s.queue.length),
+    );
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -425,8 +426,11 @@ class _SeedButton extends StatelessWidget {
                 ],
               ),
             ),
-            const Icon(Icons.arrow_forward_ios,
-                size: 14, color: AppColors.outline),
+            const Icon(
+              Icons.arrow_forward_ios,
+              size: 14,
+              color: AppColors.outline,
+            ),
           ],
         ),
       ),
@@ -458,8 +462,8 @@ class _StatusLine extends StatelessWidget {
             queueLen == 0
                 ? 'Queue is empty — sheet is hidden.'
                 : queueLen == 1
-                    ? 'Queue has 1 offer.'
-                    : 'Queue has $queueLen offers (only the head is shown).',
+                ? 'Queue has 1 offer.'
+                : 'Queue has $queueLen offers (only the head is shown).',
             style: const TextStyle(
               fontSize: 13,
               color: AppColors.onSurfaceVariant,

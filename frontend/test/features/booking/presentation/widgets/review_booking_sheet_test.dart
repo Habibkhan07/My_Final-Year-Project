@@ -73,7 +73,9 @@ void main() {
         instantBookingProvider.overrideWith(
           () => MockInstantBookingNotifier(state),
         ),
-        addressesProvider.overrideWith((ref) => Future.value([tDefaultAddress])),
+        addressesProvider.overrideWith(
+          (ref) => Future.value([tDefaultAddress]),
+        ),
       ],
       child: MaterialApp(
         home: Scaffold(
@@ -116,7 +118,10 @@ void main() {
       await tester.pump();
 
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
-      expect(find.text('Book'), findsNothing); // It's hidden by loading indicator
+      expect(
+        find.text('Book'),
+        findsNothing,
+      ); // It's hidden by loading indicator
     });
   });
 
@@ -134,57 +139,75 @@ void main() {
       // the ref.listen callback fires (it ignores the initial build value).
       final notifier = MockInstantBookingNotifier(const AsyncData(null));
       await mockNetworkImagesFor(() async {
-        await tester.pumpWidget(ProviderScope(
-          overrides: [
-            instantBookingProvider.overrideWith(() => notifier),
-            addressesProvider
-                .overrideWith((ref) => Future.value([tDefaultAddress])),
-          ],
-          child: MaterialApp(
-            home: Scaffold(
-              body: ReviewBookingSheet(
-                technician: tTechnician,
-                selectedDate: tDate,
-                selectedSlot: tSlot,
-                serviceId: 3,
-                subServiceId: 17,
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              instantBookingProvider.overrideWith(() => notifier),
+              addressesProvider.overrideWith(
+                (ref) => Future.value([tDefaultAddress]),
+              ),
+            ],
+            child: MaterialApp(
+              home: Scaffold(
+                body: ReviewBookingSheet(
+                  technician: tTechnician,
+                  selectedDate: tDate,
+                  selectedSlot: tSlot,
+                  serviceId: 3,
+                  subServiceId: 17,
+                ),
               ),
             ),
           ),
-        ));
+        );
         await tester.pumpAndSettle();
 
-        notifier.emit(AsyncError(
-          BookingValidationFailure(
-            message: 'Diagnostic-friendly server text',
-            errors: errors,
+        notifier.emit(
+          AsyncError(
+            BookingValidationFailure(
+              message: 'Diagnostic-friendly server text',
+              errors: errors,
+            ),
+            StackTrace.empty,
           ),
-          StackTrace.empty,
-        ));
+        );
         await tester.pump(); // build SnackBar
         await tester.pump(const Duration(milliseconds: 300)); // animate in
       });
     }
 
-    testWidgets('sub_service_id key → "This gig is no longer available" toast',
-        (tester) async {
-      await pumpWithValidationError(tester, {
-        'sub_service_id': ['Sub-service does not belong to the supplied service.'],
-      });
+    testWidgets(
+      'sub_service_id key → "This gig is no longer available" toast',
+      (tester) async {
+        await pumpWithValidationError(tester, {
+          'sub_service_id': [
+            'Sub-service does not belong to the supplied service.',
+          ],
+        });
 
-      expect(find.text('This gig is no longer available. Refresh and try again.'),
-          findsOneWidget);
-    });
+        expect(
+          find.text('This gig is no longer available. Refresh and try again.'),
+          findsOneWidget,
+        );
+      },
+    );
 
-    testWidgets('promotion_id key → "This gig already has a fixed price" toast',
-        (tester) async {
-      await pumpWithValidationError(tester, {
-        'promotion_id': ['Discount stacking is not allowed on fixed-price sub-services.'],
-      });
+    testWidgets(
+      'promotion_id key → "This gig already has a fixed price" toast',
+      (tester) async {
+        await pumpWithValidationError(tester, {
+          'promotion_id': [
+            'Discount stacking is not allowed on fixed-price sub-services.',
+          ],
+        });
 
-      expect(
-          find.text("This gig already has a fixed price — promotions don't apply."),
-          findsOneWidget);
-    });
+        expect(
+          find.text(
+            "This gig already has a fixed price — promotions don't apply.",
+          ),
+          findsOneWidget,
+        );
+      },
+    );
   });
 }

@@ -27,17 +27,17 @@ ProviderContainer _container() {
   final repo = _FakeAuthRepository();
   // Token is empty → AuthNotifier skips bootAfterAuth (the WS handshake).
   // nameRequired=false → router redirect doesn't push us to /profile-setup.
-  when(() => repo.getCachedUser()).thenAnswer((_) async => const UserEntity(
-        phone: '+923001234567',
-        id: 7,
-        token: '',
-      ));
-  return ProviderContainer(overrides: [
-    auth_di.authRepositoryProvider.overrideWithValue(repo),
-    // Empty boot-hooks registry — keeps the orchestrator's
-    // app-lifecycle bridge from attempting realtime connects in tests.
-    realtimeBootHooksProvider.overrideWith((ref) => const []),
-  ]);
+  when(() => repo.getCachedUser()).thenAnswer(
+    (_) async => const UserEntity(phone: '+923001234567', id: 7, token: ''),
+  );
+  return ProviderContainer(
+    overrides: [
+      auth_di.authRepositoryProvider.overrideWithValue(repo),
+      // Empty boot-hooks registry — keeps the orchestrator's
+      // app-lifecycle bridge from attempting realtime connects in tests.
+      realtimeBootHooksProvider.overrideWith((ref) => const []),
+    ],
+  );
 }
 
 Future<void> _pumpAt(WidgetTester tester, String location) async {
@@ -53,10 +53,12 @@ Future<void> _pumpAt(WidgetTester tester, String location) async {
   final router = container.read(routerProvider);
   router.go(location);
 
-  await tester.pumpWidget(UncontrolledProviderScope(
-    container: container,
-    child: MaterialApp.router(routerConfig: router),
-  ));
+  await tester.pumpWidget(
+    UncontrolledProviderScope(
+      container: container,
+      child: MaterialApp.router(routerConfig: router),
+    ),
+  );
   await tester.pumpAndSettle();
 }
 
@@ -66,37 +68,40 @@ void main() {
   });
 
   group('routerProvider /booking/:job_id', () {
-    testWidgets('non-numeric job_id surfaces _InvalidBookingLinkScreen',
-        (tester) async {
+    testWidgets('non-numeric job_id surfaces _InvalidBookingLinkScreen', (
+      tester,
+    ) async {
       await _pumpAt(tester, '/booking/abc');
       // `_InvalidBookingLinkScreen` is private — assert via its visible
       // surfaces (AppBar title + the explainer copy). These are stable
       // contract: changing them changes the user-facing UX.
       expect(find.text('Invalid link'), findsOneWidget);
-      expect(find.text("This link isn't a valid booking."),
-          findsOneWidget);
+      expect(find.text("This link isn't a valid booking."), findsOneWidget);
       // Sanity: we did NOT mount the orchestrator screen for a
       // malformed id. The orchestrator screen's app bar always reads
       // "Booking #N" — that text MUST NOT appear here.
       expect(find.textContaining('Booking #'), findsNothing);
     });
 
-    testWidgets('job_id of 0 surfaces _InvalidBookingLinkScreen',
-        (tester) async {
+    testWidgets('job_id of 0 surfaces _InvalidBookingLinkScreen', (
+      tester,
+    ) async {
       // Zero is parseable but not a valid PK. The route guard rejects
       // it the same way it rejects "abc".
       await _pumpAt(tester, '/booking/0');
       expect(find.text('Invalid link'), findsOneWidget);
     });
 
-    testWidgets('negative job_id surfaces _InvalidBookingLinkScreen',
-        (tester) async {
+    testWidgets('negative job_id surfaces _InvalidBookingLinkScreen', (
+      tester,
+    ) async {
       await _pumpAt(tester, '/booking/-3');
       expect(find.text('Invalid link'), findsOneWidget);
     });
 
-    testWidgets('valid numeric job_id reaches the orchestrator screen',
-        (tester) async {
+    testWidgets('valid numeric job_id reaches the orchestrator screen', (
+      tester,
+    ) async {
       // Valid numeric id passes the guard. The orchestrator screen
       // mounts and immediately tries to fetch booking detail; with no
       // remote-data-source override it lands in AsyncLoading and

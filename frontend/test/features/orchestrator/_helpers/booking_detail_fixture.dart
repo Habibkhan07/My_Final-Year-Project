@@ -60,11 +60,7 @@ Map<String, dynamic> bookingDetailJson({
       'promo_code_snapshot': null,
       'promo_discount_snapshot': null,
     },
-    'cash_collection': {
-      'amount': null,
-      'at': null,
-      'method': 'cash',
-    },
+    'cash_collection': {'amount': null, 'at': null, 'method': 'cash'},
     'parent_booking_id': parentBookingId,
     'child_booking_id': childBookingId,
     'cancel_reason': cancelReason,
@@ -72,7 +68,8 @@ Map<String, dynamic> bookingDetailJson({
     'active_quote': activeQuote,
     'booking_items': bookingItems,
     'open_tickets_count': 0,
-    'ui': uiOverride ??
+    'ui':
+        uiOverride ??
         {
           'status_label': 'Confirmed',
           'body_text': 'On the way at 10:00.',

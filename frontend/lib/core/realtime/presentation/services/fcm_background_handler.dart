@@ -81,10 +81,7 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
       queue.removeRange(0, overflow);
     }
 
-    await prefs.setString(
-      _kPendingBackgroundEventsKey,
-      jsonEncode(queue),
-    );
+    await prefs.setString(_kPendingBackgroundEventsKey, jsonEncode(queue));
   } catch (e, stack) {
     // Best-effort. If the write fails the event is lost for the background
     // queue — but the next WebSocket reconnect + `/events/sync/` will

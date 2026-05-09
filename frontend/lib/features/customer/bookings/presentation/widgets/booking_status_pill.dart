@@ -18,11 +18,7 @@ import '../utils/booking_tone_palette.dart';
 /// caller wants the pill to morph cleanly across realtime patches (e.g.
 /// AWAITING → CONFIRMED). The pill itself is dumb.
 class BookingStatusPill extends StatelessWidget {
-  const BookingStatusPill({
-    super.key,
-    required this.text,
-    required this.tone,
-  });
+  const BookingStatusPill({super.key, required this.text, required this.tone});
 
   final String text;
   final BookingUiTone tone;

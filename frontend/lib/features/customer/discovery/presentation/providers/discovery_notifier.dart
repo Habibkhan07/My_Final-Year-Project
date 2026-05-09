@@ -32,15 +32,17 @@ class DiscoveryNotifier extends _$DiscoveryNotifier {
     }
 
     // Initial fetch on build
-    final result = await ref.read(getNearbyTechniciansUseCaseProvider).call(
-      query: query,
-      serviceId: serviceId,
-      subServiceId: subServiceId,
-      promotionId: promotionId,
-      lat: effectiveLat,
-      lng: effectiveLng,
-      page: 1,
-    );
+    final result = await ref
+        .read(getNearbyTechniciansUseCaseProvider)
+        .call(
+          query: query,
+          serviceId: serviceId,
+          subServiceId: subServiceId,
+          promotionId: promotionId,
+          lat: effectiveLat,
+          lng: effectiveLng,
+          page: 1,
+        );
 
     return DiscoveryState(
       discoveryResult: result,
@@ -54,14 +56,14 @@ class DiscoveryNotifier extends _$DiscoveryNotifier {
   }
 
   /// Refreshes the discovery list from page 1 using the original filters.
-  /// 
-  /// **Safe Execution**: Can be called safely even if the initial [build] failed 
+  ///
+  /// **Safe Execution**: Can be called safely even if the initial [build] failed
   /// (meaning [state.hasValue] is false). It uses the provider's inherent arguments.
   Future<void> refresh() async {
     // Capture previous state if any, to avoid completely blanking the screen on refresh.
     final previousData = state.value;
     state = const AsyncLoading();
-    
+
     state = await AsyncValue.guard(() async {
       double? effectiveLat = lat;
       double? effectiveLng = lng;
@@ -72,32 +74,35 @@ class DiscoveryNotifier extends _$DiscoveryNotifier {
         effectiveLng = defaultAddress?.longitude;
       }
 
-      final result = await ref.read(getNearbyTechniciansUseCaseProvider).call(
-        query: query,
-        serviceId: serviceId,
-        subServiceId: subServiceId,
-        promotionId: promotionId,
-        lat: effectiveLat,
-        lng: effectiveLng,
-        page: 1,
-      );
-      
+      final result = await ref
+          .read(getNearbyTechniciansUseCaseProvider)
+          .call(
+            query: query,
+            serviceId: serviceId,
+            subServiceId: subServiceId,
+            promotionId: promotionId,
+            lat: effectiveLat,
+            lng: effectiveLng,
+            page: 1,
+          );
+
       // If we had a previous state structure, preserve it, else create a fresh one.
-      return previousData?.copyWith(discoveryResult: result) ?? DiscoveryState(
-        discoveryResult: result,
-        query: query,
-        serviceId: serviceId,
-        subServiceId: subServiceId,
-        promotionId: promotionId,
-        lat: effectiveLat,
-        lng: effectiveLng,
-      );
+      return previousData?.copyWith(discoveryResult: result) ??
+          DiscoveryState(
+            discoveryResult: result,
+            query: query,
+            serviceId: serviceId,
+            subServiceId: subServiceId,
+            promotionId: promotionId,
+            lat: effectiveLat,
+            lng: effectiveLng,
+          );
     });
   }
 
   /// Fetches the next page of results and appends them to the current list.
-  /// 
-  /// **Bulletproof Data Access**: Guards against being called when state has 
+  ///
+  /// **Bulletproof Data Access**: Guards against being called when state has
   /// crashed or is currently loading. Manual try/catch preserves the list data
   /// even if pagination throws an error.
   Future<void> loadMore() async {
@@ -106,7 +111,7 @@ class DiscoveryNotifier extends _$DiscoveryNotifier {
     if (currentState == null) return;
 
     final currentResult = currentState.discoveryResult;
-    
+
     // If there is no next page or we are already loading, exit early.
     if (currentResult?.next == null || currentState.isPaginationLoading) return;
 
@@ -114,28 +119,34 @@ class DiscoveryNotifier extends _$DiscoveryNotifier {
     state = AsyncData(currentState.copyWith(isPaginationLoading: true));
 
     final nextPageUri = Uri.parse(currentResult!.next!);
-    final nextPage = int.tryParse(nextPageUri.queryParameters['page'] ?? '') ?? 1;
+    final nextPage =
+        int.tryParse(nextPageUri.queryParameters['page'] ?? '') ?? 1;
 
     try {
-      final newResult = await ref.read(getNearbyTechniciansUseCaseProvider).call(
-        query: query,
-        serviceId: serviceId,
-        subServiceId: subServiceId,
-        promotionId: promotionId,
-        lat: currentState.lat, // Use the effective coordinates stored in the state
-        lng: currentState.lng,
-        page: nextPage,
-      );
+      final newResult = await ref
+          .read(getNearbyTechniciansUseCaseProvider)
+          .call(
+            query: query,
+            serviceId: serviceId,
+            subServiceId: subServiceId,
+            promotionId: promotionId,
+            lat: currentState
+                .lat, // Use the effective coordinates stored in the state
+            lng: currentState.lng,
+            page: nextPage,
+          );
 
-      state = AsyncData(currentState.copyWith(
-        isPaginationLoading: false,
-        discoveryResult: newResult.copyWith(
-          results: [...currentResult.results, ...newResult.results],
+      state = AsyncData(
+        currentState.copyWith(
+          isPaginationLoading: false,
+          discoveryResult: newResult.copyWith(
+            results: [...currentResult.results, ...newResult.results],
+          ),
         ),
-      ));
+      );
     } catch (error, stackTrace) {
-      // Revert the `isPaginationLoading` flag but wrap the current state 
-      // inside an AsyncError to trigger the presentation layer UI error feedback 
+      // Revert the `isPaginationLoading` flag but wrap the current state
+      // inside an AsyncError to trigger the presentation layer UI error feedback
       // while retaining the already loaded list.
       state = AsyncError<DiscoveryState>(error, stackTrace).copyWithPrevious(
         AsyncData(currentState.copyWith(isPaginationLoading: false)),

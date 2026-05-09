@@ -18,25 +18,22 @@ import 'package:frontend/features/orchestrator/data/mappers/booking_event_payloa
 SystemEventEntity event({
   SystemEventType type = SystemEventType.techEnRoute,
   Map<String, dynamic> payload = const {},
-}) =>
-    SystemEventEntity(
-      id: 'evt-${type.name}',
-      rawType: type.name,
-      eventType: type,
-      targetRole: TargetRole.customer,
-      timestamp: DateTime.utc(2026, 5, 9, 10, 0, 0),
-      payload: payload,
-      urgency: EventUrgency.lowUrgency,
-      isCritical: false,
-    );
+}) => SystemEventEntity(
+  id: 'evt-${type.name}',
+  rawType: type.name,
+  eventType: type,
+  targetRole: TargetRole.customer,
+  timestamp: DateTime.utc(2026, 5, 9, 10, 0, 0),
+  payload: payload,
+  urgency: EventUrgency.lowUrgency,
+  isCritical: false,
+);
 
 void main() {
   group('extractJobId', () {
     test('returns int when payload.job_id is int', () {
       expect(
-        BookingEventPayloadMapper.extractJobId(
-          event(payload: {'job_id': 42}),
-        ),
+        BookingEventPayloadMapper.extractJobId(event(payload: {'job_id': 42})),
         42,
       );
     });
@@ -84,7 +81,11 @@ void main() {
       );
       expect(
         BookingEventPayloadMapper.extractJobId(
-          event(payload: {'job_id': [42]}),
+          event(
+            payload: {
+              'job_id': [42],
+            },
+          ),
         ),
         isNull,
       );
@@ -92,9 +93,7 @@ void main() {
   });
 
   group('extractChildBookingId', () {
-    test(
-        'returns child_booking_id for booking_rescheduled events',
-        () {
+    test('returns child_booking_id for booking_rescheduled events', () {
       expect(
         BookingEventPayloadMapper.extractChildBookingId(
           event(
@@ -107,30 +106,28 @@ void main() {
     });
 
     test(
-        'EARLY-OUT: returns null when event type is not bookingRescheduled (#B-9)',
-        () {
-      // The contract: this helper must reject non-rescheduled events
-      // even if their payload happens to contain a `child_booking_id`
-      // key. A `tech_en_route` event with a stray child_booking_id
-      // must NOT cause the rescheduled-notifier to pushReplacement.
-      expect(
-        BookingEventPayloadMapper.extractChildBookingId(
-          event(
-            type: SystemEventType.techEnRoute,
-            payload: {'child_booking_id': 99},
+      'EARLY-OUT: returns null when event type is not bookingRescheduled (#B-9)',
+      () {
+        // The contract: this helper must reject non-rescheduled events
+        // even if their payload happens to contain a `child_booking_id`
+        // key. A `tech_en_route` event with a stray child_booking_id
+        // must NOT cause the rescheduled-notifier to pushReplacement.
+        expect(
+          BookingEventPayloadMapper.extractChildBookingId(
+            event(
+              type: SystemEventType.techEnRoute,
+              payload: {'child_booking_id': 99},
+            ),
           ),
-        ),
-        isNull,
-      );
-    });
+          isNull,
+        );
+      },
+    );
 
     test('returns null when child_booking_id is missing', () {
       expect(
         BookingEventPayloadMapper.extractChildBookingId(
-          event(
-            type: SystemEventType.bookingRescheduled,
-            payload: const {},
-          ),
+          event(type: SystemEventType.bookingRescheduled, payload: const {}),
         ),
         isNull,
       );

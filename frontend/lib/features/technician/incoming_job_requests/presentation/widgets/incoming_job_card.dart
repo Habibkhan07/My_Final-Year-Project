@@ -87,9 +87,7 @@ class _EyebrowBar extends StatelessWidget {
     final parts = eyebrowTimeParts(request);
     return Container(
       width: double.infinity,
-      decoration: const BoxDecoration(
-        color: AppColors.surfaceContainerLow,
-      ),
+      decoration: const BoxDecoration(color: AppColors.surfaceContainerLow),
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
       child: Column(
         children: [
@@ -464,7 +462,11 @@ const Duration _asapWindow = Duration(minutes: 30);
     return (day: 'ASAP', clock: null, isAsap: true);
   }
 
-  final today = DateTime(referenceLocal.year, referenceLocal.month, referenceLocal.day);
+  final today = DateTime(
+    referenceLocal.year,
+    referenceLocal.month,
+    referenceLocal.day,
+  );
   final startDay = DateTime(start.year, start.month, start.day);
   final clock = DateFormat.jm().format(start);
 

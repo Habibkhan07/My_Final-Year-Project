@@ -76,8 +76,12 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
         backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.black87),
-          onPressed: () => context.canPop() ? context.pop() : context.go('/login'),
+          icon: const Icon(
+            Icons.arrow_back_ios_new_rounded,
+            color: Colors.black87,
+          ),
+          onPressed: () =>
+              context.canPop() ? context.pop() : context.go('/login'),
         ),
       ),
       body: SafeArea(
@@ -160,13 +164,18 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(16),
-                    borderSide: const BorderSide(color: Colors.blueAccent, width: 2),
+                    borderSide: const BorderSide(
+                      color: Colors.blueAccent,
+                      width: 2,
+                    ),
                   ),
                 ),
                 onChanged: (val) {
                   // Auto-submit when all 6 digits are entered
                   if (val.length == 6) {
-                    ref.read(authProvider.notifier).verifyOtp(widget.phoneNumber, val);
+                    ref
+                        .read(authProvider.notifier)
+                        .verifyOtp(widget.phoneNumber, val);
                   }
                 },
               ),
@@ -177,7 +186,9 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                 width: double.infinity,
                 height: 60,
                 child: authAsync.isLoading
-                    ? const Center(child: CircularProgressIndicator(strokeWidth: 3))
+                    ? const Center(
+                        child: CircularProgressIndicator(strokeWidth: 3),
+                      )
                     : ElevatedButton(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.blueAccent,
@@ -190,11 +201,17 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                         onPressed: () {
                           ref
                               .read(authProvider.notifier)
-                              .verifyOtp(widget.phoneNumber, _otpController.text);
+                              .verifyOtp(
+                                widget.phoneNumber,
+                                _otpController.text,
+                              );
                         },
                         child: const Text(
                           "Verify & Continue",
-                          style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
               ),
@@ -231,7 +248,9 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                     : () {
                         // Restart the expiry countdown and request a fresh OTP
                         ref.invalidate(timerProvider);
-                        ref.read(authProvider.notifier).requestOtp(widget.phoneNumber);
+                        ref
+                            .read(authProvider.notifier)
+                            .requestOtp(widget.phoneNumber);
                       },
                 child: const Text(
                   "Resend Code",

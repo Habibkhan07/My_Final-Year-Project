@@ -5,7 +5,9 @@ import 'package:frontend/features/customer/search/presentation/widgets/category_
 
 void main() {
   group('CategoryBrowseTile', () {
-    testWidgets('renders category name and triggers onTap', (WidgetTester tester) async {
+    testWidgets('renders category name and triggers onTap', (
+      WidgetTester tester,
+    ) async {
       const String testCategoryName = 'Electrician';
       bool tapped = false;
 
@@ -33,15 +35,13 @@ void main() {
       expect(tapped, isTrue);
     });
 
-    testWidgets('renders fallback icon when iconUrl is null', (WidgetTester tester) async {
+    testWidgets('renders fallback icon when iconUrl is null', (
+      WidgetTester tester,
+    ) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: CategoryBrowseTile(
-              name: 'Test',
-              iconUrl: null,
-              onTap: () {},
-            ),
+            body: CategoryBrowseTile(name: 'Test', iconUrl: null, onTap: () {}),
           ),
         ),
       );
@@ -51,7 +51,9 @@ void main() {
       expect(find.byType(CachedNetworkImage), findsNothing);
     });
 
-    testWidgets('renders CachedNetworkImage when iconUrl is provided', (WidgetTester tester) async {
+    testWidgets('renders CachedNetworkImage when iconUrl is provided', (
+      WidgetTester tester,
+    ) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(

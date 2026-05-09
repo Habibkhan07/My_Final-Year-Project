@@ -65,9 +65,7 @@ Widget createWidgetUnderTest(AsyncValue<MapPickerState> state) {
 void main() {
   group('MapPickerScreen — loading state', () {
     testWidgets('shows skeleton while GPS is resolving', (tester) async {
-      await tester.pumpWidget(
-        createWidgetUnderTest(const AsyncLoading()),
-      );
+      await tester.pumpWidget(createWidgetUnderTest(const AsyncLoading()));
       await tester.pump();
 
       expect(find.byType(AppMapSkeleton), findsOneWidget);
@@ -99,8 +97,9 @@ void main() {
       expect(find.text('Other'), findsOneWidget);
     });
 
-    testWidgets('shows inline geocoding skeleton when isGeocoding=true',
-        (tester) async {
+    testWidgets('shows inline geocoding skeleton when isGeocoding=true', (
+      tester,
+    ) async {
       const geocodingState = MapPickerState(
         latitude: 31.5,
         longitude: 74.3,
@@ -109,21 +108,23 @@ void main() {
       );
 
       await tester.pumpWidget(
-          createWidgetUnderTest(const AsyncData(geocodingState)));
+        createWidgetUnderTest(const AsyncData(geocodingState)),
+      );
       await tester.pump();
 
       // The inline skeleton replaces the address text
-      // We can't find _GeocodingSkeleton directly if it's private, 
+      // We can't find _GeocodingSkeleton directly if it's private,
       // but we can check for its implementation details or find it by type if it was public.
-      // Since it's private in the file, we can't import it. 
+      // Since it's private in the file, we can't import it.
       // But we can check for the absence of the address text and presence of a placeholder.
       expect(find.text('Gulberg III, Lahore'), findsNothing);
       // It uses Containers with grey colors.
       expect(find.byType(Container), findsAtLeastNWidgets(1));
     });
 
-    testWidgets('shows save error message when saveState is AsyncError',
-        (tester) async {
+    testWidgets('shows save error message when saveState is AsyncError', (
+      tester,
+    ) async {
       final errorState = MapPickerState(
         latitude: 31.5,
         longitude: 74.3,
@@ -131,15 +132,15 @@ void main() {
         saveState: AsyncError(Exception('Server error'), StackTrace.empty),
       );
 
-      await tester.pumpWidget(
-          createWidgetUnderTest(AsyncData(errorState)));
+      await tester.pumpWidget(createWidgetUnderTest(AsyncData(errorState)));
       await tester.pump();
 
       expect(find.textContaining('Server error'), findsOneWidget);
     });
 
-    testWidgets('Confirm button shows spinner while save is in progress',
-        (tester) async {
+    testWidgets('Confirm button shows spinner while save is in progress', (
+      tester,
+    ) async {
       const savingState = MapPickerState(
         latitude: 31.5,
         longitude: 74.3,
@@ -148,7 +149,8 @@ void main() {
       );
 
       await tester.pumpWidget(
-          createWidgetUnderTest(const AsyncData(savingState)));
+        createWidgetUnderTest(const AsyncData(savingState)),
+      );
       await tester.pump();
 
       // "Confirm Location" text is replaced by a spinner inside the button

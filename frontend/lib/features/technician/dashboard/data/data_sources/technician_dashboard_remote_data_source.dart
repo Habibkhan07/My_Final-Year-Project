@@ -9,7 +9,8 @@ abstract class ITechnicianDashboardRemoteDataSource {
   Future<TechnicianDashboardModel> getDashboard();
 }
 
-class TechnicianDashboardRemoteDataSource implements ITechnicianDashboardRemoteDataSource {
+class TechnicianDashboardRemoteDataSource
+    implements ITechnicianDashboardRemoteDataSource {
   final http.Client client;
   final AuthLocalDataSource authLocalDataSource;
   final String baseUrl = "${AppConstants.baseUrl}/technicians";
@@ -23,7 +24,7 @@ class TechnicianDashboardRemoteDataSource implements ITechnicianDashboardRemoteD
   Future<TechnicianDashboardModel> getDashboard() async {
     final token = await authLocalDataSource.getToken();
     final uri = Uri.parse('$baseUrl/dashboard/');
-    
+
     final response = await client.get(
       uri,
       headers: {
@@ -62,7 +63,7 @@ class TechnicianDashboardRemoteDataSource implements ITechnicianDashboardRemoteD
       );
     } catch (e) {
       if (e is HttpFailure) rethrow;
-      
+
       throw HttpFailure(
         statusCode: response.statusCode,
         code: 'server_error',

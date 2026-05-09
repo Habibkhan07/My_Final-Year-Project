@@ -25,8 +25,7 @@ import '../../domain/entities/bookings_counts.dart';
 class CustomerBookingMapper {
   CustomerBookingMapper._();
 
-  static const _logName =
-      'features.customer.bookings.mapper';
+  static const _logName = 'features.customer.bookings.mapper';
 
   static CustomerBooking fromModel(CustomerBookingModel model) {
     return CustomerBooking(
@@ -42,8 +41,16 @@ class CustomerBookingMapper {
         profilePictureUrl: model.technician.profilePictureUrl,
       ),
       addressLabel: model.addressLabel,
-      scheduledStart: _parseIsoOrNow(model.scheduledStart, model.id, 'scheduled_start'),
-      scheduledEnd: _parseIsoOrNow(model.scheduledEnd, model.id, 'scheduled_end'),
+      scheduledStart: _parseIsoOrNow(
+        model.scheduledStart,
+        model.id,
+        'scheduled_start',
+      ),
+      scheduledEnd: _parseIsoOrNow(
+        model.scheduledEnd,
+        model.id,
+        'scheduled_end',
+      ),
       createdAt: _parseIsoOrNow(model.createdAt, model.id, 'created_at'),
       price: BookingPrice(
         amount: model.price.amount,
@@ -71,11 +78,7 @@ class CustomerBookingMapper {
       items: response.items.map(fromModel).toList(growable: false),
       nextCursor: response.nextCursor,
       hasMore: response.hasMore,
-      serverTime: _parseIsoOrNow(
-        response.serverTime,
-        -1,
-        'server_time',
-      ),
+      serverTime: _parseIsoOrNow(response.serverTime, -1, 'server_time'),
       isStaleCache: isStaleCache,
       cachedAt: cachedAt,
     );

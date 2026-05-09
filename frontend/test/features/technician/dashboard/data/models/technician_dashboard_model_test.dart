@@ -55,14 +55,13 @@ void main() {
       {
         'job_id': 2,
         'service_title': 'Electrician',
-        'scheduled_time': tScheduledTime.add(const Duration(hours: 4)).toIso8601String(),
+        'scheduled_time': tScheduledTime
+            .add(const Duration(hours: 4))
+            .toIso8601String(),
         'address_text': 'Street 2, Islamabad',
-      }
+      },
     ],
-    'metrics': {
-      'jobs_completed_today': 5,
-      'cash_collected_today': 5000.0,
-    },
+    'metrics': {'jobs_completed_today': 5, 'cash_collected_today': 5000.0},
   };
 
   group('fromJson', () {
@@ -96,7 +95,7 @@ void main() {
   group('toEntity', () {
     test('should map model to domain entity correctly', () {
       final result = tDashboardModel.toEntity();
-      
+
       expect(result, isA<TechnicianDashboardEntity>());
       expect(result.walletBalance, 1200.0);
       expect(result.upNextJob, isA<UpNextJobEntity>());
@@ -114,7 +113,7 @@ void main() {
         laterTodayJobs: [],
         metrics: tMetricsModel,
       );
-      
+
       final result = model.toEntity();
       expect(result.upNextJob, isNull);
     });

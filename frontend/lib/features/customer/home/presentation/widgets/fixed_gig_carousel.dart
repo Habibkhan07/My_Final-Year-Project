@@ -33,13 +33,15 @@ class FixedGigCarousel extends StatelessWidget {
                 return GestureDetector(
                   onTap: () {
                     // Navigate to discovery with fixed gig filter
-                    context.push(Uri(
-                      path: '/discovery',
-                      queryParameters: {
-                        'title': gig.name,
-                        'subServiceId': gig.id.toString(),
-                      },
-                    ).toString());
+                    context.push(
+                      Uri(
+                        path: '/discovery',
+                        queryParameters: {
+                          'title': gig.name,
+                          'subServiceId': gig.id.toString(),
+                        },
+                      ).toString(),
+                    );
                   },
                   child: Container(
                     width: 160,
@@ -53,7 +55,7 @@ class FixedGigCarousel extends StatelessWidget {
                           color: Colors.grey.withValues(alpha: 0.05),
                           blurRadius: 5,
                           offset: const Offset(0, 2),
-                        )
+                        ),
                       ],
                     ),
                     child: Column(
@@ -61,7 +63,9 @@ class FixedGigCarousel extends StatelessWidget {
                       children: [
                         // Real Network Image with Caching and Shimmer
                         ClipRRect(
-                          borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                          borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(16),
+                          ),
                           child: CachedNetworkImage(
                             imageUrl: gig.imageUrl,
                             height: 110,
@@ -74,7 +78,11 @@ class FixedGigCarousel extends StatelessWidget {
                             ),
                             errorWidget: (context, url, error) => Container(
                               color: Colors.grey.shade100,
-                              child: Icon(Icons.broken_image, color: Colors.grey.shade300, size: 40),
+                              child: Icon(
+                                Icons.broken_image,
+                                color: Colors.grey.shade300,
+                                size: 40,
+                              ),
                             ),
                           ),
                         ),
@@ -85,13 +93,17 @@ class FixedGigCarousel extends StatelessWidget {
                             children: [
                               Text(
                                 gig.name,
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                ),
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                               ),
                               const SizedBox(height: 8),
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
                                   Text(
                                     "Rs. ${gig.basePrice}",
@@ -107,7 +119,11 @@ class FixedGigCarousel extends StatelessWidget {
                                       color: Colors.blue.shade50,
                                       shape: BoxShape.circle,
                                     ),
-                                    child: Icon(Icons.add, size: 16, color: Colors.blue.shade700),
+                                    child: Icon(
+                                      Icons.add,
+                                      size: 16,
+                                      color: Colors.blue.shade700,
+                                    ),
                                   ),
                                 ],
                               ),

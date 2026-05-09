@@ -43,7 +43,7 @@ class TechnicianCarousel extends StatelessWidget {
                           color: Colors.grey.withValues(alpha: 0.05),
                           blurRadius: 5,
                           offset: const Offset(0, 2),
-                        )
+                        ),
                       ],
                     ),
                     child: Column(
@@ -58,7 +58,11 @@ class TechnicianCarousel extends StatelessWidget {
                                   ? NetworkImage(tech.profilePicture)
                                   : null,
                               child: tech.profilePicture.isEmpty
-                                  ? Icon(Icons.person, size: 40, color: Colors.grey.shade400)
+                                  ? Icon(
+                                      Icons.person,
+                                      size: 40,
+                                      color: Colors.grey.shade400,
+                                    )
                                   : null,
                             ),
                             if (tech.isActive)
@@ -71,7 +75,10 @@ class TechnicianCarousel extends StatelessWidget {
                                   decoration: BoxDecoration(
                                     color: Colors.green.shade400,
                                     shape: BoxShape.circle,
-                                    border: Border.all(color: Colors.white, width: 2),
+                                    border: Border.all(
+                                      color: Colors.white,
+                                      width: 2,
+                                    ),
                                   ),
                                 ),
                               ),
@@ -80,20 +87,29 @@ class TechnicianCarousel extends StatelessWidget {
                         const SizedBox(height: 12),
                         Text(
                           tech.fullName,
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                         const SizedBox(height: 4),
                         Text(
                           tech.primaryCategory,
-                          style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                          style: TextStyle(
+                            color: Colors.grey.shade600,
+                            fontSize: 12,
+                          ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                         const SizedBox(height: 8),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
                           decoration: BoxDecoration(
                             color: Colors.orange.shade50,
                             borderRadius: BorderRadius.circular(12),
@@ -101,7 +117,11 @@ class TechnicianCarousel extends StatelessWidget {
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.star, size: 12, color: Colors.orange.shade700),
+                              Icon(
+                                Icons.star,
+                                size: 12,
+                                color: Colors.orange.shade700,
+                              ),
                               const SizedBox(width: 4),
                               Text(
                                 tech.ratingAverage.toStringAsFixed(2),

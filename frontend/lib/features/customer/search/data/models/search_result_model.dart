@@ -17,7 +17,8 @@ abstract class SearchResultModel with _$SearchResultModel {
     @JsonKey(name: 'is_fixed_price') required bool isFixedPrice,
   }) = _SearchResultModel;
 
-  factory SearchResultModel.fromJson(Map<String, dynamic> json) => _$SearchResultModelFromJson(json);
+  factory SearchResultModel.fromJson(Map<String, dynamic> json) =>
+      _$SearchResultModelFromJson(json);
 
   SearchResultEntity toEntity() => SearchResultEntity(
     id: id,

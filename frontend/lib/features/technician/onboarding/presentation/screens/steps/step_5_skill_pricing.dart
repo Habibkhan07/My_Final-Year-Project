@@ -27,8 +27,8 @@ class Step5SkillPricing extends ConsumerWidget {
               Text(
                 "Experience & Pricing",
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               const SizedBox(height: 8),
               Text(
@@ -102,7 +102,9 @@ class Step5SkillPricing extends ConsumerWidget {
                             vertical: 6,
                           ),
                           decoration: BoxDecoration(
-                            color: Theme.of(context).primaryColor.withOpacity(0.1),
+                            color: Theme.of(
+                              context,
+                            ).primaryColor.withOpacity(0.1),
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Text(
@@ -118,7 +120,10 @@ class Step5SkillPricing extends ConsumerWidget {
                     const SizedBox(height: 16),
                     const Text(
                       "Years of Experience",
-                      style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
                     ),
                     Slider(
                       value: skill.yearsOfExperience.toDouble(),
@@ -134,7 +139,10 @@ class Step5SkillPricing extends ConsumerWidget {
                     const Divider(height: 32),
                     const Text(
                       "Your Labor Rate (PKR)",
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -182,10 +190,7 @@ class _RateInput extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: const TextStyle(fontSize: 12, color: Colors.grey),
-        ),
+        Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
         const SizedBox(height: 4),
         TextFormField(
           initialValue: initialValue == hint ? null : initialValue,

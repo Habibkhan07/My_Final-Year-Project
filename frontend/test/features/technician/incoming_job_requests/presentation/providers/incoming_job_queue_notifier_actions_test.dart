@@ -98,10 +98,12 @@ ProviderContainer _buildContainer({
       // Override the repository so the use-case providers (which depend on
       // the repo) automatically pick up the fake.
       feature_di.incomingJobRepositoryProvider.overrideWithValue(repo),
-      feature_di.acceptJobRequestUseCaseProvider
-          .overrideWithValue(AcceptJobRequestUseCase(repo)),
-      feature_di.declineJobRequestUseCaseProvider
-          .overrideWithValue(DeclineJobRequestUseCase(repo)),
+      feature_di.acceptJobRequestUseCaseProvider.overrideWithValue(
+        AcceptJobRequestUseCase(repo),
+      ),
+      feature_di.declineJobRequestUseCaseProvider.overrideWithValue(
+        DeclineJobRequestUseCase(repo),
+      ),
     ],
   );
   addTearDown(container.dispose);
@@ -123,8 +125,11 @@ ProviderContainer _buildContainer({
   container
       .read(systemEventProvider.notifier)
       .processEvent(_liveEvent(id: 'e1', jobId: jobId));
-  expect(container.read(incomingJobQueueProvider).queue.length, 1,
-      reason: 'precondition: offer was seeded');
+  expect(
+    container.read(incomingJobQueueProvider).queue.length,
+    1,
+    reason: 'precondition: offer was seeded',
+  );
   return (container: container, repo: repo);
 }
 
@@ -132,157 +137,162 @@ void main() {
   group('IncomingJobQueueNotifier.accept', () {
     test('success removes the offer and returns JobActionSuccess', () async {
       final h = _seed(jobId: 1);
-      final result =
-          await h.container.read(incomingJobQueueProvider.notifier).accept(1);
+      final result = await h.container
+          .read(incomingJobQueueProvider.notifier)
+          .accept(1);
 
       expect(result, isA<JobActionSuccess>());
       expect(h.container.read(incomingJobQueueProvider).queue, isEmpty);
-      expect(h.container.read(incomingJobQueueProvider).inFlightJobIds, isEmpty);
+      expect(
+        h.container.read(incomingJobQueueProvider).inFlightJobIds,
+        isEmpty,
+      );
       expect(h.repo.acceptCalls, 1);
     });
 
-    test(
-      'while in flight, the offer is in inFlightJobIds; once resolved, it '
-      'is cleared (and the offer is removed)',
-      () async {
-        final repo = _FakeRepository()..acceptCompleter = Completer<void>();
-        final h = _seed(jobId: 1, repository: repo);
+    test('while in flight, the offer is in inFlightJobIds; once resolved, it '
+        'is cleared (and the offer is removed)', () async {
+      final repo = _FakeRepository()..acceptCompleter = Completer<void>();
+      final h = _seed(jobId: 1, repository: repo);
 
-        // Kick off the call but do NOT await it yet.
-        final future =
-            h.container.read(incomingJobQueueProvider.notifier).accept(1);
+      // Kick off the call but do NOT await it yet.
+      final future = h.container
+          .read(incomingJobQueueProvider.notifier)
+          .accept(1);
 
-        // The notifier should have synchronously added jobId=1 to the
-        // in-flight set before awaiting the use case.
-        expect(
-          h.container.read(incomingJobQueueProvider).inFlightJobIds,
-          contains(1),
-        );
+      // The notifier should have synchronously added jobId=1 to the
+      // in-flight set before awaiting the use case.
+      expect(
+        h.container.read(incomingJobQueueProvider).inFlightJobIds,
+        contains(1),
+      );
 
-        // Resolve the use case → notifier completes.
-        repo.acceptCompleter!.complete();
-        final result = await future;
-        expect(result, isA<JobActionSuccess>());
-        expect(
-            h.container.read(incomingJobQueueProvider).inFlightJobIds, isEmpty);
-      },
-    );
+      // Resolve the use case → notifier completes.
+      repo.acceptCompleter!.complete();
+      final result = await future;
+      expect(result, isA<JobActionSuccess>());
+      expect(
+        h.container.read(incomingJobQueueProvider).inFlightJobIds,
+        isEmpty,
+      );
+    });
 
     test(
       'OfferNoLongerAvailable removes the offer and returns JobActionConflict '
       'carrying the failure',
       () async {
         final repo = _FakeRepository()
-          ..acceptThrow = const OfferNoLongerAvailable(currentStatus: 'REJECTED');
+          ..acceptThrow = const OfferNoLongerAvailable(
+            currentStatus: 'REJECTED',
+          );
         final h = _seed(jobId: 1, repository: repo);
 
-        final result =
-            await h.container.read(incomingJobQueueProvider.notifier).accept(1);
+        final result = await h.container
+            .read(incomingJobQueueProvider.notifier)
+            .accept(1);
 
         expect(result, isA<JobActionConflict>());
         final conflict = result as JobActionConflict;
         expect(conflict.failure.currentStatus, 'REJECTED');
         expect(h.container.read(incomingJobQueueProvider).queue, isEmpty);
         expect(
-            h.container.read(incomingJobQueueProvider).inFlightJobIds, isEmpty);
+          h.container.read(incomingJobQueueProvider).inFlightJobIds,
+          isEmpty,
+        );
       },
     );
 
-    test(
-      'IncomingJobNetworkFailure preserves the offer (retryable) and '
-      'returns JobActionNetworkFailure',
-      () async {
-        final repo = _FakeRepository()
-          ..acceptThrow = const IncomingJobNetworkFailure();
-        final h = _seed(jobId: 1, repository: repo);
+    test('IncomingJobNetworkFailure preserves the offer (retryable) and '
+        'returns JobActionNetworkFailure', () async {
+      final repo = _FakeRepository()
+        ..acceptThrow = const IncomingJobNetworkFailure();
+      final h = _seed(jobId: 1, repository: repo);
 
-        final result =
-            await h.container.read(incomingJobQueueProvider.notifier).accept(1);
+      final result = await h.container
+          .read(incomingJobQueueProvider.notifier)
+          .accept(1);
 
-        expect(result, isA<JobActionNetworkFailure>());
-        // Offer must remain in the queue so the user can Retry.
-        final queue = h.container.read(incomingJobQueueProvider).queue;
-        expect(queue.length, 1);
-        expect(queue.single.jobId, 1);
-        // In-flight cleared so the buttons re-enable.
-        expect(
-            h.container.read(incomingJobQueueProvider).inFlightJobIds, isEmpty);
-      },
-    );
+      expect(result, isA<JobActionNetworkFailure>());
+      // Offer must remain in the queue so the user can Retry.
+      final queue = h.container.read(incomingJobQueueProvider).queue;
+      expect(queue.length, 1);
+      expect(queue.single.jobId, 1);
+      // In-flight cleared so the buttons re-enable.
+      expect(
+        h.container.read(incomingJobQueueProvider).inFlightJobIds,
+        isEmpty,
+      );
+    });
 
-    test(
-      'IncomingJobServerFailure preserves the offer and returns '
-      'JobActionUnexpectedFailure',
-      () async {
-        final repo = _FakeRepository()
-          ..acceptThrow = const IncomingJobServerFailure();
-        final h = _seed(jobId: 1, repository: repo);
+    test('IncomingJobServerFailure preserves the offer and returns '
+        'JobActionUnexpectedFailure', () async {
+      final repo = _FakeRepository()
+        ..acceptThrow = const IncomingJobServerFailure();
+      final h = _seed(jobId: 1, repository: repo);
 
-        final result =
-            await h.container.read(incomingJobQueueProvider.notifier).accept(1);
+      final result = await h.container
+          .read(incomingJobQueueProvider.notifier)
+          .accept(1);
 
-        expect(result, isA<JobActionUnexpectedFailure>());
-        expect(h.container.read(incomingJobQueueProvider).queue.length, 1);
-      },
-    );
+      expect(result, isA<JobActionUnexpectedFailure>());
+      expect(h.container.read(incomingJobQueueProvider).queue.length, 1);
+    });
 
-    test(
-      'a second concurrent call for the same jobId returns AlreadyInFlight '
-      'and does NOT dispatch a second HTTP call',
-      () async {
-        final repo = _FakeRepository()..acceptCompleter = Completer<void>();
-        final h = _seed(jobId: 1, repository: repo);
+    test('a second concurrent call for the same jobId returns AlreadyInFlight '
+        'and does NOT dispatch a second HTTP call', () async {
+      final repo = _FakeRepository()..acceptCompleter = Completer<void>();
+      final h = _seed(jobId: 1, repository: repo);
 
-        // First call — leave it pending.
-        final first =
-            h.container.read(incomingJobQueueProvider.notifier).accept(1);
-        // Second call lands while the first is still in flight.
-        final second =
-            await h.container.read(incomingJobQueueProvider.notifier).accept(1);
+      // First call — leave it pending.
+      final first = h.container
+          .read(incomingJobQueueProvider.notifier)
+          .accept(1);
+      // Second call lands while the first is still in flight.
+      final second = await h.container
+          .read(incomingJobQueueProvider.notifier)
+          .accept(1);
 
-        expect(second, isA<JobActionAlreadyInFlight>());
-        expect(repo.acceptCalls, 1, reason: 'no second wire dispatch');
+      expect(second, isA<JobActionAlreadyInFlight>());
+      expect(repo.acceptCalls, 1, reason: 'no second wire dispatch');
 
-        // Cleanup — finish the first call.
-        repo.acceptCompleter!.complete();
-        await first;
-      },
-    );
+      // Cleanup — finish the first call.
+      repo.acceptCompleter!.complete();
+      await first;
+    });
 
-    test(
-      'accepting different jobIds in parallel works — each gets its own '
-      'in-flight slot and resolves independently',
-      () async {
-        final repo = _FakeRepository();
-        final local = _MockLocal();
-        when(() => local.getLastSyncTimestamp()).thenReturn(null);
-        final container = _buildContainer(local: local, repo: repo);
-        container.read(incomingJobQueueProvider);
-        // Seed two offers (jobId=1 head, jobId=2 tail).
-        container
-            .read(systemEventProvider.notifier)
-            .processEvent(_liveEvent(id: 'e1', jobId: 1));
-        container.read(systemEventProvider.notifier).processEvent(
-              _liveEvent(
-                id: 'e2',
-                jobId: 2,
-                agedBy: const Duration(milliseconds: 1),
-              ),
-            );
+    test('accepting different jobIds in parallel works — each gets its own '
+        'in-flight slot and resolves independently', () async {
+      final repo = _FakeRepository();
+      final local = _MockLocal();
+      when(() => local.getLastSyncTimestamp()).thenReturn(null);
+      final container = _buildContainer(local: local, repo: repo);
+      container.read(incomingJobQueueProvider);
+      // Seed two offers (jobId=1 head, jobId=2 tail).
+      container
+          .read(systemEventProvider.notifier)
+          .processEvent(_liveEvent(id: 'e1', jobId: 1));
+      container
+          .read(systemEventProvider.notifier)
+          .processEvent(
+            _liveEvent(
+              id: 'e2',
+              jobId: 2,
+              agedBy: const Duration(milliseconds: 1),
+            ),
+          );
 
-        final r1 = await container
-            .read(incomingJobQueueProvider.notifier)
-            .accept(1);
-        final r2 = await container
-            .read(incomingJobQueueProvider.notifier)
-            .accept(2);
+      final r1 = await container
+          .read(incomingJobQueueProvider.notifier)
+          .accept(1);
+      final r2 = await container
+          .read(incomingJobQueueProvider.notifier)
+          .accept(2);
 
-        expect(r1, isA<JobActionSuccess>());
-        expect(r2, isA<JobActionSuccess>());
-        expect(container.read(incomingJobQueueProvider).queue, isEmpty);
-        expect(repo.acceptCalls, 2);
-      },
-    );
+      expect(r1, isA<JobActionSuccess>());
+      expect(r2, isA<JobActionSuccess>());
+      expect(container.read(incomingJobQueueProvider).queue, isEmpty);
+      expect(repo.acceptCalls, 2);
+    });
 
     test(
       'an untyped exception bubbles into JobActionUnexpectedFailure '
@@ -291,8 +301,9 @@ void main() {
         final repo = _FakeRepository()..acceptThrow = StateError('boom');
         final h = _seed(jobId: 1, repository: repo);
 
-        final result =
-            await h.container.read(incomingJobQueueProvider.notifier).accept(1);
+        final result = await h.container
+            .read(incomingJobQueueProvider.notifier)
+            .accept(1);
 
         expect(result, isA<JobActionUnexpectedFailure>());
       },
@@ -302,60 +313,69 @@ void main() {
   group('IncomingJobQueueNotifier.decline', () {
     test('success removes the offer and returns JobActionSuccess', () async {
       final h = _seed(jobId: 1);
-      final result =
-          await h.container.read(incomingJobQueueProvider.notifier).decline(1);
+      final result = await h.container
+          .read(incomingJobQueueProvider.notifier)
+          .decline(1);
 
       expect(result, isA<JobActionSuccess>());
       expect(h.container.read(incomingJobQueueProvider).queue, isEmpty);
       expect(h.repo.declineCalls, 1);
     });
 
-    test('OfferNoLongerAvailable on decline returns JobActionConflict',
-        () async {
-      final repo = _FakeRepository()
-        ..declineThrow = const OfferNoLongerAvailable(currentStatus: 'CONFIRMED');
-      final h = _seed(jobId: 1, repository: repo);
+    test(
+      'OfferNoLongerAvailable on decline returns JobActionConflict',
+      () async {
+        final repo = _FakeRepository()
+          ..declineThrow = const OfferNoLongerAvailable(
+            currentStatus: 'CONFIRMED',
+          );
+        final h = _seed(jobId: 1, repository: repo);
 
-      final result =
-          await h.container.read(incomingJobQueueProvider.notifier).decline(1);
+        final result = await h.container
+            .read(incomingJobQueueProvider.notifier)
+            .decline(1);
 
-      expect(result, isA<JobActionConflict>());
-      expect((result as JobActionConflict).failure.currentStatus, 'CONFIRMED');
-      expect(h.container.read(incomingJobQueueProvider).queue, isEmpty);
-    });
+        expect(result, isA<JobActionConflict>());
+        expect(
+          (result as JobActionConflict).failure.currentStatus,
+          'CONFIRMED',
+        );
+        expect(h.container.read(incomingJobQueueProvider).queue, isEmpty);
+      },
+    );
 
     test('network failure on decline preserves the offer', () async {
       final repo = _FakeRepository()
         ..declineThrow = const IncomingJobNetworkFailure();
       final h = _seed(jobId: 1, repository: repo);
 
-      final result =
-          await h.container.read(incomingJobQueueProvider.notifier).decline(1);
+      final result = await h.container
+          .read(incomingJobQueueProvider.notifier)
+          .decline(1);
 
       expect(result, isA<JobActionNetworkFailure>());
       expect(h.container.read(incomingJobQueueProvider).queue.length, 1);
     });
 
-    test(
-      'concurrent accept + decline on the same jobId — second call returns '
-      'AlreadyInFlight regardless of which action is in flight',
-      () async {
-        final repo = _FakeRepository()..acceptCompleter = Completer<void>();
-        final h = _seed(jobId: 1, repository: repo);
+    test('concurrent accept + decline on the same jobId — second call returns '
+        'AlreadyInFlight regardless of which action is in flight', () async {
+      final repo = _FakeRepository()..acceptCompleter = Completer<void>();
+      final h = _seed(jobId: 1, repository: repo);
 
-        // Accept is in flight.
-        final acceptFuture =
-            h.container.read(incomingJobQueueProvider.notifier).accept(1);
-        // Decline lands during the in-flight window.
-        final declineResult =
-            await h.container.read(incomingJobQueueProvider.notifier).decline(1);
+      // Accept is in flight.
+      final acceptFuture = h.container
+          .read(incomingJobQueueProvider.notifier)
+          .accept(1);
+      // Decline lands during the in-flight window.
+      final declineResult = await h.container
+          .read(incomingJobQueueProvider.notifier)
+          .decline(1);
 
-        expect(declineResult, isA<JobActionAlreadyInFlight>());
-        expect(repo.declineCalls, 0, reason: 'decline must not have dispatched');
+      expect(declineResult, isA<JobActionAlreadyInFlight>());
+      expect(repo.declineCalls, 0, reason: 'decline must not have dispatched');
 
-        repo.acceptCompleter!.complete();
-        await acceptFuture;
-      },
-    );
+      repo.acceptCompleter!.complete();
+      await acceptFuture;
+    });
   });
 }

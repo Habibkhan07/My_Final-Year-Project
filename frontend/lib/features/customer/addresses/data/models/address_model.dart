@@ -58,38 +58,38 @@ class CustomerAddressModel {
       );
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'label': label,
-        'street_address': streetAddress,
-        'latitude': latitude,
-        'longitude': longitude,
-        'is_default': isDefault,
-        'created_at': createdAt,
-        'neighborhood': neighborhood,
-        'suburb': suburb,
-        'city': city,
-        'state': state,
-        'country': country,
-        'postal_code': postalCode,
-        'locality_label': localityLabel,
-      };
+    'id': id,
+    'label': label,
+    'street_address': streetAddress,
+    'latitude': latitude,
+    'longitude': longitude,
+    'is_default': isDefault,
+    'created_at': createdAt,
+    'neighborhood': neighborhood,
+    'suburb': suburb,
+    'city': city,
+    'state': state,
+    'country': country,
+    'postal_code': postalCode,
+    'locality_label': localityLabel,
+  };
 
   CustomerAddressEntity toEntity() => CustomerAddressEntity(
-        id: id,
-        label: label,
-        streetAddress: streetAddress,
-        latitude: latitude,
-        longitude: longitude,
-        isDefault: isDefault,
-        createdAt: createdAt,
-        neighborhood: neighborhood,
-        suburb: suburb,
-        city: city,
-        state: state,
-        country: country,
-        postalCode: postalCode,
-        localityLabel: localityLabel,
-      );
+    id: id,
+    label: label,
+    streetAddress: streetAddress,
+    latitude: latitude,
+    longitude: longitude,
+    isDefault: isDefault,
+    createdAt: createdAt,
+    neighborhood: neighborhood,
+    suburb: suburb,
+    city: city,
+    state: state,
+    country: country,
+    postalCode: postalCode,
+    localityLabel: localityLabel,
+  );
 }
 
 /// Outgoing POST body for POST /api/customers/addresses/.
@@ -128,19 +128,19 @@ class CreateAddressRequest {
   });
 
   Map<String, dynamic> toJson() => {
-        'label': label,
-        'street_address': streetAddress,
-        'latitude': latitude.toStringAsFixed(6),
-        'longitude': longitude.toStringAsFixed(6),
-        'is_default': isDefault,
-        'neighborhood': neighborhood,
-        'suburb': suburb,
-        'city': city,
-        'state': state,
-        'country': country,
-        'postal_code': postalCode,
-        'locality_label': localityLabel,
-      };
+    'label': label,
+    'street_address': streetAddress,
+    'latitude': latitude.toStringAsFixed(6),
+    'longitude': longitude.toStringAsFixed(6),
+    'is_default': isDefault,
+    'neighborhood': neighborhood,
+    'suburb': suburb,
+    'city': city,
+    'state': state,
+    'country': country,
+    'postal_code': postalCode,
+    'locality_label': localityLabel,
+  };
 }
 
 double _parseDouble(dynamic value) {

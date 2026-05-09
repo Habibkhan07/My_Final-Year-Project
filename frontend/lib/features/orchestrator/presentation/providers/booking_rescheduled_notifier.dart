@@ -53,4 +53,3 @@ class BookingRescheduledNotifier extends _$BookingRescheduledNotifier {
     });
   }
 }
-

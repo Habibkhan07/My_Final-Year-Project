@@ -34,10 +34,7 @@ class LaterTodayList extends StatelessWidget {
             child: Column(
               children: [
                 for (int i = 0; i < jobs.length; i++)
-                  _JobRow(
-                    job: jobs[i],
-                    isLast: i == jobs.length - 1,
-                  ),
+                  _JobRow(job: jobs[i], isLast: i == jobs.length - 1),
               ],
             ),
           ),
@@ -73,7 +70,9 @@ class _JobRow extends StatelessWidget {
     return InkWell(
       onTap: () {}, // TODO(jobs): navigate to job detail screen
       borderRadius: BorderRadius.vertical(
-        bottom: isLast ? const Radius.circular(AppShapes.radiusMD) : Radius.zero,
+        bottom: isLast
+            ? const Radius.circular(AppShapes.radiusMD)
+            : Radius.zero,
       ),
       highlightColor: AppColors.surfaceContainerHigh,
       splashColor: Colors.transparent,

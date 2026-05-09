@@ -16,39 +16,39 @@ class DiscoveryErrorView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    
+
     // Pattern match the sealed class to get specific UI representations
     final (icon, title, message) = switch (failure) {
       DiscoveryNetworkFailure() => (
-          Icons.wifi_off_rounded,
-          'No Internet Connection',
-          failure.message,
-        ),
+        Icons.wifi_off_rounded,
+        'No Internet Connection',
+        failure.message,
+      ),
       DiscoveryServerFailure() => (
-          Icons.dns_rounded,
-          'Server Error',
-          failure.message,
-        ),
+        Icons.dns_rounded,
+        'Server Error',
+        failure.message,
+      ),
       DiscoveryValidationFailure() => (
-          Icons.error_outline_rounded,
-          'Validation Error',
-          failure.message,
-        ),
+        Icons.error_outline_rounded,
+        'Validation Error',
+        failure.message,
+      ),
       DiscoveryUnauthorizedFailure() => (
-          Icons.lock_outline_rounded,
-          'Unauthorized',
-          failure.message,
-        ),
+        Icons.lock_outline_rounded,
+        'Unauthorized',
+        failure.message,
+      ),
       DiscoveryNotFoundFailure() => (
-          Icons.search_off_rounded,
-          'Not Found',
-          failure.message,
-        ),
+        Icons.search_off_rounded,
+        'Not Found',
+        failure.message,
+      ),
       DiscoveryUnexpectedFailure() => (
-          Icons.warning_amber_rounded,
-          'Something went wrong',
-          failure.message,
-        ),
+        Icons.warning_amber_rounded,
+        'Something went wrong',
+        failure.message,
+      ),
     };
 
     return Center(

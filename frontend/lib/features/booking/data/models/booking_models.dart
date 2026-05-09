@@ -25,10 +25,8 @@ abstract class TechnicianSkillModel with _$TechnicianSkillModel {
 
   const TechnicianSkillModel._();
 
-  TechnicianSkillEntity toEntity() => TechnicianSkillEntity(
-        name: name,
-        iconName: iconName,
-      );
+  TechnicianSkillEntity toEntity() =>
+      TechnicianSkillEntity(name: name, iconName: iconName);
 }
 
 @freezed
@@ -45,10 +43,10 @@ abstract class TechnicianReviewModel with _$TechnicianReviewModel {
   const TechnicianReviewModel._();
 
   TechnicianReviewEntity toEntity() => TechnicianReviewEntity(
-        reviewerName: reviewerName,
-        rating: rating,
-        text: text,
-      );
+    reviewerName: reviewerName,
+    rating: rating,
+    text: text,
+  );
 }
 
 @freezed
@@ -71,7 +69,8 @@ abstract class TechnicianProfileModel with _$TechnicianProfileModel {
     @JsonKey(name: 'price_context') required String priceContext,
     @JsonKey(name: 'promo_tag') String? promoTag,
     required List<TechnicianSkillModel> skills,
-    @JsonKey(name: 'recent_reviews') required List<TechnicianReviewModel> recentReviews,
+    @JsonKey(name: 'recent_reviews')
+    required List<TechnicianReviewModel> recentReviews,
   }) = _TechnicianProfileModel;
 
   factory TechnicianProfileModel.fromJson(Map<String, dynamic> json) =>
@@ -80,25 +79,25 @@ abstract class TechnicianProfileModel with _$TechnicianProfileModel {
   const TechnicianProfileModel._();
 
   TechnicianProfileEntity toEntity() => TechnicianProfileEntity(
-        id: id,
-        fullName: fullName,
-        city: city,
-        profilePicture: profilePicture,
-        ratingAverage: ratingAverage,
-        reviewCount: reviewCount,
-        experienceYears: experienceYears,
-        bio: bio,
-        distanceKm: distanceKm,
-        bayesianScore: bayesianScore,
-        isActive: isActive,
-        uiRatingText: uiRatingText,
-        primaryPrice: primaryPrice,
-        primaryPriceRaw: primaryPriceRaw,
-        priceContext: priceContext,
-        promoTag: promoTag,
-        skills: skills.map((s) => s.toEntity()).toList(),
-        recentReviews: recentReviews.map((r) => r.toEntity()).toList(),
-      );
+    id: id,
+    fullName: fullName,
+    city: city,
+    profilePicture: profilePicture,
+    ratingAverage: ratingAverage,
+    reviewCount: reviewCount,
+    experienceYears: experienceYears,
+    bio: bio,
+    distanceKm: distanceKm,
+    bayesianScore: bayesianScore,
+    isActive: isActive,
+    uiRatingText: uiRatingText,
+    primaryPrice: primaryPrice,
+    primaryPriceRaw: primaryPriceRaw,
+    priceContext: priceContext,
+    promoTag: promoTag,
+    skills: skills.map((s) => s.toEntity()).toList(),
+    recentReviews: recentReviews.map((r) => r.toEntity()).toList(),
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -126,11 +125,11 @@ abstract class AvailabilitySlotModel with _$AvailabilitySlotModel {
   const AvailabilitySlotModel._();
 
   AvailabilitySlotEntity toEntity() => AvailabilitySlotEntity(
-        timeString: timeString,
-        isoStart: isoStart,
-        isoEnd: isoEnd,
-        period: period,
-      );
+    timeString: timeString,
+    isoStart: isoStart,
+    isoEnd: isoEnd,
+    period: period,
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -194,4 +193,3 @@ abstract class InstantBookingResponseModel with _$InstantBookingResponseModel {
 
   CreatedBookingEntity toEntity() => CreatedBookingEntity(bookingId: bookingId);
 }
-

@@ -121,8 +121,7 @@ class SystemEventNotifier extends _$SystemEventNotifier {
   /// server-anchored value if a WS event has ever been observed,
   /// otherwise falls back to local UTC. Always returns UTC.
   DateTime _serverNow() {
-    final localNow =
-        (debugLocalNow ?? () => DateTime.now()).call().toUtc();
+    final localNow = (debugLocalNow ?? () => DateTime.now()).call().toUtc();
     final anchorTs = _serverAnchorTimestamp;
     final anchorObserved = _serverAnchorObservedAt;
     if (anchorTs == null || anchorObserved == null) {
@@ -133,8 +132,7 @@ class SystemEventNotifier extends _$SystemEventNotifier {
   }
 
   void _updateServerAnchor(DateTime serverTimestamp) {
-    final localNow =
-        (debugLocalNow ?? () => DateTime.now()).call().toUtc();
+    final localNow = (debugLocalNow ?? () => DateTime.now()).call().toUtc();
     // Take max(existing, incoming) so a delayed WS frame can't regress
     // the anchor — the anchor is "the latest server time we know about,"
     // never older.
@@ -157,10 +155,12 @@ class SystemEventNotifier extends _$SystemEventNotifier {
     // The dedup map and `latestEvent` are intentionally NOT seeded — they
     // are session-scoped, and re-emitting an already-handled event would
     // make the router fire spuriously on launch.
-    final persistedIso =
-        ref.read(eventLocalDataSourceProvider).getLastSyncTimestamp();
-    final seededCursor =
-        persistedIso == null ? null : DateTime.tryParse(persistedIso);
+    final persistedIso = ref
+        .read(eventLocalDataSourceProvider)
+        .getLastSyncTimestamp();
+    final seededCursor = persistedIso == null
+        ? null
+        : DateTime.tryParse(persistedIso);
     return SystemEventState(lastSyncTimestamp: seededCursor);
   }
 
@@ -278,8 +278,8 @@ class SystemEventNotifier extends _$SystemEventNotifier {
     final previousCursor = state.lastSyncTimestamp;
     final newCursor =
         previousCursor == null || event.timestamp.isAfter(previousCursor)
-            ? event.timestamp
-            : previousCursor;
+        ? event.timestamp
+        : previousCursor;
 
     // 7. Single atomic state emission — router listeners wake up here.
     state = state.copyWith(

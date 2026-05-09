@@ -31,10 +31,12 @@ class DiscoveryResultsScreen extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<DiscoveryResultsScreen> createState() => _DiscoveryResultsScreenState();
+  ConsumerState<DiscoveryResultsScreen> createState() =>
+      _DiscoveryResultsScreenState();
 }
 
-class _DiscoveryResultsScreenState extends ConsumerState<DiscoveryResultsScreen> {
+class _DiscoveryResultsScreenState
+    extends ConsumerState<DiscoveryResultsScreen> {
   final ScrollController _scrollController = ScrollController();
 
   late final _provider = discoveryProvider(
@@ -60,7 +62,8 @@ class _DiscoveryResultsScreenState extends ConsumerState<DiscoveryResultsScreen>
   }
 
   void _onScroll() {
-    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
       // Reached near the bottom, load more
       ref.read(_provider.notifier).loadMore();
     }
@@ -76,8 +79,8 @@ class _DiscoveryResultsScreenState extends ConsumerState<DiscoveryResultsScreen>
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                error is DiscoveryNetworkFailure 
-                    ? 'Network error. Please check your connection.' 
+                error is DiscoveryNetworkFailure
+                    ? 'Network error. Please check your connection.'
                     : 'Failed to load more results.',
               ),
               action: SnackBarAction(
@@ -107,7 +110,11 @@ class _DiscoveryResultsScreenState extends ConsumerState<DiscoveryResultsScreen>
         backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: Color(0xFF151C24), size: 20),
+          icon: const Icon(
+            Icons.arrow_back_ios_new,
+            color: Color(0xFF151C24),
+            size: 20,
+          ),
           onPressed: () => context.pop(),
         ),
       ),
@@ -121,9 +128,9 @@ class _DiscoveryResultsScreenState extends ConsumerState<DiscoveryResultsScreen>
         ),
         error: (error, stackTrace) {
           if (state.hasValue) {
-             return _buildList(state.value!);
+            return _buildList(state.value!);
           }
-          
+
           if (error is DiscoveryFailure) {
             return DiscoveryErrorView(
               failure: error,
@@ -139,7 +146,7 @@ class _DiscoveryResultsScreenState extends ConsumerState<DiscoveryResultsScreen>
 
   Widget _buildList(dynamic data) {
     final result = data.discoveryResult;
-    
+
     // Safety check
     if (result == null) {
       return const SizedBox.shrink();
@@ -159,7 +166,10 @@ class _DiscoveryResultsScreenState extends ConsumerState<DiscoveryResultsScreen>
       child: ListView.builder(
         controller: _scrollController,
         padding: const EdgeInsets.symmetric(vertical: 12),
-        itemCount: technicians.length + (data.isPaginationLoading ? 1 : 0) + (result.uiPromoBannerText != null ? 1 : 0),
+        itemCount:
+            technicians.length +
+            (data.isPaginationLoading ? 1 : 0) +
+            (result.uiPromoBannerText != null ? 1 : 0),
         itemBuilder: (context, index) {
           // If promo banner exists, it occupies index 0
           if (result.uiPromoBannerText != null && index == 0) {
@@ -167,24 +177,31 @@ class _DiscoveryResultsScreenState extends ConsumerState<DiscoveryResultsScreen>
           }
 
           // Adjust index if promo banner is shown
-          final technicianIndex = result.uiPromoBannerText != null ? index - 1 : index;
+          final technicianIndex = result.uiPromoBannerText != null
+              ? index - 1
+              : index;
 
           if (technicianIndex < technicians.length) {
             final technician = technicians[technicianIndex];
             return TechnicianCard(
               technician: technician,
               onTap: () {
-                final effectiveServiceId = widget.serviceId ?? result.resolvedServiceId;
-                final effectiveSubServiceId = widget.subServiceId ?? result.resolvedSubServiceId;
+                final effectiveServiceId =
+                    widget.serviceId ?? result.resolvedServiceId;
+                final effectiveSubServiceId =
+                    widget.subServiceId ?? result.resolvedSubServiceId;
 
                 final uri = Uri(
                   path: '/technician-profile/${technician.id}',
                   queryParameters: {
                     if (widget.lat != null) 'lat': widget.lat.toString(),
                     if (widget.lng != null) 'lng': widget.lng.toString(),
-                    if (effectiveServiceId != null) 'serviceId': effectiveServiceId.toString(),
-                    if (effectiveSubServiceId != null) 'subServiceId': effectiveSubServiceId.toString(),
-                    if (widget.promotionId != null) 'promotionId': widget.promotionId.toString(),
+                    if (effectiveServiceId != null)
+                      'serviceId': effectiveServiceId.toString(),
+                    if (effectiveSubServiceId != null)
+                      'subServiceId': effectiveSubServiceId.toString(),
+                    if (widget.promotionId != null)
+                      'promotionId': widget.promotionId.toString(),
                   },
                 );
                 context.push(uri.toString());

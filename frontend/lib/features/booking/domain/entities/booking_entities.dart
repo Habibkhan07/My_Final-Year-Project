@@ -83,8 +83,6 @@ abstract class AvailabilitySlotEntity with _$AvailabilitySlotEntity {
 /// receipt so the Active Job Screen can be restored on crash recovery.
 @freezed
 abstract class CreatedBookingEntity with _$CreatedBookingEntity {
-  const factory CreatedBookingEntity({
-    required int bookingId,
-  }) = _CreatedBookingEntity;
+  const factory CreatedBookingEntity({required int bookingId}) =
+      _CreatedBookingEntity;
 }
-

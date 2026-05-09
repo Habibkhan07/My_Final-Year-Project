@@ -30,29 +30,38 @@ void main() {
 
   group('cacheDashboard', () {
     test('should call SharedPreferences to cache the data', () async {
-      when(() => mockSharedPreferences.setString(any(), any()))
-          .thenAnswer((_) async => true);
+      when(
+        () => mockSharedPreferences.setString(any(), any()),
+      ).thenAnswer((_) async => true);
 
       await dataSource.cacheDashboard(tDashboardModel);
 
       final expectedJsonString = jsonEncode(tDashboardModel.toJson());
-      verify(() => mockSharedPreferences.setString(
-            'CACHED_TECHNICIAN_DASHBOARD',
-            expectedJsonString,
-          )).called(1);
+      verify(
+        () => mockSharedPreferences.setString(
+          'CACHED_TECHNICIAN_DASHBOARD',
+          expectedJsonString,
+        ),
+      ).called(1);
     });
   });
 
   group('getCachedDashboard', () {
-    test('should return TechnicianDashboardModel from SharedPreferences when it is in cache',
-        () async {
-      final jsonString = jsonEncode(tDashboardModel.toJson());
-      when(() => mockSharedPreferences.getString(any())).thenReturn(jsonString);
+    test(
+      'should return TechnicianDashboardModel from SharedPreferences when it is in cache',
+      () async {
+        final jsonString = jsonEncode(tDashboardModel.toJson());
+        when(
+          () => mockSharedPreferences.getString(any()),
+        ).thenReturn(jsonString);
 
-      final result = await dataSource.getCachedDashboard();
+        final result = await dataSource.getCachedDashboard();
 
-      verify(() => mockSharedPreferences.getString('CACHED_TECHNICIAN_DASHBOARD'));
-      expect(result, equals(tDashboardModel));
-    });
+        verify(
+          () => mockSharedPreferences.getString('CACHED_TECHNICIAN_DASHBOARD'),
+        );
+        expect(result, equals(tDashboardModel));
+      },
+    );
   });
 }

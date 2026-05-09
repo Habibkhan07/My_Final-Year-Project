@@ -124,7 +124,7 @@ class HomeSkeletonLoader extends StatelessWidget {
                 ],
               ),
             ),
-            
+
             const SizedBox(height: 32),
 
             // Section Title Shimmer

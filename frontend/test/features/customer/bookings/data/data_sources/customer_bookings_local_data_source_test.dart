@@ -103,9 +103,7 @@ void main() {
         isTrue,
       );
       expect(
-        cached.cachedAt.isBefore(
-          afterWrite.add(const Duration(seconds: 1)),
-        ),
+        cached.cachedAt.isBefore(afterWrite.add(const Duration(seconds: 1))),
         isTrue,
       );
     });
@@ -115,26 +113,27 @@ void main() {
       expect(cached, isNull);
     });
 
-    test('per-segment isolation — caching upcoming does not overwrite past',
-        () async {
-      await ds.cacheFirstPage(
-        BookingSegment.upcoming,
-        _sampleResponse(itemId: 1),
-      );
-      await ds.cacheFirstPage(
-        BookingSegment.past,
-        _sampleResponse(itemId: 2),
-      );
+    test(
+      'per-segment isolation — caching upcoming does not overwrite past',
+      () async {
+        await ds.cacheFirstPage(
+          BookingSegment.upcoming,
+          _sampleResponse(itemId: 1),
+        );
+        await ds.cacheFirstPage(
+          BookingSegment.past,
+          _sampleResponse(itemId: 2),
+        );
 
-      final upcoming = await ds.getCachedFirstPage(BookingSegment.upcoming);
-      final past = await ds.getCachedFirstPage(BookingSegment.past);
+        final upcoming = await ds.getCachedFirstPage(BookingSegment.upcoming);
+        final past = await ds.getCachedFirstPage(BookingSegment.past);
 
-      expect(upcoming!.response.items.first.id, 1);
-      expect(past!.response.items.first.id, 2);
-    });
+        expect(upcoming!.response.items.first.id, 1);
+        expect(past!.response.items.first.id, 2);
+      },
+    );
 
-    test('overwrite — caching upcoming twice keeps only the latest',
-        () async {
+    test('overwrite — caching upcoming twice keeps only the latest', () async {
       await ds.cacheFirstPage(
         BookingSegment.upcoming,
         _sampleResponse(itemId: 1),
@@ -153,10 +152,7 @@ void main() {
     Future<void> writeRaw(String segmentWire, String raw) async {
       // Mirror the data source's key derivation; bumping the version
       // suffix here would bypass the v1-keyed read entirely.
-      await prefs.setString(
-        'CACHED_CUSTOMER_BOOKINGS_${segmentWire}_v1',
-        raw,
-      );
+      await prefs.setString('CACHED_CUSTOMER_BOOKINGS_${segmentWire}_v1', raw);
     }
 
     test('non-JSON blob returns null (treated as cache miss)', () async {
@@ -168,7 +164,9 @@ void main() {
     test('JSON without cached_at field returns null', () async {
       await writeRaw(
         'upcoming',
-        jsonEncode({'response': {/* irrelevant */}}),
+        jsonEncode({
+          'response': {/* irrelevant */},
+        }),
       );
       final cached = await ds.getCachedFirstPage(BookingSegment.upcoming);
       expect(cached, isNull);
@@ -233,20 +231,22 @@ void main() {
   });
 
   group('versioned key (forward-compat)', () {
-    test('cache written under v1 is not read after a hypothetical bump',
-        () async {
-      // Simulate a future schema bump: write under a custom prefix and
-      // confirm the current data source can't see it.
-      await prefs.setString(
-        'CACHED_CUSTOMER_BOOKINGS_upcoming_v2',
-        jsonEncode({
-          'cached_at': DateTime.now().toUtc().toIso8601String(),
-          'response': _sampleResponse().toJson(),
-        }),
-      );
-      // Current implementation reads v1, so v2 entry is invisible.
-      final cached = await ds.getCachedFirstPage(BookingSegment.upcoming);
-      expect(cached, isNull);
-    });
+    test(
+      'cache written under v1 is not read after a hypothetical bump',
+      () async {
+        // Simulate a future schema bump: write under a custom prefix and
+        // confirm the current data source can't see it.
+        await prefs.setString(
+          'CACHED_CUSTOMER_BOOKINGS_upcoming_v2',
+          jsonEncode({
+            'cached_at': DateTime.now().toUtc().toIso8601String(),
+            'response': _sampleResponse().toJson(),
+          }),
+        );
+        // Current implementation reads v1, so v2 entry is invisible.
+        final cached = await ds.getCachedFirstPage(BookingSegment.upcoming);
+        expect(cached, isNull);
+      },
+    );
   });
 }

@@ -68,14 +68,14 @@ void main() {
   Widget createWidgetUnderTest(AsyncValue<TechnicianProfileEntity> state) {
     return ProviderScope(
       overrides: [
-        technicianProfileProvider(id: 1).overrideWith(
-          () => MockTechnicianProfileNotifier(state),
+        technicianProfileProvider(
+          id: 1,
+        ).overrideWith(() => MockTechnicianProfileNotifier(state)),
+        addressesProvider.overrideWith(
+          (ref) => Future.value([tDefaultAddress]),
         ),
-        addressesProvider.overrideWith((ref) => Future.value([tDefaultAddress])),
       ],
-      child: const MaterialApp(
-        home: TechnicianProfileScreen(technicianId: 1),
-      ),
+      child: const MaterialApp(home: TechnicianProfileScreen(technicianId: 1)),
     );
   }
 

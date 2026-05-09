@@ -10,7 +10,8 @@ import 'package:frontend/features/technician/onboarding/domain/usecases/get_onbo
 import 'package:frontend/features/technician/onboarding/presentation/providers/dependency_injection.dart';
 import 'package:mocktail/mocktail.dart';
 
-class MockGetOnboardingMetadataUseCase extends Mock implements GetOnboardingMetadataUseCase {}
+class MockGetOnboardingMetadataUseCase extends Mock
+    implements GetOnboardingMetadataUseCase {}
 
 void main() {
   group('Step3PrimaryTrade Widget Tests (Dumb UI)', () {
@@ -24,27 +25,31 @@ void main() {
 
     setUp(() {
       mockMetadataUseCase = MockGetOnboardingMetadataUseCase();
-      when(() => mockMetadataUseCase.execute()).thenAnswer((_) async => tServices);
+      when(
+        () => mockMetadataUseCase.execute(),
+      ).thenAnswer((_) async => tServices);
     });
 
-    testWidgets('should render list of categories from state metadata', (WidgetTester tester) async {
+    testWidgets('should render list of categories from state metadata', (
+      WidgetTester tester,
+    ) async {
       final state = OnboardingState(services: tServices);
 
       final container = ProviderContainer(
         overrides: [
-          getOnboardingMetadataUseCaseProvider.overrideWithValue(mockMetadataUseCase),
-        ]
+          getOnboardingMetadataUseCaseProvider.overrideWithValue(
+            mockMetadataUseCase,
+          ),
+        ],
       );
-      
+
       await container.read(onboardingProvider.future);
       container.read(onboardingProvider.notifier).state = AsyncData(state);
 
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
-          child: const MaterialApp(
-            home: Scaffold(body: Step3PrimaryTrade()),
-          ),
+          child: const MaterialApp(home: Scaffold(body: Step3PrimaryTrade())),
         ),
       );
 
@@ -53,7 +58,7 @@ void main() {
       expect(find.text('AC Repair'), findsOneWidget);
       expect(find.text('Plumbing'), findsOneWidget);
       expect(find.text('Electrician'), findsOneWidget);
-      
+
       container.dispose();
     });
   });

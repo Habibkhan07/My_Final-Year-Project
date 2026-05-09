@@ -22,47 +22,34 @@ void main() {
     test('exactly 50% remaining → amber (boundary, NOT green)', () {
       // The green threshold is `> 0.5` — an exact 0.5 belongs to amber so
       // the palette never reads "calm" when half the window is already gone.
-      expect(
-        urgencyAccent(const Duration(seconds: 50), sla),
-        amberAccent,
-      );
+      expect(urgencyAccent(const Duration(seconds: 50), sla), amberAccent);
     });
 
     test('20–50% remaining → amber', () {
-      expect(
-        urgencyAccent(const Duration(seconds: 30), sla),
-        amberAccent,
-      );
+      expect(urgencyAccent(const Duration(seconds: 30), sla), amberAccent);
     });
 
     test('exactly 20% remaining → amber (lower boundary inclusive)', () {
-      expect(
-        urgencyAccent(const Duration(seconds: 20), sla),
-        amberAccent,
-      );
+      expect(urgencyAccent(const Duration(seconds: 20), sla), amberAccent);
     });
 
     test('< 20% remaining → red (AppColors.error)', () {
-      expect(
-        urgencyAccent(const Duration(seconds: 10), sla),
-        AppColors.error,
-      );
+      expect(urgencyAccent(const Duration(seconds: 10), sla), AppColors.error);
     });
 
     test('expired (negative duration) → red', () {
-      expect(
-        urgencyAccent(const Duration(seconds: -5), sla),
-        AppColors.error,
-      );
+      expect(urgencyAccent(const Duration(seconds: -5), sla), AppColors.error);
     });
 
-    test('zero slaWindow → red (defensive: never silently degrade to green)',
-        () {
-      expect(
-        urgencyAccent(const Duration(seconds: 30), Duration.zero),
-        AppColors.error,
-      );
-    });
+    test(
+      'zero slaWindow → red (defensive: never silently degrade to green)',
+      () {
+        expect(
+          urgencyAccent(const Duration(seconds: 30), Duration.zero),
+          AppColors.error,
+        );
+      },
+    );
   });
 
   group('urgencyIsRed', () {

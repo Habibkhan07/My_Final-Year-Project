@@ -23,8 +23,7 @@ class MapPickerNotifier extends _$MapPickerNotifier {
   FutureOr<MapPickerState> build() async {
     ref.onDispose(() => _debounce?.cancel());
 
-    final details =
-        await ref.read(getCurrentLocationUseCaseProvider).call();
+    final details = await ref.read(getCurrentLocationUseCaseProvider).call();
 
     return MapPickerState(
       latitude: details.latitude,
@@ -49,16 +48,19 @@ class MapPickerNotifier extends _$MapPickerNotifier {
 
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 600), () async {
-      final details =
-          await ref.read(reverseGeocodeUseCaseProvider).call(lat, lng);
+      final details = await ref
+          .read(reverseGeocodeUseCaseProvider)
+          .call(lat, lng);
 
       final s = state.value;
       if (s == null) return;
-      state = AsyncData(s.copyWith(
-        streetAddress: details.formattedAddress,
-        details: details,
-        isGeocoding: false,
-      ));
+      state = AsyncData(
+        s.copyWith(
+          streetAddress: details.formattedAddress,
+          details: details,
+          isGeocoding: false,
+        ),
+      );
     });
   }
 
@@ -69,13 +71,15 @@ class MapPickerNotifier extends _$MapPickerNotifier {
     final current = state.value;
     if (current == null) return;
 
-    state = AsyncData(current.copyWith(
-      latitude: details.latitude,
-      longitude: details.longitude,
-      streetAddress: details.formattedAddress,
-      details: details,
-      isGeocoding: false,
-    ));
+    state = AsyncData(
+      current.copyWith(
+        latitude: details.latitude,
+        longitude: details.longitude,
+        streetAddress: details.formattedAddress,
+        details: details,
+        isGeocoding: false,
+      ),
+    );
   }
 
   void setLabel(String label) {
@@ -91,12 +95,12 @@ class MapPickerNotifier extends _$MapPickerNotifier {
     final current = state.requireValue;
     final details = current.details;
 
-    state = AsyncData(
-      current.copyWith(saveState: const AsyncLoading()),
-    );
+    state = AsyncData(current.copyWith(saveState: const AsyncLoading()));
 
     final saveResult = await AsyncValue.guard(
-      () => ref.read(saveAddressUseCaseProvider).call(
+      () => ref
+          .read(saveAddressUseCaseProvider)
+          .call(
             label: current.selectedLabel,
             streetAddress: current.streetAddress,
             latitude: current.latitude,

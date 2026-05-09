@@ -5,7 +5,7 @@ import 'package:geolocator/geolocator.dart';
 import 'app_map.dart';
 
 /// A reusable map picker that keeps a pin fixed at the screen center.
-/// 
+///
 /// Emits [onLocationChanged] whenever the user stops panning the map.
 class LocationPicker extends StatefulWidget {
   final LatLng initialCenter;
@@ -52,7 +52,7 @@ class _LocationPickerState extends State<LocationPicker> {
         currentCenter,
         widget.initialCenter,
       );
-      
+
       // Only move if the widget was updated with a center far from where the map currently is
       // (e.g., from a search result, not from a map pan event).
       if (distance > 10) {
@@ -108,11 +108,13 @@ class _LocationPickerState extends State<LocationPicker> {
             alignment: Alignment.center,
             child: Padding(
               padding: const EdgeInsets.only(bottom: 48),
-              child: widget.pin ?? const Icon(
-                Icons.location_pin,
-                size: 48,
-                color: Color(0xFF0051AE),
-              ),
+              child:
+                  widget.pin ??
+                  const Icon(
+                    Icons.location_pin,
+                    size: 48,
+                    color: Color(0xFF0051AE),
+                  ),
             ),
           ),
 
@@ -133,12 +135,7 @@ class _LocationPickerState extends State<LocationPicker> {
           ),
 
         if (widget.bottomCard != null)
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: widget.bottomCard!,
-          ),
+          Positioned(bottom: 0, left: 0, right: 0, child: widget.bottomCard!),
       ],
     );
   }

@@ -9,9 +9,7 @@ class _MockLocal extends Mock implements EventLocalDataSource {}
 
 ProviderContainer _buildContainer(EventLocalDataSource local) {
   final container = ProviderContainer(
-    overrides: [
-      eventLocalDataSourceProvider.overrideWithValue(local),
-    ],
+    overrides: [eventLocalDataSourceProvider.overrideWithValue(local)],
   );
   addTearDown(container.dispose);
   return container;
@@ -23,27 +21,25 @@ Map<String, dynamic> _eventFrame({
   String targetRole = 'technician',
   String timestamp = '2026-04-25T12:00:00Z',
   Map<String, dynamic> payload = const <String, dynamic>{},
-}) =>
-    <String, dynamic>{
-      'kind': 'event',
-      'id': id,
-      'rawType': rawType,
-      'targetRole': targetRole,
-      'timestamp': timestamp,
-      'payload': payload,
-    };
+}) => <String, dynamic>{
+  'kind': 'event',
+  'id': id,
+  'rawType': rawType,
+  'targetRole': targetRole,
+  'timestamp': timestamp,
+  'payload': payload,
+};
 
 Map<String, dynamic> _streamFrame({
   String streamType = 'wallet_balance',
   String timestamp = '2026-04-25T12:00:00Z',
   Map<String, dynamic> payload = const <String, dynamic>{'balance': 4237},
-}) =>
-    <String, dynamic>{
-      'kind': 'stream',
-      'streamType': streamType,
-      'timestamp': timestamp,
-      'payload': payload,
-    };
+}) => <String, dynamic>{
+  'kind': 'stream',
+  'streamType': streamType,
+  'timestamp': timestamp,
+  'payload': payload,
+};
 
 void main() {
   late _MockLocal local;
@@ -59,8 +55,7 @@ void main() {
   // D1 — kind=event happy path
   // ───────────────────────────────────────────────────────────────────────
 
-  test(
-      'D1 — kind="event" frame: mapped entity is forwarded to '
+  test('D1 — kind="event" frame: mapped entity is forwarded to '
       'SystemEventNotifier.processEvent', () {
     final container = _buildContainer(local);
     final dispatcher = container.read(wsFrameDispatcherProvider);
@@ -77,8 +72,7 @@ void main() {
   // D2 — kind=stream with registered handler
   // ───────────────────────────────────────────────────────────────────────
 
-  test(
-      'D2 — kind="stream" with registered handler: handler invoked with '
+  test('D2 — kind="stream" with registered handler: handler invoked with '
       'payload only (no envelope)', () {
     final container = _buildContainer(local);
     final dispatcher = container.read(wsFrameDispatcherProvider);
@@ -99,8 +93,7 @@ void main() {
   // D3 — kind=stream with no handler registered
   // ───────────────────────────────────────────────────────────────────────
 
-  test(
-      'D3 — kind="stream" with unknown streamType (no handler registered): '
+  test('D3 — kind="stream" with unknown streamType (no handler registered): '
       'dropped silently, registry unchanged, no throw', () {
     final container = _buildContainer(local);
     final dispatcher = container.read(wsFrameDispatcherProvider);
@@ -121,8 +114,7 @@ void main() {
   // must explicitly null-check mapper.toDomain() and drop, never push a
   // null entity into the notifier. Verifies that contract directly.
 
-  test(
-      'D4 — kind="event" with malformed timestamp: mapper returns null, '
+  test('D4 — kind="event" with malformed timestamp: mapper returns null, '
       'dispatcher drops silently, processEvent NOT called', () {
     final container = _buildContainer(local);
     final dispatcher = container.read(wsFrameDispatcherProvider);
@@ -136,8 +128,7 @@ void main() {
   // D5 — Missing kind: severe + assert in debug
   // ───────────────────────────────────────────────────────────────────────
 
-  test(
-      'D5 — frame missing "kind" field: throws AssertionError in debug '
+  test('D5 — frame missing "kind" field: throws AssertionError in debug '
       '(contract violation, not version skew)', () {
     final container = _buildContainer(local);
     final dispatcher = container.read(wsFrameDispatcherProvider);
@@ -161,16 +152,12 @@ void main() {
   // D6 — Unknown kind value
   // ───────────────────────────────────────────────────────────────────────
 
-  test(
-      'D6 — frame with unknown kind value (e.g. "telemetry-v2"): dropped '
+  test('D6 — frame with unknown kind value (e.g. "telemetry-v2"): dropped '
       'silently with warning log, no throw (treated as version skew)', () {
     final container = _buildContainer(local);
     final dispatcher = container.read(wsFrameDispatcherProvider);
 
-    final frame = <String, dynamic>{
-      'kind': 'telemetry-v2',
-      'foo': 'bar',
-    };
+    final frame = <String, dynamic>{'kind': 'telemetry-v2', 'foo': 'bar'};
 
     expect(() => dispatcher.dispatch(frame), returnsNormally);
     expect(container.read(systemEventProvider).latestEvent, isNull);
@@ -180,8 +167,7 @@ void main() {
   // D7 — register / unregister round-trip
   // ───────────────────────────────────────────────────────────────────────
 
-  test(
-      'D7 — register then unregister: handler not invoked after unregister; '
+  test('D7 — register then unregister: handler not invoked after unregister; '
       're-register replaces handler (last-writer-wins)', () {
     final container = _buildContainer(local);
     final dispatcher = container.read(wsFrameDispatcherProvider);

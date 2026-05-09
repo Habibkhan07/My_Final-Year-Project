@@ -6,7 +6,8 @@ import '../../domain/repositories/technician_dashboard_repository.dart';
 import '../data_sources/technician_dashboard_local_data_source.dart';
 import '../data_sources/technician_dashboard_remote_data_source.dart';
 
-class TechnicianDashboardRepositoryImpl implements TechnicianDashboardRepository {
+class TechnicianDashboardRepositoryImpl
+    implements TechnicianDashboardRepository {
   final ITechnicianDashboardRemoteDataSource remoteDataSource;
   final TechnicianDashboardLocalDataSource localDataSource;
 

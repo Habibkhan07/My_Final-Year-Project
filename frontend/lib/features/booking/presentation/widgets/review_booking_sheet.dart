@@ -29,38 +29,35 @@ class ReviewBookingSheet extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     // Listen to state changes for navigation & error handling
-    ref.listen<AsyncValue<CreatedBookingEntity?>>(
-      instantBookingProvider,
-      (previous, next) {
-        next.whenOrNull(
-          data: (entity) {
-            if (entity != null) {
-              // TODO: Cache booking ID to Tier 3 (SharedPreferences)
-              Navigator.pop(context); // Close Review sheet
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Booking Confirmed!')),
-              );
+    ref.listen<AsyncValue<CreatedBookingEntity?>>(instantBookingProvider, (
+      previous,
+      next,
+    ) {
+      next.whenOrNull(
+        data: (entity) {
+          if (entity != null) {
+            // TODO: Cache booking ID to Tier 3 (SharedPreferences)
+            Navigator.pop(context); // Close Review sheet
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(const SnackBar(content: Text('Booking Confirmed!')));
+          }
+        },
+        error: (error, stack) {
+          if (error is BookingFailure) {
+            final (message, popOnShow) = _resolveErrorPresentation(error);
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(message), backgroundColor: Colors.red),
+            );
+            if (popOnShow) {
+              // Pop the review sheet so the customer can refresh discovery
+              // (slot taken, stale catalog, stale promo, stale price).
+              Navigator.pop(context);
             }
-          },
-          error: (error, stack) {
-            if (error is BookingFailure) {
-              final (message, popOnShow) = _resolveErrorPresentation(error);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(message),
-                  backgroundColor: Colors.red,
-                ),
-              );
-              if (popOnShow) {
-                // Pop the review sheet so the customer can refresh discovery
-                // (slot taken, stale catalog, stale promo, stale price).
-                Navigator.pop(context);
-              }
-            }
-          },
-        );
-      },
-    );
+          }
+        },
+      );
+    });
 
     final bookingState = ref.watch(instantBookingProvider);
     final isSubmitting = bookingState.isLoading;
@@ -80,7 +77,9 @@ class ReviewBookingSheet extends ConsumerWidget {
           onPressed: isSubmitting || defaultAddress == null || serviceId == null
               ? null
               : () {
-                  ref.read(instantBookingProvider.notifier).book(
+                  ref
+                      .read(instantBookingProvider.notifier)
+                      .book(
                         technicianId: technician.id,
                         addressId: defaultAddress.id,
                         serviceId: serviceId!,
@@ -112,10 +111,7 @@ class ReviewBookingSheet extends ConsumerWidget {
               : const Text(
                   'Book',
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
         ),
       ),
@@ -137,7 +133,7 @@ class ReviewBookingSheet extends ConsumerWidget {
           _SummaryTile(
             icon: Icons.location_on_outlined,
             label: 'Service Address',
-            value: defaultAddress != null 
+            value: defaultAddress != null
                 ? '${defaultAddress.label} - ${defaultAddress.streetAddress}'
                 : 'Select an address',
             trailing: TextButton(
@@ -149,7 +145,10 @@ class ReviewBookingSheet extends ConsumerWidget {
                   builder: (_) => const AddressSelectorSheet(),
                 );
               },
-              child: const Text('Change', style: TextStyle(fontWeight: FontWeight.bold)),
+              child: const Text(
+                'Change',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
             ),
           ),
 
@@ -165,7 +164,9 @@ class ReviewBookingSheet extends ConsumerWidget {
                 height: 1.6,
               ),
               children: [
-                TextSpan(text: 'By tapping the button below, you agree to our '),
+                TextSpan(
+                  text: 'By tapping the button below, you agree to our ',
+                ),
                 TextSpan(
                   text: 'Terms of Service',
                   style: TextStyle(
@@ -174,7 +175,8 @@ class ReviewBookingSheet extends ConsumerWidget {
                   ),
                 ),
                 TextSpan(
-                  text: ' and authorize the hold for this transaction on your selected card.',
+                  text:
+                      ' and authorize the hold for this transaction on your selected card.',
                 ),
               ],
             ),
@@ -192,14 +194,22 @@ class ReviewBookingSheet extends ConsumerWidget {
   /// in BOOKINGS_API.md §2.2 — the server returns diagnostic-friendly text,
   /// not user-friendly text, so we map locally rather than render `error.message`.
   /// Both pop the sheet so the customer is sent back to discovery to refresh.
-  (String message, bool popSheet) _resolveErrorPresentation(BookingFailure error) {
+  (String message, bool popSheet) _resolveErrorPresentation(
+    BookingFailure error,
+  ) {
     if (error is BookingValidationFailure) {
       final keys = error.errors?.keys.toSet() ?? const <String>{};
       if (keys.contains('sub_service_id')) {
-        return ('This gig is no longer available. Refresh and try again.', true);
+        return (
+          'This gig is no longer available. Refresh and try again.',
+          true,
+        );
       }
       if (keys.contains('promotion_id')) {
-        return ("This gig already has a fixed price — promotions don't apply.", true);
+        return (
+          "This gig already has a fixed price — promotions don't apply.",
+          true,
+        );
       }
     }
     if (error is BookingSlotUnavailableFailure) {
@@ -211,10 +221,14 @@ class ReviewBookingSheet extends ConsumerWidget {
   String _getDaySuffix(int day) {
     if (day >= 11 && day <= 13) return 'th';
     switch (day % 10) {
-      case 1: return 'st';
-      case 2: return 'nd';
-      case 3: return 'rd';
-      default: return 'th';
+      case 1:
+        return 'st';
+      case 2:
+        return 'nd';
+      case 3:
+        return 'rd';
+      default:
+        return 'th';
     }
   }
 }

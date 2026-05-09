@@ -6,7 +6,9 @@ sealed class TechnicianDashboardFailure implements Exception {
 
 /// Thrown when the device has no active internet connection and no cache.
 class DashboardNetworkFailure extends TechnicianDashboardFailure {
-  const DashboardNetworkFailure([super.message = "No internet connection. Please check your settings."]);
+  const DashboardNetworkFailure([
+    super.message = "No internet connection. Please check your settings.",
+  ]);
 }
 
 /// Thrown when the backend returns a 500 error or is unreachable.
@@ -16,10 +18,15 @@ class DashboardServerFailure extends TechnicianDashboardFailure {
 
 /// Thrown when the backend returns a 403 (e.g. user is not a technician).
 class DashboardPermissionFailure extends TechnicianDashboardFailure {
-  const DashboardPermissionFailure([super.message = "You do not have permission to access the technician dashboard."]);
+  const DashboardPermissionFailure([
+    super.message =
+        "You do not have permission to access the technician dashboard.",
+  ]);
 }
 
 /// Thrown when the backend returns unexpected JSON structures that fail to parse.
 class DashboardParsingFailure extends TechnicianDashboardFailure {
-  const DashboardParsingFailure([super.message = "Failed to parse dashboard data."]);
+  const DashboardParsingFailure([
+    super.message = "Failed to parse dashboard data.",
+  ]);
 }

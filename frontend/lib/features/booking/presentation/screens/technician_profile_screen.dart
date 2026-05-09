@@ -28,14 +28,16 @@ class TechnicianProfileScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final profileAsync = ref.watch(technicianProfileProvider(
-      id: technicianId,
-      lat: lat,
-      lng: lng,
-      serviceId: serviceId,
-      subServiceId: subServiceId,
-      promotionId: promotionId,
-    ));
+    final profileAsync = ref.watch(
+      technicianProfileProvider(
+        id: technicianId,
+        lat: lat,
+        lng: lng,
+        serviceId: serviceId,
+        subServiceId: subServiceId,
+        promotionId: promotionId,
+      ),
+    );
 
     return Scaffold(
       backgroundColor: const Color(0xFFF7F9FF),
@@ -122,10 +124,7 @@ class _ProfileContent extends StatelessWidget {
                               icon: Icons.arrow_back,
                               onTap: () => Navigator.pop(context),
                             ),
-                            _HeaderButton(
-                              icon: Icons.share,
-                              onTap: () {},
-                            ),
+                            _HeaderButton(icon: Icons.share, onTap: () {}),
                           ],
                         ),
                       ),
@@ -143,10 +142,12 @@ class _ProfileContent extends StatelessWidget {
                               border: Border.all(color: Colors.white, width: 4),
                               boxShadow: [
                                 BoxShadow(
-                                  color: const Color(0xFF0051AE).withOpacity(0.1),
+                                  color: const Color(
+                                    0xFF0051AE,
+                                  ).withOpacity(0.1),
                                   blurRadius: 24,
                                   spreadRadius: 8,
-                                )
+                                ),
                               ],
                             ),
                             child: ClipOval(
@@ -165,7 +166,10 @@ class _ProfileContent extends StatelessWidget {
                               decoration: BoxDecoration(
                                 color: Colors.green,
                                 shape: BoxShape.circle,
-                                border: Border.all(color: Colors.white, width: 4),
+                                border: Border.all(
+                                  color: Colors.white,
+                                  width: 4,
+                                ),
                               ),
                             ),
                         ],
@@ -182,19 +186,31 @@ class _ProfileContent extends StatelessWidget {
                       ),
                       const SizedBox(height: 8),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
                         decoration: BoxDecoration(
                           color: const Color(0xFF0051AE).withOpacity(0.05),
                           borderRadius: BorderRadius.circular(24),
-                          border: Border.all(color: const Color(0xFF0051AE).withOpacity(0.05)),
+                          border: Border.all(
+                            color: const Color(0xFF0051AE).withOpacity(0.05),
+                          ),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.star, color: Colors.amber, size: 16),
+                            const Icon(
+                              Icons.star,
+                              color: Colors.amber,
+                              size: 16,
+                            ),
                             const SizedBox(width: 4),
                             Text(
-                              profile.uiRatingText.replaceAll('⭐ ', ''), // Pre-formatted
+                              profile.uiRatingText.replaceAll(
+                                '⭐ ',
+                                '',
+                              ), // Pre-formatted
                               style: const TextStyle(
                                 color: Color(0xFF0051AE),
                                 fontWeight: FontWeight.w600,
@@ -217,7 +233,9 @@ class _ProfileContent extends StatelessWidget {
                               width: double.infinity,
                               padding: const EdgeInsets.all(40),
                               decoration: BoxDecoration(
-                                color: const Color(0xFF0051AE).withOpacity(0.05),
+                                color: const Color(
+                                  0xFF0051AE,
+                                ).withOpacity(0.05),
                                 borderRadius: BorderRadius.circular(24),
                               ),
                               child: Column(
@@ -250,7 +268,10 @@ class _ProfileContent extends StatelessWidget {
                                 right: 0,
                                 child: Center(
                                   child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 4,
+                                    ),
                                     decoration: BoxDecoration(
                                       color: const Color(0xFF0051AE),
                                       borderRadius: BorderRadius.circular(16),
@@ -340,9 +361,11 @@ class _ProfileContent extends StatelessWidget {
                   color: Colors.black.withOpacity(0.06),
                   blurRadius: 40,
                   offset: const Offset(0, -10),
-                )
+                ),
               ],
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(40)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(40),
+              ),
             ),
             child: ElevatedButton(
               onPressed: () => _showSelectTimeSheet(context),
@@ -363,10 +386,7 @@ class _ProfileContent extends StatelessWidget {
                   SizedBox(width: 8),
                   Text(
                     'Select Time',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                 ],
               ),
@@ -397,10 +417,7 @@ class _HeaderButton extends StatelessWidget {
           shape: BoxShape.circle,
           border: Border.all(color: Colors.white.withOpacity(0.3)),
           boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.02),
-              blurRadius: 8,
-            )
+            BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8),
           ],
         ),
         child: Icon(icon, color: const Color(0xFF151C24)),
@@ -427,7 +444,7 @@ class _InfoListTile extends StatelessWidget {
             color: Colors.black.withOpacity(0.04),
             blurRadius: 30,
             offset: const Offset(0, 8),
-          )
+          ),
         ],
       ),
       child: Row(

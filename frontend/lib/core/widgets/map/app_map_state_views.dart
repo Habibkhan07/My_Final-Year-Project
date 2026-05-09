@@ -4,10 +4,7 @@ import 'package:flutter/material.dart';
 class AppMapSkeleton extends StatelessWidget {
   final double bottomCardHeight;
 
-  const AppMapSkeleton({
-    super.key,
-    this.bottomCardHeight = 240,
-  });
+  const AppMapSkeleton({super.key, this.bottomCardHeight = 240});
 
   @override
   Widget build(BuildContext context) {
@@ -15,7 +12,7 @@ class AppMapSkeleton extends StatelessWidget {
       children: [
         // Map placeholder
         Container(color: const Color(0xFFE8EAF0)),
-        
+
         // Bottom card skeleton
         Positioned(
           bottom: 0,
@@ -43,19 +40,21 @@ class AppMapSkeleton extends StatelessWidget {
                 ),
                 const SizedBox(height: 20),
                 Container(
-                    height: 16,
-                    width: 200,
-                    color: const Color(0xFFF0F3F9)),
+                  height: 16,
+                  width: 200,
+                  color: const Color(0xFFF0F3F9),
+                ),
                 const SizedBox(height: 12),
                 Container(
-                    height: 16,
-                    width: 140,
-                    color: const Color(0xFFF0F3F9)),
+                  height: 16,
+                  width: 140,
+                  color: const Color(0xFFF0F3F9),
+                ),
               ],
             ),
           ),
         ),
-        
+
         // Back button placeholder
         Positioned(
           top: 0,

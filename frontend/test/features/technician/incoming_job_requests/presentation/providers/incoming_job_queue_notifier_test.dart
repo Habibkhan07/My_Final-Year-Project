@@ -77,9 +77,7 @@ SystemEventEntity _liveEvent({
 
 ProviderContainer _buildContainer(EventLocalDataSource local) {
   final container = ProviderContainer(
-    overrides: [
-      eventLocalDataSourceProvider.overrideWithValue(local),
-    ],
+    overrides: [eventLocalDataSourceProvider.overrideWithValue(local)],
   );
   addTearDown(container.dispose);
   return container;
@@ -109,9 +107,9 @@ void main() {
         // Wake-up — mirrors what AppLifecycleOrchestrator.bootAfterAuth does.
         container.read(incomingJobQueueProvider);
 
-        container.read(systemEventProvider.notifier).processEvent(
-              _event(id: 'e1', jobId: 1),
-            );
+        container
+            .read(systemEventProvider.notifier)
+            .processEvent(_event(id: 'e1', jobId: 1));
 
         final queue = container.read(incomingJobQueueProvider).queue;
         expect(queue.length, 1);
@@ -123,7 +121,9 @@ void main() {
       final container = _buildContainer(local);
       container.read(incomingJobQueueProvider);
 
-      container.read(systemEventProvider.notifier).processEvent(
+      container
+          .read(systemEventProvider.notifier)
+          .processEvent(
             _event(id: 'e1', jobId: 99, rawType: 'payment_received'),
           );
 
@@ -146,12 +146,12 @@ void main() {
         final t1 = DateTime.now().toUtc();
         final t2 = t1.add(const Duration(milliseconds: 1));
 
-        container.read(systemEventProvider.notifier).processEvent(
-              _event(id: 'e1', jobId: 7, timestamp: t1),
-            );
-        container.read(systemEventProvider.notifier).processEvent(
-              _event(id: 'e2', jobId: 7, timestamp: t2),
-            );
+        container
+            .read(systemEventProvider.notifier)
+            .processEvent(_event(id: 'e1', jobId: 7, timestamp: t1));
+        container
+            .read(systemEventProvider.notifier)
+            .processEvent(_event(id: 'e2', jobId: 7, timestamp: t2));
 
         final queue = container.read(incomingJobQueueProvider).queue;
         expect(queue.length, 1);
@@ -159,157 +159,165 @@ void main() {
       },
     );
 
-    test(
-      'malformed payload (non-numeric payout) is silently dropped — '
-      'queue stays empty, no throw into the dispatcher',
-      () {
-        final container = _buildContainer(local);
-        container.read(incomingJobQueueProvider);
+    test('malformed payload (non-numeric payout) is silently dropped — '
+        'queue stays empty, no throw into the dispatcher', () {
+      final container = _buildContainer(local);
+      container.read(incomingJobQueueProvider);
 
-        final bad = SystemEventEntity.fromComponents(
-          id: 'e1',
-          rawType: 'job_new_request',
-          targetRoleStr: 'technician',
-          // Wall-clock-anchored so the test isolates "malformed payout"
-          // without depending on the mapper's check ordering relative to
-          // the freshness filter.
-          timestamp: DateTime.now().toUtc(),
-          payload: const <String, dynamic>{
-            'job_id': 1,
-            'service_name': 'AC Deep Wash',
-            'booking_type': 'FIXED_GIG',
-            'scheduled_start_iso': '2026-04-08T05:00:00Z',
-            'payout': 'twelve hundred',
-            'payout_context': 'Fixed-price gig — full payout',
-            'expires_in_seconds': 60,
-          },
-        );
+      final bad = SystemEventEntity.fromComponents(
+        id: 'e1',
+        rawType: 'job_new_request',
+        targetRoleStr: 'technician',
+        // Wall-clock-anchored so the test isolates "malformed payout"
+        // without depending on the mapper's check ordering relative to
+        // the freshness filter.
+        timestamp: DateTime.now().toUtc(),
+        payload: const <String, dynamic>{
+          'job_id': 1,
+          'service_name': 'AC Deep Wash',
+          'booking_type': 'FIXED_GIG',
+          'scheduled_start_iso': '2026-04-08T05:00:00Z',
+          'payout': 'twelve hundred',
+          'payout_context': 'Fixed-price gig — full payout',
+          'expires_in_seconds': 60,
+        },
+      );
 
-        expect(
-          () => container
-              .read(systemEventProvider.notifier)
-              .processEvent(bad),
-          returnsNormally,
-        );
-        expect(container.read(incomingJobQueueProvider).queue, isEmpty);
-      },
-    );
+      expect(
+        () => container.read(systemEventProvider.notifier).processEvent(bad),
+        returnsNormally,
+      );
+      expect(container.read(incomingJobQueueProvider).queue, isEmpty);
+    });
   });
 
   group('IncomingJobQueueNotifier — head-sticky priority ordering', () {
-    test(
-      'first arrival becomes the head; second arrival joins the tail in '
-      'arrival order',
-      () {
-        // Wall-clock-anchored timestamps so the mapper's freshness check
-        // accepts both, with a 1ms gap so the SystemEventNotifier order
-        // guard accepts the second.
-        final container = _buildContainer(local);
-        container.read(incomingJobQueueProvider);
+    test('first arrival becomes the head; second arrival joins the tail in '
+        'arrival order', () {
+      // Wall-clock-anchored timestamps so the mapper's freshness check
+      // accepts both, with a 1ms gap so the SystemEventNotifier order
+      // guard accepts the second.
+      final container = _buildContainer(local);
+      container.read(incomingJobQueueProvider);
 
-        final t1 = DateTime.now().toUtc();
-        final t2 = t1.add(const Duration(milliseconds: 1));
+      final t1 = DateTime.now().toUtc();
+      final t2 = t1.add(const Duration(milliseconds: 1));
 
-        container.read(systemEventProvider.notifier).processEvent(
-              _event(id: 'e1', jobId: 1, timestamp: t1),
-            );
-        container.read(systemEventProvider.notifier).processEvent(
-              _event(id: 'e2', jobId: 2, timestamp: t2),
-            );
+      container
+          .read(systemEventProvider.notifier)
+          .processEvent(_event(id: 'e1', jobId: 1, timestamp: t1));
+      container
+          .read(systemEventProvider.notifier)
+          .processEvent(_event(id: 'e2', jobId: 2, timestamp: t2));
 
-        final queue = container.read(incomingJobQueueProvider).queue;
-        expect(queue.length, 2);
-        expect(queue[0].jobId, 1, reason: 'head');
-        expect(queue[1].jobId, 2, reason: 'tail (arrival order)');
-      },
-    );
+      final queue = container.read(incomingJobQueueProvider).queue;
+      expect(queue.length, 2);
+      expect(queue[0].jobId, 1, reason: 'head');
+      expect(queue[1].jobId, 2, reason: 'tail (arrival order)');
+    });
 
-    test(
-      'a more-urgent newcomer does NOT displace the head — the head is '
-      'sticky until it resolves',
-      () {
-        // jobId=1: 5-minute SLA, fresh (300s remaining).
-        // jobId=2: 1-minute SLA, fresh (60s remaining) — much more urgent.
-        // Head must remain jobId=1 because head-stickiness is the whole
-        // point of the serialized one-offer model: a swap mid-decision is
-        // exactly the footgun this contract prevents.
-        final container = _buildContainer(local);
-        container.read(incomingJobQueueProvider);
+    test('a more-urgent newcomer does NOT displace the head — the head is '
+        'sticky until it resolves', () {
+      // jobId=1: 5-minute SLA, fresh (300s remaining).
+      // jobId=2: 1-minute SLA, fresh (60s remaining) — much more urgent.
+      // Head must remain jobId=1 because head-stickiness is the whole
+      // point of the serialized one-offer model: a swap mid-decision is
+      // exactly the footgun this contract prevents.
+      final container = _buildContainer(local);
+      container.read(incomingJobQueueProvider);
 
-        container
-            .read(systemEventProvider.notifier)
-            .processEvent(_liveEvent(id: 'e1', jobId: 1, expiresInSeconds: 300));
-        container
-            .read(systemEventProvider.notifier)
-            .processEvent(_liveEvent(id: 'e2', jobId: 2, expiresInSeconds: 60));
+      container
+          .read(systemEventProvider.notifier)
+          .processEvent(_liveEvent(id: 'e1', jobId: 1, expiresInSeconds: 300));
+      container
+          .read(systemEventProvider.notifier)
+          .processEvent(_liveEvent(id: 'e2', jobId: 2, expiresInSeconds: 60));
 
-        final queue = container.read(incomingJobQueueProvider).queue;
-        expect(queue.length, 2);
-        expect(queue.first.jobId, 1,
-            reason: 'head must NOT swap to the more-urgent newcomer');
-      },
-    );
+      final queue = container.read(incomingJobQueueProvider).queue;
+      expect(queue.length, 2);
+      expect(
+        queue.first.jobId,
+        1,
+        reason: 'head must NOT swap to the more-urgent newcomer',
+      );
+    });
 
-    test(
-      'on head removal, the most-urgent tail entry is promoted to the new '
-      'head (not FIFO)',
-      () {
-        // Three events whose timestamps must increase (the SystemEventNotifier
-        // rejects same-type events arriving with a stale timestamp), and
-        // whose urgencies differ enough to demonstrate priority promotion is
-        // NOT FIFO arrival order:
-        //
-        //   * jobId=1 (head, will be removed): agedBy=100s, slaWindow=200s.
-        //     fraction = (200-100)/200 = 0.50.
-        //   * jobId=2 (tail, less urgent): agedBy=30s, slaWindow=600s.
-        //     fraction = (600-30)/600 ≈ 0.95.
-        //   * jobId=3 (tail, more urgent): agedBy=5s, slaWindow=10s.
-        //     fraction = (10-5)/10 = 0.50.
-        //
-        // Even though jobId=3 arrived AFTER jobId=2, its smaller slaWindow
-        // means a much larger proportion of its window has elapsed —
-        // jobId=3 is more urgent and must promote ahead of jobId=2.
-        final container = _buildContainer(local);
-        container.read(incomingJobQueueProvider);
+    test('on head removal, the most-urgent tail entry is promoted to the new '
+        'head (not FIFO)', () {
+      // Three events whose timestamps must increase (the SystemEventNotifier
+      // rejects same-type events arriving with a stale timestamp), and
+      // whose urgencies differ enough to demonstrate priority promotion is
+      // NOT FIFO arrival order:
+      //
+      //   * jobId=1 (head, will be removed): agedBy=100s, slaWindow=200s.
+      //     fraction = (200-100)/200 = 0.50.
+      //   * jobId=2 (tail, less urgent): agedBy=30s, slaWindow=600s.
+      //     fraction = (600-30)/600 ≈ 0.95.
+      //   * jobId=3 (tail, more urgent): agedBy=5s, slaWindow=10s.
+      //     fraction = (10-5)/10 = 0.50.
+      //
+      // Even though jobId=3 arrived AFTER jobId=2, its smaller slaWindow
+      // means a much larger proportion of its window has elapsed —
+      // jobId=3 is more urgent and must promote ahead of jobId=2.
+      final container = _buildContainer(local);
+      container.read(incomingJobQueueProvider);
 
-        container.read(systemEventProvider.notifier).processEvent(_liveEvent(
+      container
+          .read(systemEventProvider.notifier)
+          .processEvent(
+            _liveEvent(
               id: 'e1',
               jobId: 1,
               expiresInSeconds: 200,
               agedBy: const Duration(seconds: 100),
-            ));
-        container.read(systemEventProvider.notifier).processEvent(_liveEvent(
+            ),
+          );
+      container
+          .read(systemEventProvider.notifier)
+          .processEvent(
+            _liveEvent(
               id: 'e2',
               jobId: 2,
               expiresInSeconds: 600,
               agedBy: const Duration(seconds: 30),
-            ));
-        container.read(systemEventProvider.notifier).processEvent(_liveEvent(
+            ),
+          );
+      container
+          .read(systemEventProvider.notifier)
+          .processEvent(
+            _liveEvent(
               id: 'e3',
               jobId: 3,
               expiresInSeconds: 10,
               agedBy: const Duration(seconds: 5),
-            ));
+            ),
+          );
 
-        // Before removal — head is jobId=1, tail in arrival order.
-        var queue = container.read(incomingJobQueueProvider).queue;
-        expect(queue.length, 3,
-            reason: 'all three events must pass the order guard');
-        expect(queue.first.jobId, 1);
+      // Before removal — head is jobId=1, tail in arrival order.
+      var queue = container.read(incomingJobQueueProvider).queue;
+      expect(
+        queue.length,
+        3,
+        reason: 'all three events must pass the order guard',
+      );
+      expect(queue.first.jobId, 1);
 
-        // Remove the head → most-urgent of [job2, job3] gets promoted.
-        // jobId=3's fraction ≈ 0.50, jobId=2's fraction ≈ 0.95.
-        // jobId=3 is more urgent, so it becomes the new head.
-        container.read(incomingJobQueueProvider.notifier).removeRequest(1);
+      // Remove the head → most-urgent of [job2, job3] gets promoted.
+      // jobId=3's fraction ≈ 0.50, jobId=2's fraction ≈ 0.95.
+      // jobId=3 is more urgent, so it becomes the new head.
+      container.read(incomingJobQueueProvider.notifier).removeRequest(1);
 
-        queue = container.read(incomingJobQueueProvider).queue;
-        expect(queue.length, 2);
-        expect(queue.first.jobId, 3,
-            reason: 'most-urgent of tail must promote to head, '
-                'NOT FIFO arrival order');
-        expect(queue[1].jobId, 2);
-      },
-    );
+      queue = container.read(incomingJobQueueProvider).queue;
+      expect(queue.length, 2);
+      expect(
+        queue.first.jobId,
+        3,
+        reason:
+            'most-urgent of tail must promote to head, '
+            'NOT FIFO arrival order',
+      );
+      expect(queue[1].jobId, 2);
+    });
 
     test(
       'on head removal of a single-entry queue, the queue empties cleanly',
@@ -319,7 +327,9 @@ void main() {
 
         container
             .read(systemEventProvider.notifier)
-            .processEvent(_liveEvent(id: 'e1', jobId: 1, expiresInSeconds: 300));
+            .processEvent(
+              _liveEvent(id: 'e1', jobId: 1, expiresInSeconds: 300),
+            );
 
         expect(container.read(incomingJobQueueProvider).queue.length, 1);
 
@@ -329,32 +339,29 @@ void main() {
       },
     );
 
-    test(
-      'removing a non-head entry leaves the head in place and the rest of '
-      'the tail unchanged',
-      () {
-        final container = _buildContainer(local);
-        container.read(incomingJobQueueProvider);
+    test('removing a non-head entry leaves the head in place and the rest of '
+        'the tail unchanged', () {
+      final container = _buildContainer(local);
+      container.read(incomingJobQueueProvider);
 
-        container
-            .read(systemEventProvider.notifier)
-            .processEvent(_liveEvent(id: 'e1', jobId: 1, expiresInSeconds: 300));
-        container
-            .read(systemEventProvider.notifier)
-            .processEvent(_liveEvent(id: 'e2', jobId: 2, expiresInSeconds: 300));
-        container
-            .read(systemEventProvider.notifier)
-            .processEvent(_liveEvent(id: 'e3', jobId: 3, expiresInSeconds: 300));
+      container
+          .read(systemEventProvider.notifier)
+          .processEvent(_liveEvent(id: 'e1', jobId: 1, expiresInSeconds: 300));
+      container
+          .read(systemEventProvider.notifier)
+          .processEvent(_liveEvent(id: 'e2', jobId: 2, expiresInSeconds: 300));
+      container
+          .read(systemEventProvider.notifier)
+          .processEvent(_liveEvent(id: 'e3', jobId: 3, expiresInSeconds: 300));
 
-        // Remove the middle entry (not the head, not the last).
-        container.read(incomingJobQueueProvider.notifier).removeRequest(2);
+      // Remove the middle entry (not the head, not the last).
+      container.read(incomingJobQueueProvider.notifier).removeRequest(2);
 
-        final queue = container.read(incomingJobQueueProvider).queue;
-        expect(queue.length, 2);
-        expect(queue[0].jobId, 1, reason: 'head unchanged');
-        expect(queue[1].jobId, 3, reason: 'remaining tail entry preserved');
-      },
-    );
+      final queue = container.read(incomingJobQueueProvider).queue;
+      expect(queue.length, 2);
+      expect(queue[0].jobId, 1, reason: 'head unchanged');
+      expect(queue[1].jobId, 3, reason: 'remaining tail entry preserved');
+    });
 
     test('removeRequest with unknown jobId is a no-op', () {
       final container = _buildContainer(local);
@@ -364,9 +371,7 @@ void main() {
           .read(systemEventProvider.notifier)
           .processEvent(_liveEvent(id: 'e1', jobId: 1, expiresInSeconds: 300));
 
-      container
-          .read(incomingJobQueueProvider.notifier)
-          .removeRequest(999);
+      container.read(incomingJobQueueProvider.notifier).removeRequest(999);
 
       final queue = container.read(incomingJobQueueProvider).queue;
       expect(queue.length, 1);
@@ -388,8 +393,7 @@ void main() {
     test('seeding an empty queue places the seed at the head', () {
       final container = _buildContainer(local);
       container.read(incomingJobQueueProvider);
-      final notifier =
-          container.read(incomingJobQueueProvider.notifier);
+      final notifier = container.read(incomingJobQueueProvider.notifier);
 
       // Build a domain entity directly via the wire mapper to avoid hand-
       // rolling JobNewRequest in tests (the entity's required field set
@@ -405,16 +409,13 @@ void main() {
       notifier.debugSeedRequest(seed);
 
       expect(container.read(incomingJobQueueProvider).queue.length, 1);
-      expect(
-          container.read(incomingJobQueueProvider).queue.single.jobId, 1);
+      expect(container.read(incomingJobQueueProvider).queue.single.jobId, 1);
     });
 
-    test('seeding a duplicate jobId is a no-op (mirrors real-event dedup)',
-        () {
+    test('seeding a duplicate jobId is a no-op (mirrors real-event dedup)', () {
       final container = _buildContainer(local);
       container.read(incomingJobQueueProvider);
-      final notifier =
-          container.read(incomingJobQueueProvider.notifier);
+      final notifier = container.read(incomingJobQueueProvider.notifier);
 
       container
           .read(systemEventProvider.notifier)

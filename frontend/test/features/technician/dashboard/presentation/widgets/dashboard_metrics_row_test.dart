@@ -9,13 +9,13 @@ import 'package:frontend/features/technician/dashboard/presentation/widgets/dash
 // ---------------------------------------------------------------------------
 
 Widget buildRow(DashboardMetricsEntity metrics) => MaterialApp(
-      home: Scaffold(
-        body: Padding(
-          padding: const EdgeInsets.all(16),
-          child: DashboardMetricsRow(metrics: metrics),
-        ),
-      ),
-    );
+  home: Scaffold(
+    body: Padding(
+      padding: const EdgeInsets.all(16),
+      child: DashboardMetricsRow(metrics: metrics),
+    ),
+  ),
+);
 
 const DashboardMetricsEntity _zero = DashboardMetricsEntity(
   jobsCompletedToday: 0,
@@ -44,12 +44,14 @@ void main() {
     // -----------------------------------------------------------------------
     group('jobs completed value', () {
       testWidgets('displays count as plain integer string', (tester) async {
-        await tester.pumpWidget(buildRow(
-          const DashboardMetricsEntity(
-            jobsCompletedToday: 7,
-            cashCollectedToday: 0,
+        await tester.pumpWidget(
+          buildRow(
+            const DashboardMetricsEntity(
+              jobsCompletedToday: 7,
+              cashCollectedToday: 0,
+            ),
           ),
-        ));
+        );
         expect(find.text('7'), findsOneWidget);
       });
 
@@ -62,32 +64,40 @@ void main() {
     // -----------------------------------------------------------------------
     group('cash collected formatting', () {
       testWidgets('formats 3500 as "Rs. 3,500"', (tester) async {
-        await tester.pumpWidget(buildRow(
-          const DashboardMetricsEntity(
-            jobsCompletedToday: 0,
-            cashCollectedToday: 3500,
+        await tester.pumpWidget(
+          buildRow(
+            const DashboardMetricsEntity(
+              jobsCompletedToday: 0,
+              cashCollectedToday: 3500,
+            ),
           ),
-        ));
+        );
         expect(find.text('Rs. 3,500'), findsOneWidget);
       });
 
       testWidgets('formats 100000 as "Rs. 100,000"', (tester) async {
-        await tester.pumpWidget(buildRow(
-          const DashboardMetricsEntity(
-            jobsCompletedToday: 0,
-            cashCollectedToday: 100000,
+        await tester.pumpWidget(
+          buildRow(
+            const DashboardMetricsEntity(
+              jobsCompletedToday: 0,
+              cashCollectedToday: 100000,
+            ),
           ),
-        ));
+        );
         expect(find.text('Rs. 100,000'), findsOneWidget);
       });
 
-      testWidgets('formats 500 as "Rs. 500" (no comma below 1000)', (tester) async {
-        await tester.pumpWidget(buildRow(
-          const DashboardMetricsEntity(
-            jobsCompletedToday: 0,
-            cashCollectedToday: 500,
+      testWidgets('formats 500 as "Rs. 500" (no comma below 1000)', (
+        tester,
+      ) async {
+        await tester.pumpWidget(
+          buildRow(
+            const DashboardMetricsEntity(
+              jobsCompletedToday: 0,
+              cashCollectedToday: 500,
+            ),
           ),
-        ));
+        );
         expect(find.text('Rs. 500'), findsOneWidget);
       });
 

@@ -76,7 +76,9 @@ class BookingCardSkeleton extends StatelessWidget {
               children: [
                 _box(width: 18, height: 18, radius: 4),
                 const SizedBox(width: AppSpacing.s2),
-                Expanded(child: _box(width: double.infinity, height: 12, radius: 4)),
+                Expanded(
+                  child: _box(width: double.infinity, height: 12, radius: 4),
+                ),
               ],
             ),
             const SizedBox(height: AppSpacing.s2),
@@ -98,7 +100,11 @@ class BookingCardSkeleton extends StatelessWidget {
     );
   }
 
-  Widget _box({required double width, required double height, required double radius}) {
+  Widget _box({
+    required double width,
+    required double height,
+    required double radius,
+  }) {
     return Container(
       width: width,
       height: height,

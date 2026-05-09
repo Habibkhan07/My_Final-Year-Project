@@ -93,70 +93,72 @@ class _BookingActionPendingSheetState extends State<BookingActionPendingSheet> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-            Text(widget.title, style: theme.textTheme.titleMedium),
-            const SizedBox(height: 12),
-            Text(
-              widget.body,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: colors.onSurfaceVariant,
-              ),
-            ),
-            if (_error != null) ...[
+              Text(widget.title, style: theme.textTheme.titleMedium),
               const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 10,
+              Text(
+                widget.body,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: colors.onSurfaceVariant,
                 ),
-                decoration: BoxDecoration(
-                  color: colors.errorContainer.withValues(alpha: 0.55),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(
-                      Icons.error_outline,
-                      size: 18,
-                      color: colors.onErrorContainer,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        _error!,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: colors.onErrorContainer,
+              ),
+              if (_error != null) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: colors.errorContainer.withValues(alpha: 0.55),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        Icons.error_outline,
+                        size: 18,
+                        color: colors.onErrorContainer,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _error!,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: colors.onErrorContainer,
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
+              ],
+              const SizedBox(height: 20),
+              if (widget.confirmLabel != null && widget.onConfirm != null)
+                FilledButton(
+                  style: widget.confirmIsDestructive
+                      ? FilledButton.styleFrom(
+                          backgroundColor: colors.error,
+                          foregroundColor: colors.onError,
+                        )
+                      : null,
+                  onPressed: _busy ? null : _runConfirm,
+                  child: _busy
+                      ? const SizedBox(
+                          height: 18,
+                          width: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Text(widget.confirmLabel!),
+                ),
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: _busy
+                    ? null
+                    : () => Navigator.of(context).pop(false),
+                child: Text(_dismissLabel()),
               ),
             ],
-            const SizedBox(height: 20),
-            if (widget.confirmLabel != null && widget.onConfirm != null)
-              FilledButton(
-                style: widget.confirmIsDestructive
-                    ? FilledButton.styleFrom(
-                        backgroundColor: colors.error,
-                        foregroundColor: colors.onError,
-                      )
-                    : null,
-                onPressed: _busy ? null : _runConfirm,
-                child: _busy
-                    ? const SizedBox(
-                        height: 18,
-                        width: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : Text(widget.confirmLabel!),
-              ),
-            const SizedBox(height: 8),
-            TextButton(
-              onPressed: _busy ? null : () => Navigator.of(context).pop(false),
-              child: Text(_dismissLabel()),
-            ),
-          ],
           ),
         ),
       ),

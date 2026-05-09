@@ -38,7 +38,7 @@ class WsFrameDispatcher {
 
   final Ref _ref;
   final Map<String, void Function(Map<String, dynamic> payload)>
-      _streamHandlers = {};
+  _streamHandlers = {};
 
   static const _logName = 'core.presentation.ws_dispatcher';
   static const _severeLevel = 1000;

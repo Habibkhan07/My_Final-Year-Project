@@ -26,13 +26,12 @@ class AddressLocationDataSource {
     }
     if (permission == LocationPermission.deniedForever) {
       throw const PermissionDeniedException(
-          'Location permission permanently denied.');
+        'Location permission permanently denied.',
+      );
     }
 
     final position = await Geolocator.getCurrentPosition(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.high,
-      ),
+      locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
     );
 
     return _placemarkDetails(position.latitude, position.longitude);
@@ -71,11 +70,10 @@ class AddressLocationDataSource {
   }
 
   PlaceDetails _coordOnly(double lat, double lng) => PlaceDetails(
-        formattedAddress: '$lat, $lng',
-        latitude: lat,
-        longitude: lng,
-      );
+    formattedAddress: '$lat, $lng',
+    latitude: lat,
+    longitude: lng,
+  );
 
-  String? _emptyToNull(String? s) =>
-      (s == null || s.isEmpty) ? null : s;
+  String? _emptyToNull(String? s) => (s == null || s.isEmpty) ? null : s;
 }

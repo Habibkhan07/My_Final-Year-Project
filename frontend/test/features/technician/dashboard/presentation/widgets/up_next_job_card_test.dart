@@ -25,14 +25,12 @@ UpNextJobEntity _job({String? customerPhone = '+923001234567'}) =>
     );
 
 Widget buildCard({UpNextJobEntity? job}) => dashboardScope(
-      child: MaterialApp(
-        home: Scaffold(
-          body: SingleChildScrollView(
-            child: UpNextJobCard(job: job),
-          ),
-        ),
-      ),
-    );
+  child: MaterialApp(
+    home: Scaffold(
+      body: SingleChildScrollView(child: UpNextJobCard(job: job)),
+    ),
+  ),
+);
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -42,8 +40,9 @@ void main() {
   group('UpNextJobCard', () {
     // -----------------------------------------------------------------------
     group('job present — content', () {
-      testWidgets('shows "UP NEXT" section label with formatted time',
-          (tester) async {
+      testWidgets('shows "UP NEXT" section label with formatted time', (
+        tester,
+      ) async {
         await tester.pumpWidget(buildCard(job: _job()));
         await tester.pump();
         expect(find.textContaining('UP NEXT'), findsOneWidget);
@@ -88,24 +87,30 @@ void main() {
         expect(find.byType(JobLocationMap), findsOneWidget);
       });
 
-      testWidgets('FlutterMap is present inside JobLocationMap',
-          (tester) async {
+      testWidgets('FlutterMap is present inside JobLocationMap', (
+        tester,
+      ) async {
         await tester.pumpWidget(buildCard(job: _job()));
         await tester.pump();
         expect(find.byType(FlutterMap), findsOneWidget);
       });
 
-      testWidgets('map is wrapped in IgnorePointer — scroll events pass through',
-          (tester) async {
-        await tester.pumpWidget(buildCard(job: _job()));
-        await tester.pump();
-        final jobMapFinder = find.byType(JobLocationMap);
-        expect(jobMapFinder, findsOneWidget);
-        expect(
-          find.descendant(of: jobMapFinder, matching: find.byType(IgnorePointer)),
-          findsOneWidget,
-        );
-      });
+      testWidgets(
+        'map is wrapped in IgnorePointer — scroll events pass through',
+        (tester) async {
+          await tester.pumpWidget(buildCard(job: _job()));
+          await tester.pump();
+          final jobMapFinder = find.byType(JobLocationMap);
+          expect(jobMapFinder, findsOneWidget);
+          expect(
+            find.descendant(
+              of: jobMapFinder,
+              matching: find.byType(IgnorePointer),
+            ),
+            findsOneWidget,
+          );
+        },
+      );
     });
 
     // -----------------------------------------------------------------------

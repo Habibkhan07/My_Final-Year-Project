@@ -13,7 +13,8 @@ abstract class ServiceModel with _$ServiceModel {
     @JsonKey(name: 'sub_services') required List<SubServiceModel> subServices,
   }) = _ServiceModel;
 
-  factory ServiceModel.fromJson(Map<String, dynamic> json) => _$ServiceModelFromJson(json);
+  factory ServiceModel.fromJson(Map<String, dynamic> json) =>
+      _$ServiceModelFromJson(json);
 }
 
 /// [SubServiceModel] represents a specific gig/skill metadata.
@@ -28,5 +29,6 @@ abstract class SubServiceModel with _$SubServiceModel {
     @JsonKey(name: 'icon_name') String? iconName,
   }) = _SubServiceModel;
 
-  factory SubServiceModel.fromJson(Map<String, dynamic> json) => _$SubServiceModelFromJson(json);
+  factory SubServiceModel.fromJson(Map<String, dynamic> json) =>
+      _$SubServiceModelFromJson(json);
 }

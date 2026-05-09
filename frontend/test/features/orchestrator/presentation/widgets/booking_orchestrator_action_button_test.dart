@@ -39,7 +39,11 @@ BookingDetail _booking() {
       'status': 'CONFIRMED',
       'service': {'id': 1, 'name': 'Plumbing', 'icon_name': 'plumbing'},
       'sub_service': null,
-      'technician': {'id': 99, 'display_name': 'A', 'profile_picture_url': null},
+      'technician': {
+        'id': 99,
+        'display_name': 'A',
+        'profile_picture_url': null,
+      },
       'customer': {'id': 7, 'full_name': 'B', 'phone_no': '+92'},
       'address': null,
       'address_snapshot': '',
@@ -90,33 +94,32 @@ BookingUiAction _action({
   String label = 'Tap me',
   required String endpoint,
   String method = 'POST',
-}) =>
-    BookingUiAction(
-      label: label,
-      endpoint: endpoint,
-      method: method,
-      style: BookingUiActionStyle.primary,
-    );
+}) => BookingUiAction(
+  label: label,
+  endpoint: endpoint,
+  method: method,
+  style: BookingUiActionStyle.primary,
+);
 
 Future<_MockExecutor> _pump(
   WidgetTester tester, {
   required BookingUiAction action,
 }) async {
   final exec = _MockExecutor();
-  await tester.pumpWidget(ProviderScope(
-    overrides: [
-      bookingActionExecutorProvider.overrideWithValue(exec),
-    ],
-    child: MaterialApp(
-      home: Scaffold(
-        body: BookingOrchestratorActionButton(
-          action: action,
-          booking: _booking(),
-          isPrimary: true,
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [bookingActionExecutorProvider.overrideWithValue(exec)],
+      child: MaterialApp(
+        home: Scaffold(
+          body: BookingOrchestratorActionButton(
+            action: action,
+            booking: _booking(),
+            isPrimary: true,
+          ),
         ),
       ),
     ),
-  ));
+  );
   return exec;
 }
 
@@ -125,12 +128,16 @@ void main() {
     registerFallbackValue(_FakeAction());
   });
 
-  testWidgets('en-route direct POST: tap calls executor with no body',
-      (tester) async {
-    final exec = await _pump(tester,
-        action: _action(endpoint: '/bookings/42/en-route/'));
-    when(() => exec.execute(any(), body: any(named: 'body')))
-        .thenAnswer((_) async {});
+  testWidgets('en-route direct POST: tap calls executor with no body', (
+    tester,
+  ) async {
+    final exec = await _pump(
+      tester,
+      action: _action(endpoint: '/bookings/42/en-route/'),
+    );
+    when(
+      () => exec.execute(any(), body: any(named: 'body')),
+    ).thenAnswer((_) async {});
 
     await tester.tap(find.text('Tap me'));
     await tester.pumpAndSettle();
@@ -138,27 +145,32 @@ void main() {
     verify(() => exec.execute(any(), body: null)).called(1);
   });
 
-  testWidgets('confirm-cash-received: auto body carries final_cash_to_collect',
-      (tester) async {
-    final exec = await _pump(
-      tester,
-      action: _action(endpoint: '/bookings/42/confirm-cash-received/'),
-    );
-    when(() => exec.execute(any(), body: any(named: 'body')))
-        .thenAnswer((_) async {});
+  testWidgets(
+    'confirm-cash-received: auto body carries final_cash_to_collect',
+    (tester) async {
+      final exec = await _pump(
+        tester,
+        action: _action(endpoint: '/bookings/42/confirm-cash-received/'),
+      );
+      when(
+        () => exec.execute(any(), body: any(named: 'body')),
+      ).thenAnswer((_) async {});
 
-    await tester.tap(find.text('Tap me'));
-    await tester.pumpAndSettle();
+      await tester.tap(find.text('Tap me'));
+      await tester.pumpAndSettle();
 
-    final captured = verify(() => exec.execute(any(),
-            body: captureAny(named: 'body')))
-        .captured
-        .single as Map<String, dynamic>;
-    expect(captured['cash_amount'], 1500);
-  });
+      final captured =
+          verify(
+                () => exec.execute(any(), body: captureAny(named: 'body')),
+              ).captured.single
+              as Map<String, dynamic>;
+      expect(captured['cash_amount'], 1500);
+    },
+  );
 
-  testWidgets('cancel endpoint opens the BookingActionPendingSheet',
-      (tester) async {
+  testWidgets('cancel endpoint opens the BookingActionPendingSheet', (
+    tester,
+  ) async {
     await _pump(
       tester,
       action: _action(label: 'Cancel', endpoint: '/bookings/42/cancel/'),
@@ -171,13 +183,15 @@ void main() {
     expect(find.text('Cancel booking?'), findsOneWidget);
   });
 
-  testWidgets('busy state shows a CircularProgressIndicator',
-      (tester) async {
+  testWidgets('busy state shows a CircularProgressIndicator', (tester) async {
     final completer = Completer<void>();
-    final exec = await _pump(tester,
-        action: _action(endpoint: '/bookings/42/en-route/'));
-    when(() => exec.execute(any(), body: any(named: 'body')))
-        .thenAnswer((_) => completer.future);
+    final exec = await _pump(
+      tester,
+      action: _action(endpoint: '/bookings/42/en-route/'),
+    );
+    when(
+      () => exec.execute(any(), body: any(named: 'body')),
+    ).thenAnswer((_) => completer.future);
 
     await tester.tap(find.text('Tap me'));
     // Pump once so the setState(_busy = true) lands but the future
@@ -194,32 +208,39 @@ void main() {
     expect(find.byType(CircularProgressIndicator), findsNothing);
   });
 
-  testWidgets('SocketException from executor surfaces a SnackBar',
-      (tester) async {
-    final exec = await _pump(tester,
-        action: _action(endpoint: '/bookings/42/en-route/'));
-    when(() => exec.execute(any(), body: any(named: 'body')))
-        .thenThrow(const SocketException('offline'));
+  testWidgets('SocketException from executor surfaces a SnackBar', (
+    tester,
+  ) async {
+    final exec = await _pump(
+      tester,
+      action: _action(endpoint: '/bookings/42/en-route/'),
+    );
+    when(
+      () => exec.execute(any(), body: any(named: 'body')),
+    ).thenThrow(const SocketException('offline'));
 
     await tester.tap(find.text('Tap me'));
     await tester.pump(); // microtask
     await tester.pump(const Duration(milliseconds: 50)); // snackbar anim
 
-    expect(find.text('No connection. Try again when online.'),
-        findsOneWidget);
+    expect(find.text('No connection. Try again when online.'), findsOneWidget);
   });
 
-  testWidgets('HttpFailure from executor surfaces server message in SnackBar',
-      (tester) async {
-    final exec = await _pump(tester,
-        action: _action(endpoint: '/bookings/42/en-route/'));
-    when(() => exec.execute(any(), body: any(named: 'body')))
-        .thenThrow(const HttpFailure(
-      statusCode: 409,
-      code: 'invalid_transition',
-      message: 'Cannot do that now.',
-      errors: {},
-    ));
+  testWidgets('HttpFailure from executor surfaces server message in SnackBar', (
+    tester,
+  ) async {
+    final exec = await _pump(
+      tester,
+      action: _action(endpoint: '/bookings/42/en-route/'),
+    );
+    when(() => exec.execute(any(), body: any(named: 'body'))).thenThrow(
+      const HttpFailure(
+        statusCode: 409,
+        code: 'invalid_transition',
+        message: 'Cannot do that now.',
+        errors: {},
+      ),
+    );
 
     await tester.tap(find.text('Tap me'));
     await tester.pump();
@@ -228,22 +249,30 @@ void main() {
     expect(find.text('Cannot do that now.'), findsOneWidget);
   });
 
-  testWidgets('reschedule endpoint shows the "coming soon" sheet',
-      (tester) async {
+  testWidgets('reschedule endpoint shows the "coming soon" sheet', (
+    tester,
+  ) async {
     await _pump(
       tester,
-      action: _action(label: 'Reschedule', endpoint: '/bookings/42/reschedule/'),
+      action: _action(
+        label: 'Reschedule',
+        endpoint: '/bookings/42/reschedule/',
+      ),
     );
     await tester.tap(find.text('Reschedule'));
     await tester.pumpAndSettle();
     expect(find.text('Reschedule coming soon'), findsOneWidget);
   });
 
-  testWidgets('disputes endpoint shows the dispute pending sheet',
-      (tester) async {
+  testWidgets('disputes endpoint shows the dispute pending sheet', (
+    tester,
+  ) async {
     await _pump(
       tester,
-      action: _action(label: 'Open dispute', endpoint: '/bookings/42/disputes/'),
+      action: _action(
+        label: 'Open dispute',
+        endpoint: '/bookings/42/disputes/',
+      ),
     );
     await tester.tap(find.text('Open dispute'));
     await tester.pumpAndSettle();

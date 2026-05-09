@@ -65,23 +65,24 @@ SystemEventEntity event({
   required String id,
   required SystemEventType type,
   Map<String, dynamic>? payload,
-}) =>
-    SystemEventEntity(
-      id: id,
-      rawType: type.name,
-      eventType: type,
-      targetRole: TargetRole.customer,
-      timestamp: DateTime.utc(2026, 5, 9, 10, 0, 0),
-      payload: payload ?? {'job_id': 42},
-      urgency: EventUrgency.lowUrgency,
-      isCritical: false,
-    );
+}) => SystemEventEntity(
+  id: id,
+  rawType: type.name,
+  eventType: type,
+  targetRole: TargetRole.customer,
+  timestamp: DateTime.utc(2026, 5, 9, 10, 0, 0),
+  payload: payload ?? {'job_id': 42},
+  urgency: EventUrgency.lowUrgency,
+  isCritical: false,
+);
 
 ProviderContainer _container({required _CountingRepo repo}) {
-  return ProviderContainer(overrides: [
-    bookingDetailRepositoryProvider.overrideWithValue(repo),
-    systemEventProvider.overrideWith(_FakeSystemEventNotifier.new),
-  ]);
+  return ProviderContainer(
+    overrides: [
+      bookingDetailRepositoryProvider.overrideWithValue(repo),
+      systemEventProvider.overrideWith(_FakeSystemEventNotifier.new),
+    ],
+  );
 }
 
 void main() {
@@ -116,17 +117,13 @@ void main() {
         expect(repo.callCount, 1, reason: 'initial load failed for $t');
 
         // Push a matching trigger event.
-        final notifier = c.read(systemEventProvider.notifier)
-            as _FakeSystemEventNotifier;
+        final notifier =
+            c.read(systemEventProvider.notifier) as _FakeSystemEventNotifier;
         notifier.push(event(id: 'evt-${t.name}', type: t));
         // Allow the listener microtask + invalidate rebuild to land.
         await c.read(bookingDetailProvider(42).future);
 
-        expect(
-          repo.callCount,
-          2,
-          reason: '$t did NOT trigger refresh',
-        );
+        expect(repo.callCount, 2, reason: '$t did NOT trigger refresh');
       }
     },
   );
@@ -146,13 +143,15 @@ void main() {
       await c.read(bookingDetailProvider(42).future);
       expect(repo.callCount, 1);
 
-      final notifier = c.read(systemEventProvider.notifier)
-          as _FakeSystemEventNotifier;
-      notifier.push(event(
-        id: 'evt-resched',
-        type: SystemEventType.bookingRescheduled,
-        payload: {'job_id': 42, 'child_booking_id': 99},
-      ));
+      final notifier =
+          c.read(systemEventProvider.notifier) as _FakeSystemEventNotifier;
+      notifier.push(
+        event(
+          id: 'evt-resched',
+          type: SystemEventType.bookingRescheduled,
+          payload: {'job_id': 42, 'child_booking_id': 99},
+        ),
+      );
       // Give the listener a tick.
       await Future<void>.delayed(Duration.zero);
       // No refresh — call count must NOT increment.
@@ -169,19 +168,20 @@ void main() {
     await c.read(bookingDetailProvider(42).future);
     expect(repo.callCount, 1);
 
-    final notifier = c.read(systemEventProvider.notifier)
-        as _FakeSystemEventNotifier;
-    notifier.push(event(
-      id: 'evt-other',
-      type: SystemEventType.techEnRoute,
-      payload: {'job_id': 999}, // some other booking
-    ));
+    final notifier =
+        c.read(systemEventProvider.notifier) as _FakeSystemEventNotifier;
+    notifier.push(
+      event(
+        id: 'evt-other',
+        type: SystemEventType.techEnRoute,
+        payload: {'job_id': 999}, // some other booking
+      ),
+    );
     await Future<void>.delayed(Duration.zero);
     expect(repo.callCount, 1);
   });
 
-  test('duplicate event ids dedup at the previous-equals-next check',
-      () async {
+  test('duplicate event ids dedup at the previous-equals-next check', () async {
     final repo = _CountingRepo();
     final c = _container(repo: repo);
     addTearDown(c.dispose);
@@ -190,8 +190,8 @@ void main() {
     await c.read(bookingDetailProvider(42).future);
     expect(repo.callCount, 1);
 
-    final notifier = c.read(systemEventProvider.notifier)
-        as _FakeSystemEventNotifier;
+    final notifier =
+        c.read(systemEventProvider.notifier) as _FakeSystemEventNotifier;
     final evt = event(id: 'evt-x', type: SystemEventType.techEnRoute);
 
     // First push triggers refresh.
@@ -206,25 +206,26 @@ void main() {
     expect(repo.callCount, 2);
   });
 
-  test('non-trigger event types (e.g. job_new_request) do not refresh',
-      () async {
-    final repo = _CountingRepo();
-    final c = _container(repo: repo);
-    addTearDown(c.dispose);
+  test(
+    'non-trigger event types (e.g. job_new_request) do not refresh',
+    () async {
+      final repo = _CountingRepo();
+      final c = _container(repo: repo);
+      addTearDown(c.dispose);
 
-    c.listen(bookingOrchestratorEventsProvider(42), (_, _) {});
-    await c.read(bookingDetailProvider(42).future);
-    expect(repo.callCount, 1);
+      c.listen(bookingOrchestratorEventsProvider(42), (_, _) {});
+      await c.read(bookingDetailProvider(42).future);
+      expect(repo.callCount, 1);
 
-    final notifier = c.read(systemEventProvider.notifier)
-        as _FakeSystemEventNotifier;
-    // jobNewRequest is the technician-side incoming-request event.
-    // It is NOT in the orchestrator's refresh set.
-    notifier.push(event(
-      id: 'evt-newreq',
-      type: SystemEventType.jobNewRequest,
-    ));
-    await Future<void>.delayed(Duration.zero);
-    expect(repo.callCount, 1);
-  });
+      final notifier =
+          c.read(systemEventProvider.notifier) as _FakeSystemEventNotifier;
+      // jobNewRequest is the technician-side incoming-request event.
+      // It is NOT in the orchestrator's refresh set.
+      notifier.push(
+        event(id: 'evt-newreq', type: SystemEventType.jobNewRequest),
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(repo.callCount, 1);
+    },
+  );
 }

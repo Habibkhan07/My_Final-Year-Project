@@ -5,10 +5,7 @@ import 'package:flutter/material.dart';
 class DiscoveryPromoBanner extends StatelessWidget {
   final String promoText;
 
-  const DiscoveryPromoBanner({
-    super.key,
-    required this.promoText,
-  });
+  const DiscoveryPromoBanner({super.key, required this.promoText});
 
   @override
   Widget build(BuildContext context) {
@@ -57,10 +54,7 @@ class DiscoveryPromoBanner extends StatelessWidget {
               ),
             ),
           ),
-          const Icon(
-            Icons.chevron_right_rounded,
-            color: Colors.white70,
-          ),
+          const Icon(Icons.chevron_right_rounded, color: Colors.white70),
         ],
       ),
     );

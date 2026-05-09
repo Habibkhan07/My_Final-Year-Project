@@ -8,9 +8,7 @@ import '../data_sources/discovery_remote_data_source.dart';
 class DiscoveryRepositoryImpl implements IDiscoveryRepository {
   final IDiscoveryRemoteDataSource remoteDataSource;
 
-  DiscoveryRepositoryImpl({
-    required this.remoteDataSource,
-  });
+  DiscoveryRepositoryImpl({required this.remoteDataSource});
 
   @override
   Future<DiscoveryResultEntity> getNearbyTechnicians({
@@ -39,7 +37,9 @@ class DiscoveryRepositoryImpl implements IDiscoveryRepository {
     } on SocketException {
       throw const DiscoveryNetworkFailure();
     } on FormatException {
-      throw const DiscoveryUnexpectedFailure('Parsing error: Invalid JSON format.');
+      throw const DiscoveryUnexpectedFailure(
+        'Parsing error: Invalid JSON format.',
+      );
     } catch (e) {
       throw DiscoveryUnexpectedFailure(e.toString());
     }
@@ -50,7 +50,9 @@ class DiscoveryRepositoryImpl implements IDiscoveryRepository {
       case 'validation_error':
         return DiscoveryValidationFailure(
           message: failure.message,
-          errors: failure.errors.map((key, value) => MapEntry(key, List<String>.from(value))),
+          errors: failure.errors.map(
+            (key, value) => MapEntry(key, List<String>.from(value)),
+          ),
         );
       case 'unauthorized':
         return const DiscoveryUnauthorizedFailure();

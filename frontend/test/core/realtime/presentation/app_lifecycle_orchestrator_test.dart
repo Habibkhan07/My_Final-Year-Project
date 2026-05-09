@@ -14,13 +14,11 @@ import 'package:frontend/core/realtime/presentation/state/connection_state.dart'
 import 'package:frontend/features/technician/incoming_job_requests/presentation/providers/incoming_job_queue_notifier.dart';
 import 'package:mocktail/mocktail.dart';
 
-class _MockEventLocalDataSource extends Mock
-    implements EventLocalDataSource {}
+class _MockEventLocalDataSource extends Mock implements EventLocalDataSource {}
 
 class _MockSystemEventNotifier extends Mock implements SystemEventNotifier {}
 
-class _MockWsConnectionNotifier extends Mock
-    implements WsConnectionNotifier {}
+class _MockWsConnectionNotifier extends Mock implements WsConnectionNotifier {}
 
 class _MockFCMHandler extends Mock implements FCMHandler {}
 
@@ -69,8 +67,7 @@ void main() {
   // any of them — doing so would let one user's events leak into the next
   // user's session on a shared device.
 
-  test(
-      'O1 — performTeardown calls dependencies in the documented order '
+  test('O1 — performTeardown calls dependencies in the documented order '
       'and clears onUnauthorized', () async {
     final ws = _MockWsConnectionNotifier();
     final fcm = _MockFCMHandler();
@@ -137,12 +134,16 @@ void main() {
 
       final hooks = container.read(realtimeBootHooksProvider);
 
-      expect(hooks, contains(incomingJobQueueProvider),
-          reason: 'queue notifiers that subscribe to systemEventProvider '
-              'must be registered here so they wake before WS connect; '
-              'missing entry silently drops the first event after every '
-              'login (true regardless of whether the feature presents as '
-              'a route, a sheet overlay, or otherwise).');
+      expect(
+        hooks,
+        contains(incomingJobQueueProvider),
+        reason:
+            'queue notifiers that subscribe to systemEventProvider '
+            'must be registered here so they wake before WS connect; '
+            'missing entry silently drops the first event after every '
+            'login (true regardless of whether the feature presents as '
+            'a route, a sheet overlay, or otherwise).',
+      );
     });
 
     test('R2 — bootAfterAuth reads every entry in the registry', () async {
@@ -161,16 +162,20 @@ void main() {
       final fcm = _MockFCMHandler();
       when(() => fcm.initialize()).thenAnswer((_) async {});
 
-      final container = ProviderContainer(overrides: [
-        realtimeBootHooksProvider.overrideWith((ref) => [probeA, probeB]),
-        realtime_di.fcmHandlerProvider.overrideWithValue(fcm),
-        eventSyncProvider.overrideWith(_RecordingEventSyncNotifier.new),
-        wsConnectionProvider.overrideWith(_RecordingWsNotifier.new),
-      ]);
+      final container = ProviderContainer(
+        overrides: [
+          realtimeBootHooksProvider.overrideWith((ref) => [probeA, probeB]),
+          realtime_di.fcmHandlerProvider.overrideWithValue(fcm),
+          eventSyncProvider.overrideWith(_RecordingEventSyncNotifier.new),
+          wsConnectionProvider.overrideWith(_RecordingWsNotifier.new),
+        ],
+      );
       addTearDown(container.dispose);
 
       await AppLifecycleOrchestrator.bootAfterAuth(
-          container.read(_refProbe), 'token');
+        container.read(_refProbe),
+        'token',
+      );
 
       // Both probes must have been read exactly once. If a future refactor
       // drops the for-loop, this fails immediately.
@@ -188,50 +193,59 @@ void main() {
 
   group('bootAfterAuth sentinel', () {
     test(
-        'B1 — happy path: callback set, hooks read, FCM init, WS connect',
-        () async {
-      final fcm = _MockFCMHandler();
-      when(() => fcm.initialize()).thenAnswer((_) async {});
+      'B1 — happy path: callback set, hooks read, FCM init, WS connect',
+      () async {
+        final fcm = _MockFCMHandler();
+        when(() => fcm.initialize()).thenAnswer((_) async {});
 
-      final container = ProviderContainer(overrides: [
-        realtimeBootHooksProvider.overrideWith((ref) => const []),
-        realtime_di.fcmHandlerProvider.overrideWithValue(fcm),
-        eventSyncProvider.overrideWith(_RecordingEventSyncNotifier.new),
-        wsConnectionProvider.overrideWith(_RecordingWsNotifier.new),
-      ]);
-      addTearDown(container.dispose);
+        final container = ProviderContainer(
+          overrides: [
+            realtimeBootHooksProvider.overrideWith((ref) => const []),
+            realtime_di.fcmHandlerProvider.overrideWithValue(fcm),
+            eventSyncProvider.overrideWith(_RecordingEventSyncNotifier.new),
+            wsConnectionProvider.overrideWith(_RecordingWsNotifier.new),
+          ],
+        );
+        addTearDown(container.dispose);
 
-      await AppLifecycleOrchestrator.bootAfterAuth(
-          container.read(_refProbe), 'happy-token');
+        await AppLifecycleOrchestrator.bootAfterAuth(
+          container.read(_refProbe),
+          'happy-token',
+        );
 
-      verify(() => fcm.initialize()).called(1);
-      final ws =
-          container.read(wsConnectionProvider.notifier) as _RecordingWsNotifier;
-      expect(ws.connectCalls, ['happy-token']);
-      expect(container.read(eventSyncProvider.notifier).onUnauthorized,
-          isNotNull);
-    });
+        verify(() => fcm.initialize()).called(1);
+        final ws =
+            container.read(wsConnectionProvider.notifier)
+                as _RecordingWsNotifier;
+        expect(ws.connectCalls, ['happy-token']);
+        expect(
+          container.read(eventSyncProvider.notifier).onUnauthorized,
+          isNotNull,
+        );
+      },
+    );
 
-    test(
-        'B2 — sentinel: if onUnauthorized is nulled while FCM init awaits, '
-        'WS.connect MUST NOT fire (prevents stale-token reconnect)',
-        () async {
+    test('B2 — sentinel: if onUnauthorized is nulled while FCM init awaits, '
+        'WS.connect MUST NOT fire (prevents stale-token reconnect)', () async {
       final fcmGate = Completer<void>();
       final fcm = _MockFCMHandler();
       when(() => fcm.initialize()).thenAnswer((_) => fcmGate.future);
 
-      final container = ProviderContainer(overrides: [
-        realtimeBootHooksProvider.overrideWith((ref) => const []),
-        realtime_di.fcmHandlerProvider.overrideWithValue(fcm),
-        eventSyncProvider.overrideWith(_RecordingEventSyncNotifier.new),
-        wsConnectionProvider.overrideWith(_RecordingWsNotifier.new),
-      ]);
+      final container = ProviderContainer(
+        overrides: [
+          realtimeBootHooksProvider.overrideWith((ref) => const []),
+          realtime_di.fcmHandlerProvider.overrideWithValue(fcm),
+          eventSyncProvider.overrideWith(_RecordingEventSyncNotifier.new),
+          wsConnectionProvider.overrideWith(_RecordingWsNotifier.new),
+        ],
+      );
       addTearDown(container.dispose);
 
       // Kick off boot — it will park inside `fcm.initialize()`.
-      final bootFuture =
-          AppLifecycleOrchestrator.bootAfterAuth(
-              container.read(_refProbe), 'race-token');
+      final bootFuture = AppLifecycleOrchestrator.bootAfterAuth(
+        container.read(_refProbe),
+        'race-token',
+      );
       await Future<void>.delayed(Duration.zero);
 
       // Simulate teardown landing while boot is parked: null the callback.
@@ -245,10 +259,14 @@ void main() {
 
       final ws =
           container.read(wsConnectionProvider.notifier) as _RecordingWsNotifier;
-      expect(ws.connectCalls, isEmpty,
-          reason: 'sentinel must skip WS.connect when teardown ran during '
-              'FCM init; otherwise we would reconnect with a token that '
-              'repository.logout has cleared');
+      expect(
+        ws.connectCalls,
+        isEmpty,
+        reason:
+            'sentinel must skip WS.connect when teardown ran during '
+            'FCM init; otherwise we would reconnect with a token that '
+            'repository.logout has cleared',
+      );
     });
   });
 }

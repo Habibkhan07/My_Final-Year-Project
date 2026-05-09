@@ -54,7 +54,8 @@ class BookingDetailRemoteDataSource implements IBookingDetailRemoteDataSource {
     throw HttpFailure(
       statusCode: response.statusCode,
       code: envelope?['code'] as String? ?? 'unknown',
-      message: envelope?['message'] as String? ??
+      message:
+          envelope?['message'] as String? ??
           'Request failed (${response.statusCode}).',
       errors: (envelope?['errors'] as Map<String, dynamic>?) ?? const {},
     );

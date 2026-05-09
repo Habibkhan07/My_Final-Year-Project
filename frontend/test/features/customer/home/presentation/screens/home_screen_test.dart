@@ -65,45 +65,46 @@ void main() {
   }
 
   group('HomeScreen — _LocationHeader', () {
-    testWidgets('shows small loading spinner while default address is loading',
-        (tester) async {
-      await tester.pumpWidget(
-        createWidgetUnderTest(
-          addressOverride: (_) => Completer<CustomerAddressEntity?>().future,
-        ),
-      );
-      // Pump once — home data is ready, address is still loading
-      await tester.pump();
+    testWidgets(
+      'shows small loading spinner while default address is loading',
+      (tester) async {
+        await tester.pumpWidget(
+          createWidgetUnderTest(
+            addressOverride: (_) => Completer<CustomerAddressEntity?>().future,
+          ),
+        );
+        // Pump once — home data is ready, address is still loading
+        await tester.pump();
 
-      expect(find.byType(CircularProgressIndicator), findsOneWidget);
-    });
+        expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      },
+    );
 
-    testWidgets('shows street address when a default address exists',
-        (tester) async {
+    testWidgets('shows street address when a default address exists', (
+      tester,
+    ) async {
       await tester.pumpWidget(
-        createWidgetUnderTest(
-          addressOverride: (_) async => tDefaultAddress,
-        ),
+        createWidgetUnderTest(addressOverride: (_) async => tDefaultAddress),
       );
       await tester.pump();
 
       expect(find.text('Gulberg III, Lahore'), findsOneWidget);
     });
 
-    testWidgets('shows "Set your location" when no default address is set',
-        (tester) async {
+    testWidgets('shows "Set your location" when no default address is set', (
+      tester,
+    ) async {
       await tester.pumpWidget(
-        createWidgetUnderTest(
-          addressOverride: (_) async => null,
-        ),
+        createWidgetUnderTest(addressOverride: (_) async => null),
       );
       await tester.pump();
 
       expect(find.text('Set your location'), findsOneWidget);
     });
 
-    testWidgets('shows "Location unavailable" on address provider error',
-        (tester) async {
+    testWidgets('shows "Location unavailable" on address provider error', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         createWidgetUnderTest(
           addressOverride: (_) =>
@@ -116,7 +117,9 @@ void main() {
       expect(find.text('Location unavailable'), findsOneWidget);
     });
 
-    testWidgets('tapping the header opens AddressSelectorSheet', (tester) async {
+    testWidgets('tapping the header opens AddressSelectorSheet', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         createWidgetUnderTest(
           addressOverride: (_) async => null,

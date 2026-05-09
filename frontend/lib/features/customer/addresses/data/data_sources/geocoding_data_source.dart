@@ -20,7 +20,9 @@ abstract class GeocodingDataSource {
   /// Autocomplete predictions for an in-progress search query.
   /// Caller passes a session token to bundle the query → details billing.
   Future<List<PlaceSearchEntity>> searchPlaces(
-      String query, String sessionToken);
+    String query,
+    String sessionToken,
+  );
 
   /// Resolve the lat/lng + structured fields for a chosen prediction.
   Future<PlaceDetails> getPlaceDetails(String placeId, String sessionToken);

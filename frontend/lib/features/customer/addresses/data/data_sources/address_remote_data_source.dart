@@ -42,11 +42,14 @@ class AddressRemoteDataSource {
     );
     _handleResponse(response);
     return CustomerAddressModel.fromJson(
-        jsonDecode(response.body) as Map<String, dynamic>);
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
   }
 
   Future<CustomerAddressModel> updateAddress(
-      int id, Map<String, dynamic> data) async {
+    int id,
+    Map<String, dynamic> data,
+  ) async {
     final token = await secureStorage.read(key: _tokenKey);
     final response = await client.patch(
       Uri.parse('$_baseUrl$id/'),
@@ -58,7 +61,8 @@ class AddressRemoteDataSource {
     );
     _handleResponse(response);
     return CustomerAddressModel.fromJson(
-        jsonDecode(response.body) as Map<String, dynamic>);
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
   }
 
   Future<void> deleteAddress(int id) async {
@@ -85,7 +89,8 @@ class AddressRemoteDataSource {
       throw HttpFailure(
         statusCode: response.statusCode,
         code: 'unknown',
-        message: (body['detail'] ?? body['error'] ?? 'Unknown error').toString(),
+        message: (body['detail'] ?? body['error'] ?? 'Unknown error')
+            .toString(),
       );
     } catch (e) {
       if (e is HttpFailure) rethrow;

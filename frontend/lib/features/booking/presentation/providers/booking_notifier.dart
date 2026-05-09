@@ -53,7 +53,9 @@ class InstantBookingNotifier extends _$InstantBookingNotifier {
 
     state = const AsyncLoading();
     state = await AsyncValue.guard(
-      () => ref.read(createInstantBookingUseCaseProvider).call(
+      () => ref
+          .read(createInstantBookingUseCaseProvider)
+          .call(
             technicianId: technicianId,
             addressId: addressId,
             serviceId: serviceId,

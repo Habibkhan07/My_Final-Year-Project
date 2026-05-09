@@ -18,13 +18,20 @@ import 'package:frontend/features/technician/onboarding/presentation/providers/d
 import 'package:frontend/features/technician/onboarding/presentation/providers/onboarding_notifier.dart';
 import 'package:frontend/features/technician/onboarding/presentation/providers/onboarding_state.dart';
 
-class MockGetOnboardingMetadataUseCase extends Mock implements GetOnboardingMetadataUseCase {}
-class MockRegisterTechnicianUseCase extends Mock implements RegisterTechnicianUseCase {}
+class MockGetOnboardingMetadataUseCase extends Mock
+    implements GetOnboardingMetadataUseCase {}
+
+class MockRegisterTechnicianUseCase extends Mock
+    implements RegisterTechnicianUseCase {}
 
 class MockRequestOtpUseCase extends Mock implements RequestOtpUseCase {}
+
 class MockVerifyOtpUseCase extends Mock implements VerifyOtpUseCase {}
+
 class MockCompleteSignupUseCase extends Mock implements CompleteSignupUseCase {}
+
 class MockAuthRepository extends Mock implements AuthRepository {}
+
 class FakeUserEntity extends Fake implements UserEntity {}
 
 // We need a dummy listener to observe state changes
@@ -51,9 +58,18 @@ void main() {
   );
 
   const tServices = [
-    ServiceEntity(id: 1, name: 'AC Repair', subServices: [
-      SubServiceEntity(id: 10, name: 'Wash', basePrice: '1000', maxPrice: '2000')
-    ])
+    ServiceEntity(
+      id: 1,
+      name: 'AC Repair',
+      subServices: [
+        SubServiceEntity(
+          id: 10,
+          name: 'Wash',
+          basePrice: '1000',
+          maxPrice: '2000',
+        ),
+      ],
+    ),
   ];
 
   setUp(() {
@@ -61,13 +77,18 @@ void main() {
     mockRegisterTechnicianUseCase = MockRegisterTechnicianUseCase();
 
     // The notifier calls this on build
-    when(() => mockGetOnboardingMetadataUseCase.execute())
-        .thenAnswer((_) async => tServices);
+    when(
+      () => mockGetOnboardingMetadataUseCase.execute(),
+    ).thenAnswer((_) async => tServices);
 
     container = ProviderContainer(
       overrides: [
-        getOnboardingMetadataUseCaseProvider.overrideWithValue(mockGetOnboardingMetadataUseCase),
-        registerTechnicianUseCaseProvider.overrideWithValue(mockRegisterTechnicianUseCase),
+        getOnboardingMetadataUseCaseProvider.overrideWithValue(
+          mockGetOnboardingMetadataUseCase,
+        ),
+        registerTechnicianUseCaseProvider.overrideWithValue(
+          mockRegisterTechnicianUseCase,
+        ),
         authenticatedUserProvider.overrideWithValue(tUser),
       ],
     );
@@ -78,30 +99,44 @@ void main() {
   });
 
   group('OnboardingNotifier', () {
-    test('build() initializes with auth user details and fetched services', () async {
-      final state = await container.read(onboardingProvider.future);
-      expect(state.firstName, 'OriginalFirst');
-      expect(state.lastName, 'OriginalLast');
-      expect(state.services, tServices);
-      verify(() => mockGetOnboardingMetadataUseCase.execute()).called(1);
-    });
+    test(
+      'build() initializes with auth user details and fetched services',
+      () async {
+        final state = await container.read(onboardingProvider.future);
+        expect(state.firstName, 'OriginalFirst');
+        expect(state.lastName, 'OriginalLast');
+        expect(state.services, tServices);
+        verify(() => mockGetOnboardingMetadataUseCase.execute()).called(1);
+      },
+    );
 
     test('updatePersonalInfo mutates state synchronously', () async {
       await container.read(onboardingProvider.future);
       final listener = Listener<AsyncValue<OnboardingState>>();
-      container.listen(onboardingProvider, listener.call, fireImmediately: false);
-
-      container.read(onboardingProvider.notifier).updatePersonalInfo(
-        firstName: 'NewFirst',
-        city: 'LHR',
-        experienceYears: 10,
+      container.listen(
+        onboardingProvider,
+        listener.call,
+        fireImmediately: false,
       );
+
+      container
+          .read(onboardingProvider.notifier)
+          .updatePersonalInfo(
+            firstName: 'NewFirst',
+            city: 'LHR',
+            experienceYears: 10,
+          );
 
       final finalState = container.read(onboardingProvider).requireValue;
       expect(finalState.firstName, 'NewFirst');
       expect(finalState.city, 'LHR');
       expect(finalState.experienceYears, 10);
-      verifyNever(() => listener.call(any(), any(that: isA<AsyncLoading<OnboardingState>>())));
+      verifyNever(
+        () => listener.call(
+          any(),
+          any(that: isA<AsyncLoading<OnboardingState>>()),
+        ),
+      );
     });
 
     test('toggleSkill adds and removes skill synchronously', () async {
@@ -117,95 +152,118 @@ void main() {
       expect(state.selectedSkills.isEmpty, true);
     });
 
-    test('finalize() success flow updates Auth names and emits Data in submissionStatus', () async {
-      // Create a fresh container that runs the REAL AuthNotifier but with mocked UseCases
-      final mockVerify = MockVerifyOtpUseCase();
-      final mockAuthRepo = MockAuthRepository();
-      
-      when(() => mockAuthRepo.getCachedUser()).thenAnswer((_) async => null);
-      when(() => mockAuthRepo.persistUser(any())).thenAnswer((_) async => Future.value());
-      when(() => mockVerify.execute(any(), any())).thenAnswer((_) async => tUser);
+    test(
+      'finalize() success flow updates Auth names and emits Data in submissionStatus',
+      () async {
+        // Create a fresh container that runs the REAL AuthNotifier but with mocked UseCases
+        final mockVerify = MockVerifyOtpUseCase();
+        final mockAuthRepo = MockAuthRepository();
 
-      final customContainer = ProviderContainer(
-        overrides: [
-          getOnboardingMetadataUseCaseProvider.overrideWithValue(mockGetOnboardingMetadataUseCase),
-          registerTechnicianUseCaseProvider.overrideWithValue(mockRegisterTechnicianUseCase),
-          authRepositoryProvider.overrideWithValue(mockAuthRepo),
-          verifyOtpUseCaseProvider.overrideWithValue(mockVerify),
-          requestOtpUseCaseProvider.overrideWithValue(MockRequestOtpUseCase()),
-          completeSignupUseCaseProvider.overrideWithValue(MockCompleteSignupUseCase()),
-        ]
-      );
-      
-      // Wait for auth to build
-      await customContainer.read(authProvider.future);
-      
-      // Seed AuthNotifier so authenticatedUserProvider yields a user with token
-      await customContainer.read(authProvider.notifier).verifyOtp('+923001234567', '123456');
-      
-      await customContainer.read(onboardingProvider.future);
-      
-      customContainer.read(onboardingProvider.notifier).updatePersonalInfo(
-        firstName: 'FinalFirst',
-        lastName: 'FinalLast',
-        cnic: '12345',
-        bio: 'Bio',
-      );
-      
-      customContainer.read(onboardingProvider.notifier).state = AsyncData(
-        customContainer.read(onboardingProvider).requireValue.copyWith(
-          profilePictureUuid: 'uuid1',
-          cnicPictureUuid: 'uuid2',
-        )
-      );
+        when(() => mockAuthRepo.getCachedUser()).thenAnswer((_) async => null);
+        when(
+          () => mockAuthRepo.persistUser(any()),
+        ).thenAnswer((_) async => Future.value());
+        when(
+          () => mockVerify.execute(any(), any()),
+        ).thenAnswer((_) async => tUser);
 
-      final tTechEntity = const TechnicianEntity(
-        profileId: 1,
-        status: 'PENDING',
-        fullName: 'FinalFirst FinalLast',
-        joinedDate: '2023-01-01',
-        experienceYears: 0,
-      );
+        final customContainer = ProviderContainer(
+          overrides: [
+            getOnboardingMetadataUseCaseProvider.overrideWithValue(
+              mockGetOnboardingMetadataUseCase,
+            ),
+            registerTechnicianUseCaseProvider.overrideWithValue(
+              mockRegisterTechnicianUseCase,
+            ),
+            authRepositoryProvider.overrideWithValue(mockAuthRepo),
+            verifyOtpUseCaseProvider.overrideWithValue(mockVerify),
+            requestOtpUseCaseProvider.overrideWithValue(
+              MockRequestOtpUseCase(),
+            ),
+            completeSignupUseCaseProvider.overrideWithValue(
+              MockCompleteSignupUseCase(),
+            ),
+          ],
+        );
 
-      when(() => mockRegisterTechnicianUseCase.execute(
-        token: any(named: 'token'),
-        firstName: any(named: 'firstName'),
-        lastName: any(named: 'lastName'),
-        profilePictureUuid: any(named: 'profilePictureUuid'),
-        city: any(named: 'city'),
-        cnicNumber: any(named: 'cnicNumber'),
-        cnicPictureUuid: any(named: 'cnicPictureUuid'),
-        bio: any(named: 'bio'),
-        experienceYears: any(named: 'experienceYears'),
-        categoryLicenses: any(named: 'categoryLicenses'),
-        skills: any(named: 'skills'),
-      )).thenAnswer((_) async => tTechEntity);
+        // Wait for auth to build
+        await customContainer.read(authProvider.future);
 
-      // Act
-      await customContainer.read(onboardingProvider.notifier).finalize();
+        // Seed AuthNotifier so authenticatedUserProvider yields a user with token
+        await customContainer
+            .read(authProvider.notifier)
+            .verifyOtp('+923001234567', '123456');
 
-      // Wait for microtasks and rebuilds to resolve so authState actually updates
-      await customContainer.read(onboardingProvider.future);
+        await customContainer.read(onboardingProvider.future);
 
-      // Assert submissionStatus contains the data
-      final state = customContainer.read(onboardingProvider).requireValue;
-      expect(state.submissionStatus, isA<AsyncData<TechnicianEntity?>>());
-      expect(state.submissionStatus.value, tTechEntity);
+        customContainer
+            .read(onboardingProvider.notifier)
+            .updatePersonalInfo(
+              firstName: 'FinalFirst',
+              lastName: 'FinalLast',
+              cnic: '12345',
+              bio: 'Bio',
+            );
 
-      // SQA Verification: Did it ping the real AuthNotifier to sync the new names?
-      final authUser = customContainer.read(authProvider).value?.user;
-      expect(authUser?.firstName, 'FinalFirst');
-      expect(authUser?.lastName, 'FinalLast');
-      
-      customContainer.dispose();
-    });
+        customContainer.read(onboardingProvider.notifier).state = AsyncData(
+          customContainer
+              .read(onboardingProvider)
+              .requireValue
+              .copyWith(profilePictureUuid: 'uuid1', cnicPictureUuid: 'uuid2'),
+        );
+
+        final tTechEntity = const TechnicianEntity(
+          profileId: 1,
+          status: 'PENDING',
+          fullName: 'FinalFirst FinalLast',
+          joinedDate: '2023-01-01',
+          experienceYears: 0,
+        );
+
+        when(
+          () => mockRegisterTechnicianUseCase.execute(
+            token: any(named: 'token'),
+            firstName: any(named: 'firstName'),
+            lastName: any(named: 'lastName'),
+            profilePictureUuid: any(named: 'profilePictureUuid'),
+            city: any(named: 'city'),
+            cnicNumber: any(named: 'cnicNumber'),
+            cnicPictureUuid: any(named: 'cnicPictureUuid'),
+            bio: any(named: 'bio'),
+            experienceYears: any(named: 'experienceYears'),
+            categoryLicenses: any(named: 'categoryLicenses'),
+            skills: any(named: 'skills'),
+          ),
+        ).thenAnswer((_) async => tTechEntity);
+
+        // Act
+        await customContainer.read(onboardingProvider.notifier).finalize();
+
+        // Wait for microtasks and rebuilds to resolve so authState actually updates
+        await customContainer.read(onboardingProvider.future);
+
+        // Assert submissionStatus contains the data
+        final state = customContainer.read(onboardingProvider).requireValue;
+        expect(state.submissionStatus, isA<AsyncData<TechnicianEntity?>>());
+        expect(state.submissionStatus.value, tTechEntity);
+
+        // SQA Verification: Did it ping the real AuthNotifier to sync the new names?
+        final authUser = customContainer.read(authProvider).value?.user;
+        expect(authUser?.firstName, 'FinalFirst');
+        expect(authUser?.lastName, 'FinalLast');
+
+        customContainer.dispose();
+      },
+    );
 
     test('finalize() handles Missing Token securely', () async {
-      // Overriding authenticatedUserProvider with null directly 
+      // Overriding authenticatedUserProvider with null directly
       // allows us to simulate unauthenticated state trivially.
       final noUserContainer = ProviderContainer(
         overrides: [
-          getOnboardingMetadataUseCaseProvider.overrideWithValue(mockGetOnboardingMetadataUseCase),
+          getOnboardingMetadataUseCaseProvider.overrideWithValue(
+            mockGetOnboardingMetadataUseCase,
+          ),
           authenticatedUserProvider.overrideWithValue(null),
         ],
       );
@@ -216,7 +274,7 @@ void main() {
       final state = noUserContainer.read(onboardingProvider).requireValue;
       expect(state.submissionStatus, isA<AsyncError<TechnicianEntity?>>());
       expect(state.submissionStatus.error, isA<OnboardingUnauthorized>());
-      
+
       noUserContainer.dispose();
     });
   });

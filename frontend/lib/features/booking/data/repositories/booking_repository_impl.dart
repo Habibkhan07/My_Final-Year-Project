@@ -35,7 +35,9 @@ class BookingRepositoryImpl implements IBookingRepository {
     } on SocketException {
       throw const BookingNetworkFailure();
     } on FormatException {
-      throw const BookingUnexpectedFailure('Parsing error: Invalid JSON format.');
+      throw const BookingUnexpectedFailure(
+        'Parsing error: Invalid JSON format.',
+      );
     } catch (e) {
       throw BookingUnexpectedFailure(e.toString());
     }
@@ -61,7 +63,9 @@ class BookingRepositoryImpl implements IBookingRepository {
     } on SocketException {
       throw const BookingNetworkFailure();
     } on FormatException {
-      throw const BookingUnexpectedFailure('Parsing error: Invalid JSON format.');
+      throw const BookingUnexpectedFailure(
+        'Parsing error: Invalid JSON format.',
+      );
     } catch (e) {
       throw BookingUnexpectedFailure(e.toString());
     }
@@ -94,7 +98,9 @@ class BookingRepositoryImpl implements IBookingRepository {
     } on SocketException {
       throw const BookingNetworkFailure();
     } on FormatException {
-      throw const BookingUnexpectedFailure('Parsing error: Invalid JSON format.');
+      throw const BookingUnexpectedFailure(
+        'Parsing error: Invalid JSON format.',
+      );
     } catch (e) {
       throw BookingUnexpectedFailure(e.toString());
     }

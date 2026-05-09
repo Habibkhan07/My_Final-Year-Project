@@ -66,5 +66,4 @@ abstract class IBookingRepository {
     required String scheduledStart,
     required String scheduledEnd,
   });
-
 }

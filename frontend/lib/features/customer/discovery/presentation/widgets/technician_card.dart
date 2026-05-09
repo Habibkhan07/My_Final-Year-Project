@@ -59,7 +59,11 @@ class TechnicianCard extends StatelessWidget {
                             : null,
                       ),
                       child: technician.profilePicture == null
-                          ? const Icon(Icons.person, color: Color(0xFFC2C6D6), size: 30)
+                          ? const Icon(
+                              Icons.person,
+                              color: Color(0xFFC2C6D6),
+                              size: 30,
+                            )
                           : null,
                     ),
                     if (technician.isActive)
@@ -116,7 +120,11 @@ class TechnicianCard extends StatelessWidget {
                       // Rating & Distance Row
                       Row(
                         children: [
-                          const Icon(Icons.star_rounded, size: 16, color: Color(0xFFFFB400)),
+                          const Icon(
+                            Icons.star_rounded,
+                            size: 16,
+                            color: Color(0xFFFFB400),
+                          ),
                           const SizedBox(width: 4.0),
                           Text(
                             technician.uiRatingText,
@@ -130,10 +138,16 @@ class TechnicianCard extends StatelessWidget {
                             const SizedBox(width: 8.0),
                             Text(
                               '•',
-                              style: TextStyle(color: const Color(0xFFC2C6D6).withOpacity(0.5)),
+                              style: TextStyle(
+                                color: const Color(0xFFC2C6D6).withOpacity(0.5),
+                              ),
                             ),
                             const SizedBox(width: 8.0),
-                            const Icon(Icons.location_on_rounded, size: 14, color: Color(0xFF424753)),
+                            const Icon(
+                              Icons.location_on_rounded,
+                              size: 14,
+                              color: Color(0xFF424753),
+                            ),
                             const SizedBox(width: 2.0),
                             Text(
                               '${technician.distanceKm!.toStringAsFixed(1)} km',
@@ -143,7 +157,7 @@ class TechnicianCard extends StatelessWidget {
                                 color: Color(0xFF424753),
                               ),
                             ),
-                          ]
+                          ],
                         ],
                       ),
                       const SizedBox(height: 16.0),
@@ -160,9 +174,14 @@ class TechnicianCard extends StatelessWidget {
                               children: [
                                 if (technician.promoTag != null) ...[
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
                                     decoration: BoxDecoration(
-                                      color: const Color(0xFF0051AE).withOpacity(0.08),
+                                      color: const Color(
+                                        0xFF0051AE,
+                                      ).withOpacity(0.08),
                                       borderRadius: BorderRadius.circular(6),
                                     ),
                                     child: Text(
@@ -182,7 +201,9 @@ class TechnicianCard extends StatelessWidget {
                                     fontSize: 10,
                                     fontWeight: FontWeight.bold,
                                     letterSpacing: 1,
-                                    color: const Color(0xFF424753).withOpacity(0.6),
+                                    color: const Color(
+                                      0xFF424753,
+                                    ).withOpacity(0.6),
                                   ),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
@@ -209,7 +230,9 @@ class TechnicianCard extends StatelessWidget {
                                   fontSize: 9,
                                   fontWeight: FontWeight.bold,
                                   letterSpacing: 0.5,
-                                  color: const Color(0xFF424753).withOpacity(0.6),
+                                  color: const Color(
+                                    0xFF424753,
+                                  ).withOpacity(0.6),
                                 ),
                               ),
                             ],

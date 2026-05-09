@@ -3,7 +3,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
 /// A consistent base for all maps in the application.
-/// 
+///
 /// Handles tile layer configuration, user agent, and provides
 /// a standard look and feel.
 class AppMap extends StatelessWidget {

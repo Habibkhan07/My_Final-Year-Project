@@ -70,7 +70,10 @@ class ModalBottomSheetLayout extends StatelessWidget {
           // Content
           Flexible(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 24.0,
+                vertical: 8.0,
+              ),
               child: child,
             ),
           ),

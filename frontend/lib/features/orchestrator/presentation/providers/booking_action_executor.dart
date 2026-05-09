@@ -76,7 +76,8 @@ class BookingActionExecutor {
     throw HttpFailure(
       statusCode: response.statusCode,
       code: envelope?['code'] as String? ?? 'unknown',
-      message: envelope?['message'] as String? ??
+      message:
+          envelope?['message'] as String? ??
           'Action failed (${response.statusCode}).',
       errors: (envelope?['errors'] as Map<String, dynamic>?) ?? const {},
     );
@@ -85,6 +86,6 @@ class BookingActionExecutor {
 
 @Riverpod(keepAlive: true)
 BookingActionExecutor bookingActionExecutor(Ref ref) => BookingActionExecutor(
-      ref.watch(eventHttpClientProvider),
-      ref.watch(orchestratorSecureStorageProvider),
-    );
+  ref.watch(eventHttpClientProvider),
+  ref.watch(orchestratorSecureStorageProvider),
+);

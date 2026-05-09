@@ -26,7 +26,9 @@ class TechnicianProfileNotifier extends _$TechnicianProfileNotifier {
       effectiveLng = defaultAddress?.longitude;
     }
 
-    return ref.read(getTechnicianProfileUseCaseProvider).call(
+    return ref
+        .read(getTechnicianProfileUseCaseProvider)
+        .call(
           id: id,
           lat: effectiveLat,
           lng: effectiveLng,

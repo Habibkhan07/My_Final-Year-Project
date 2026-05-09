@@ -36,7 +36,8 @@ http.Client eventHttpClient(Ref ref) {
 }
 
 @Riverpod(keepAlive: true)
-FlutterSecureStorage eventSecureStorage(Ref ref) => const FlutterSecureStorage();
+FlutterSecureStorage eventSecureStorage(Ref ref) =>
+    const FlutterSecureStorage();
 
 // ─── Data Sources ──────────────────────────────────────────────────────────
 
@@ -107,9 +108,10 @@ final navigatorKeyProvider = Provider<GlobalKey<NavigatorState>>(
   (_) => GlobalKey<NavigatorState>(),
 );
 
-final scaffoldMessengerKeyProvider = Provider<GlobalKey<ScaffoldMessengerState>>(
-  (_) => GlobalKey<ScaffoldMessengerState>(),
-);
+final scaffoldMessengerKeyProvider =
+    Provider<GlobalKey<ScaffoldMessengerState>>(
+      (_) => GlobalKey<ScaffoldMessengerState>(),
+    );
 
 // ─── Current auth user id (callback-inversion seam, flag #19) ──────────────
 //

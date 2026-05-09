@@ -39,8 +39,8 @@ IBookingRemoteDataSource bookingRemoteDataSource(Ref ref) =>
 
 @Riverpod(keepAlive: true)
 IBookingRepository bookingRepository(Ref ref) => BookingRepositoryImpl(
-      remoteDataSource: ref.watch(bookingRemoteDataSourceProvider),
-    );
+  remoteDataSource: ref.watch(bookingRemoteDataSourceProvider),
+);
 
 // ---------------------------------------------------------------------------
 // Use Cases
@@ -57,4 +57,3 @@ GetAvailabilityUseCase getAvailabilityUseCase(Ref ref) =>
 @Riverpod(keepAlive: true)
 CreateInstantBookingUseCase createInstantBookingUseCase(Ref ref) =>
     CreateInstantBookingUseCase(ref.watch(bookingRepositoryProvider));
-

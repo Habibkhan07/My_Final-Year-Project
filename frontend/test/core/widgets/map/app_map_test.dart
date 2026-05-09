@@ -10,9 +10,7 @@ void main() {
   testWidgets('AppMap renders FlutterMap and TileLayer', (tester) async {
     await tester.pumpWidget(
       const MaterialApp(
-        home: Scaffold(
-          body: AppMap(initialCenter: tCenter),
-        ),
+        home: Scaffold(body: AppMap(initialCenter: tCenter)),
       ),
     );
 
@@ -26,9 +24,7 @@ void main() {
         home: Scaffold(
           body: AppMap(
             initialCenter: tCenter,
-            children: [
-              MarkerLayer(markers: []),
-            ],
+            children: [MarkerLayer(markers: [])],
           ),
         ),
       ),

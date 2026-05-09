@@ -18,9 +18,8 @@ part 'booking_event_payloads.g.dart';
 /// dispute_opened, dispute_resolved.
 @freezed
 abstract class JobIdPayload with _$JobIdPayload {
-  const factory JobIdPayload({
-    @JsonKey(name: 'job_id') required int jobId,
-  }) = _JobIdPayload;
+  const factory JobIdPayload({@JsonKey(name: 'job_id') required int jobId}) =
+      _JobIdPayload;
 
   factory JobIdPayload.fromJson(Map<String, dynamic> json) =>
       _$JobIdPayloadFromJson(json);

@@ -20,18 +20,15 @@ class MapPickerScreen extends ConsumerWidget {
     final notifierAsync = ref.watch(mapPickerProvider);
 
     // Navigate away as soon as save completes successfully.
-    ref.listen<AsyncValue<MapPickerState>>(
-      mapPickerProvider,
-      (_, next) {
-        final mapState = next.value;
-        if (mapState == null) return;
-        final saved = mapState.saveState;
-        if (saved is AsyncData<CustomerAddressEntity?> && saved.value != null) {
-          ref.invalidate(addressesProvider);
-          context.pop();
-        }
-      },
-    );
+    ref.listen<AsyncValue<MapPickerState>>(mapPickerProvider, (_, next) {
+      final mapState = next.value;
+      if (mapState == null) return;
+      final saved = mapState.saveState;
+      if (saved is AsyncData<CustomerAddressEntity?> && saved.value != null) {
+        ref.invalidate(addressesProvider);
+        context.pop();
+      }
+    });
 
     return Scaffold(
       resizeToAvoidBottomInset: false,
@@ -130,7 +127,10 @@ class _SearchOverlayState extends ConsumerState<_SearchOverlay> {
                         decoration: InputDecoration(
                           hintText: 'Search location...',
                           hintStyle: TextStyle(color: Colors.grey.shade400),
-                          prefixIcon: const Icon(Icons.search, color: Color(0xFF0051AE)),
+                          prefixIcon: const Icon(
+                            Icons.search,
+                            color: Color(0xFF0051AE),
+                          ),
                           suffixIcon: searchState.isLoading
                               ? const Padding(
                                   padding: EdgeInsets.all(12),
@@ -144,14 +144,14 @@ class _SearchOverlayState extends ConsumerState<_SearchOverlay> {
                                   ),
                                 )
                               : _controller.text.isNotEmpty
-                                  ? IconButton(
-                                      icon: const Icon(Icons.close, size: 18),
-                                      onPressed: () {
-                                        _controller.clear();
-                                        notifier.onQueryChanged('');
-                                      },
-                                    )
-                                  : null,
+                              ? IconButton(
+                                  icon: const Icon(Icons.close, size: 18),
+                                  onPressed: () {
+                                    _controller.clear();
+                                    notifier.onQueryChanged('');
+                                  },
+                                )
+                              : null,
                           border: InputBorder.none,
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 20,
@@ -264,11 +264,8 @@ class _SearchResultsList extends StatelessWidget {
           shrinkWrap: true,
           padding: EdgeInsets.zero,
           itemCount: results.length,
-          separatorBuilder: (_, __) => Divider(
-            height: 1,
-            color: Colors.grey.shade100,
-            indent: 52,
-          ),
+          separatorBuilder: (_, __) =>
+              Divider(height: 1, color: Colors.grey.shade100, indent: 52),
           itemBuilder: (context, index) {
             final place = results[index];
             return ListTile(
@@ -450,7 +447,9 @@ class _BottomCard extends ConsumerWidget {
                           duration: const Duration(milliseconds: 200),
                           curve: Curves.easeInOut,
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 10),
+                            horizontal: 16,
+                            vertical: 10,
+                          ),
                           decoration: BoxDecoration(
                             color: isSelected
                                 ? const Color(0xFF0051AE)
@@ -469,7 +468,9 @@ class _BottomCard extends ConsumerWidget {
                               Icon(
                                 icon,
                                 size: 16,
-                                color: isSelected ? Colors.white : const Color(0xFF0051AE),
+                                color: isSelected
+                                    ? Colors.white
+                                    : const Color(0xFF0051AE),
                               ),
                               const SizedBox(width: 8),
                               Text(

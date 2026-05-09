@@ -72,7 +72,10 @@ abstract class IAddressRepository {
   Future<PlaceDetails> reverseGeocode(double lat, double lng);
 
   /// Searches for places via the configured geocoding provider.
-  Future<List<PlaceSearchEntity>> searchPlaces(String query, String sessionToken);
+  Future<List<PlaceSearchEntity>> searchPlaces(
+    String query,
+    String sessionToken,
+  );
 
   /// Retrieves detailed information for a specific place.
   Future<PlaceDetails> getPlaceDetails(String placeId, String sessionToken);

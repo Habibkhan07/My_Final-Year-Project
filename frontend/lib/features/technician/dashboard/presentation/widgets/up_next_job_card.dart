@@ -125,7 +125,8 @@ class _JobCardState extends State<_JobCard> {
           _ActionStack(
             onNavigate: _startNavigation,
             onCall: _callCustomer,
-            phoneAvailable: widget.job.customerPhone != null &&
+            phoneAvailable:
+                widget.job.customerPhone != null &&
                 widget.job.customerPhone!.isNotEmpty,
           ),
         ],
@@ -253,7 +254,10 @@ class _InfoRow extends StatelessWidget {
         Expanded(
           child: Text(
             text,
-            style: const TextStyle(fontSize: 14, color: AppColors.onSurfaceVariant),
+            style: const TextStyle(
+              fontSize: 14,
+              color: AppColors.onSurfaceVariant,
+            ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
@@ -349,7 +353,8 @@ double _haversineKm(double lat1, double lng1, double lat2, double lng2) {
   const earthRadiusKm = 6371.0;
   final dLat = _deg2rad(lat2 - lat1);
   final dLng = _deg2rad(lng2 - lng1);
-  final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+  final a =
+      math.sin(dLat / 2) * math.sin(dLat / 2) +
       math.cos(_deg2rad(lat1)) *
           math.cos(_deg2rad(lat2)) *
           math.sin(dLng / 2) *
@@ -507,7 +512,11 @@ class _NoUpNextState extends StatelessWidget {
       ),
       child: const Column(
         children: [
-          Icon(Icons.check_circle_outline, size: 40, color: AppColors.secondary),
+          Icon(
+            Icons.check_circle_outline,
+            size: 40,
+            color: AppColors.secondary,
+          ),
           SizedBox(height: 10),
           Text(
             'No upcoming jobs',

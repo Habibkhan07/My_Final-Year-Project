@@ -4,11 +4,11 @@ import 'package:frontend/features/customer/bookings/presentation/widgets/booking
 import 'package:shimmer/shimmer.dart';
 
 void main() {
-  testWidgets('BookingCardSkeleton mounts with a Shimmer wrapper', (tester) async {
+  testWidgets('BookingCardSkeleton mounts with a Shimmer wrapper', (
+    tester,
+  ) async {
     await tester.pumpWidget(
-      const MaterialApp(
-        home: Scaffold(body: BookingCardSkeleton()),
-      ),
+      const MaterialApp(home: Scaffold(body: BookingCardSkeleton())),
     );
     // Don't pumpAndSettle — Shimmer animates indefinitely.
     expect(find.byType(BookingCardSkeleton), findsOneWidget);
@@ -17,9 +17,7 @@ void main() {
 
   testWidgets('renders without throwing', (tester) async {
     await tester.pumpWidget(
-      const MaterialApp(
-        home: Scaffold(body: BookingCardSkeleton()),
-      ),
+      const MaterialApp(home: Scaffold(body: BookingCardSkeleton())),
     );
     expect(tester.takeException(), isNull);
   });

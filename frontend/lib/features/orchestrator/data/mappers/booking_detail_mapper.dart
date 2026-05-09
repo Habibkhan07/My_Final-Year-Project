@@ -86,8 +86,9 @@ class BookingDetailMapper {
       childBookingId: model.childBookingId,
       cancelReason: model.cancelReason,
       noShowActor: model.noShowActor,
-      activeQuote:
-          model.activeQuote == null ? null : _quote(model.activeQuote!),
+      activeQuote: model.activeQuote == null
+          ? null
+          : _quote(model.activeQuote!),
       bookingItems: model.bookingItems.map(_bookingItem).toList(),
       openTicketsCount: model.openTicketsCount,
       ui: _uiBlock(model.ui),
@@ -111,45 +112,43 @@ class BookingDetailMapper {
 
   static BookingPhaseTimestamps _phaseTimestamps(
     BookingDetailPhaseTimestampsModel m,
-  ) =>
-      BookingPhaseTimestamps(
-        acceptedAt: _parseDateTime(m.acceptedAt),
-        enRouteStartedAt: _parseDateTime(m.enRouteStartedAt),
-        arrivedAt: _parseDateTime(m.arrivedAt),
-        inspectionStartedAt: _parseDateTime(m.inspectionStartedAt),
-        quoteFirstSubmittedAt: _parseDateTime(m.quoteFirstSubmittedAt),
-        workStartedAt: _parseDateTime(m.workStartedAt),
-        completedAt: _parseDateTime(m.completedAt),
-      );
+  ) => BookingPhaseTimestamps(
+    acceptedAt: _parseDateTime(m.acceptedAt),
+    enRouteStartedAt: _parseDateTime(m.enRouteStartedAt),
+    arrivedAt: _parseDateTime(m.arrivedAt),
+    inspectionStartedAt: _parseDateTime(m.inspectionStartedAt),
+    quoteFirstSubmittedAt: _parseDateTime(m.quoteFirstSubmittedAt),
+    workStartedAt: _parseDateTime(m.workStartedAt),
+    completedAt: _parseDateTime(m.completedAt),
+  );
 
   static BookingPricing _pricing(BookingDetailPricingModel m) => BookingPricing(
-        inspectionFee: _parseRupees(m.inspectionFee),
-        baseServicesTotal: _parseRupees(m.baseServicesTotal),
-        discountApplied: _parseRupees(m.discountApplied),
-        finalCashToCollect: _parseRupees(m.finalCashToCollect),
-        promoCodeSnapshot: m.promoCodeSnapshot,
-        promoDiscountSnapshot: _parseRupees(m.promoDiscountSnapshot),
-      );
+    inspectionFee: _parseRupees(m.inspectionFee),
+    baseServicesTotal: _parseRupees(m.baseServicesTotal),
+    discountApplied: _parseRupees(m.discountApplied),
+    finalCashToCollect: _parseRupees(m.finalCashToCollect),
+    promoCodeSnapshot: m.promoCodeSnapshot,
+    promoDiscountSnapshot: _parseRupees(m.promoDiscountSnapshot),
+  );
 
   static BookingCashCollection _cashCollection(
     BookingDetailCashCollectionModel m,
-  ) =>
-      BookingCashCollection(
-        amount: _parseRupees(m.amount),
-        at: _parseDateTime(m.at),
-        method: m.method,
-      );
+  ) => BookingCashCollection(
+    amount: _parseRupees(m.amount),
+    at: _parseDateTime(m.at),
+    method: m.method,
+  );
 
   static BookingQuote _quote(BookingQuoteModel m) => BookingQuote(
-        id: m.id,
-        bookingId: m.bookingId,
-        revisionNumber: m.revisionNumber,
-        status: BookingQuoteStatus.fromWire(m.status),
-        totalAmount: _parseRupees(m.totalAmount)!,
-        isUpsell: m.isUpsell,
-        lineItems: m.lineItems.map(_lineItem).toList(),
-        submittedAt: _parseDateTime(m.submittedAt),
-      );
+    id: m.id,
+    bookingId: m.bookingId,
+    revisionNumber: m.revisionNumber,
+    status: BookingQuoteStatus.fromWire(m.status),
+    totalAmount: _parseRupees(m.totalAmount)!,
+    isUpsell: m.isUpsell,
+    lineItems: m.lineItems.map(_lineItem).toList(),
+    submittedAt: _parseDateTime(m.submittedAt),
+  );
 
   static BookingQuoteLineItem _lineItem(BookingQuoteLineItemModel m) =>
       BookingQuoteLineItem(
@@ -162,31 +161,30 @@ class BookingDetailMapper {
       );
 
   static BookingItem _bookingItem(BookingItemModel m) => BookingItem(
-        id: m.id,
-        subServiceId: m.subServiceId,
-        subServiceName: m.subServiceName,
-        quantity: m.quantity,
-        priceCharged: _parseRupees(m.priceCharged)!,
-        lineTotal: _parseRupees(m.lineTotal)!,
-        sourcedQuoteId: m.sourcedQuoteId,
-      );
+    id: m.id,
+    subServiceId: m.subServiceId,
+    subServiceName: m.subServiceName,
+    quantity: m.quantity,
+    priceCharged: _parseRupees(m.priceCharged)!,
+    lineTotal: _parseRupees(m.lineTotal)!,
+    sourcedQuoteId: m.sourcedQuoteId,
+  );
 
   static BookingUiBlock _uiBlock(BookingUiBlockModel m) => BookingUiBlock(
-        statusLabel: m.statusLabel,
-        bodyText: m.bodyText,
-        primaryAction:
-            m.primaryAction == null ? null : _action(m.primaryAction!),
-        secondaryActions: m.secondaryActions.map(_action).toList(),
-        showTracking: m.showTracking,
-        showQuoteCard: m.showQuoteCard,
-        showDisputeButton: m.showDisputeButton,
-        tone: BookingUiTone.fromWire(m.tone),
-      );
+    statusLabel: m.statusLabel,
+    bodyText: m.bodyText,
+    primaryAction: m.primaryAction == null ? null : _action(m.primaryAction!),
+    secondaryActions: m.secondaryActions.map(_action).toList(),
+    showTracking: m.showTracking,
+    showQuoteCard: m.showQuoteCard,
+    showDisputeButton: m.showDisputeButton,
+    tone: BookingUiTone.fromWire(m.tone),
+  );
 
   static BookingUiAction _action(BookingUiActionModel m) => BookingUiAction(
-        label: m.label,
-        endpoint: m.endpoint,
-        method: m.method,
-        style: BookingUiActionStyle.fromWire(m.style),
-      );
+    label: m.label,
+    endpoint: m.endpoint,
+    method: m.method,
+    style: BookingUiActionStyle.fromWire(m.style),
+  );
 }

@@ -21,11 +21,10 @@ class GetCustomerBookingsUseCase {
     List<BookingStatus>? statusFilter,
     String? cursor,
     int pageSize = 20,
-  }) =>
-      _repository.getBookings(
-        segment: segment,
-        statusFilter: statusFilter,
-        cursor: cursor,
-        pageSize: pageSize,
-      );
+  }) => _repository.getBookings(
+    segment: segment,
+    statusFilter: statusFilter,
+    cursor: cursor,
+    pageSize: pageSize,
+  );
 }

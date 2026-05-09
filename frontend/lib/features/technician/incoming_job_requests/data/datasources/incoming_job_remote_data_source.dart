@@ -83,8 +83,8 @@ class IncomingJobRemoteDataSource implements IIncomingJobRemoteDataSource {
         code: 'unknown',
         message: body is Map
             ? (body['detail']?.toString() ??
-                body['error']?.toString() ??
-                'Unknown error')
+                  body['error']?.toString() ??
+                  'Unknown error')
             : 'Unknown error',
       );
     } catch (e) {

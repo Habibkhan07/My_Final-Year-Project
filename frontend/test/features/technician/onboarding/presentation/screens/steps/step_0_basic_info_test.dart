@@ -9,7 +9,8 @@ import 'package:frontend/features/technician/onboarding/domain/usecases/get_onbo
 import 'package:frontend/features/technician/onboarding/presentation/providers/dependency_injection.dart';
 import 'package:mocktail/mocktail.dart';
 
-class MockGetOnboardingMetadataUseCase extends Mock implements GetOnboardingMetadataUseCase {}
+class MockGetOnboardingMetadataUseCase extends Mock
+    implements GetOnboardingMetadataUseCase {}
 
 void main() {
   group('Step0BasicInfo Widget Tests (Dumb UI)', () {
@@ -20,35 +21,39 @@ void main() {
       when(() => mockMetadataUseCase.execute()).thenAnswer((_) async => []);
     });
 
-    testWidgets('should render empty form fields when state is empty', (WidgetTester tester) async {
+    testWidgets('should render empty form fields when state is empty', (
+      WidgetTester tester,
+    ) async {
       final container = ProviderContainer(
         overrides: [
-          getOnboardingMetadataUseCaseProvider.overrideWithValue(mockMetadataUseCase),
-        ]
+          getOnboardingMetadataUseCaseProvider.overrideWithValue(
+            mockMetadataUseCase,
+          ),
+        ],
       );
-      
+
       await container.read(onboardingProvider.future);
 
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
-          child: const MaterialApp(
-            home: Scaffold(body: Step0BasicInfo()),
-          ),
+          child: const MaterialApp(home: Scaffold(body: Step0BasicInfo())),
         ),
       );
 
       await tester.pumpAndSettle();
 
       // Check if fields are present (First Name, Last Name)
-      expect(find.byType(TextFormField), findsNWidgets(2)); 
+      expect(find.byType(TextFormField), findsNWidgets(2));
       // City Dropdown
       expect(find.byType(DropdownButtonFormField<String>), findsOneWidget);
-      
+
       container.dispose();
     });
 
-    testWidgets('should populate form fields when state has data', (WidgetTester tester) async {
+    testWidgets('should populate form fields when state has data', (
+      WidgetTester tester,
+    ) async {
       final populatedState = OnboardingState(
         firstName: 'Ali',
         lastName: 'Raza',
@@ -57,19 +62,21 @@ void main() {
 
       final container = ProviderContainer(
         overrides: [
-          getOnboardingMetadataUseCaseProvider.overrideWithValue(mockMetadataUseCase),
-        ]
+          getOnboardingMetadataUseCaseProvider.overrideWithValue(
+            mockMetadataUseCase,
+          ),
+        ],
       );
-      
+
       await container.read(onboardingProvider.future);
-      container.read(onboardingProvider.notifier).state = AsyncData(populatedState);
+      container.read(onboardingProvider.notifier).state = AsyncData(
+        populatedState,
+      );
 
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
-          child: const MaterialApp(
-            home: Scaffold(body: Step0BasicInfo()),
-          ),
+          child: const MaterialApp(home: Scaffold(body: Step0BasicInfo())),
         ),
       );
 
@@ -78,8 +85,11 @@ void main() {
       // The dumb UI should render the text exactly as provided by the state
       expect(find.text('Ali'), findsOneWidget);
       expect(find.text('Raza'), findsOneWidget);
-      expect(find.text('Lahore'), findsOneWidget); // Dropdown displays the text 'Lahore' for 'LHR'
-      
+      expect(
+        find.text('Lahore'),
+        findsOneWidget,
+      ); // Dropdown displays the text 'Lahore' for 'LHR'
+
       container.dispose();
     });
   });

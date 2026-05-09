@@ -18,15 +18,18 @@ void main() {
 
   setUp(() {
     mockUseCase = MockCreateInstantBookingUseCase();
-    container = ProviderContainer(overrides: [
-      createInstantBookingUseCaseProvider.overrideWithValue(mockUseCase),
-    ]);
+    container = ProviderContainer(
+      overrides: [
+        createInstantBookingUseCaseProvider.overrideWithValue(mockUseCase),
+      ],
+    );
     addTearDown(container.dispose);
   });
 
   // Helper: runs book() and collects every state the notifier emits.
   Future<List<AsyncValue<CreatedBookingEntity?>>> collectStates(
-      Future<void> Function() action) async {
+    Future<void> Function() action,
+  ) async {
     final states = <AsyncValue<CreatedBookingEntity?>>[];
     final sub = container.listen(instantBookingProvider, (_, next) {
       states.add(next);
@@ -39,37 +42,42 @@ void main() {
   }
 
   void stubSuccess() {
-    when(() => mockUseCase.call(
-          technicianId: any(named: 'technicianId'),
-          addressId: any(named: 'addressId'),
-          serviceId: any(named: 'serviceId'),
-          subServiceId: any(named: 'subServiceId'),
-          promotionId: any(named: 'promotionId'),
-          scheduledStart: any(named: 'scheduledStart'),
-          scheduledEnd: any(named: 'scheduledEnd'),
-        )).thenAnswer((_) async => tEntity);
+    when(
+      () => mockUseCase.call(
+        technicianId: any(named: 'technicianId'),
+        addressId: any(named: 'addressId'),
+        serviceId: any(named: 'serviceId'),
+        subServiceId: any(named: 'subServiceId'),
+        promotionId: any(named: 'promotionId'),
+        scheduledStart: any(named: 'scheduledStart'),
+        scheduledEnd: any(named: 'scheduledEnd'),
+      ),
+    ).thenAnswer((_) async => tEntity);
   }
 
   void stubFailure(BookingFailure failure) {
-    when(() => mockUseCase.call(
-          technicianId: any(named: 'technicianId'),
-          addressId: any(named: 'addressId'),
-          serviceId: any(named: 'serviceId'),
-          subServiceId: any(named: 'subServiceId'),
-          promotionId: any(named: 'promotionId'),
-          scheduledStart: any(named: 'scheduledStart'),
-          scheduledEnd: any(named: 'scheduledEnd'),
-        )).thenThrow(failure);
+    when(
+      () => mockUseCase.call(
+        technicianId: any(named: 'technicianId'),
+        addressId: any(named: 'addressId'),
+        serviceId: any(named: 'serviceId'),
+        subServiceId: any(named: 'subServiceId'),
+        promotionId: any(named: 'promotionId'),
+        scheduledStart: any(named: 'scheduledStart'),
+        scheduledEnd: any(named: 'scheduledEnd'),
+      ),
+    ).thenThrow(failure);
   }
 
-  Future<void> callBook() =>
-      container.read(instantBookingProvider.notifier).book(
-            technicianId: 42,
-            addressId: 7,
-            serviceId: 3,
-            scheduledStart: '2026-04-07T10:00:00+05:00',
-            scheduledEnd: '2026-04-07T11:00:00+05:00',
-          );
+  Future<void> callBook() => container
+      .read(instantBookingProvider.notifier)
+      .book(
+        technicianId: 42,
+        addressId: 7,
+        serviceId: 3,
+        scheduledStart: '2026-04-07T10:00:00+05:00',
+        scheduledEnd: '2026-04-07T11:00:00+05:00',
+      );
 
   // ---------------------------------------------------------------------------
   // Initial state
@@ -84,16 +92,19 @@ void main() {
   // book() — success
   // ---------------------------------------------------------------------------
   group('book() — success', () {
-    test('transitions AsyncData(null) → AsyncLoading → AsyncData(entity)', () async {
-      stubSuccess();
+    test(
+      'transitions AsyncData(null) → AsyncLoading → AsyncData(entity)',
+      () async {
+        stubSuccess();
 
-      final states = await collectStates(callBook);
+        final states = await collectStates(callBook);
 
-      expect(states[0], isA<AsyncData>()); // initial null
-      expect(states[1], isA<AsyncLoading>());
-      expect(states[2], isA<AsyncData<CreatedBookingEntity?>>());
-      expect(states[2].value?.bookingId, 99);
-    });
+        expect(states[0], isA<AsyncData>()); // initial null
+        expect(states[1], isA<AsyncLoading>());
+        expect(states[2], isA<AsyncData<CreatedBookingEntity?>>());
+        expect(states[2].value?.bookingId, 99);
+      },
+    );
 
     test('final state contains the correct CreatedBookingEntity', () async {
       stubSuccess();
@@ -109,14 +120,17 @@ void main() {
   // book() — failures
   // ---------------------------------------------------------------------------
   group('book() — failures', () {
-    test('BookingSlotUnavailableFailure → AsyncError (UI pops to availability)', () async {
-      stubFailure(const BookingSlotUnavailableFailure());
-      await callBook();
+    test(
+      'BookingSlotUnavailableFailure → AsyncError (UI pops to availability)',
+      () async {
+        stubFailure(const BookingSlotUnavailableFailure());
+        await callBook();
 
-      final state = container.read(instantBookingProvider);
-      expect(state.hasError, isTrue);
-      expect(state.error, isA<BookingSlotUnavailableFailure>());
-    });
+        final state = container.read(instantBookingProvider);
+        expect(state.hasError, isTrue);
+        expect(state.error, isA<BookingSlotUnavailableFailure>());
+      },
+    );
 
     test('BookingNetworkFailure → AsyncError', () async {
       stubFailure(const BookingNetworkFailure());
@@ -127,18 +141,21 @@ void main() {
       expect(state.error, isA<BookingNetworkFailure>());
     });
 
-    test('BookingOutOfServiceAreaFailure → AsyncError preserves human-readable message', () async {
-      const tMessage = 'Your address is 14.2 km away (limit: 10 km).';
-      stubFailure(const BookingOutOfServiceAreaFailure(tMessage));
-      await callBook();
+    test(
+      'BookingOutOfServiceAreaFailure → AsyncError preserves human-readable message',
+      () async {
+        const tMessage = 'Your address is 14.2 km away (limit: 10 km).';
+        stubFailure(const BookingOutOfServiceAreaFailure(tMessage));
+        await callBook();
 
-      final state = container.read(instantBookingProvider);
-      expect(state.hasError, isTrue);
-      expect(
-        (state.error as BookingOutOfServiceAreaFailure).message,
-        tMessage,
-      );
-    });
+        final state = container.read(instantBookingProvider);
+        expect(state.hasError, isTrue);
+        expect(
+          (state.error as BookingOutOfServiceAreaFailure).message,
+          tMessage,
+        );
+      },
+    );
 
     test('BookingTechnicianNotFoundFailure → AsyncError', () async {
       stubFailure(const BookingTechnicianNotFoundFailure());
@@ -165,7 +182,9 @@ void main() {
   // ---------------------------------------------------------------------------
   test('book() asserts when subServiceId AND promotionId are both present', () {
     expect(
-      () => container.read(instantBookingProvider.notifier).book(
+      () => container
+          .read(instantBookingProvider.notifier)
+          .book(
             technicianId: 42,
             addressId: 7,
             serviceId: 3,

@@ -33,36 +33,40 @@ void main() {
   setUp(() {
     client = _MockClient();
     storage = _MockSecureStorage();
-    when(() => storage.read(key: any(named: 'key')))
-        .thenAnswer((_) async => 'TOKEN_X');
+    when(
+      () => storage.read(key: any(named: 'key')),
+    ).thenAnswer((_) async => 'TOKEN_X');
     executor = BookingActionExecutor(client, storage);
   });
 
   BookingUiAction action({
     String method = 'POST',
     String endpoint = '/bookings/42/cash/',
-  }) =>
-      BookingUiAction(
-        label: 'Do',
-        endpoint: endpoint,
-        method: method,
-        style: BookingUiActionStyle.primary,
-      );
+  }) => BookingUiAction(
+    label: 'Do',
+    endpoint: endpoint,
+    method: method,
+    style: BookingUiActionStyle.primary,
+  );
 
   test('POST sends auth + JSON body and resolves on 200', () async {
-    when(() => client.post(
-          any(),
-          headers: any(named: 'headers'),
-          body: any(named: 'body'),
-        )).thenAnswer((_) async => http.Response('{}', 200));
+    when(
+      () => client.post(
+        any(),
+        headers: any(named: 'headers'),
+        body: any(named: 'body'),
+      ),
+    ).thenAnswer((_) async => http.Response('{}', 200));
 
     await executor.execute(action(), body: {'amount_received': 1500});
 
-    final captured = verify(() => client.post(
-          captureAny(),
-          headers: captureAny(named: 'headers'),
-          body: captureAny(named: 'body'),
-        )).captured;
+    final captured = verify(
+      () => client.post(
+        captureAny(),
+        headers: captureAny(named: 'headers'),
+        body: captureAny(named: 'body'),
+      ),
+    ).captured;
     final uri = captured[0] as Uri;
     final headers = captured[1] as Map<String, String>;
     final body = captured[2] as String;
@@ -83,8 +87,9 @@ void main() {
     // If a future edit reintroduces `body: encodedBody` on the DELETE
     // arm, the call would land on a different mock signature and
     // mocktail throws — failing this test loudly.
-    when(() => client.delete(any(), headers: any(named: 'headers')))
-        .thenAnswer((_) async => http.Response('', 204));
+    when(
+      () => client.delete(any(), headers: any(named: 'headers')),
+    ).thenAnswer((_) async => http.Response('', 204));
 
     // Pass a body intentionally — the executor MUST drop it for DELETE.
     await executor.execute(
@@ -93,26 +98,33 @@ void main() {
     );
 
     // Verify the body-less signature was used.
-    verify(() => client.delete(any(), headers: any(named: 'headers')))
-        .called(1);
+    verify(
+      () => client.delete(any(), headers: any(named: 'headers')),
+    ).called(1);
 
     // And explicitly: no DELETE-with-body call occurred.
-    verifyNever(() => client.delete(
-          any(),
-          headers: any(named: 'headers'),
-          body: any(named: 'body'),
-        ));
+    verifyNever(
+      () => client.delete(
+        any(),
+        headers: any(named: 'headers'),
+        body: any(named: 'body'),
+      ),
+    );
   });
 
   test('non-2xx response throws HttpFailure with envelope fields', () async {
-    when(() => client.post(
-          any(),
-          headers: any(named: 'headers'),
-          body: any(named: 'body'),
-        )).thenAnswer((_) async => http.Response(
-          '{"code":"validation_error","message":"Bad amount","errors":{"amount_received":["too low"]}}',
-          400,
-        ));
+    when(
+      () => client.post(
+        any(),
+        headers: any(named: 'headers'),
+        body: any(named: 'body'),
+      ),
+    ).thenAnswer(
+      (_) async => http.Response(
+        '{"code":"validation_error","message":"Bad amount","errors":{"amount_received":["too low"]}}',
+        400,
+      ),
+    );
 
     await expectLater(
       executor.execute(action(), body: {'amount_received': -1}),
@@ -121,18 +133,19 @@ void main() {
             .having((e) => e.statusCode, 'statusCode', 400)
             .having((e) => e.code, 'code', 'validation_error')
             .having((e) => e.message, 'message', 'Bad amount')
-            .having((e) => e.errors['amount_received'], 'errors',
-                ['too low']),
+            .having((e) => e.errors['amount_received'], 'errors', ['too low']),
       ),
     );
   });
 
   test('non-JSON error body falls back to generic message', () async {
-    when(() => client.post(
-          any(),
-          headers: any(named: 'headers'),
-          body: any(named: 'body'),
-        )).thenAnswer((_) async => http.Response('<html>oops</html>', 502));
+    when(
+      () => client.post(
+        any(),
+        headers: any(named: 'headers'),
+        body: any(named: 'body'),
+      ),
+    ).thenAnswer((_) async => http.Response('<html>oops</html>', 502));
 
     await expectLater(
       executor.execute(action()),
@@ -153,15 +166,15 @@ void main() {
   });
 
   test('GET issues a GET (no body, no Content-Type)', () async {
-    when(() => client.get(any(), headers: any(named: 'headers')))
-        .thenAnswer((_) async => http.Response('{}', 200));
+    when(
+      () => client.get(any(), headers: any(named: 'headers')),
+    ).thenAnswer((_) async => http.Response('{}', 200));
 
     await executor.execute(action(method: 'GET'));
 
-    final captured = verify(() => client.get(
-          captureAny(),
-          headers: captureAny(named: 'headers'),
-        )).captured;
+    final captured = verify(
+      () => client.get(captureAny(), headers: captureAny(named: 'headers')),
+    ).captured;
     final headers = captured[1] as Map<String, String>;
     expect(headers.containsKey('Content-Type'), isFalse);
   });

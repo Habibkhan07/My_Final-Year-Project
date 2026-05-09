@@ -12,13 +12,12 @@ class HomeNotifier extends _$HomeNotifier {
     // Watch the default address so the home feed automatically re-fetches
     // when the user changes their location.
     final address = await ref.watch(defaultAddressProvider.future);
-    
+
     // Fetch the home feed data with location context
-    final feed = await ref.read(getHomeFeedUseCaseProvider).call(
-      lat: address?.latitude,
-      lng: address?.longitude,
-    );
-    
+    final feed = await ref
+        .read(getHomeFeedUseCaseProvider)
+        .call(lat: address?.latitude, lng: address?.longitude);
+
     return HomeState(
       homeFeed: feed,
       lastLat: address?.latitude,
@@ -29,7 +28,9 @@ class HomeNotifier extends _$HomeNotifier {
   Future<void> fetchHomeFeed({double? lat, double? lng}) async {
     // AsyncValue.guard automatically handles Loading and Error states for you
     state = await AsyncValue.guard(() async {
-      final feed = await ref.read(getHomeFeedUseCaseProvider).call(lat: lat, lng: lng);
+      final feed = await ref
+          .read(getHomeFeedUseCaseProvider)
+          .call(lat: lat, lng: lng);
       return state.requireValue.copyWith(
         homeFeed: feed,
         lastLat: lat,

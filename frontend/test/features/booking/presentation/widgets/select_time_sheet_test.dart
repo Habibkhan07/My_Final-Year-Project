@@ -64,20 +64,22 @@ void main() {
   );
 
   testWidgets('shows loading indicator when state is loading', (tester) async {
-    // Because the widget generates `dateString` internally via DateTime.now(), 
+    // Because the widget generates `dateString` internally via DateTime.now(),
     // it's tricky to override the exact Family without faking DateTime.
-    // Instead, we just mount the widget and assert its initial default layout 
+    // Instead, we just mount the widget and assert its initial default layout
     // (which triggers a fetch and thus shows loading).
-    await tester.pumpWidget(ProviderScope(
-      overrides: [
-        addressesProvider.overrideWith((ref) => Future.value([tDefaultAddress])),
-      ],
-      child: const MaterialApp(
-        home: Scaffold(
-          body: SelectTimeSheet(technician: tTechnician),
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          addressesProvider.overrideWith(
+            (ref) => Future.value([tDefaultAddress]),
+          ),
+        ],
+        child: const MaterialApp(
+          home: Scaffold(body: SelectTimeSheet(technician: tTechnician)),
         ),
       ),
-    ));
+    );
 
     expect(find.text('Select a Time'), findsOneWidget);
     expect(find.byType(CircularProgressIndicator), findsOneWidget);

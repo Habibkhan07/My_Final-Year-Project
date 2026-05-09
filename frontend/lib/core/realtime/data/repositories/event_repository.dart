@@ -89,8 +89,7 @@ class EventRepository {
   /// next `fetchUnacknowledgedCritical` will resurface anything the
   /// backend hasn't recorded yet.
   Future<void> acknowledgeEvents(List<String> eventIds) async {
-    final merged =
-        <String>{..._local.getPendingAcks(), ...eventIds}.toList();
+    final merged = <String>{..._local.getPendingAcks(), ...eventIds}.toList();
     if (merged.isEmpty) return;
     try {
       await _remote.acknowledgeEvents(merged);

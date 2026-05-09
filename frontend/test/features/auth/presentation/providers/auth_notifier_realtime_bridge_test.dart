@@ -26,8 +26,7 @@ class _MockAuthRepository extends Mock implements AuthRepository {}
 
 class _MockFCMHandler extends Mock implements FCMHandler {}
 
-class _MockEventLocalDataSource extends Mock
-    implements EventLocalDataSource {}
+class _MockEventLocalDataSource extends Mock implements EventLocalDataSource {}
 
 class _MockVerifyOtpUseCase extends Mock implements VerifyOtpUseCase {}
 
@@ -84,10 +83,10 @@ class _RecordingSystemEventNotifier extends SystemEventNotifier {
 
 class _Deps {
   _Deps()
-      : authRepo = _MockAuthRepository(),
-        fcm = _MockFCMHandler(),
-        local = _MockEventLocalDataSource(),
-        verifyOtp = _MockVerifyOtpUseCase();
+    : authRepo = _MockAuthRepository(),
+      fcm = _MockFCMHandler(),
+      local = _MockEventLocalDataSource(),
+      verifyOtp = _MockVerifyOtpUseCase();
 
   final _MockAuthRepository authRepo;
   final _MockFCMHandler fcm;
@@ -106,25 +105,27 @@ void _stubDefaults(_Deps deps) {
 }
 
 ProviderContainer _buildContainer(_Deps deps) {
-  return ProviderContainer(overrides: [
-    auth_di.authRepositoryProvider.overrideWithValue(deps.authRepo),
-    auth_di.verifyOtpUseCaseProvider.overrideWithValue(deps.verifyOtp),
+  return ProviderContainer(
+    overrides: [
+      auth_di.authRepositoryProvider.overrideWithValue(deps.authRepo),
+      auth_di.verifyOtpUseCaseProvider.overrideWithValue(deps.verifyOtp),
 
-    // Default registry is `[incomingJobQueueProvider]`, which would
-    // eagerly instantiate the real feature DI tree when bootAfterAuth
-    // walks it. Override to `[]` so this test stays narrow — the
-    // registry contract is covered separately by R1/R2 in
-    // `app_lifecycle_orchestrator_test.dart`.
-    realtimeBootHooksProvider.overrideWith((ref) => const []),
+      // Default registry is `[incomingJobQueueProvider]`, which would
+      // eagerly instantiate the real feature DI tree when bootAfterAuth
+      // walks it. Override to `[]` so this test stays narrow — the
+      // registry contract is covered separately by R1/R2 in
+      // `app_lifecycle_orchestrator_test.dart`.
+      realtimeBootHooksProvider.overrideWith((ref) => const []),
 
-    realtime_di.fcmHandlerProvider.overrideWithValue(deps.fcm),
-    realtime_di.eventLocalDataSourceProvider.overrideWithValue(deps.local),
+      realtime_di.fcmHandlerProvider.overrideWithValue(deps.fcm),
+      realtime_di.eventLocalDataSourceProvider.overrideWithValue(deps.local),
 
-    // Code-gen notifier overrides — recording subclasses defined above.
-    eventSyncProvider.overrideWith(_RecordingEventSyncNotifier.new),
-    wsConnectionProvider.overrideWith(_RecordingWsNotifier.new),
-    systemEventProvider.overrideWith(_RecordingSystemEventNotifier.new),
-  ]);
+      // Code-gen notifier overrides — recording subclasses defined above.
+      eventSyncProvider.overrideWith(_RecordingEventSyncNotifier.new),
+      wsConnectionProvider.overrideWith(_RecordingWsNotifier.new),
+      systemEventProvider.overrideWith(_RecordingSystemEventNotifier.new),
+    ],
+  );
 }
 
 /// Drains the microtask queue. `_scheduleBoot` uses `unawaited(...)`, so
@@ -143,34 +144,41 @@ void main() {
   // ─── Cold-start (build()) path ─────────────────────────────────────────
 
   group('build() — cold-start bridge', () {
-    test('A1 — cached user with non-empty token fires bootAfterAuth with that token',
-        () async {
-      final deps = _Deps();
-      _stubDefaults(deps);
-      const cachedUser = UserEntity(
-        phone: '+923001234567',
-        token: 'cached-tok',
-        firstName: 'Test',
-        lastName: 'User',
-        isTechnician: true,
-      );
-      when(() => deps.authRepo.getCachedUser())
-          .thenAnswer((_) async => cachedUser);
+    test(
+      'A1 — cached user with non-empty token fires bootAfterAuth with that token',
+      () async {
+        final deps = _Deps();
+        _stubDefaults(deps);
+        const cachedUser = UserEntity(
+          phone: '+923001234567',
+          token: 'cached-tok',
+          firstName: 'Test',
+          lastName: 'User',
+          isTechnician: true,
+        );
+        when(
+          () => deps.authRepo.getCachedUser(),
+        ).thenAnswer((_) async => cachedUser);
 
-      final container = _buildContainer(deps);
-      addTearDown(container.dispose);
+        final container = _buildContainer(deps);
+        addTearDown(container.dispose);
 
-      await container.read(authProvider.future);
-      await _drainMicrotasks();
+        await container.read(authProvider.future);
+        await _drainMicrotasks();
 
-      verify(() => deps.fcm.initialize()).called(1);
-      final ws = container.read(wsConnectionProvider.notifier)
-          as _RecordingWsNotifier;
-      expect(ws.connectCalls, ['cached-tok'],
+        verify(() => deps.fcm.initialize()).called(1);
+        final ws =
+            container.read(wsConnectionProvider.notifier)
+                as _RecordingWsNotifier;
+        expect(
+          ws.connectCalls,
+          ['cached-tok'],
           reason:
               'cold-start with cached user must boot the realtime stack '
-              'with the cached token — original flag #7 bug class');
-    });
+              'with the cached token — original flag #7 bug class',
+        );
+      },
+    );
 
     test('A2 — no cached user does not fire boot', () async {
       final deps = _Deps();
@@ -184,19 +192,22 @@ void main() {
       await _drainMicrotasks();
 
       verifyNever(() => deps.fcm.initialize());
-      final ws = container.read(wsConnectionProvider.notifier)
-          as _RecordingWsNotifier;
-      expect(ws.connectCalls, isEmpty,
-          reason:
-              'launching logged-out must not open a ghost WS connection');
+      final ws =
+          container.read(wsConnectionProvider.notifier) as _RecordingWsNotifier;
+      expect(
+        ws.connectCalls,
+        isEmpty,
+        reason: 'launching logged-out must not open a ghost WS connection',
+      );
     });
 
     test('A3 — cached user with null token does not fire boot', () async {
       final deps = _Deps();
       _stubDefaults(deps);
       const cachedUser = UserEntity(phone: '+923001234567');
-      when(() => deps.authRepo.getCachedUser())
-          .thenAnswer((_) async => cachedUser);
+      when(
+        () => deps.authRepo.getCachedUser(),
+      ).thenAnswer((_) async => cachedUser);
 
       final container = _buildContainer(deps);
       addTearDown(container.dispose);
@@ -205,145 +216,175 @@ void main() {
       await _drainMicrotasks();
 
       verifyNever(() => deps.fcm.initialize());
-      final ws = container.read(wsConnectionProvider.notifier)
-          as _RecordingWsNotifier;
-      expect(ws.connectCalls, isEmpty,
-          reason:
-              '_scheduleBoot null-guard must prevent NPE in '
-              'wsConnection.connect(null!)');
+      final ws =
+          container.read(wsConnectionProvider.notifier) as _RecordingWsNotifier;
+      expect(
+        ws.connectCalls,
+        isEmpty,
+        reason:
+            '_scheduleBoot null-guard must prevent NPE in '
+            'wsConnection.connect(null!)',
+      );
     });
 
-    test('A4 — cached user with empty-string token does not fire boot',
-        () async {
-      final deps = _Deps();
-      _stubDefaults(deps);
-      const cachedUser = UserEntity(phone: '+923001234567', token: '');
-      when(() => deps.authRepo.getCachedUser())
-          .thenAnswer((_) async => cachedUser);
+    test(
+      'A4 — cached user with empty-string token does not fire boot',
+      () async {
+        final deps = _Deps();
+        _stubDefaults(deps);
+        const cachedUser = UserEntity(phone: '+923001234567', token: '');
+        when(
+          () => deps.authRepo.getCachedUser(),
+        ).thenAnswer((_) async => cachedUser);
 
-      final container = _buildContainer(deps);
-      addTearDown(container.dispose);
+        final container = _buildContainer(deps);
+        addTearDown(container.dispose);
 
-      await container.read(authProvider.future);
-      await _drainMicrotasks();
+        await container.read(authProvider.future);
+        await _drainMicrotasks();
 
-      verifyNever(() => deps.fcm.initialize());
-      final ws = container.read(wsConnectionProvider.notifier)
-          as _RecordingWsNotifier;
-      expect(ws.connectCalls, isEmpty,
+        verifyNever(() => deps.fcm.initialize());
+        final ws =
+            container.read(wsConnectionProvider.notifier)
+                as _RecordingWsNotifier;
+        expect(
+          ws.connectCalls,
+          isEmpty,
           reason:
               '_scheduleBoot empty-string guard prevents 4001/4003 backend '
-              'kick on corrupted-cache token');
-    });
+              'kick on corrupted-cache token',
+        );
+      },
+    );
 
-    test('A7 — getCachedUser throwing surfaces AsyncError without firing boot',
-        () async {
-      final deps = _Deps();
-      _stubDefaults(deps);
-      when(() => deps.authRepo.getCachedUser())
-          .thenThrow(StateError('cache corrupted'));
+    test(
+      'A7 — getCachedUser throwing surfaces AsyncError without firing boot',
+      () async {
+        final deps = _Deps();
+        _stubDefaults(deps);
+        when(
+          () => deps.authRepo.getCachedUser(),
+        ).thenThrow(StateError('cache corrupted'));
 
-      final container = _buildContainer(deps);
-      addTearDown(container.dispose);
+        final container = _buildContainer(deps);
+        addTearDown(container.dispose);
 
-      // Awaiting .future re-throws the build()'s exception — we expect
-      // exactly the StateError we stubbed and nothing else. After that,
-      // state.hasError is reliably true.
-      await expectLater(
-        container.read(authProvider.future),
-        throwsA(isA<StateError>()),
-      );
-      await _drainMicrotasks();
+        // Awaiting .future re-throws the build()'s exception — we expect
+        // exactly the StateError we stubbed and nothing else. After that,
+        // state.hasError is reliably true.
+        await expectLater(
+          container.read(authProvider.future),
+          throwsA(isA<StateError>()),
+        );
+        await _drainMicrotasks();
 
-      final state = container.read(authProvider);
-      expect(state.hasError, isTrue,
-          reason: 'a cache failure must surface to UI as AsyncError');
+        final state = container.read(authProvider);
+        expect(
+          state.hasError,
+          isTrue,
+          reason: 'a cache failure must surface to UI as AsyncError',
+        );
 
-      verifyNever(() => deps.fcm.initialize());
-      final ws = container.read(wsConnectionProvider.notifier)
-          as _RecordingWsNotifier;
-      expect(ws.connectCalls, isEmpty,
-          reason: 'no half-state boot on cache corruption');
-    });
+        verifyNever(() => deps.fcm.initialize());
+        final ws =
+            container.read(wsConnectionProvider.notifier)
+                as _RecordingWsNotifier;
+        expect(
+          ws.connectCalls,
+          isEmpty,
+          reason: 'no half-state boot on cache corruption',
+        );
+      },
+    );
   });
 
   // ─── Fresh-login (verifyOtp) path ──────────────────────────────────────
 
   group('verifyOtp() — fresh-login bridge', () {
     test(
-        'A5 — verifyOtp success fires boot with the FRESH token, not a stale cached one',
-        () async {
-      final deps = _Deps();
-      _stubDefaults(deps);
+      'A5 — verifyOtp success fires boot with the FRESH token, not a stale cached one',
+      () async {
+        final deps = _Deps();
+        _stubDefaults(deps);
 
-      // Seed cache with one user…
-      const cachedUser = UserEntity(
-        phone: '+923001234567',
-        token: 'stale-cached-tok',
-        isTechnician: true,
-      );
-      when(() => deps.authRepo.getCachedUser())
-          .thenAnswer((_) async => cachedUser);
+        // Seed cache with one user…
+        const cachedUser = UserEntity(
+          phone: '+923001234567',
+          token: 'stale-cached-tok',
+          isTechnician: true,
+        );
+        when(
+          () => deps.authRepo.getCachedUser(),
+        ).thenAnswer((_) async => cachedUser);
 
-      // …and have verifyOtp return a *different* token. Production code
-      // must pass the fresh token to bootAfterAuth, not whatever
-      // state.value.user.token happens to be.
-      const verifiedUser = UserEntity(
-        phone: '+923001234567',
-        token: 'fresh-verified-tok',
-        isTechnician: true,
-      );
-      when(() => deps.verifyOtp.execute(any(), any()))
-          .thenAnswer((_) async => verifiedUser);
+        // …and have verifyOtp return a *different* token. Production code
+        // must pass the fresh token to bootAfterAuth, not whatever
+        // state.value.user.token happens to be.
+        const verifiedUser = UserEntity(
+          phone: '+923001234567',
+          token: 'fresh-verified-tok',
+          isTechnician: true,
+        );
+        when(
+          () => deps.verifyOtp.execute(any(), any()),
+        ).thenAnswer((_) async => verifiedUser);
 
-      final container = _buildContainer(deps);
-      addTearDown(container.dispose);
+        final container = _buildContainer(deps);
+        addTearDown(container.dispose);
 
-      // Boot from cached user happens during initial build()…
-      await container.read(authProvider.future);
-      await _drainMicrotasks();
+        // Boot from cached user happens during initial build()…
+        await container.read(authProvider.future);
+        await _drainMicrotasks();
 
-      final ws = container.read(wsConnectionProvider.notifier)
-          as _RecordingWsNotifier;
-      expect(ws.connectCalls, ['stale-cached-tok'],
-          reason: 'sanity: cold-start path used cached token');
+        final ws =
+            container.read(wsConnectionProvider.notifier)
+                as _RecordingWsNotifier;
+        expect(ws.connectCalls, [
+          'stale-cached-tok',
+        ], reason: 'sanity: cold-start path used cached token');
 
-      // …then verifyOtp lands and must boot with the FRESH token.
-      await container
-          .read(authProvider.notifier)
-          .verifyOtp('+923001234567', '123456');
-      await _drainMicrotasks();
+        // …then verifyOtp lands and must boot with the FRESH token.
+        await container
+            .read(authProvider.notifier)
+            .verifyOtp('+923001234567', '123456');
+        await _drainMicrotasks();
 
-      expect(ws.connectCalls, ['stale-cached-tok', 'fresh-verified-tok'],
+        expect(
+          ws.connectCalls,
+          ['stale-cached-tok', 'fresh-verified-tok'],
           reason:
               'verifyOtp must pass the use-case-returned token to '
               'bootAfterAuth, not the previously-cached token. Catches '
               'the regression where someone passes state.value.user.token '
-              'instead of the freshly-returned user.token.');
-      verify(() => deps.fcm.initialize()).called(2);
-    });
+              'instead of the freshly-returned user.token.',
+        );
+        verify(() => deps.fcm.initialize()).called(2);
+      },
+    );
 
     test('A8 — requestOtp does not fire boot', () async {
       final deps = _Deps();
       _stubDefaults(deps);
       when(() => deps.authRepo.getCachedUser()).thenAnswer((_) async => null);
-      when(() => deps.authRepo.requestOtp(any()))
-          .thenAnswer((_) async => 'sms sent');
+      when(
+        () => deps.authRepo.requestOtp(any()),
+      ).thenAnswer((_) async => 'sms sent');
 
       final container = _buildContainer(deps);
       addTearDown(container.dispose);
 
       await container.read(authProvider.future);
-      await container
-          .read(authProvider.notifier)
-          .requestOtp('+923001234567');
+      await container.read(authProvider.notifier).requestOtp('+923001234567');
       await _drainMicrotasks();
 
       verifyNever(() => deps.fcm.initialize());
-      final ws = container.read(wsConnectionProvider.notifier)
-          as _RecordingWsNotifier;
-      expect(ws.connectCalls, isEmpty,
-          reason: 'requestOtp issues no token; must not boot the stack');
+      final ws =
+          container.read(wsConnectionProvider.notifier) as _RecordingWsNotifier;
+      expect(
+        ws.connectCalls,
+        isEmpty,
+        reason: 'requestOtp issues no token; must not boot the stack',
+      );
     });
 
     test('A9 — completeSignup does not fire boot', () async {
@@ -354,8 +395,9 @@ void main() {
         token: 'cached-tok',
         nameRequired: true,
       );
-      when(() => deps.authRepo.getCachedUser())
-          .thenAnswer((_) async => cachedUser);
+      when(
+        () => deps.authRepo.getCachedUser(),
+      ).thenAnswer((_) async => cachedUser);
       when(() => deps.authRepo.persistUser(any())).thenAnswer((_) async {});
 
       final container = _buildContainer(deps);
@@ -367,16 +409,17 @@ void main() {
       // Boot fired once during build(). completeSignup should NOT re-boot —
       // boot already happened in verifyOtp / build, and re-booting would
       // double-subscribe.
-      final ws = container.read(wsConnectionProvider.notifier)
-          as _RecordingWsNotifier;
+      final ws =
+          container.read(wsConnectionProvider.notifier) as _RecordingWsNotifier;
       final connectsBefore = ws.connectCalls.length;
 
       // Reset interaction history so verifyNever below counts only what
       // happens during completeSignup.
       clearInteractions(deps.fcm);
       _stubDefaults(deps);
-      when(() => deps.authRepo.completeSignup(any(), any(), any()))
-          .thenAnswer((_) async => 'signup complete');
+      when(
+        () => deps.authRepo.completeSignup(any(), any(), any()),
+      ).thenAnswer((_) async => 'signup complete');
       when(() => deps.authRepo.persistUser(any())).thenAnswer((_) async {});
 
       await container
@@ -384,11 +427,14 @@ void main() {
           .completeSignup('First', 'Last');
       await _drainMicrotasks();
 
-      expect(ws.connectCalls.length, connectsBefore,
-          reason:
-              'completeSignup must not re-boot — boot already happened on '
-              'cold-start with cached user; double-boot would double-'
-              'subscribe to systemEventProvider');
+      expect(
+        ws.connectCalls.length,
+        connectsBefore,
+        reason:
+            'completeSignup must not re-boot — boot already happened on '
+            'cold-start with cached user; double-boot would double-'
+            'subscribe to systemEventProvider',
+      );
       verifyNever(() => deps.fcm.initialize());
     });
   });
@@ -396,8 +442,7 @@ void main() {
   // ─── Logout teardown ───────────────────────────────────────────────────
 
   group('logout() — teardown bridge', () {
-    test(
-        'A6 — logout runs FULL teardown (ws.disconnect → fcm.unregister → '
+    test('A6 — logout runs FULL teardown (ws.disconnect → fcm.unregister → '
         'sysEvent.reset → local.clear* → onUnauthorized=null) BEFORE '
         'repository.logout()', () async {
       final deps = _Deps();
@@ -407,8 +452,9 @@ void main() {
         token: 'tok',
         isTechnician: true,
       );
-      when(() => deps.authRepo.getCachedUser())
-          .thenAnswer((_) async => cachedUser);
+      when(
+        () => deps.authRepo.getCachedUser(),
+      ).thenAnswer((_) async => cachedUser);
       when(() => deps.authRepo.logout()).thenAnswer((_) async {});
 
       final container = _buildContainer(deps);
@@ -420,8 +466,9 @@ void main() {
       // Wire onUnauthorized so we can pin its null-out at teardown tail.
       // bootAfterAuth's own assignment may have already happened, but we
       // re-set to a sentinel we can identify.
-      final eventSync = container.read(eventSyncProvider.notifier)
-          as _RecordingEventSyncNotifier;
+      final eventSync =
+          container.read(eventSyncProvider.notifier)
+              as _RecordingEventSyncNotifier;
       eventSync.onUnauthorized = () {};
 
       // Reset interaction history so verifyInOrder counts only logout()'s
@@ -435,11 +482,12 @@ void main() {
 
       // Snapshot ws.disconnect and sysEvent.reset call counts before
       // logout so we can assert deltas (not absolute counts).
-      final ws = container.read(wsConnectionProvider.notifier)
-          as _RecordingWsNotifier;
+      final ws =
+          container.read(wsConnectionProvider.notifier) as _RecordingWsNotifier;
       final wsDisconnectsBefore = ws.disconnectCount;
-      final sysEvent = container.read(systemEventProvider.notifier)
-          as _RecordingSystemEventNotifier;
+      final sysEvent =
+          container.read(systemEventProvider.notifier)
+              as _RecordingSystemEventNotifier;
       final sysResetsBefore = sysEvent.resetCalls;
 
       await container.read(authProvider.notifier).logout();
@@ -469,73 +517,85 @@ void main() {
       // ws.disconnect and sysEvent.reset are recorded by the fakes, not
       // by mocktail, so they don't appear in verifyInOrder. Assert
       // separately that they fired exactly once during this logout.
-      expect(ws.disconnectCount, wsDisconnectsBefore + 1,
-          reason: 'ws.disconnect must fire exactly once during logout');
-      expect(sysEvent.resetCalls, sysResetsBefore + 1,
-          reason: 'systemEvent.reset must fire exactly once during logout');
+      expect(
+        ws.disconnectCount,
+        wsDisconnectsBefore + 1,
+        reason: 'ws.disconnect must fire exactly once during logout',
+      );
+      expect(
+        sysEvent.resetCalls,
+        sysResetsBefore + 1,
+        reason: 'systemEvent.reset must fire exactly once during logout',
+      );
 
       // onUnauthorized must be cleared by performTeardown's tail step
       // — otherwise an in-flight 401 response could trigger a second
       // logout against fresh state.
-      expect(eventSync.onUnauthorized, isNull,
-          reason:
-              'eventSync.onUnauthorized must be nulled by teardown tail');
+      expect(
+        eventSync.onUnauthorized,
+        isNull,
+        reason: 'eventSync.onUnauthorized must be nulled by teardown tail',
+      );
     });
 
-    test('A10 — logout while AsyncLoading short-circuits without re-tearing-down',
-        () async {
-      final deps = _Deps();
-      _stubDefaults(deps);
-      const cachedUser = UserEntity(
-        phone: '+923001234567',
-        token: 'tok',
-        isTechnician: true,
-      );
-      when(() => deps.authRepo.getCachedUser())
-          .thenAnswer((_) async => cachedUser);
+    test(
+      'A10 — logout while AsyncLoading short-circuits without re-tearing-down',
+      () async {
+        final deps = _Deps();
+        _stubDefaults(deps);
+        const cachedUser = UserEntity(
+          phone: '+923001234567',
+          token: 'tok',
+          isTechnician: true,
+        );
+        when(
+          () => deps.authRepo.getCachedUser(),
+        ).thenAnswer((_) async => cachedUser);
 
-      // Block the authRepo.logout() so the first logout() call parks
-      // mid-flight in AsyncLoading state, allowing the second call to
-      // hit the state.isLoading guard.
-      final logoutGate = Completer<void>();
-      when(() => deps.authRepo.logout())
-          .thenAnswer((_) => logoutGate.future);
+        // Block the authRepo.logout() so the first logout() call parks
+        // mid-flight in AsyncLoading state, allowing the second call to
+        // hit the state.isLoading guard.
+        final logoutGate = Completer<void>();
+        when(() => deps.authRepo.logout()).thenAnswer((_) => logoutGate.future);
 
-      final container = _buildContainer(deps);
-      addTearDown(container.dispose);
+        final container = _buildContainer(deps);
+        addTearDown(container.dispose);
 
-      await container.read(authProvider.future);
-      await _drainMicrotasks();
+        await container.read(authProvider.future);
+        await _drainMicrotasks();
 
-      clearInteractions(deps.fcm);
-      _stubDefaults(deps);
-      when(() => deps.authRepo.logout())
-          .thenAnswer((_) => logoutGate.future);
+        clearInteractions(deps.fcm);
+        _stubDefaults(deps);
+        when(() => deps.authRepo.logout()).thenAnswer((_) => logoutGate.future);
 
-      final ws = container.read(wsConnectionProvider.notifier)
-          as _RecordingWsNotifier;
-      final wsDisconnectsBefore = ws.disconnectCount;
+        final ws =
+            container.read(wsConnectionProvider.notifier)
+                as _RecordingWsNotifier;
+        final wsDisconnectsBefore = ws.disconnectCount;
 
-      // Fire-and-forget the first logout — it parks at the
-      // authRepo.logout() await.
-      final firstLogout =
-          container.read(authProvider.notifier).logout();
-      await _drainMicrotasks();
+        // Fire-and-forget the first logout — it parks at the
+        // authRepo.logout() await.
+        final firstLogout = container.read(authProvider.notifier).logout();
+        await _drainMicrotasks();
 
-      // Second logout call — must short-circuit on state.isLoading guard.
-      await container.read(authProvider.notifier).logout();
+        // Second logout call — must short-circuit on state.isLoading guard.
+        await container.read(authProvider.notifier).logout();
 
-      // teardown should have run exactly once (from the first call).
-      verify(() => deps.fcm.unregister()).called(1);
-      expect(ws.disconnectCount, wsDisconnectsBefore + 1,
+        // teardown should have run exactly once (from the first call).
+        verify(() => deps.fcm.unregister()).called(1);
+        expect(
+          ws.disconnectCount,
+          wsDisconnectsBefore + 1,
           reason:
               'ws.disconnect must NOT fire a second time while the first '
               'logout is still mid-flight (state.isLoading guard at '
-              'auth_notifier.dart:129)');
+              'auth_notifier.dart:129)',
+        );
 
-      // Release the gate so the first logout resolves cleanly.
-      logoutGate.complete();
-      await firstLogout;
-    });
+        // Release the gate so the first logout resolves cleanly.
+        logoutGate.complete();
+        await firstLogout;
+      },
+    );
   });
 }

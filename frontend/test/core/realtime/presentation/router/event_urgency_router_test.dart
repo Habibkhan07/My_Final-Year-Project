@@ -25,9 +25,9 @@ class _RouterTestHarness {
   String? capturedBookingId;
 
   EventUrgencyRouter get router => EventUrgencyRouter(
-        navigatorKey: navigatorKey,
-        scaffoldMessengerKey: scaffoldMessengerKey,
-      );
+    navigatorKey: navigatorKey,
+    scaffoldMessengerKey: scaffoldMessengerKey,
+  );
 
   Widget build() {
     final goRouter = GoRouter(
@@ -95,9 +95,7 @@ SystemEventEntity _bookingRejectedEvent({
   );
 }
 
-SystemEventEntity _jobAcceptedEvent({
-  required Map<String, dynamic> payload,
-}) {
+SystemEventEntity _jobAcceptedEvent({required Map<String, dynamic> payload}) {
   // Production-equivalent derivation: flag #25 flipped jobAccepted to
   // lowUrgency + isCritical=false. The route fans out the same banner
   // surface as bookingRejected.
@@ -138,7 +136,8 @@ void main() {
         expect(
           find.textContaining(expectedSubstring, findRichText: true),
           findsOneWidget,
-          reason: 'banner body should mention "$expectedSubstring" '
+          reason:
+              'banner body should mention "$expectedSubstring" '
               'for reason="$reason"',
         );
       } finally {
@@ -174,9 +173,9 @@ void main() {
   });
 
   group('booking_rejected tap target', () {
-    testWidgets(
-        'tapping "View" navigates to /booking/<job_id>',
-        (tester) async {
+    testWidgets('tapping "View" navigates to /booking/<job_id>', (
+      tester,
+    ) async {
       final harness = _RouterTestHarness();
       await tester.pumpWidget(harness.build());
       await tester.pumpAndSettle();
@@ -202,9 +201,7 @@ void main() {
       }
     });
 
-    testWidgets(
-        'missing job_id skips the push (defensive)',
-        (tester) async {
+    testWidgets('missing job_id skips the push (defensive)', (tester) async {
       // Defensive case: backend somehow ships booking_rejected without
       // job_id. The new generic templated-path resolver returns null
       // when a token is unresolvable, and the tap handler skips the
@@ -260,7 +257,8 @@ void main() {
         expect(
           find.textContaining(expectedSubstring, findRichText: true),
           findsOneWidget,
-          reason: 'banner body should mention "$expectedSubstring" '
+          reason:
+              'banner body should mention "$expectedSubstring" '
               'for payload=$payload',
         );
         // Title should also surface — this guards against a future
@@ -275,20 +273,19 @@ void main() {
       }
     }
 
-    testWidgets('with technician_display_name → personalised copy',
-        (tester) async {
+    testWidgets('with technician_display_name → personalised copy', (
+      tester,
+    ) async {
       await expectJobAcceptedBody(
         tester: tester,
-        payload: {
-          'job_id': 99482,
-          'technician_display_name': 'Ali Khan',
-        },
+        payload: {'job_id': 99482, 'technician_display_name': 'Ali Khan'},
         expectedSubstring: 'Ali Khan is on the way',
       );
     });
 
-    testWidgets('without technician_display_name → generic fallback',
-        (tester) async {
+    testWidgets('without technician_display_name → generic fallback', (
+      tester,
+    ) async {
       // Defensive case: if a replayed pre-flag-#25 EventLog row landed
       // without the field, the surface should still be useful — generic
       // copy beats an empty banner body.
@@ -301,9 +298,9 @@ void main() {
   });
 
   group('job_accepted tap target (flag #25)', () {
-    testWidgets(
-        'tapping "View" navigates to /booking/<job_id>',
-        (tester) async {
+    testWidgets('tapping "View" navigates to /booking/<job_id>', (
+      tester,
+    ) async {
       final harness = _RouterTestHarness();
       await tester.pumpWidget(harness.build());
       await tester.pumpAndSettle();
@@ -311,10 +308,7 @@ void main() {
       final ref = await harness.overlayRef(tester);
       try {
         final event = _jobAcceptedEvent(
-          payload: {
-            'job_id': 7777,
-            'technician_display_name': 'Ali Khan',
-          },
+          payload: {'job_id': 7777, 'technician_display_name': 'Ali Khan'},
         );
         harness.router.handleEvent(event, TargetRole.customer, ref.ref);
         await tester.pump();
@@ -337,8 +331,9 @@ void main() {
   });
 
   group('regression — existing low-urgency events keep static paths', () {
-    testWidgets('payment_received still pushes /shared/wallet unchanged',
-        (tester) async {
+    testWidgets('payment_received still pushes /shared/wallet unchanged', (
+      tester,
+    ) async {
       // Sanity-check that adding `_lowUrgencyTapPayloadKeys` did not
       // change behavior for existing low-urgency events that have no
       // entry in the new map — they should keep pushing the static path.

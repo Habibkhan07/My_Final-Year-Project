@@ -43,10 +43,7 @@ class TimelineSlot extends StatelessWidget {
           Row(
             children: [
               for (var i = 0; i < phases.length; i++) ...[
-                _PhaseDot(
-                  phase: phases[i],
-                  colors: colors,
-                ),
+                _PhaseDot(phase: phases[i], colors: colors),
                 if (i < phases.length - 1)
                   Expanded(
                     child: Container(
@@ -70,8 +67,8 @@ class TimelineSlot extends StatelessWidget {
                     textAlign: i == 0
                         ? TextAlign.start
                         : (i == phases.length - 1
-                            ? TextAlign.end
-                            : TextAlign.center),
+                              ? TextAlign.end
+                              : TextAlign.center),
                     style: theme.textTheme.labelSmall?.copyWith(
                       color: phases[i].state == _PhaseState.idle
                           ? colors.outline
@@ -150,23 +147,22 @@ class TimelineSlot extends StatelessWidget {
   ///     4 with `current` because the dot collapses to `done` only via
   ///     the `completedAt` timestamp anchor.
   int _phaseIndexForStatus(BookingStatus status) => switch (status) {
-        BookingStatus.awaiting => 0,
-        BookingStatus.confirmed => 0,
-        BookingStatus.enRoute => 1,
-        BookingStatus.arrived => 2,
-        BookingStatus.inspecting => 3,
-        BookingStatus.quoted => 3,
-        BookingStatus.inProgress => 4,
-        BookingStatus.completed => 4,
-        BookingStatus.completedInspectionOnly => 4,
-        BookingStatus.cancelled ||
-        BookingStatus.rejected ||
-        BookingStatus.noShow ||
-        BookingStatus.disputed ||
-        BookingStatus.pending ||
-        BookingStatus.unknown =>
-          -1,
-      };
+    BookingStatus.awaiting => 0,
+    BookingStatus.confirmed => 0,
+    BookingStatus.enRoute => 1,
+    BookingStatus.arrived => 2,
+    BookingStatus.inspecting => 3,
+    BookingStatus.quoted => 3,
+    BookingStatus.inProgress => 4,
+    BookingStatus.completed => 4,
+    BookingStatus.completedInspectionOnly => 4,
+    BookingStatus.cancelled ||
+    BookingStatus.rejected ||
+    BookingStatus.noShow ||
+    BookingStatus.disputed ||
+    BookingStatus.pending ||
+    BookingStatus.unknown => -1,
+  };
 }
 
 enum _PhaseState { idle, current, done }
@@ -186,35 +182,35 @@ class _PhaseDot extends StatelessWidget {
   Widget build(BuildContext context) {
     return switch (phase.state) {
       _PhaseState.done => Container(
-          width: 14,
-          height: 14,
-          decoration: BoxDecoration(
-            color: colors.primary,
-            shape: BoxShape.circle,
-          ),
-          child: Icon(Icons.check, size: 10, color: colors.onPrimary),
+        width: 14,
+        height: 14,
+        decoration: BoxDecoration(
+          color: colors.primary,
+          shape: BoxShape.circle,
         ),
+        child: Icon(Icons.check, size: 10, color: colors.onPrimary),
+      ),
       _PhaseState.current => Container(
-          width: 14,
-          height: 14,
-          decoration: BoxDecoration(
-            color: colors.primary,
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: colors.primary.withValues(alpha: 0.3),
-              width: 4,
-            ),
+        width: 14,
+        height: 14,
+        decoration: BoxDecoration(
+          color: colors.primary,
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: colors.primary.withValues(alpha: 0.3),
+            width: 4,
           ),
         ),
+      ),
       _PhaseState.idle => Container(
-          width: 14,
-          height: 14,
-          decoration: BoxDecoration(
-            color: colors.surface,
-            shape: BoxShape.circle,
-            border: Border.all(color: colors.outlineVariant, width: 2),
-          ),
+        width: 14,
+        height: 14,
+        decoration: BoxDecoration(
+          color: colors.surface,
+          shape: BoxShape.circle,
+          border: Border.all(color: colors.outlineVariant, width: 2),
         ),
+      ),
     };
   }
 }

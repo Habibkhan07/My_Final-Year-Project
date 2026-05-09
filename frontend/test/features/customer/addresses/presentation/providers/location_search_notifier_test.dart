@@ -12,7 +12,9 @@ import 'package:frontend/features/customer/addresses/domain/use_cases/search_pla
 import 'package:frontend/features/customer/addresses/domain/use_cases/get_place_details_use_case.dart';
 
 class MockSearchPlacesUseCase extends Mock implements SearchPlacesUseCase {}
-class MockGetPlaceDetailsUseCase extends Mock implements GetPlaceDetailsUseCase {}
+
+class MockGetPlaceDetailsUseCase extends Mock
+    implements GetPlaceDetailsUseCase {}
 
 void main() {
   late MockSearchPlacesUseCase mockSearchPlaces;
@@ -38,7 +40,7 @@ void main() {
   group('LocationSearchNotifier', () {
     test('initial state is correct', () {
       final state = container.read(locationSearchProvider);
-      
+
       expect(state.query, isEmpty);
       expect(state.results, isEmpty);
       expect(state.isLoading, isFalse);
@@ -48,7 +50,7 @@ void main() {
 
     test('onQueryChanged clears state when query is empty', () {
       final notifier = container.read(locationSearchProvider.notifier);
-      
+
       notifier.onQueryChanged('test');
       expect(container.read(locationSearchProvider).query, 'test');
       expect(container.read(locationSearchProvider).isLoading, isTrue);

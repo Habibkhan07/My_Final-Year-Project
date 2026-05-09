@@ -73,26 +73,35 @@ void main() {
 
   group('HTTP error mapping', () {
     test('404 → BookingDetailNotFound(bookingId)', () async {
-      when(() => remote.fetch(42)).thenThrow(const HttpFailure(
-        statusCode: 404,
-        code: 'booking_not_found',
-        message: 'gone',
-        errors: {},
-      ));
+      when(() => remote.fetch(42)).thenThrow(
+        const HttpFailure(
+          statusCode: 404,
+          code: 'booking_not_found',
+          message: 'gone',
+          errors: {},
+        ),
+      );
       await expectLater(
         repo.getBookingDetail(42),
-        throwsA(isA<BookingDetailNotFound>()
-            .having((f) => f.bookingId, 'bookingId', 42)),
+        throwsA(
+          isA<BookingDetailNotFound>().having(
+            (f) => f.bookingId,
+            'bookingId',
+            42,
+          ),
+        ),
       );
     });
 
     test('403 + not_a_participant → BookingDetailNotParticipant', () async {
-      when(() => remote.fetch(42)).thenThrow(const HttpFailure(
-        statusCode: 403,
-        code: 'not_a_participant',
-        message: 'nope',
-        errors: {},
-      ));
+      when(() => remote.fetch(42)).thenThrow(
+        const HttpFailure(
+          statusCode: 403,
+          code: 'not_a_participant',
+          message: 'nope',
+          errors: {},
+        ),
+      );
       await expectLater(
         repo.getBookingDetail(42),
         throwsA(isA<BookingDetailNotParticipant>()),
@@ -100,12 +109,14 @@ void main() {
     });
 
     test('500 → BookingDetailServerFailure', () async {
-      when(() => remote.fetch(42)).thenThrow(const HttpFailure(
-        statusCode: 500,
-        code: 'server_error',
-        message: 'oops',
-        errors: {},
-      ));
+      when(() => remote.fetch(42)).thenThrow(
+        const HttpFailure(
+          statusCode: 500,
+          code: 'server_error',
+          message: 'oops',
+          errors: {},
+        ),
+      );
       await expectLater(
         repo.getBookingDetail(42),
         throwsA(isA<BookingDetailServerFailure>()),
@@ -113,12 +124,14 @@ void main() {
     });
 
     test('502 → BookingDetailServerFailure (any 5xx)', () async {
-      when(() => remote.fetch(42)).thenThrow(const HttpFailure(
-        statusCode: 502,
-        code: 'bad_gateway',
-        message: 'gateway',
-        errors: {},
-      ));
+      when(() => remote.fetch(42)).thenThrow(
+        const HttpFailure(
+          statusCode: 502,
+          code: 'bad_gateway',
+          message: 'gateway',
+          errors: {},
+        ),
+      );
       await expectLater(
         repo.getBookingDetail(42),
         throwsA(isA<BookingDetailServerFailure>()),
@@ -126,84 +139,98 @@ void main() {
     });
 
     test('400 with non-known code → UnknownBookingDetailFailure', () async {
-      when(() => remote.fetch(42)).thenThrow(const HttpFailure(
-        statusCode: 400,
-        code: 'validation_error',
-        message: 'bad',
-        errors: {},
-      ));
+      when(() => remote.fetch(42)).thenThrow(
+        const HttpFailure(
+          statusCode: 400,
+          code: 'validation_error',
+          message: 'bad',
+          errors: {},
+        ),
+      );
       await expectLater(
         repo.getBookingDetail(42),
-        throwsA(isA<UnknownBookingDetailFailure>()
-            .having((f) => f.message, 'message', 'bad')),
+        throwsA(
+          isA<UnknownBookingDetailFailure>().having(
+            (f) => f.message,
+            'message',
+            'bad',
+          ),
+        ),
       );
     });
   });
 
   group('offline-first', () {
     test('SocketException with cache returns cached domain entity', () async {
-      when(() => remote.fetch(42))
-          .thenThrow(const SocketException('offline'));
+      when(() => remote.fetch(42)).thenThrow(const SocketException('offline'));
       when(() => local.read(42)).thenAnswer((_) async => model());
 
       final out = await repo.getBookingDetail(42);
       expect(out.id, 42);
     });
 
-    test('SocketException with no cache → BookingDetailOfflineNoCache',
-        () async {
-      when(() => remote.fetch(42))
-          .thenThrow(const SocketException('offline'));
-      when(() => local.read(42)).thenAnswer((_) async => null);
+    test(
+      'SocketException with no cache → BookingDetailOfflineNoCache',
+      () async {
+        when(
+          () => remote.fetch(42),
+        ).thenThrow(const SocketException('offline'));
+        when(() => local.read(42)).thenAnswer((_) async => null);
 
-      await expectLater(
-        repo.getBookingDetail(42),
-        throwsA(isA<BookingDetailOfflineNoCache>()),
-      );
-    });
+        await expectLater(
+          repo.getBookingDetail(42),
+          throwsA(isA<BookingDetailOfflineNoCache>()),
+        );
+      },
+    );
 
-    test('SocketException + cached row that mapper rejects evicts cache',
-        () async {
-      // Construct a model the mapper will reject. The mapper throws on
-      // a malformed Decimal-string in `pricing.inspection_fee`. This
-      // simulates a schema-drift cache row that we can no longer
-      // translate. The repository must evict + throw offline failure
-      // so the user doesn't get an "Error" loop on every offline mount.
-      final badJson = bookingDetailJson();
-      (badJson['pricing'] as Map)['inspection_fee'] = 'not-a-number';
-      final badModel = BookingDetailModel.fromJson(badJson);
+    test(
+      'SocketException + cached row that mapper rejects evicts cache',
+      () async {
+        // Construct a model the mapper will reject. The mapper throws on
+        // a malformed Decimal-string in `pricing.inspection_fee`. This
+        // simulates a schema-drift cache row that we can no longer
+        // translate. The repository must evict + throw offline failure
+        // so the user doesn't get an "Error" loop on every offline mount.
+        final badJson = bookingDetailJson();
+        (badJson['pricing'] as Map)['inspection_fee'] = 'not-a-number';
+        final badModel = BookingDetailModel.fromJson(badJson);
 
-      when(() => remote.fetch(42))
-          .thenThrow(const SocketException('offline'));
-      when(() => local.read(42)).thenAnswer((_) async => badModel);
+        when(
+          () => remote.fetch(42),
+        ).thenThrow(const SocketException('offline'));
+        when(() => local.read(42)).thenAnswer((_) async => badModel);
 
-      await expectLater(
-        repo.getBookingDetail(42),
-        throwsA(isA<BookingDetailOfflineNoCache>()),
-      );
-      verify(() => local.clear(42)).called(1);
-    });
+        await expectLater(
+          repo.getBookingDetail(42),
+          throwsA(isA<BookingDetailOfflineNoCache>()),
+        );
+        verify(() => local.clear(42)).called(1);
+      },
+    );
   });
 
   group('online + bad cache', () {
-    test('remote ok but mapper throws → cache evicted, error rethrown',
-        () async {
-      // The repo caches BEFORE mapping. If the map step fails (schema
-      // drift on a freshly-served wire model), the cache row is also
-      // evicted so we don't serve a known-bad row on the next offline
-      // mount. The original error propagates so the caller can see it.
-      final badJson = bookingDetailJson();
-      (badJson['pricing'] as Map)['inspection_fee'] = 'not-a-number';
-      final badModel = BookingDetailModel.fromJson(badJson);
-      when(() => remote.fetch(42)).thenAnswer((_) async => badModel);
+    test(
+      'remote ok but mapper throws → cache evicted, error rethrown',
+      () async {
+        // The repo caches BEFORE mapping. If the map step fails (schema
+        // drift on a freshly-served wire model), the cache row is also
+        // evicted so we don't serve a known-bad row on the next offline
+        // mount. The original error propagates so the caller can see it.
+        final badJson = bookingDetailJson();
+        (badJson['pricing'] as Map)['inspection_fee'] = 'not-a-number';
+        final badModel = BookingDetailModel.fromJson(badJson);
+        when(() => remote.fetch(42)).thenAnswer((_) async => badModel);
 
-      await expectLater(
-        repo.getBookingDetail(42),
-        throwsA(isA<UnknownBookingDetailFailure>()),
-      );
-      verify(() => local.cache(42, badModel)).called(1);
-      verify(() => local.clear(42)).called(1);
-    });
+        await expectLater(
+          repo.getBookingDetail(42),
+          throwsA(isA<UnknownBookingDetailFailure>()),
+        );
+        verify(() => local.cache(42, badModel)).called(1);
+        verify(() => local.clear(42)).called(1);
+      },
+    );
   });
 
   test('unexpected exception bucket → UnknownBookingDetailFailure', () async {

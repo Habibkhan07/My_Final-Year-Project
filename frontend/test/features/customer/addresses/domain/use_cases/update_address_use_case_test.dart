@@ -26,15 +26,19 @@ void main() {
   );
 
   test('should call repository.updateAddress and return the entity', () async {
-    when(() => mockRepository.updateAddress(
-          id: any(named: 'id'),
-          isDefault: any(named: 'isDefault'),
-        )).thenAnswer((_) async => tEntity);
+    when(
+      () => mockRepository.updateAddress(
+        id: any(named: 'id'),
+        isDefault: any(named: 'isDefault'),
+      ),
+    ).thenAnswer((_) async => tEntity);
 
     final result = await useCase(id: 1, isDefault: true);
 
     expect(result, tEntity);
-    verify(() => mockRepository.updateAddress(id: 1, isDefault: true)).called(1);
+    verify(
+      () => mockRepository.updateAddress(id: 1, isDefault: true),
+    ).called(1);
     verifyNoMoreInteractions(mockRepository);
   });
 }

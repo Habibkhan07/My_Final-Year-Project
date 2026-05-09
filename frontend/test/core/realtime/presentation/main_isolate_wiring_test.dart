@@ -26,20 +26,21 @@ class _MockSecureStorage extends Mock implements FlutterSecureStorage {}
 //        from earlier session drafts.
 void main() {
   group('shared GlobalKey providers', () {
-    test('W1a — navigatorKeyProvider returns the same GlobalKey across reads',
-        () {
-      final container = ProviderContainer();
-      addTearDown(container.dispose);
-
-      final first = container.read(navigatorKeyProvider);
-      final second = container.read(navigatorKeyProvider);
-
-      expect(identical(first, second), isTrue);
-      expect(first, isA<GlobalKey<NavigatorState>>());
-    });
-
     test(
-        'W1b — scaffoldMessengerKeyProvider returns the same GlobalKey across '
+      'W1a — navigatorKeyProvider returns the same GlobalKey across reads',
+      () {
+        final container = ProviderContainer();
+        addTearDown(container.dispose);
+
+        final first = container.read(navigatorKeyProvider);
+        final second = container.read(navigatorKeyProvider);
+
+        expect(identical(first, second), isTrue);
+        expect(first, isA<GlobalKey<NavigatorState>>());
+      },
+    );
+
+    test('W1b — scaffoldMessengerKeyProvider returns the same GlobalKey across '
         'reads', () {
       final container = ProviderContainer();
       addTearDown(container.dispose);
@@ -52,49 +53,55 @@ void main() {
     });
 
     testWidgets(
-        'W2 — two Consumer readers in the widget tree see identical key '
-        'instances for both providers', (tester) async {
-      GlobalKey<NavigatorState>? navA;
-      GlobalKey<NavigatorState>? navB;
-      GlobalKey<ScaffoldMessengerState>? msgA;
-      GlobalKey<ScaffoldMessengerState>? msgB;
+      'W2 — two Consumer readers in the widget tree see identical key '
+      'instances for both providers',
+      (tester) async {
+        GlobalKey<NavigatorState>? navA;
+        GlobalKey<NavigatorState>? navB;
+        GlobalKey<ScaffoldMessengerState>? msgA;
+        GlobalKey<ScaffoldMessengerState>? msgB;
 
-      await tester.pumpWidget(
-        ProviderScope(
-          child: Column(
-            children: [
-              Consumer(
-                builder: (context, ref, _) {
-                  navA = ref.watch(navigatorKeyProvider);
-                  msgA = ref.watch(scaffoldMessengerKeyProvider);
-                  return const SizedBox();
-                },
-              ),
-              Consumer(
-                builder: (context, ref, _) {
-                  navB = ref.watch(navigatorKeyProvider);
-                  msgB = ref.watch(scaffoldMessengerKeyProvider);
-                  return const SizedBox();
-                },
-              ),
-            ],
+        await tester.pumpWidget(
+          ProviderScope(
+            child: Column(
+              children: [
+                Consumer(
+                  builder: (context, ref, _) {
+                    navA = ref.watch(navigatorKeyProvider);
+                    msgA = ref.watch(scaffoldMessengerKeyProvider);
+                    return const SizedBox();
+                  },
+                ),
+                Consumer(
+                  builder: (context, ref, _) {
+                    navB = ref.watch(navigatorKeyProvider);
+                    msgB = ref.watch(scaffoldMessengerKeyProvider);
+                    return const SizedBox();
+                  },
+                ),
+              ],
+            ),
           ),
-        ),
-      );
+        );
 
-      expect(identical(navA, navB), isTrue,
-          reason:
-              'orchestrator and GoRouter must share a single navigatorKey');
-      expect(identical(msgA, msgB), isTrue,
+        expect(
+          identical(navA, navB),
+          isTrue,
+          reason: 'orchestrator and GoRouter must share a single navigatorKey',
+        );
+        expect(
+          identical(msgA, msgB),
+          isTrue,
           reason:
               'orchestrator and MaterialApp.router must share a single '
-              'scaffoldMessengerKey');
-    });
+              'scaffoldMessengerKey',
+        );
+      },
+    );
   });
 
   group('AppLifecycleOrchestrator main-isolate wiring', () {
-    testWidgets(
-        'W3 — mounting registers the WidgetsBindingObserver, '
+    testWidgets('W3 — mounting registers the WidgetsBindingObserver, '
         'lifecycle.resumed drives _onResumed', (tester) async {
       // SystemEventNotifier.build() reads the persisted last-sync cursor on
       // cold start, which routes through eventLocalDataSource → SharedPrefs.
@@ -105,8 +112,9 @@ void main() {
       // Returning null token short-circuits _onResumed before any WS/FCM
       // calls. The verify on read() is what proves observer registration.
       final mockStorage = _MockSecureStorage();
-      when(() => mockStorage.read(key: any(named: 'key')))
-          .thenAnswer((_) async => null);
+      when(
+        () => mockStorage.read(key: any(named: 'key')),
+      ).thenAnswer((_) async => null);
 
       await tester.pumpWidget(
         ProviderScope(

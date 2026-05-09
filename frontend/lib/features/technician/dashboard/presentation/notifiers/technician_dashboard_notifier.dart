@@ -26,8 +26,9 @@ part 'technician_dashboard_notifier.g.dart';
 class TechnicianDashboardNotifier extends _$TechnicianDashboardNotifier {
   @override
   Future<TechnicianDashboardState> build() async {
-    final dashboard =
-        await ref.read(technicianDashboardRepositoryProvider).getDashboard();
+    final dashboard = await ref
+        .read(technicianDashboardRepositoryProvider)
+        .getDashboard();
     return TechnicianDashboardState(dashboard: dashboard);
   }
 
@@ -37,8 +38,9 @@ class TechnicianDashboardNotifier extends _$TechnicianDashboardNotifier {
   Future<void> refresh() async {
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
-      final dashboard =
-          await ref.read(technicianDashboardRepositoryProvider).getDashboard();
+      final dashboard = await ref
+          .read(technicianDashboardRepositoryProvider)
+          .getDashboard();
       return TechnicianDashboardState(dashboard: dashboard);
     });
   }
@@ -127,9 +129,7 @@ class TechnicianDashboardNotifier extends _$TechnicianDashboardNotifier {
     if (current == null) return;
     if (!current.dashboard.isOnline) return;
     state = AsyncData(
-      current.copyWith(
-        dashboard: current.dashboard.copyWith(isOnline: false),
-      ),
+      current.copyWith(dashboard: current.dashboard.copyWith(isOnline: false)),
     );
   }
 }

@@ -9,7 +9,8 @@ import 'package:frontend/features/technician/onboarding/domain/usecases/get_onbo
 import 'package:frontend/features/technician/onboarding/presentation/providers/dependency_injection.dart';
 import 'package:mocktail/mocktail.dart';
 
-class MockGetOnboardingMetadataUseCase extends Mock implements GetOnboardingMetadataUseCase {}
+class MockGetOnboardingMetadataUseCase extends Mock
+    implements GetOnboardingMetadataUseCase {}
 
 void main() {
   group('Step1Verification Widget Tests (Dumb UI)', () {
@@ -20,21 +21,23 @@ void main() {
       when(() => mockMetadataUseCase.execute()).thenAnswer((_) async => []);
     });
 
-    testWidgets('should render upload button when no CNIC UUID exists', (WidgetTester tester) async {
+    testWidgets('should render upload button when no CNIC UUID exists', (
+      WidgetTester tester,
+    ) async {
       final container = ProviderContainer(
         overrides: [
-          getOnboardingMetadataUseCaseProvider.overrideWithValue(mockMetadataUseCase),
-        ]
+          getOnboardingMetadataUseCaseProvider.overrideWithValue(
+            mockMetadataUseCase,
+          ),
+        ],
       );
-      
+
       await container.read(onboardingProvider.future);
 
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
-          child: const MaterialApp(
-            home: Scaffold(body: Step1Verification()),
-          ),
+          child: const MaterialApp(home: Scaffold(body: Step1Verification())),
         ),
       );
 
@@ -43,28 +46,30 @@ void main() {
       expect(find.text('CNIC (Front Side)'), findsOneWidget);
       expect(find.byIcon(Icons.cloud_upload), findsOneWidget);
       expect(find.text('Upload a clear picture of your ID.'), findsOneWidget);
-      
+
       container.dispose();
     });
 
-    testWidgets('should render success indicator when CNIC UUID exists', (WidgetTester tester) async {
+    testWidgets('should render success indicator when CNIC UUID exists', (
+      WidgetTester tester,
+    ) async {
       final state = OnboardingState(cnicPictureUuid: 'uuid-1234');
 
       final container = ProviderContainer(
         overrides: [
-          getOnboardingMetadataUseCaseProvider.overrideWithValue(mockMetadataUseCase),
-        ]
+          getOnboardingMetadataUseCaseProvider.overrideWithValue(
+            mockMetadataUseCase,
+          ),
+        ],
       );
-      
+
       await container.read(onboardingProvider.future);
       container.read(onboardingProvider.notifier).state = AsyncData(state);
 
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
-          child: const MaterialApp(
-            home: Scaffold(body: Step1Verification()),
-          ),
+          child: const MaterialApp(home: Scaffold(body: Step1Verification())),
         ),
       );
 
@@ -73,7 +78,7 @@ void main() {
       // Visual Contract: Check icon appears when image is successfully uploaded to memory
       expect(find.byIcon(Icons.check_circle), findsOneWidget);
       expect(find.textContaining('Upload Complete'), findsOneWidget);
-      
+
       container.dispose();
     });
   });

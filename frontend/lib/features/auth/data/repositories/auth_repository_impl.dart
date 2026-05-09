@@ -21,15 +21,15 @@ class AuthRepositoryImpl implements AuthRepository {
     return _guard(() async {
       final model = await remoteDataSource.verifyOtp(phone, otp);
       final entity = model.toEntity();
-      
+
       // Tier 1: Save Token
       if (entity.token != null) {
         await localDataSource.saveToken(entity.token!);
       }
-      
+
       // Tier 2: Save Profile
       await localDataSource.saveUser(entity);
-      
+
       return entity;
     });
   }
@@ -49,7 +49,7 @@ class AuthRepositoryImpl implements AuthRepository {
   Future<UserEntity?> getCachedUser() async {
     final user = await localDataSource.getUser();
     final token = await localDataSource.getToken();
-    
+
     // Safety check: We only return the user if we also have their token
     if (user != null && token != null) {
       // Inject the latest token from secure storage into the entity

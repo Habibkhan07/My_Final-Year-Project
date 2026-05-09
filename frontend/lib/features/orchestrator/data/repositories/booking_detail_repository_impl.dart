@@ -26,9 +26,9 @@ class BookingDetailRepositoryImpl implements IBookingDetailRepository {
     required IBookingDetailRemoteDataSource remote,
     required IBookingDetailLocalDataSource local,
     required int currentUserId,
-  })  : _remote = remote,
-        _local = local,
-        _currentUserId = currentUserId;
+  }) : _remote = remote,
+       _local = local,
+       _currentUserId = currentUserId;
 
   @override
   Future<BookingDetail> getBookingDetail(int bookingId) async {

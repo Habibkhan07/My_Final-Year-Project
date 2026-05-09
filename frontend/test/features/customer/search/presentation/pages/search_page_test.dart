@@ -26,7 +26,7 @@ class MockSearchNotifier extends Search {
 
   @override
   void onQueryChanged(String query) {}
-  
+
   @override
   Future<void> clearHistory() async {}
 }
@@ -49,14 +49,14 @@ void main() {
         searchProvider.overrideWith(() => MockSearchNotifier(searchState)),
         homeProvider.overrideWith(() => MockHomeNotifier(homeState)),
       ],
-      child: const MaterialApp(
-        home: SearchPage(),
-      ),
+      child: const MaterialApp(home: SearchPage()),
     );
   }
 
   group('SearchPage', () {
-    testWidgets('renders Discovery View correctly on empty query', (WidgetTester tester) async {
+    testWidgets('renders Discovery View correctly on empty query', (
+      WidgetTester tester,
+    ) async {
       const searchState = SearchState(
         query: '',
         recentSearches: ['plumber', 'electrician'],
@@ -91,7 +91,9 @@ void main() {
       expect(find.text('Cleaning'), findsOneWidget);
     });
 
-    testWidgets('renders Suggestions View with loading state', (WidgetTester tester) async {
+    testWidgets('renders Suggestions View with loading state', (
+      WidgetTester tester,
+    ) async {
       const searchState = SearchState(
         query: 'fix',
         suggestions: AsyncLoading(),
@@ -105,21 +107,25 @@ void main() {
       expect(find.byType(Shimmer), findsOneWidget);
     });
 
-    testWidgets('renders Suggestions View with empty results', (WidgetTester tester) async {
-      const searchState = SearchState(
-        query: 'fix',
-        suggestions: AsyncData([]),
-      );
+    testWidgets('renders Suggestions View with empty results', (
+      WidgetTester tester,
+    ) async {
+      const searchState = SearchState(query: 'fix', suggestions: AsyncData([]));
       const homeState = HomeState();
 
       await tester.pumpWidget(createWidgetUnderTest(searchState, homeState));
       await tester.pumpAndSettle();
 
       // Empty results message
-      expect(find.text('No services found matching your search.'), findsOneWidget);
+      expect(
+        find.text('No services found matching your search.'),
+        findsOneWidget,
+      );
     });
 
-    testWidgets('renders Suggestions View with results', (WidgetTester tester) async {
+    testWidgets('renders Suggestions View with results', (
+      WidgetTester tester,
+    ) async {
       const results = [
         SearchResultEntity(
           id: 1,
@@ -147,13 +153,17 @@ void main() {
 
       // Verify results
       expect(find.byType(SuggestionResultTile), findsNWidgets(2));
-      
-      final tiles = tester.widgetList<SuggestionResultTile>(find.byType(SuggestionResultTile)).toList();
+
+      final tiles = tester
+          .widgetList<SuggestionResultTile>(find.byType(SuggestionResultTile))
+          .toList();
       expect(tiles[0].title, 'Pipe Fix');
       expect(tiles[1].title, 'Drain Cleaning');
     });
 
-    testWidgets('renders Error state for suggestions', (WidgetTester tester) async {
+    testWidgets('renders Error state for suggestions', (
+      WidgetTester tester,
+    ) async {
       final searchState = SearchState(
         query: 'pip',
         suggestions: AsyncError('Failed to fetch', StackTrace.empty),

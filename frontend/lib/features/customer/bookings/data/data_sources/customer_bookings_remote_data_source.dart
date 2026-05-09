@@ -69,8 +69,9 @@ class CustomerBookingsRemoteDataSource
           .join(',');
     }
 
-    final uri = Uri.parse('${AppConstants.baseUrl}/bookings/')
-        .replace(queryParameters: params);
+    final uri = Uri.parse(
+      '${AppConstants.baseUrl}/bookings/',
+    ).replace(queryParameters: params);
 
     final response = await _authedGet(uri);
     _handleResponse(response);
@@ -116,8 +117,7 @@ class CustomerBookingsRemoteDataSource
           statusCode: response.statusCode,
           code: body['code'] as String,
           message: (body['message'] as String?) ?? 'An error occurred',
-          errors: (body['errors'] as Map?)?.cast<String, dynamic>() ??
-              const {},
+          errors: (body['errors'] as Map?)?.cast<String, dynamic>() ?? const {},
         );
       }
       throw HttpFailure(
@@ -125,8 +125,8 @@ class CustomerBookingsRemoteDataSource
         code: 'unknown',
         message: body is Map
             ? (body['detail']?.toString() ??
-                body['error']?.toString() ??
-                'Unknown error')
+                  body['error']?.toString() ??
+                  'Unknown error')
             : 'Unknown error',
       );
     } catch (e) {

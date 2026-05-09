@@ -64,7 +64,8 @@ abstract class BookingDetailServiceModel with _$BookingDetailServiceModel {
 }
 
 @freezed
-abstract class BookingDetailSubServiceModel with _$BookingDetailSubServiceModel {
+abstract class BookingDetailSubServiceModel
+    with _$BookingDetailSubServiceModel {
   const factory BookingDetailSubServiceModel({
     required int id,
     required String name,
@@ -132,8 +133,8 @@ abstract class BookingDetailPhaseTimestampsModel
   }) = _BookingDetailPhaseTimestampsModel;
 
   factory BookingDetailPhaseTimestampsModel.fromJson(
-          Map<String, dynamic> json) =>
-      _$BookingDetailPhaseTimestampsModelFromJson(json);
+    Map<String, dynamic> json,
+  ) => _$BookingDetailPhaseTimestampsModelFromJson(json);
 }
 
 @freezed
@@ -161,6 +162,6 @@ abstract class BookingDetailCashCollectionModel
   }) = _BookingDetailCashCollectionModel;
 
   factory BookingDetailCashCollectionModel.fromJson(
-          Map<String, dynamic> json) =>
-      _$BookingDetailCashCollectionModelFromJson(json);
+    Map<String, dynamic> json,
+  ) => _$BookingDetailCashCollectionModelFromJson(json);
 }

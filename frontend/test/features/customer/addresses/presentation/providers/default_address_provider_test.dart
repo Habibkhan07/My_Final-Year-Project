@@ -37,8 +37,7 @@ void main() {
 
   group('defaultAddressProvider derivation', () {
     test('returns the default address when one exists in the list', () async {
-      final container =
-          makeContainer((_) async => [tNonDefault, tDefault]);
+      final container = makeContainer((_) async => [tNonDefault, tDefault]);
 
       final result = await container.read(defaultAddressProvider.future);
 
@@ -60,6 +59,5 @@ void main() {
 
       expect(result, isNull);
     });
-
   });
 }

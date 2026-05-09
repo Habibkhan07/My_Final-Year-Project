@@ -55,7 +55,8 @@ class BookingEventPatchMapper {
     SystemEventEntity event,
   ) {
     final payload = event.payload;
-    final newName = (payload['technician_display_name'] as String?) ??
+    final newName =
+        (payload['technician_display_name'] as String?) ??
         current.technician.displayName;
 
     return current.copyWith(
@@ -104,10 +105,7 @@ class BookingEventPatchMapper {
       );
     }
 
-    return current.copyWith(
-      status: BookingStatus.rejected,
-      ui: nextUi,
-    );
+    return current.copyWith(status: BookingStatus.rejected, ui: nextUi);
   }
 
   // ─── Booking-orchestrator v1 transitions (sprint session 3) ─────────────

@@ -10,7 +10,9 @@ import 'package:frontend/features/auth/data/repositories/auth_repository_impl.da
 import 'package:frontend/features/auth/domain/failures/auth_failure.dart';
 
 class MockAuthRemoteDataSource extends Mock implements AuthRemoteDataSource {}
+
 class MockAuthLocalDataSource extends Mock implements AuthLocalDataSource {}
+
 class FakeUserEntity extends Fake implements UserEntity {}
 
 void main() {
@@ -38,7 +40,9 @@ void main() {
 
   group('requestOtp', () {
     test('returns success message on 200', () async {
-      when(() => mockRemote.requestOtp(tPhone)).thenAnswer((_) async => 'OTP Sent');
+      when(
+        () => mockRemote.requestOtp(tPhone),
+      ).thenAnswer((_) async => 'OTP Sent');
 
       final result = await repository.requestOtp(tPhone);
 
@@ -46,42 +50,62 @@ void main() {
       verify(() => mockRemote.requestOtp(tPhone)).called(1);
     });
 
-    test('throws InvalidInput with field errors for phone validation failure', () {
-      final errors = {'phone': ['Enter a valid Pakistani mobile number.']};
-      when(() => mockRemote.requestOtp(any())).thenThrow(HttpFailure(
-        statusCode: 400,
-        code: 'validation_error',
-        message: 'Invalid input data.',
-        errors: errors,
-      ));
+    test(
+      'throws InvalidInput with field errors for phone validation failure',
+      () {
+        final errors = {
+          'phone': ['Enter a valid Pakistani mobile number.'],
+        };
+        when(() => mockRemote.requestOtp(any())).thenThrow(
+          HttpFailure(
+            statusCode: 400,
+            code: 'validation_error',
+            message: 'Invalid input data.',
+            errors: errors,
+          ),
+        );
 
-      expect(
-        () => repository.requestOtp(tPhone),
-        throwsA(isA<InvalidInput>()
-          .having((e) => e.errors, 'errors', errors)
-          .having((e) => e.message, 'message', 'Invalid input data.')),
-      );
-    });
+        expect(
+          () => repository.requestOtp(tPhone),
+          throwsA(
+            isA<InvalidInput>()
+                .having((e) => e.errors, 'errors', errors)
+                .having((e) => e.message, 'message', 'Invalid input data.'),
+          ),
+        );
+      },
+    );
 
     // Covers Twilio SMS delivery failure — errors map is empty, human
     // message lives at the top level. Regression: old InvalidInput(errors)
     // dropped this message, showing "Invalid phone number." toast instead.
-    test('throws InvalidInput preserving top-level message when errors is empty '
-        '(Twilio SMS failure)', () {
-      when(() => mockRemote.requestOtp(any())).thenThrow(HttpFailure(
-        statusCode: 400,
-        code: 'validation_error',
-        message: 'Failed to send OTP via SMS: test error',
-        errors: {},
-      ));
+    test(
+      'throws InvalidInput preserving top-level message when errors is empty '
+      '(Twilio SMS failure)',
+      () {
+        when(() => mockRemote.requestOtp(any())).thenThrow(
+          HttpFailure(
+            statusCode: 400,
+            code: 'validation_error',
+            message: 'Failed to send OTP via SMS: test error',
+            errors: {},
+          ),
+        );
 
-      expect(
-        () => repository.requestOtp(tPhone),
-        throwsA(isA<InvalidInput>()
-          .having((e) => e.message, 'message', 'Failed to send OTP via SMS: test error')
-          .having((e) => e.errors, 'errors', isEmpty)),
-      );
-    });
+        expect(
+          () => repository.requestOtp(tPhone),
+          throwsA(
+            isA<InvalidInput>()
+                .having(
+                  (e) => e.message,
+                  'message',
+                  'Failed to send OTP via SMS: test error',
+                )
+                .having((e) => e.errors, 'errors', isEmpty),
+          ),
+        );
+      },
+    );
   });
 
   // ---------------------------------------------------------------------------
@@ -98,23 +122,28 @@ void main() {
       nameRequired: true,
     );
 
-    test('returns UserEntity and saves token + user to local storage on success', () async {
-      when(() => mockRemote.verifyOtp(tPhone, tOtp)).thenAnswer((_) async => tModel);
-      when(() => mockLocal.saveToken(tToken)).thenAnswer((_) async {});
-      when(() => mockLocal.saveUser(any())).thenAnswer((_) async {});
+    test(
+      'returns UserEntity and saves token + user to local storage on success',
+      () async {
+        when(
+          () => mockRemote.verifyOtp(tPhone, tOtp),
+        ).thenAnswer((_) async => tModel);
+        when(() => mockLocal.saveToken(tToken)).thenAnswer((_) async {});
+        when(() => mockLocal.saveUser(any())).thenAnswer((_) async {});
 
-      final result = await repository.verifyOtp(tPhone, tOtp);
+        final result = await repository.verifyOtp(tPhone, tOtp);
 
-      expect(result.phone, tPhone);
-      expect(result.token, tToken);
-      expect(result.nameRequired, true);
-      // ``id`` from the wire flows through to the cached entity — required
-      // so the orchestrator's ``currentAuthUserIdProvider`` override has a
-      // non-null value to feed the realtime recipient filter (flag #19).
-      expect(result.id, tUserId);
-      verify(() => mockLocal.saveToken(tToken)).called(1);
-      verify(() => mockLocal.saveUser(any())).called(1);
-    });
+        expect(result.phone, tPhone);
+        expect(result.token, tToken);
+        expect(result.nameRequired, true);
+        // ``id`` from the wire flows through to the cached entity — required
+        // so the orchestrator's ``currentAuthUserIdProvider`` override has a
+        // non-null value to feed the realtime recipient filter (flag #19).
+        expect(result.id, tUserId);
+        verify(() => mockLocal.saveToken(tToken)).called(1);
+        verify(() => mockLocal.saveUser(any())).called(1);
+      },
+    );
 
     test('UserModel.fromJson reads user_id from the verify-otp wire payload', () {
       // Pin the wire field name (``user_id``) so a backend rename surfaces here
@@ -148,54 +177,84 @@ void main() {
       expect(model.id, isNull);
     });
 
-    test('throws InvalidInput with both message and field error for wrong OTP', () {
-      final errors = {'otp': ['Invalid OTP.']};
-      when(() => mockRemote.verifyOtp(any(), any())).thenThrow(HttpFailure(
-        statusCode: 400,
-        code: 'validation_error',
-        message: 'Invalid OTP.',
-        errors: errors,
-      ));
+    test(
+      'throws InvalidInput with both message and field error for wrong OTP',
+      () {
+        final errors = {
+          'otp': ['Invalid OTP.'],
+        };
+        when(() => mockRemote.verifyOtp(any(), any())).thenThrow(
+          HttpFailure(
+            statusCode: 400,
+            code: 'validation_error',
+            message: 'Invalid OTP.',
+            errors: errors,
+          ),
+        );
 
-      expect(
-        () => repository.verifyOtp(tPhone, tOtp),
-        throwsA(isA<InvalidInput>()
-          .having((e) => e.message, 'message', 'Invalid OTP.')
-          .having((e) => e.errors, 'errors', errors)),
-      );
-    });
+        expect(
+          () => repository.verifyOtp(tPhone, tOtp),
+          throwsA(
+            isA<InvalidInput>()
+                .having((e) => e.message, 'message', 'Invalid OTP.')
+                .having((e) => e.errors, 'errors', errors),
+          ),
+        );
+      },
+    );
 
     test('throws InvalidInput with expired message when OTP has expired', () {
-      final errors = {'otp': ['OTP has expired. Please request a new one.']};
-      when(() => mockRemote.verifyOtp(any(), any())).thenThrow(HttpFailure(
-        statusCode: 400,
-        code: 'validation_error',
-        message: 'OTP has expired. Please request a new one.',
-        errors: errors,
-      ));
+      final errors = {
+        'otp': ['OTP has expired. Please request a new one.'],
+      };
+      when(() => mockRemote.verifyOtp(any(), any())).thenThrow(
+        HttpFailure(
+          statusCode: 400,
+          code: 'validation_error',
+          message: 'OTP has expired. Please request a new one.',
+          errors: errors,
+        ),
+      );
 
       expect(
         () => repository.verifyOtp(tPhone, tOtp),
-        throwsA(isA<InvalidInput>()
-          .having((e) => e.message, 'message', contains('expired'))),
+        throwsA(
+          isA<InvalidInput>().having(
+            (e) => e.message,
+            'message',
+            contains('expired'),
+          ),
+        ),
       );
     });
 
-    test('throws InvalidInput with no-record message when OTP was never requested', () {
-      final errors = {'otp': ['No OTP found for this number. Please request a new one.']};
-      when(() => mockRemote.verifyOtp(any(), any())).thenThrow(HttpFailure(
-        statusCode: 400,
-        code: 'validation_error',
-        message: 'No OTP found for this number. Please request a new one.',
-        errors: errors,
-      ));
+    test(
+      'throws InvalidInput with no-record message when OTP was never requested',
+      () {
+        final errors = {
+          'otp': ['No OTP found for this number. Please request a new one.'],
+        };
+        when(() => mockRemote.verifyOtp(any(), any())).thenThrow(
+          HttpFailure(
+            statusCode: 400,
+            code: 'validation_error',
+            message: 'No OTP found for this number. Please request a new one.',
+            errors: errors,
+          ),
+        );
 
-      expect(
-        () => repository.verifyOtp(tPhone, tOtp),
-        throwsA(isA<InvalidInput>()
-          .having((e) => e.message, 'message', contains('No OTP found'))),
-      );
-    });
+        expect(
+          () => repository.verifyOtp(tPhone, tOtp),
+          throwsA(
+            isA<InvalidInput>().having(
+              (e) => e.message,
+              'message',
+              contains('No OTP found'),
+            ),
+          ),
+        );
+      },
+    );
   });
 
   // ---------------------------------------------------------------------------
@@ -204,8 +263,9 @@ void main() {
 
   group('completeSignup', () {
     test('returns success message on 200', () async {
-      when(() => mockRemote.completeSignup(any(), any(), any()))
-          .thenAnswer((_) async => 'Profile updated successfully.');
+      when(
+        () => mockRemote.completeSignup(any(), any(), any()),
+      ).thenAnswer((_) async => 'Profile updated successfully.');
 
       final result = await repository.completeSignup('Ali', 'Raza', tToken);
 
@@ -213,17 +273,24 @@ void main() {
     });
 
     test('throws Unauthorized when token is missing or invalid', () {
-      when(() => mockRemote.completeSignup(any(), any(), any())).thenThrow(HttpFailure(
-        statusCode: 401,
-        code: 'unauthorized',
-        message: 'Invalid token',
-        errors: {},
-      ));
+      when(() => mockRemote.completeSignup(any(), any(), any())).thenThrow(
+        HttpFailure(
+          statusCode: 401,
+          code: 'unauthorized',
+          message: 'Invalid token',
+          errors: {},
+        ),
+      );
 
       expect(
         () => repository.completeSignup('Ali', 'Raza', tToken),
-        throwsA(isA<Unauthorized>()
-          .having((e) => e.message, 'message', 'Invalid token')),
+        throwsA(
+          isA<Unauthorized>().having(
+            (e) => e.message,
+            'message',
+            'Invalid token',
+          ),
+        ),
       );
     });
   });
@@ -235,22 +302,28 @@ void main() {
   group('getCachedUser', () {
     const tEntity = UserEntity(phone: tPhone, token: tToken);
 
-    test('returns user with injected token when both user and token are cached', () async {
-      when(() => mockLocal.getUser()).thenAnswer((_) async => tEntity);
-      when(() => mockLocal.getToken()).thenAnswer((_) async => tToken);
+    test(
+      'returns user with injected token when both user and token are cached',
+      () async {
+        when(() => mockLocal.getUser()).thenAnswer((_) async => tEntity);
+        when(() => mockLocal.getToken()).thenAnswer((_) async => tToken);
 
-      final result = await repository.getCachedUser();
+        final result = await repository.getCachedUser();
 
-      expect(result?.phone, tPhone);
-      expect(result?.token, tToken);
-    });
+        expect(result?.phone, tPhone);
+        expect(result?.token, tToken);
+      },
+    );
 
-    test('returns null when token is missing — prevents stale session', () async {
-      when(() => mockLocal.getUser()).thenAnswer((_) async => tEntity);
-      when(() => mockLocal.getToken()).thenAnswer((_) async => null);
+    test(
+      'returns null when token is missing — prevents stale session',
+      () async {
+        when(() => mockLocal.getUser()).thenAnswer((_) async => tEntity);
+        when(() => mockLocal.getToken()).thenAnswer((_) async => null);
 
-      expect(await repository.getCachedUser(), isNull);
-    });
+        expect(await repository.getCachedUser(), isNull);
+      },
+    );
 
     test('returns null when user is not cached', () async {
       when(() => mockLocal.getUser()).thenAnswer((_) async => null);
@@ -280,27 +353,36 @@ void main() {
 
   group('_guard error pipeline', () {
     test('throws UserAlreadyExists on resource_conflict (409)', () {
-      when(() => mockRemote.requestOtp(any())).thenThrow(HttpFailure(
-        statusCode: 409,
-        code: 'resource_conflict',
-        message: 'User already exists',
-        errors: {},
-      ));
+      when(() => mockRemote.requestOtp(any())).thenThrow(
+        HttpFailure(
+          statusCode: 409,
+          code: 'resource_conflict',
+          message: 'User already exists',
+          errors: {},
+        ),
+      );
 
       expect(
         () => repository.requestOtp(tPhone),
-        throwsA(isA<UserAlreadyExists>()
-          .having((e) => e.message, 'message', 'User already exists')),
+        throwsA(
+          isA<UserAlreadyExists>().having(
+            (e) => e.message,
+            'message',
+            'User already exists',
+          ),
+        ),
       );
     });
 
     test('throws ResourcesExpired on not_found (404)', () {
-      when(() => mockRemote.requestOtp(any())).thenThrow(HttpFailure(
-        statusCode: 404,
-        code: 'not_found',
-        message: 'Resource not found',
-        errors: {},
-      ));
+      when(() => mockRemote.requestOtp(any())).thenThrow(
+        HttpFailure(
+          statusCode: 404,
+          code: 'not_found',
+          message: 'Resource not found',
+          errors: {},
+        ),
+      );
 
       expect(
         () => repository.requestOtp(tPhone),
@@ -309,12 +391,14 @@ void main() {
     });
 
     test('throws Unauthorized on unauthorized (401)', () {
-      when(() => mockRemote.completeSignup(any(), any(), any())).thenThrow(HttpFailure(
-        statusCode: 401,
-        code: 'unauthorized',
-        message: 'Invalid token',
-        errors: {},
-      ));
+      when(() => mockRemote.completeSignup(any(), any(), any())).thenThrow(
+        HttpFailure(
+          statusCode: 401,
+          code: 'unauthorized',
+          message: 'Invalid token',
+          errors: {},
+        ),
+      );
 
       expect(
         () => repository.completeSignup('Ali', 'Raza', tToken),
@@ -323,27 +407,33 @@ void main() {
     });
 
     test('throws ServerError for unknown codes', () {
-      when(() => mockRemote.requestOtp(any())).thenThrow(HttpFailure(
-        statusCode: 500,
-        code: 'server_error',
-        message: 'Database exploded',
-        errors: {},
-      ));
+      when(() => mockRemote.requestOtp(any())).thenThrow(
+        HttpFailure(
+          statusCode: 500,
+          code: 'server_error',
+          message: 'Database exploded',
+          errors: {},
+        ),
+      );
 
       expect(
         () => repository.requestOtp(tPhone),
-        throwsA(isA<ServerError>()
-          .having((e) => e.message, 'message', 'Database exploded')),
+        throwsA(
+          isA<ServerError>().having(
+            (e) => e.message,
+            'message',
+            'Database exploded',
+          ),
+        ),
       );
     });
 
     test('wraps non-HttpFailure exceptions in ServerError', () {
-      when(() => mockRemote.requestOtp(any())).thenThrow(StateError('Unexpected'));
+      when(
+        () => mockRemote.requestOtp(any()),
+      ).thenThrow(StateError('Unexpected'));
 
-      expect(
-        () => repository.requestOtp(tPhone),
-        throwsA(isA<ServerError>()),
-      );
+      expect(() => repository.requestOtp(tPhone), throwsA(isA<ServerError>()));
     });
   });
 }

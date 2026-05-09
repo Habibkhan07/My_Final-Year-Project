@@ -6,7 +6,7 @@ import '../../../../core/common/domain/entities/user_entity.dart';
 class AuthLocalDataSource {
   final FlutterSecureStorage _secureStorage;
   final SharedPreferences _prefs;
-  
+
   static const String _tokenKey = 'auth_token';
   static const String _userKey = 'cached_user_profile';
 

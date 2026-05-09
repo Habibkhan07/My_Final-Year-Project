@@ -13,18 +13,18 @@ class SearchLocalDataSource {
 
   Future<void> saveRecentSearch(String query) async {
     final history = await getRecentSearches();
-    
+
     // Remove if already exists (to move to top)
     history.removeWhere((item) => item.toLowerCase() == query.toLowerCase());
-    
+
     // Add to top
     history.insert(0, query);
-    
+
     // Cap history
     if (history.length > _maxHistory) {
       history.removeRange(_maxHistory, history.length);
     }
-    
+
     await _prefs.setStringList(_recentSearchesKey, history);
   }
 

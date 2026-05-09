@@ -9,24 +9,24 @@ sealed class BookingFailure implements Exception {
 
 /// Device has no active internet connection.
 class BookingNetworkFailure extends BookingFailure {
-  const BookingNetworkFailure(
-      [String message = 'No internet connection. Please check your settings.'])
-      : super(message);
+  const BookingNetworkFailure([
+    String message = 'No internet connection. Please check your settings.',
+  ]) : super(message);
 }
 
 /// Backend returned 404 — technician does not exist or is not APPROVED.
 class BookingTechnicianNotFoundFailure extends BookingFailure {
-  const BookingTechnicianNotFoundFailure(
-      [String message = 'Technician not available.'])
-      : super(message);
+  const BookingTechnicianNotFoundFailure([
+    String message = 'Technician not available.',
+  ]) : super(message);
 }
 
 /// address_id does not belong to the authenticated user (IDOR-safe: same
 /// failure whether the address is missing or belongs to another account).
 class BookingInvalidAddressFailure extends BookingFailure {
-  const BookingInvalidAddressFailure(
-      [String message = 'No matching address found for this account.'])
-      : super(message);
+  const BookingInvalidAddressFailure([
+    String message = 'No matching address found for this account.',
+  ]) : super(message);
 }
 
 /// Customer's address is outside the technician's service radius.
@@ -42,24 +42,23 @@ class BookingOutOfServiceAreaFailure extends BookingFailure {
 ///
 /// UI should pop back to the availability screen and show a Snackbar.
 class BookingSlotUnavailableFailure extends BookingFailure {
-  const BookingSlotUnavailableFailure(
-      [String message =
-          'This time slot was just booked. Please choose another.'])
-      : super(message);
+  const BookingSlotUnavailableFailure([
+    String message = 'This time slot was just booked. Please choose another.',
+  ]) : super(message);
 }
 
 /// Generic 400 validation error not covered by a more specific failure.
 class BookingValidationFailure extends BookingFailure {
   final Map<String, List<String>>? errors;
   const BookingValidationFailure({required String message, this.errors})
-      : super(message);
+    : super(message);
 }
 
 /// Backend returned a 5xx or is otherwise unreachable.
 class BookingServerFailure extends BookingFailure {
-  const BookingServerFailure(
-      [String message = 'An unexpected server error occurred.'])
-      : super(message);
+  const BookingServerFailure([
+    String message = 'An unexpected server error occurred.',
+  ]) : super(message);
 }
 
 /// Catch-all for unexpected parsing or logic errors.

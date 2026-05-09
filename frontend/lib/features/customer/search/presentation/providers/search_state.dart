@@ -9,6 +9,7 @@ abstract class SearchState with _$SearchState {
   const factory SearchState({
     @Default('') String query,
     @Default([]) List<String> recentSearches,
-    @Default(AsyncValue.data([])) AsyncValue<List<SearchResultEntity>> suggestions,
+    @Default(AsyncValue.data([]))
+    AsyncValue<List<SearchResultEntity>> suggestions,
   }) = _SearchState;
 }

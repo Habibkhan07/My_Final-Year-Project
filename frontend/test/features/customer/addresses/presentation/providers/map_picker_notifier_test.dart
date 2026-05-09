@@ -93,8 +93,9 @@ void main() {
   group('MapPickerNotifier.onMapPanEnd()', () {
     test('immediately updates coordinates and sets isGeocoding=true', () async {
       when(() => mockGps.call()).thenAnswer((_) async => tLocation);
-      when(() => mockGeocoder.call(any(), any()))
-          .thenAnswer((_) async => tDhaDetails);
+      when(
+        () => mockGeocoder.call(any(), any()),
+      ).thenAnswer((_) async => tDhaDetails);
 
       final container = makeContainer();
       await container.read(mapPickerProvider.future);
@@ -239,35 +240,38 @@ void main() {
       expect(state.saveState, isA<AsyncError<CustomerAddressEntity?>>());
     });
 
-    test('map state (coords, label) is unchanged after a failed save', () async {
-      when(() => mockGps.call()).thenAnswer((_) async => tLocation);
-      when(
-        () => mockSaver.call(
-          label: any(named: 'label'),
-          streetAddress: any(named: 'streetAddress'),
-          latitude: any(named: 'latitude'),
-          longitude: any(named: 'longitude'),
-          isDefault: any(named: 'isDefault'),
-          neighborhood: any(named: 'neighborhood'),
-          suburb: any(named: 'suburb'),
-          city: any(named: 'city'),
-          state: any(named: 'state'),
-          country: any(named: 'country'),
-          postalCode: any(named: 'postalCode'),
-          localityLabel: any(named: 'localityLabel'),
-        ),
-      ).thenThrow(const AddressServerFailure('fail'));
+    test(
+      'map state (coords, label) is unchanged after a failed save',
+      () async {
+        when(() => mockGps.call()).thenAnswer((_) async => tLocation);
+        when(
+          () => mockSaver.call(
+            label: any(named: 'label'),
+            streetAddress: any(named: 'streetAddress'),
+            latitude: any(named: 'latitude'),
+            longitude: any(named: 'longitude'),
+            isDefault: any(named: 'isDefault'),
+            neighborhood: any(named: 'neighborhood'),
+            suburb: any(named: 'suburb'),
+            city: any(named: 'city'),
+            state: any(named: 'state'),
+            country: any(named: 'country'),
+            postalCode: any(named: 'postalCode'),
+            localityLabel: any(named: 'localityLabel'),
+          ),
+        ).thenThrow(const AddressServerFailure('fail'));
 
-      final container = makeContainer();
-      await container.read(mapPickerProvider.future);
-      container.read(mapPickerProvider.notifier).setLabel('Office');
+        final container = makeContainer();
+        await container.read(mapPickerProvider.future);
+        container.read(mapPickerProvider.notifier).setLabel('Office');
 
-      await container.read(mapPickerProvider.notifier).save(isDefault: false);
+        await container.read(mapPickerProvider.notifier).save(isDefault: false);
 
-      final state = container.read(mapPickerProvider).requireValue;
-      // Map state must survive a save failure
-      expect(state.latitude, 31.5);
-      expect(state.selectedLabel, 'Office');
-    });
+        final state = container.read(mapPickerProvider).requireValue;
+        // Map state must survive a save failure
+        expect(state.latitude, 31.5);
+        expect(state.selectedLabel, 'Office');
+      },
+    );
   });
 }

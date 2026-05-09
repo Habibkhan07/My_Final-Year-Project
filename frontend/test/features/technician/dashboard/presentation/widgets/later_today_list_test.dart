@@ -9,30 +9,30 @@ import 'package:frontend/features/technician/dashboard/presentation/widgets/late
 // ---------------------------------------------------------------------------
 
 List<LaterTodayJobEntity> _twoJobs() => [
-      LaterTodayJobEntity(
-        jobId: 1,
-        serviceTitle: 'Ceiling Fan Repair',
-        scheduledTime: DateTime(2026, 4, 26, 16),
-        addressText: 'DHA Phase 5',
-      ),
-      LaterTodayJobEntity(
-        jobId: 2,
-        serviceTitle: 'Geyser Installation',
-        scheduledTime: DateTime(2026, 4, 26, 18, 30),
-        addressText: 'Model Town',
-      ),
-    ];
+  LaterTodayJobEntity(
+    jobId: 1,
+    serviceTitle: 'Ceiling Fan Repair',
+    scheduledTime: DateTime(2026, 4, 26, 16),
+    addressText: 'DHA Phase 5',
+  ),
+  LaterTodayJobEntity(
+    jobId: 2,
+    serviceTitle: 'Geyser Installation',
+    scheduledTime: DateTime(2026, 4, 26, 18, 30),
+    addressText: 'Model Town',
+  ),
+];
 
 Widget buildList(List<LaterTodayJobEntity> jobs) => MaterialApp(
-      home: Scaffold(
-        body: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: LaterTodayList(jobs: jobs),
-          ),
-        ),
+  home: Scaffold(
+    body: SingleChildScrollView(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: LaterTodayList(jobs: jobs),
       ),
-    );
+    ),
+  ),
+);
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -42,12 +42,16 @@ void main() {
   group('LaterTodayList', () {
     // -----------------------------------------------------------------------
     group('section heading', () {
-      testWidgets('always renders "Later Today" heading with jobs', (tester) async {
+      testWidgets('always renders "Later Today" heading with jobs', (
+        tester,
+      ) async {
         await tester.pumpWidget(buildList(_twoJobs()));
         expect(find.text('Later Today'), findsOneWidget);
       });
 
-      testWidgets('always renders "Later Today" heading when empty', (tester) async {
+      testWidgets('always renders "Later Today" heading when empty', (
+        tester,
+      ) async {
         await tester.pumpWidget(buildList(const []));
         expect(find.text('Later Today'), findsOneWidget);
       });
@@ -87,7 +91,9 @@ void main() {
 
     // -----------------------------------------------------------------------
     group('empty list', () {
-      testWidgets('shows "No more jobs scheduled for today" message', (tester) async {
+      testWidgets('shows "No more jobs scheduled for today" message', (
+        tester,
+      ) async {
         await tester.pumpWidget(buildList(const []));
         expect(find.text('No more jobs scheduled for today'), findsOneWidget);
       });

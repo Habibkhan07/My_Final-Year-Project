@@ -93,9 +93,7 @@ class _FakeLocal implements ICustomerBookingsLocalDataSource {
   }
 
   @override
-  Future<CachedBookingsPage?> getCachedFirstPage(
-    BookingSegment segment,
-  ) async {
+  Future<CachedBookingsPage?> getCachedFirstPage(BookingSegment segment) async {
     cacheReadCount++;
     return cached;
   }
@@ -239,22 +237,24 @@ void main() {
   // ──────────────────────────────────────────────────────────────────
 
   group('getBookings — SocketException', () {
-    test('first page + cache hit → stale page with isStaleCache=true',
-        () async {
-      remote.toThrow = const SocketException('offline');
-      final cachedAt = DateTime.utc(2026, 5, 5, 12, 0, 0);
-      local.cached = CachedBookingsPage(
-        response: _sampleResponse(itemId: 7, hasMore: false),
-        cachedAt: cachedAt,
-      );
+    test(
+      'first page + cache hit → stale page with isStaleCache=true',
+      () async {
+        remote.toThrow = const SocketException('offline');
+        final cachedAt = DateTime.utc(2026, 5, 5, 12, 0, 0);
+        local.cached = CachedBookingsPage(
+          response: _sampleResponse(itemId: 7, hasMore: false),
+          cachedAt: cachedAt,
+        );
 
-      final page = await repo.getBookings(segment: BookingSegment.upcoming);
+        final page = await repo.getBookings(segment: BookingSegment.upcoming);
 
-      expect(page.items.first.id, 7);
-      expect(page.isStaleCache, isTrue);
-      expect(page.cachedAt, cachedAt);
-      expect(local.cacheReadCount, 1);
-    });
+        expect(page.items.first.id, 7);
+        expect(page.isStaleCache, isTrue);
+        expect(page.cachedAt, cachedAt);
+        expect(local.cacheReadCount, 1);
+      },
+    );
 
     test('first page + no cache → OfflineNoCache', () async {
       remote.toThrow = const SocketException('offline');
@@ -266,25 +266,24 @@ void main() {
       );
     });
 
-    test('non-first page (cursor != null) → OfflineNoCache without read',
-        () async {
-      // Pagination cache isn't maintained → don't even consult the
-      // local DS for subsequent pages.
-      remote.toThrow = const SocketException('offline');
-      local.cached = CachedBookingsPage(
-        response: _sampleResponse(),
-        cachedAt: DateTime.utc(2026, 5, 5, 12, 0, 0),
-      );
+    test(
+      'non-first page (cursor != null) → OfflineNoCache without read',
+      () async {
+        // Pagination cache isn't maintained → don't even consult the
+        // local DS for subsequent pages.
+        remote.toThrow = const SocketException('offline');
+        local.cached = CachedBookingsPage(
+          response: _sampleResponse(),
+          cachedAt: DateTime.utc(2026, 5, 5, 12, 0, 0),
+        );
 
-      await expectLater(
-        repo.getBookings(
-          segment: BookingSegment.upcoming,
-          cursor: 'cur-x',
-        ),
-        throwsA(isA<CustomerBookingsOfflineNoCache>()),
-      );
-      expect(local.cacheReadCount, 0);
-    });
+        await expectLater(
+          repo.getBookings(segment: BookingSegment.upcoming, cursor: 'cur-x'),
+          throwsA(isA<CustomerBookingsOfflineNoCache>()),
+        );
+        expect(local.cacheReadCount, 0);
+      },
+    );
 
     test('per-segment cache lookup uses requested segment', () async {
       // Caller asks for past, repo must not return cached upcoming.
@@ -305,26 +304,28 @@ void main() {
   // ──────────────────────────────────────────────────────────────────
 
   group('getBookings — HTTP error → typed failure', () {
-    test('400 invalid_cursor → ValidationFailure carrying code+errors',
-        () async {
-      remote.toThrow = const HttpFailure(
-        statusCode: 400,
-        code: 'invalid_cursor',
-        message: 'Cursor is malformed.',
-        errors: {
-          'cursor': ['Cursor is malformed.'],
-        },
-      );
+    test(
+      '400 invalid_cursor → ValidationFailure carrying code+errors',
+      () async {
+        remote.toThrow = const HttpFailure(
+          statusCode: 400,
+          code: 'invalid_cursor',
+          message: 'Cursor is malformed.',
+          errors: {
+            'cursor': ['Cursor is malformed.'],
+          },
+        );
 
-      try {
-        await repo.getBookings(segment: BookingSegment.upcoming);
-        fail('expected ValidationFailure');
-      } on CustomerBookingsValidationFailure catch (e) {
-        expect(e.code, 'invalid_cursor');
-        expect(e.errors['cursor'], ['Cursor is malformed.']);
-        expect(e.message, 'Cursor is malformed.');
-      }
-    });
+        try {
+          await repo.getBookings(segment: BookingSegment.upcoming);
+          fail('expected ValidationFailure');
+        } on CustomerBookingsValidationFailure catch (e) {
+          expect(e.code, 'invalid_cursor');
+          expect(e.errors['cursor'], ['Cursor is malformed.']);
+          expect(e.message, 'Cursor is malformed.');
+        }
+      },
+    );
 
     test('400 invalid_status_filter → ValidationFailure', () async {
       remote.toThrow = const HttpFailure(
@@ -385,33 +386,37 @@ void main() {
       );
     });
 
-    test('401 → UnknownCustomerBookingsFailure (auth-state mismatch)',
-        () async {
-      remote.toThrow = const HttpFailure(
-        statusCode: 401,
-        code: 'unauthorized',
-        message: 'Unauthorized.',
-      );
-      try {
-        await repo.getBookings(segment: BookingSegment.upcoming);
-        fail('expected UnknownCustomerBookingsFailure');
-      } on UnknownCustomerBookingsFailure catch (e) {
-        expect(e.message, 'Unauthorized.');
-      }
-    });
+    test(
+      '401 → UnknownCustomerBookingsFailure (auth-state mismatch)',
+      () async {
+        remote.toThrow = const HttpFailure(
+          statusCode: 401,
+          code: 'unauthorized',
+          message: 'Unauthorized.',
+        );
+        try {
+          await repo.getBookings(segment: BookingSegment.upcoming);
+          fail('expected UnknownCustomerBookingsFailure');
+        } on UnknownCustomerBookingsFailure catch (e) {
+          expect(e.message, 'Unauthorized.');
+        }
+      },
+    );
 
-    test('404 → UnknownCustomerBookingsFailure (deployment mismatch)',
-        () async {
-      remote.toThrow = const HttpFailure(
-        statusCode: 404,
-        code: 'not_found',
-        message: 'Not found.',
-      );
-      await expectLater(
-        repo.getBookings(segment: BookingSegment.upcoming),
-        throwsA(isA<UnknownCustomerBookingsFailure>()),
-      );
-    });
+    test(
+      '404 → UnknownCustomerBookingsFailure (deployment mismatch)',
+      () async {
+        remote.toThrow = const HttpFailure(
+          statusCode: 404,
+          code: 'not_found',
+          message: 'Not found.',
+        );
+        await expectLater(
+          repo.getBookings(segment: BookingSegment.upcoming),
+          throwsA(isA<UnknownCustomerBookingsFailure>()),
+        );
+      },
+    );
 
     test('teapot 418 with random code → Unknown', () async {
       remote.toThrow = const HttpFailure(
@@ -433,17 +438,18 @@ void main() {
   // ──────────────────────────────────────────────────────────────────
 
   group('getBookings — propagation policy', () {
-    test('untyped exception → UnknownCustomerBookingsFailure (catch-all)',
-        () async {
-      remote.toThrow = const FormatException('weird body');
-      await expectLater(
-        repo.getBookings(segment: BookingSegment.upcoming),
-        throwsA(isA<UnknownCustomerBookingsFailure>()),
-      );
-    });
+    test(
+      'untyped exception → UnknownCustomerBookingsFailure (catch-all)',
+      () async {
+        remote.toThrow = const FormatException('weird body');
+        await expectLater(
+          repo.getBookings(segment: BookingSegment.upcoming),
+          throwsA(isA<UnknownCustomerBookingsFailure>()),
+        );
+      },
+    );
 
-    test('already-typed CustomerBookingsFailure rethrown verbatim',
-        () async {
+    test('already-typed CustomerBookingsFailure rethrown verbatim', () async {
       // Defensive: a future interceptor may already have mapped to a
       // typed failure. The repository must not double-wrap it.
       remote.toThrow = const CustomerBookingsServerFailure();
@@ -517,8 +523,7 @@ void main() {
       );
     });
 
-    test('already-typed CustomerBookingsFailure rethrown verbatim',
-        () async {
+    test('already-typed CustomerBookingsFailure rethrown verbatim', () async {
       remote.toThrow = const CustomerBookingsServerFailure();
       try {
         await repo.getCounts();

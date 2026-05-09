@@ -38,8 +38,8 @@ class CustomerBookingsRepositoryImpl implements ICustomerBookingsRepository {
   CustomerBookingsRepositoryImpl({
     required ICustomerBookingsRemoteDataSource remote,
     required ICustomerBookingsLocalDataSource local,
-  })  : _remote = remote,
-        _local = local;
+  }) : _remote = remote,
+       _local = local;
 
   @override
   Future<BookingsPage> getBookings({

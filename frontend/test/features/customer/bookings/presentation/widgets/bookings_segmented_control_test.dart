@@ -51,11 +51,11 @@ Widget _build({
       selectedSegmentProvider.overrideWith(
         () => capture ?? _MockSegment(initialSegment),
       ),
-      customerBookingsCountsProvider.overrideWith(() => _MockCounts(countsState)),
+      customerBookingsCountsProvider.overrideWith(
+        () => _MockCounts(countsState),
+      ),
     ],
-    child: const MaterialApp(
-      home: Scaffold(body: BookingsSegmentedControl()),
-    ),
+    child: const MaterialApp(home: Scaffold(body: BookingsSegmentedControl())),
   );
 }
 
@@ -67,10 +67,12 @@ void main() {
   );
 
   testWidgets('renders count badges when counts is AsyncData', (tester) async {
-    await tester.pumpWidget(_build(
-      initialSegment: BookingSegment.upcoming,
-      countsState: AsyncData(tCounts),
-    ));
+    await tester.pumpWidget(
+      _build(
+        initialSegment: BookingSegment.upcoming,
+        countsState: AsyncData(tCounts),
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('Upcoming · 1'), findsOneWidget);
@@ -78,10 +80,12 @@ void main() {
   });
 
   testWidgets('omits counts when AsyncLoading', (tester) async {
-    await tester.pumpWidget(_build(
-      initialSegment: BookingSegment.upcoming,
-      countsState: const AsyncLoading(),
-    ));
+    await tester.pumpWidget(
+      _build(
+        initialSegment: BookingSegment.upcoming,
+        countsState: const AsyncLoading(),
+      ),
+    );
     await tester.pump();
 
     expect(find.text('Upcoming'), findsOneWidget);
@@ -90,10 +94,12 @@ void main() {
   });
 
   testWidgets('omits counts when AsyncError', (tester) async {
-    await tester.pumpWidget(_build(
-      initialSegment: BookingSegment.upcoming,
-      countsState: AsyncError('boom', StackTrace.empty),
-    ));
+    await tester.pumpWidget(
+      _build(
+        initialSegment: BookingSegment.upcoming,
+        countsState: AsyncError('boom', StackTrace.empty),
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('Upcoming'), findsOneWidget);
@@ -101,14 +107,17 @@ void main() {
     expect(find.textContaining('·'), findsNothing);
   });
 
-  testWidgets('tapping a segment calls set() on the segment notifier',
-      (tester) async {
+  testWidgets('tapping a segment calls set() on the segment notifier', (
+    tester,
+  ) async {
     final capture = _MockSegment(BookingSegment.upcoming);
-    await tester.pumpWidget(_build(
-      initialSegment: BookingSegment.upcoming,
-      countsState: AsyncData(tCounts),
-      capture: capture,
-    ));
+    await tester.pumpWidget(
+      _build(
+        initialSegment: BookingSegment.upcoming,
+        countsState: AsyncData(tCounts),
+        capture: capture,
+      ),
+    );
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Past · 12'));

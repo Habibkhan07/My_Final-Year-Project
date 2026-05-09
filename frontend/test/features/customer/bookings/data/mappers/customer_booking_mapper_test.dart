@@ -99,8 +99,9 @@ void main() {
         ('REJECTED', BookingStatus.rejected),
         ('PENDING', BookingStatus.pending),
       ]) {
-        final entity =
-            CustomerBookingMapper.fromModel(_sample(status: pair.$1));
+        final entity = CustomerBookingMapper.fromModel(
+          _sample(status: pair.$1),
+        );
         expect(entity.status, pair.$2, reason: pair.$1);
       }
     });
@@ -133,21 +134,18 @@ void main() {
         ('neutral', BookingUiTone.neutral),
         ('info', BookingUiTone.info),
       ]) {
-        final entity =
-            CustomerBookingMapper.fromModel(_sample(tone: pair.$1));
+        final entity = CustomerBookingMapper.fromModel(_sample(tone: pair.$1));
         expect(entity.ui.badgeTone, pair.$2, reason: pair.$1);
       }
     });
 
     test('unknown tone maps to BookingUiTone.unknown', () {
-      final entity =
-          CustomerBookingMapper.fromModel(_sample(tone: 'electric'));
+      final entity = CustomerBookingMapper.fromModel(_sample(tone: 'electric'));
       expect(entity.ui.badgeTone, BookingUiTone.unknown);
     });
 
     test('uppercase tone is normalized to lower', () {
-      final entity =
-          CustomerBookingMapper.fromModel(_sample(tone: 'POSITIVE'));
+      final entity = CustomerBookingMapper.fromModel(_sample(tone: 'POSITIVE'));
       expect(entity.ui.badgeTone, BookingUiTone.positive);
     });
   });
@@ -157,8 +155,7 @@ void main() {
       final entity = CustomerBookingMapper.fromModel(
         _sample(scheduledStart: '2026-05-06T15:00:00Z'),
       );
-      expect(entity.scheduledStart.toUtc(),
-          DateTime.utc(2026, 5, 6, 15, 0, 0));
+      expect(entity.scheduledStart.toUtc(), DateTime.utc(2026, 5, 6, 15, 0, 0));
     });
 
     test('parses ISO-8601 with explicit offset', () {
@@ -166,26 +163,33 @@ void main() {
         _sample(scheduledStart: '2026-05-06T20:00:00+05:00'),
       );
       // 20:00 +05:00 == 15:00 UTC.
-      expect(entity.scheduledStart.toUtc(),
-          DateTime.utc(2026, 5, 6, 15, 0, 0));
+      expect(entity.scheduledStart.toUtc(), DateTime.utc(2026, 5, 6, 15, 0, 0));
     });
 
-    test('unparseable string falls back to a recent UTC DateTime, not throw',
-        () {
-      // The fallback policy: better to render a card with a stale-ish
-      // date than drop the entire page on a single bad row.
-      final beforeMap = DateTime.now().toUtc();
-      final entity = CustomerBookingMapper.fromModel(
-        _sample(scheduledStart: 'definitely-not-a-date'),
-      );
-      final afterMap = DateTime.now().toUtc();
-      expect(entity.scheduledStart.isAfter(
-        beforeMap.subtract(const Duration(seconds: 1)),
-      ), isTrue);
-      expect(entity.scheduledStart.isBefore(
-        afterMap.add(const Duration(seconds: 1)),
-      ), isTrue);
-    });
+    test(
+      'unparseable string falls back to a recent UTC DateTime, not throw',
+      () {
+        // The fallback policy: better to render a card with a stale-ish
+        // date than drop the entire page on a single bad row.
+        final beforeMap = DateTime.now().toUtc();
+        final entity = CustomerBookingMapper.fromModel(
+          _sample(scheduledStart: 'definitely-not-a-date'),
+        );
+        final afterMap = DateTime.now().toUtc();
+        expect(
+          entity.scheduledStart.isAfter(
+            beforeMap.subtract(const Duration(seconds: 1)),
+          ),
+          isTrue,
+        );
+        expect(
+          entity.scheduledStart.isBefore(
+            afterMap.add(const Duration(seconds: 1)),
+          ),
+          isTrue,
+        );
+      },
+    );
   });
 
   group('pageFromResponse — envelope flag thread-through', () {
@@ -251,12 +255,14 @@ void main() {
       final beforeMap = DateTime.now().toUtc();
       final page = CustomerBookingMapper.pageFromResponse(response);
       final afterMap = DateTime.now().toUtc();
-      expect(page.serverTime.isAfter(
-        beforeMap.subtract(const Duration(seconds: 1)),
-      ), isTrue);
-      expect(page.serverTime.isBefore(
-        afterMap.add(const Duration(seconds: 1)),
-      ), isTrue);
+      expect(
+        page.serverTime.isAfter(beforeMap.subtract(const Duration(seconds: 1))),
+        isTrue,
+      );
+      expect(
+        page.serverTime.isBefore(afterMap.add(const Duration(seconds: 1))),
+        isTrue,
+      );
     });
   });
 

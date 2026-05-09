@@ -7,7 +7,8 @@ import 'package:frontend/features/booking/domain/use_cases/get_availability_use_
 import 'package:frontend/features/booking/presentation/providers/availability_notifier.dart';
 import 'package:frontend/features/booking/presentation/providers/dependency_injection.dart';
 
-class MockGetAvailabilityUseCase extends Mock implements GetAvailabilityUseCase {}
+class MockGetAvailabilityUseCase extends Mock
+    implements GetAvailabilityUseCase {}
 
 void main() {
   late MockGetAvailabilityUseCase mockUseCase;
@@ -32,104 +33,142 @@ void main() {
 
   setUp(() {
     mockUseCase = MockGetAvailabilityUseCase();
-    container = ProviderContainer(overrides: [
-      getAvailabilityUseCaseProvider.overrideWithValue(mockUseCase),
-    ]);
+    container = ProviderContainer(
+      overrides: [
+        getAvailabilityUseCaseProvider.overrideWithValue(mockUseCase),
+      ],
+    );
     addTearDown(container.dispose);
   });
 
-  ProviderSubscription listen() =>
-      container.listen(availabilityProvider(technicianId: tTechnicianId, date: tDate), (_, _) {});
+  ProviderSubscription listen() => container.listen(
+    availabilityProvider(technicianId: tTechnicianId, date: tDate),
+    (_, _) {},
+  );
 
   // ---------------------------------------------------------------------------
   // build — success
   // ---------------------------------------------------------------------------
   group('build', () {
-    test('fetches slots and sets state to AsyncData with null selectedSlot', () async {
-      when(() => mockUseCase.call(
+    test(
+      'fetches slots and sets state to AsyncData with null selectedSlot',
+      () async {
+        when(
+          () => mockUseCase.call(
             technicianId: any(named: 'technicianId'),
             date: any(named: 'date'),
             serviceId: any(named: 'serviceId'),
             subServiceId: any(named: 'subServiceId'),
-          )).thenAnswer((_) async => [tSlotAM, tSlotPM]);
+          ),
+        ).thenAnswer((_) async => [tSlotAM, tSlotPM]);
 
-      final sub = listen();
-      final state = await container.read(
-          availabilityProvider(technicianId: tTechnicianId, date: tDate).future);
+        final sub = listen();
+        final state = await container.read(
+          availabilityProvider(technicianId: tTechnicianId, date: tDate).future,
+        );
 
-      expect(state.slots, [tSlotAM, tSlotPM]);
-      expect(state.selectedSlot, isNull);
-      sub.close();
-    });
+        expect(state.slots, [tSlotAM, tSlotPM]);
+        expect(state.selectedSlot, isNull);
+        sub.close();
+      },
+    );
 
-    test('sets state to AsyncData with empty slots list when technician has no schedule', () async {
-      when(() => mockUseCase.call(
+    test(
+      'sets state to AsyncData with empty slots list when technician has no schedule',
+      () async {
+        when(
+          () => mockUseCase.call(
             technicianId: any(named: 'technicianId'),
             date: any(named: 'date'),
             serviceId: any(named: 'serviceId'),
             subServiceId: any(named: 'subServiceId'),
-          )).thenAnswer((_) async => []);
+          ),
+        ).thenAnswer((_) async => []);
 
-      final sub = listen();
-      final state = await container.read(
-          availabilityProvider(technicianId: tTechnicianId, date: tDate).future);
+        final sub = listen();
+        final state = await container.read(
+          availabilityProvider(technicianId: tTechnicianId, date: tDate).future,
+        );
 
-      expect(state.slots, isEmpty);
-      sub.close();
-    });
+        expect(state.slots, isEmpty);
+        sub.close();
+      },
+    );
 
-    test('sets state to AsyncError when use case throws BookingNetworkFailure', () async {
-      const tFailure = BookingNetworkFailure();
-      when(() => mockUseCase.call(
+    test(
+      'sets state to AsyncError when use case throws BookingNetworkFailure',
+      () async {
+        const tFailure = BookingNetworkFailure();
+        when(
+          () => mockUseCase.call(
             technicianId: any(named: 'technicianId'),
             date: any(named: 'date'),
             serviceId: any(named: 'serviceId'),
             subServiceId: any(named: 'subServiceId'),
-          )).thenAnswer((_) => Future.error(tFailure));
+          ),
+        ).thenAnswer((_) => Future.error(tFailure));
 
-      final sub = listen();
-      await Future.delayed(const Duration(milliseconds: 50));
+        final sub = listen();
+        await Future.delayed(const Duration(milliseconds: 50));
 
-      final state = container.read(
-          availabilityProvider(technicianId: tTechnicianId, date: tDate));
+        final state = container.read(
+          availabilityProvider(technicianId: tTechnicianId, date: tDate),
+        );
 
-      expect(state.hasError, isTrue);
-      expect(state.error, isA<BookingNetworkFailure>());
-      sub.close();
-    });
+        expect(state.hasError, isTrue);
+        expect(state.error, isA<BookingNetworkFailure>());
+        sub.close();
+      },
+    );
 
-    test('family isolation — different dates produce independent provider instances', () async {
-      const tDateB = '2026-04-08';
+    test(
+      'family isolation — different dates produce independent provider instances',
+      () async {
+        const tDateB = '2026-04-08';
 
-      when(() => mockUseCase.call(
+        when(
+          () => mockUseCase.call(
             technicianId: any(named: 'technicianId'),
             date: tDate,
             serviceId: any(named: 'serviceId'),
             subServiceId: any(named: 'subServiceId'),
-          )).thenAnswer((_) async => [tSlotAM]);
+          ),
+        ).thenAnswer((_) async => [tSlotAM]);
 
-      when(() => mockUseCase.call(
+        when(
+          () => mockUseCase.call(
             technicianId: any(named: 'technicianId'),
             date: tDateB,
             serviceId: any(named: 'serviceId'),
             subServiceId: any(named: 'subServiceId'),
-          )).thenAnswer((_) async => [tSlotPM]);
+          ),
+        ).thenAnswer((_) async => [tSlotPM]);
 
-      final sub1 = container.listen(
-          availabilityProvider(technicianId: tTechnicianId, date: tDate), (_, _) {});
-      final sub2 = container.listen(
-          availabilityProvider(technicianId: tTechnicianId, date: tDateB), (_, _) {});
+        final sub1 = container.listen(
+          availabilityProvider(technicianId: tTechnicianId, date: tDate),
+          (_, _) {},
+        );
+        final sub2 = container.listen(
+          availabilityProvider(technicianId: tTechnicianId, date: tDateB),
+          (_, _) {},
+        );
 
-      final stateA = await container.read(
-          availabilityProvider(technicianId: tTechnicianId, date: tDate).future);
-      final stateB = await container.read(
-          availabilityProvider(technicianId: tTechnicianId, date: tDateB).future);
+        final stateA = await container.read(
+          availabilityProvider(technicianId: tTechnicianId, date: tDate).future,
+        );
+        final stateB = await container.read(
+          availabilityProvider(
+            technicianId: tTechnicianId,
+            date: tDateB,
+          ).future,
+        );
 
-      expect(stateA.slots, [tSlotAM]);
-      expect(stateB.slots, [tSlotPM]);
-      sub1.close();
-      sub2.close();
-    });
+        expect(stateA.slots, [tSlotAM]);
+        expect(stateB.slots, [tSlotPM]);
+        sub1.close();
+        sub2.close();
+      },
+    );
   });
 
   // ---------------------------------------------------------------------------
@@ -137,21 +176,29 @@ void main() {
   // ---------------------------------------------------------------------------
   group('selectSlot', () {
     setUp(() {
-      when(() => mockUseCase.call(
-            technicianId: any(named: 'technicianId'),
-            date: any(named: 'date'),
-            serviceId: any(named: 'serviceId'),
-            subServiceId: any(named: 'subServiceId'),
-          )).thenAnswer((_) async => [tSlotAM, tSlotPM]);
+      when(
+        () => mockUseCase.call(
+          technicianId: any(named: 'technicianId'),
+          date: any(named: 'date'),
+          serviceId: any(named: 'serviceId'),
+          subServiceId: any(named: 'subServiceId'),
+        ),
+      ).thenAnswer((_) async => [tSlotAM, tSlotPM]);
     });
 
     test('updates selectedSlot on current AsyncData state', () async {
       final sub = listen();
       await container.read(
-          availabilityProvider(technicianId: tTechnicianId, date: tDate).future);
+        availabilityProvider(technicianId: tTechnicianId, date: tDate).future,
+      );
 
       container
-          .read(availabilityProvider(technicianId: tTechnicianId, date: tDate).notifier)
+          .read(
+            availabilityProvider(
+              technicianId: tTechnicianId,
+              date: tDate,
+            ).notifier,
+          )
           .selectSlot(tSlotPM);
 
       final state = container
@@ -163,52 +210,72 @@ void main() {
       sub.close();
     });
 
-    test('selecting the same slot twice does not change state reference', () async {
-      final sub = listen();
-      await container.read(
-          availabilityProvider(technicianId: tTechnicianId, date: tDate).future);
+    test(
+      'selecting the same slot twice does not change state reference',
+      () async {
+        final sub = listen();
+        await container.read(
+          availabilityProvider(technicianId: tTechnicianId, date: tDate).future,
+        );
 
-      final notifier = container.read(
-          availabilityProvider(technicianId: tTechnicianId, date: tDate).notifier);
+        final notifier = container.read(
+          availabilityProvider(
+            technicianId: tTechnicianId,
+            date: tDate,
+          ).notifier,
+        );
 
-      notifier.selectSlot(tSlotAM);
-      final stateAfterFirst = container
-          .read(availabilityProvider(technicianId: tTechnicianId, date: tDate))
-          .requireValue;
+        notifier.selectSlot(tSlotAM);
+        final stateAfterFirst = container
+            .read(
+              availabilityProvider(technicianId: tTechnicianId, date: tDate),
+            )
+            .requireValue;
 
-      notifier.selectSlot(tSlotAM); // same slot — no-op
-      final stateAfterSecond = container
-          .read(availabilityProvider(technicianId: tTechnicianId, date: tDate))
-          .requireValue;
+        notifier.selectSlot(tSlotAM); // same slot — no-op
+        final stateAfterSecond = container
+            .read(
+              availabilityProvider(technicianId: tTechnicianId, date: tDate),
+            )
+            .requireValue;
 
-      // Freezed equality: same value object
-      expect(stateAfterFirst, stateAfterSecond);
-      sub.close();
-    });
+        // Freezed equality: same value object
+        expect(stateAfterFirst, stateAfterSecond);
+        sub.close();
+      },
+    );
 
     test('can change selected slot from one to another', () async {
       final sub = listen();
       await container.read(
-          availabilityProvider(technicianId: tTechnicianId, date: tDate).future);
+        availabilityProvider(technicianId: tTechnicianId, date: tDate).future,
+      );
 
       final notifier = container.read(
-          availabilityProvider(technicianId: tTechnicianId, date: tDate).notifier);
+        availabilityProvider(technicianId: tTechnicianId, date: tDate).notifier,
+      );
 
       notifier.selectSlot(tSlotAM);
       expect(
-          container
-              .read(availabilityProvider(technicianId: tTechnicianId, date: tDate))
-              .requireValue
-              .selectedSlot,
-          tSlotAM);
+        container
+            .read(
+              availabilityProvider(technicianId: tTechnicianId, date: tDate),
+            )
+            .requireValue
+            .selectedSlot,
+        tSlotAM,
+      );
 
       notifier.selectSlot(tSlotPM);
       expect(
-          container
-              .read(availabilityProvider(technicianId: tTechnicianId, date: tDate))
-              .requireValue
-              .selectedSlot,
-          tSlotPM);
+        container
+            .read(
+              availabilityProvider(technicianId: tTechnicianId, date: tDate),
+            )
+            .requireValue
+            .selectedSlot,
+        tSlotPM,
+      );
 
       sub.close();
     });

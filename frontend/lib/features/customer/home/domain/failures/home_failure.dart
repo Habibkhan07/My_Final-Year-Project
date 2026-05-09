@@ -8,7 +8,9 @@ sealed class HomeFailure implements Exception {
 
 /// Thrown when the device has no active internet connection.
 class HomeNetworkFailure extends HomeFailure {
-  const HomeNetworkFailure([super.message = "No internet connection. Please check your settings."]);
+  const HomeNetworkFailure([
+    super.message = "No internet connection. Please check your settings.",
+  ]);
 }
 
 /// Thrown when the backend returns a 500 error or is unreachable.

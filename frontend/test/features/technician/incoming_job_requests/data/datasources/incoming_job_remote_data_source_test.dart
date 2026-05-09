@@ -31,80 +31,70 @@ void main() {
 
   setUp(() {
     storage = _MockSecureStorage();
-    when(() => storage.read(key: any(named: 'key')))
-        .thenAnswer((_) async => 'test-token');
+    when(
+      () => storage.read(key: any(named: 'key')),
+    ).thenAnswer((_) async => 'test-token');
   });
 
   group('IncomingJobRemoteDataSource.acceptJobRequest', () {
-    test(
-      'POSTs to /api/bookings/<jobId>/accept/ with the auth header and an '
-      'empty JSON body',
-      () async {
-        final captured = _Captured();
-        final client = MockClient((request) async {
-          captured.request = request;
-          return http.Response('', 200);
-        });
+    test('POSTs to /api/bookings/<jobId>/accept/ with the auth header and an '
+        'empty JSON body', () async {
+      final captured = _Captured();
+      final client = MockClient((request) async {
+        captured.request = request;
+        return http.Response('', 200);
+      });
 
-        await _build(client: client, storage: storage)
-            .acceptJobRequest(99482);
+      await _build(client: client, storage: storage).acceptJobRequest(99482);
 
-        final req = captured.request!;
-        expect(req.method, 'POST');
-        expect(req.url.path, '/api/bookings/99482/accept/');
-        expect(req.headers['authorization'], 'Token test-token');
-        expect(req.headers['content-type'], contains('application/json'));
-        expect(req.body, jsonEncode(const <String, dynamic>{}));
-      },
-    );
+      final req = captured.request!;
+      expect(req.method, 'POST');
+      expect(req.url.path, '/api/bookings/99482/accept/');
+      expect(req.headers['authorization'], 'Token test-token');
+      expect(req.headers['content-type'], contains('application/json'));
+      expect(req.body, jsonEncode(const <String, dynamic>{}));
+    });
 
-    test(
-      '2xx response resolves the future without throwing — the wire body '
-      'is not parsed (we only care about success vs failure here)',
-      () async {
-        final client = MockClient(
-          (_) async => http.Response(
-            jsonEncode({'booking_id': 1, 'status': 'CONFIRMED'}),
-            200,
-          ),
-        );
-        await expectLater(
-          _build(client: client, storage: storage).acceptJobRequest(1),
-          completes,
-        );
-      },
-    );
+    test('2xx response resolves the future without throwing — the wire body '
+        'is not parsed (we only care about success vs failure here)', () async {
+      final client = MockClient(
+        (_) async => http.Response(
+          jsonEncode({'booking_id': 1, 'status': 'CONFIRMED'}),
+          200,
+        ),
+      );
+      await expectLater(
+        _build(client: client, storage: storage).acceptJobRequest(1),
+        completes,
+      );
+    });
 
-    test(
-      'Standard error envelope (status, code, message, errors) is parsed '
-      'into HttpFailure verbatim',
-      () async {
-        final client = MockClient(
-          (_) async => http.Response(
-            jsonEncode({
-              'status': 409,
-              'code': 'booking_no_longer_available',
-              'message': 'This job is no longer available.',
-              'errors': {
-                'current_status': ['REJECTED'],
-              },
-            }),
-            409,
-          ),
-        );
+    test('Standard error envelope (status, code, message, errors) is parsed '
+        'into HttpFailure verbatim', () async {
+      final client = MockClient(
+        (_) async => http.Response(
+          jsonEncode({
+            'status': 409,
+            'code': 'booking_no_longer_available',
+            'message': 'This job is no longer available.',
+            'errors': {
+              'current_status': ['REJECTED'],
+            },
+          }),
+          409,
+        ),
+      );
 
-        try {
-          await _build(client: client, storage: storage)
-              .acceptJobRequest(42);
-          fail('expected HttpFailure');
-        } on HttpFailure catch (e) {
-          expect(e.statusCode, 409);
-          expect(e.code, 'booking_no_longer_available');
-          expect(e.message, 'This job is no longer available.');
-          expect(e.errors['current_status'], ['REJECTED']);
-        }
-      },
-    );
+      try {
+        await _build(client: client, storage: storage).acceptJobRequest(42);
+        fail('expected HttpFailure');
+      } on HttpFailure catch (e) {
+        expect(e.statusCode, 409);
+        expect(e.code, 'booking_no_longer_available');
+        expect(e.message, 'This job is no longer available.');
+        expect(e.errors['current_status'], ['REJECTED']);
+      }
+    });
 
     test('404 envelope is parsed into HttpFailure(404, not_found)', () async {
       final client = MockClient(
@@ -127,29 +117,27 @@ void main() {
       }
     });
 
-    test(
-      'Non-JSON 5xx body falls back to a synthetic server_error HttpFailure '
-      '(server may have crashed before envelope rendering)',
-      () async {
-        final client = MockClient(
-          (_) async => http.Response('<html>Bad Gateway</html>', 502),
-        );
-        try {
-          await _build(client: client, storage: storage).acceptJobRequest(7);
-          fail('expected HttpFailure');
-        } on HttpFailure catch (e) {
-          expect(e.statusCode, 502);
-          expect(e.code, 'server_error');
-        }
-      },
-    );
+    test('Non-JSON 5xx body falls back to a synthetic server_error HttpFailure '
+        '(server may have crashed before envelope rendering)', () async {
+      final client = MockClient(
+        (_) async => http.Response('<html>Bad Gateway</html>', 502),
+      );
+      try {
+        await _build(client: client, storage: storage).acceptJobRequest(7);
+        fail('expected HttpFailure');
+      } on HttpFailure catch (e) {
+        expect(e.statusCode, 502);
+        expect(e.code, 'server_error');
+      }
+    });
 
     test(
       'Missing auth token still POSTs (no Authorization header attached) '
       '— the server will surface a 401 envelope which the repository maps',
       () async {
-        when(() => storage.read(key: any(named: 'key')))
-            .thenAnswer((_) async => null);
+        when(
+          () => storage.read(key: any(named: 'key')),
+        ).thenAnswer((_) async => null);
         final captured = _Captured();
         final client = MockClient((request) async {
           captured.request = request;

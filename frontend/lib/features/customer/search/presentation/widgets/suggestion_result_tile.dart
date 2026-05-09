@@ -39,7 +39,11 @@ class SuggestionResultTile extends StatelessWidget {
           ],
         ),
       ),
-      trailing: const Icon(Icons.arrow_outward, color: Color(0xFFD1D5DB), size: 20),
+      trailing: const Icon(
+        Icons.arrow_outward,
+        color: Color(0xFFD1D5DB),
+        size: 20,
+      ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16),
     );
   }

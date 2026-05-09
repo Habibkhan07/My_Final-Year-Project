@@ -32,22 +32,22 @@ abstract class TechnicianModel with _$TechnicianModel {
   const TechnicianModel._();
 
   DiscoveryTechnicianEntity toEntity() => DiscoveryTechnicianEntity(
-        id: id,
-        fullName: fullName,
-        primaryCategory: primaryCategory,
-        city: city,
-        profilePicture: profilePicture,
-        ratingAverage: ratingAverage,
-        reviewCount: reviewCount,
-        distanceKm: distanceKm,
-        bayesianScore: bayesianScore,
-        isActive: isActive,
-        uiRatingText: uiRatingText,
-        primaryPrice: primaryPrice,
-        priceContext: priceContext,
-        promoTag: promoTag,
-        uiSubtitleText: uiSubtitleText,
-      );
+    id: id,
+    fullName: fullName,
+    primaryCategory: primaryCategory,
+    city: city,
+    profilePicture: profilePicture,
+    ratingAverage: ratingAverage,
+    reviewCount: reviewCount,
+    distanceKm: distanceKm,
+    bayesianScore: bayesianScore,
+    isActive: isActive,
+    uiRatingText: uiRatingText,
+    primaryPrice: primaryPrice,
+    priceContext: priceContext,
+    promoTag: promoTag,
+    uiSubtitleText: uiSubtitleText,
+  );
 }
 
 @freezed
@@ -68,12 +68,12 @@ abstract class DiscoveryResultModel with _$DiscoveryResultModel {
   const DiscoveryResultModel._();
 
   DiscoveryResultEntity toEntity() => DiscoveryResultEntity(
-        count: count,
-        next: next,
-        previous: previous,
-        uiPromoBannerText: uiPromoBannerText,
-        resolvedServiceId: resolvedServiceId,
-        resolvedSubServiceId: resolvedSubServiceId,
-        results: results.map((e) => e.toEntity()).toList(),
-      );
+    count: count,
+    next: next,
+    previous: previous,
+    uiPromoBannerText: uiPromoBannerText,
+    resolvedServiceId: resolvedServiceId,
+    resolvedSubServiceId: resolvedSubServiceId,
+    results: results.map((e) => e.toEntity()).toList(),
+  );
 }

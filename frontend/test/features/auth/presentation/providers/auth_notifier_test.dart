@@ -25,12 +25,17 @@ import 'package:frontend/features/auth/presentation/providers/auth_state.dart';
 import 'package:frontend/features/auth/presentation/providers/dependency_injection.dart';
 
 class MockAuthRepository extends Mock implements AuthRepository {}
+
 class MockRequestOtpUseCase extends Mock implements RequestOtpUseCase {}
+
 class MockVerifyOtpUseCase extends Mock implements VerifyOtpUseCase {}
+
 class MockCompleteSignupUseCase extends Mock implements CompleteSignupUseCase {}
+
 class FakeUserEntity extends Fake implements UserEntity {}
 
 class _MockFcmHandler extends Mock implements FCMHandler {}
+
 class _MockEventLocal extends Mock implements EventLocalDataSource {}
 
 /// Records `connect`/`disconnect` calls so boot/teardown bridge tests can
@@ -158,20 +163,31 @@ void main() {
   // ---------------------------------------------------------------------------
 
   group('build', () {
-    test('initial state is AsyncData(AuthState()) when no cached session', () async {
-      await container.read(authProvider.future);
-      expect(container.read(authProvider), const AsyncData(AuthState()));
-    });
+    test(
+      'initial state is AsyncData(AuthState()) when no cached session',
+      () async {
+        await container.read(authProvider.future);
+        expect(container.read(authProvider), const AsyncData(AuthState()));
+      },
+    );
 
     test('initial state contains cached user when session exists', () async {
-      const cachedUser = UserEntity(phone: tPhone, token: tToken, nameRequired: false);
+      const cachedUser = UserEntity(
+        phone: tPhone,
+        token: tToken,
+        nameRequired: false,
+      );
       final mockRepoWithUser = MockAuthRepository();
-      when(() => mockRepoWithUser.getCachedUser()).thenAnswer((_) async => cachedUser);
+      when(
+        () => mockRepoWithUser.getCachedUser(),
+      ).thenAnswer((_) async => cachedUser);
 
-      final c = ProviderContainer(overrides: [
-        authRepositoryProvider.overrideWithValue(mockRepoWithUser),
-        ...silentRealtimeOverrides(),
-      ]);
+      final c = ProviderContainer(
+        overrides: [
+          authRepositoryProvider.overrideWithValue(mockRepoWithUser),
+          ...silentRealtimeOverrides(),
+        ],
+      );
       addTearDown(c.dispose);
 
       await c.read(authProvider.future);
@@ -184,59 +200,83 @@ void main() {
   // ---------------------------------------------------------------------------
 
   group('requestOtp', () {
-    test('emits AsyncLoading then AsyncData with successMessage on success', () async {
-      await container.read(authProvider.future);
-      when(() => mockRequestOtp.execute(tPhone)).thenAnswer((_) async => 'OTP Sent');
+    test(
+      'emits AsyncLoading then AsyncData with successMessage on success',
+      () async {
+        await container.read(authProvider.future);
+        when(
+          () => mockRequestOtp.execute(tPhone),
+        ).thenAnswer((_) async => 'OTP Sent');
 
-      final listener = Listener<AsyncValue<AuthState>>();
-      container.listen(authProvider, listener.call, fireImmediately: false);
+        final listener = Listener<AsyncValue<AuthState>>();
+        container.listen(authProvider, listener.call, fireImmediately: false);
 
-      final future = container.read(authProvider.notifier).requestOtp(tPhone);
+        final future = container.read(authProvider.notifier).requestOtp(tPhone);
 
-      verify(() => listener.call(
-        const AsyncData(AuthState()),
-        any(that: isA<AsyncLoading<AuthState>>()),
-      )).called(1);
+        verify(
+          () => listener.call(
+            const AsyncData(AuthState()),
+            any(that: isA<AsyncLoading<AuthState>>()),
+          ),
+        ).called(1);
 
-      await future;
+        await future;
 
-      verify(() => listener.call(
-        any(that: isA<AsyncLoading<AuthState>>()),
-        const AsyncData(AuthState(successMessage: 'OTP Sent')),
-      )).called(1);
+        verify(
+          () => listener.call(
+            any(that: isA<AsyncLoading<AuthState>>()),
+            const AsyncData(AuthState(successMessage: 'OTP Sent')),
+          ),
+        ).called(1);
 
-      expect(container.read(authProvider),
-          const AsyncData(AuthState(successMessage: 'OTP Sent')));
-    });
+        expect(
+          container.read(authProvider),
+          const AsyncData(AuthState(successMessage: 'OTP Sent')),
+        );
+      },
+    );
 
-    test('emits AsyncError with InvalidInput on SMS delivery failure', () async {
-      await container.read(authProvider.future);
-      when(() => mockRequestOtp.execute(tPhone)).thenThrow(
-        const InvalidInput('Failed to send OTP via SMS: test error', {}),
-      );
+    test(
+      'emits AsyncError with InvalidInput on SMS delivery failure',
+      () async {
+        await container.read(authProvider.future);
+        when(() => mockRequestOtp.execute(tPhone)).thenThrow(
+          const InvalidInput('Failed to send OTP via SMS: test error', {}),
+        );
 
-      await container.read(authProvider.notifier).requestOtp(tPhone);
+        await container.read(authProvider.notifier).requestOtp(tPhone);
 
-      final state = container.read(authProvider);
-      expect(state, isA<AsyncError<AuthState>>());
-      expect(state.error, isA<InvalidInput>());
-      expect((state.error as InvalidInput).message, contains('Failed to send OTP'));
-    });
+        final state = container.read(authProvider);
+        expect(state, isA<AsyncError<AuthState>>());
+        expect(state.error, isA<InvalidInput>());
+        expect(
+          (state.error as InvalidInput).message,
+          contains('Failed to send OTP'),
+        );
+      },
+    );
 
-    test('emits AsyncError with InvalidInput on phone validation failure', () async {
-      await container.read(authProvider.future);
-      final errors = {'phone': ['Enter a valid Pakistani mobile number.']};
-      when(() => mockRequestOtp.execute(tPhone)).thenThrow(
-        InvalidInput('Invalid input data.', errors),
-      );
+    test(
+      'emits AsyncError with InvalidInput on phone validation failure',
+      () async {
+        await container.read(authProvider.future);
+        final errors = {
+          'phone': ['Enter a valid Pakistani mobile number.'],
+        };
+        when(
+          () => mockRequestOtp.execute(tPhone),
+        ).thenThrow(InvalidInput('Invalid input data.', errors));
 
-      await container.read(authProvider.notifier).requestOtp(tPhone);
+        await container.read(authProvider.notifier).requestOtp(tPhone);
 
-      final state = container.read(authProvider);
-      expect(state.error, isA<InvalidInput>());
-      expect((state.error as InvalidInput).errors['phone']?.first,
-          'Enter a valid Pakistani mobile number.');
-    });
+        final state = container.read(authProvider);
+        expect(state.error, isA<InvalidInput>());
+        expect(
+          (state.error as InvalidInput).errors['phone']?.first,
+          'Enter a valid Pakistani mobile number.',
+        );
+      },
+    );
   });
 
   // ---------------------------------------------------------------------------
@@ -253,7 +293,9 @@ void main() {
 
     test('emits AsyncData with user on success', () async {
       await container.read(authProvider.future);
-      when(() => mockVerifyOtp.execute(tPhone, tOtp)).thenAnswer((_) async => tUser);
+      when(
+        () => mockVerifyOtp.execute(tPhone, tOtp),
+      ).thenAnswer((_) async => tUser);
 
       await container.read(authProvider.notifier).verifyOtp(tPhone, tOtp);
 
@@ -262,30 +304,34 @@ void main() {
       expect(state.value?.user?.token, tToken);
     });
 
-    test('emits AsyncError with InvalidInput on wrong OTP — message and field errors both set', () async {
-      await container.read(authProvider.future);
-      final errors = {'otp': ['Invalid OTP.']};
-      // Fixed: InvalidInput now takes (message, errors) — was single-arg before
-      when(() => mockVerifyOtp.execute(tPhone, tOtp)).thenThrow(
-        InvalidInput('Invalid OTP.', errors),
-      );
+    test(
+      'emits AsyncError with InvalidInput on wrong OTP — message and field errors both set',
+      () async {
+        await container.read(authProvider.future);
+        final errors = {
+          'otp': ['Invalid OTP.'],
+        };
+        // Fixed: InvalidInput now takes (message, errors) — was single-arg before
+        when(
+          () => mockVerifyOtp.execute(tPhone, tOtp),
+        ).thenThrow(InvalidInput('Invalid OTP.', errors));
 
-      await container.read(authProvider.notifier).verifyOtp(tPhone, tOtp);
+        await container.read(authProvider.notifier).verifyOtp(tPhone, tOtp);
 
-      final state = container.read(authProvider);
-      expect(state, isA<AsyncError<AuthState>>());
-      final failure = state.error as InvalidInput;
-      expect(failure.message, 'Invalid OTP.');
-      expect(failure.errors, errors);
-    });
+        final state = container.read(authProvider);
+        expect(state, isA<AsyncError<AuthState>>());
+        final failure = state.error as InvalidInput;
+        expect(failure.message, 'Invalid OTP.');
+        expect(failure.errors, errors);
+      },
+    );
 
     test('emits AsyncError with InvalidInput when OTP has expired', () async {
       await container.read(authProvider.future);
       when(() => mockVerifyOtp.execute(tPhone, tOtp)).thenThrow(
-        const InvalidInput(
-          'OTP has expired. Please request a new one.',
-          {'otp': ['OTP has expired. Please request a new one.']},
-        ),
+        const InvalidInput('OTP has expired. Please request a new one.', {
+          'otp': ['OTP has expired. Please request a new one.'],
+        }),
       );
 
       await container.read(authProvider.notifier).verifyOtp(tPhone, tOtp);
@@ -308,31 +354,38 @@ void main() {
 
     ProviderContainer makeContainerWithUser() {
       final mockRepoWithUser = MockAuthRepository();
-      when(() => mockRepoWithUser.getCachedUser())
-          .thenAnswer((_) async => tUserWithToken);
+      when(
+        () => mockRepoWithUser.getCachedUser(),
+      ).thenAnswer((_) async => tUserWithToken);
       when(() => mockRepoWithUser.persistUser(any())).thenAnswer((_) async {});
 
-      return ProviderContainer(overrides: [
-        authRepositoryProvider.overrideWithValue(mockRepoWithUser),
-        completeSignupUseCaseProvider.overrideWithValue(mockCompleteSignup),
-        ...silentRealtimeOverrides(),
-      ]);
+      return ProviderContainer(
+        overrides: [
+          authRepositoryProvider.overrideWithValue(mockRepoWithUser),
+          completeSignupUseCaseProvider.overrideWithValue(mockCompleteSignup),
+          ...silentRealtimeOverrides(),
+        ],
+      );
     }
 
-    test('emits AsyncData with updated user and successMessage on success', () async {
-      final c = makeContainerWithUser();
-      addTearDown(c.dispose);
-      await c.read(authProvider.future);
+    test(
+      'emits AsyncData with updated user and successMessage on success',
+      () async {
+        final c = makeContainerWithUser();
+        addTearDown(c.dispose);
+        await c.read(authProvider.future);
 
-      when(() => mockCompleteSignup.execute('Ali', 'Raza', tToken))
-          .thenAnswer((_) async => 'Profile updated successfully.');
+        when(
+          () => mockCompleteSignup.execute('Ali', 'Raza', tToken),
+        ).thenAnswer((_) async => 'Profile updated successfully.');
 
-      await c.read(authProvider.notifier).completeSignup('Ali', 'Raza');
+        await c.read(authProvider.notifier).completeSignup('Ali', 'Raza');
 
-      final state = c.read(authProvider);
-      expect(state.value?.successMessage, 'Profile updated successfully.');
-      expect(state.value?.user?.nameRequired, false);
-    });
+        final state = c.read(authProvider);
+        expect(state.value?.successMessage, 'Profile updated successfully.');
+        expect(state.value?.user?.nameRequired, false);
+      },
+    );
 
     test('emits AsyncError with Unauthorized when token is missing', () async {
       // Container with no cached user → token will be null
@@ -356,13 +409,17 @@ void main() {
         nameRequired: true,
       );
       final mockRepoWithUser = MockAuthRepository();
-      when(() => mockRepoWithUser.getCachedUser()).thenAnswer((_) async => initialUser);
+      when(
+        () => mockRepoWithUser.getCachedUser(),
+      ).thenAnswer((_) async => initialUser);
       when(() => mockRepoWithUser.persistUser(any())).thenAnswer((_) async {});
 
-      final c = ProviderContainer(overrides: [
-        authRepositoryProvider.overrideWithValue(mockRepoWithUser),
-        ...silentRealtimeOverrides(),
-      ]);
+      final c = ProviderContainer(
+        overrides: [
+          authRepositoryProvider.overrideWithValue(mockRepoWithUser),
+          ...silentRealtimeOverrides(),
+        ],
+      );
       addTearDown(c.dispose);
       await c.read(authProvider.future);
 
@@ -379,9 +436,9 @@ void main() {
       expect(finalState.value?.user?.nameRequired, false);
 
       // Must never transition through AsyncLoading
-      verifyNever(() => listener.call(
-        any(), any(that: isA<AsyncLoading<AuthState>>()),
-      ));
+      verifyNever(
+        () => listener.call(any(), any(that: isA<AsyncLoading<AuthState>>())),
+      );
     });
   });
 
@@ -390,15 +447,18 @@ void main() {
   // ---------------------------------------------------------------------------
 
   group('logout', () {
-    test('clears state to AsyncData(AuthState()) and calls repository.logout', () async {
-      when(() => mockRepo.logout()).thenAnswer((_) async {});
-      await container.read(authProvider.future);
+    test(
+      'clears state to AsyncData(AuthState()) and calls repository.logout',
+      () async {
+        when(() => mockRepo.logout()).thenAnswer((_) async {});
+        await container.read(authProvider.future);
 
-      await container.read(authProvider.notifier).logout();
+        await container.read(authProvider.notifier).logout();
 
-      expect(container.read(authProvider), const AsyncData(AuthState()));
-      verify(() => mockRepo.logout()).called(1);
-    });
+        expect(container.read(authProvider), const AsyncData(AuthState()));
+        verify(() => mockRepo.logout()).called(1);
+      },
+    );
   });
 
   // ---------------------------------------------------------------------------
@@ -434,8 +494,9 @@ void main() {
     /// observe their state.
     void seedBridgeContainer({UserEntity? cachedUser}) {
       bridgeRepo = MockAuthRepository();
-      when(() => bridgeRepo.getCachedUser())
-          .thenAnswer((_) async => cachedUser);
+      when(
+        () => bridgeRepo.getCachedUser(),
+      ).thenAnswer((_) async => cachedUser);
       when(() => bridgeRepo.logout()).thenAnswer((_) async {});
 
       bridgeVerifyOtp = MockVerifyOtpUseCase();
@@ -449,30 +510,36 @@ void main() {
       // the recording fake bypasses it, but stub anyway in case the chain
       // reaches the local data source via teardown's clear* calls.
       when(() => bridgeLocal.getLastSyncTimestamp()).thenReturn(null);
-      when(() => bridgeLocal.clearLastSyncTimestamp())
-          .thenAnswer((_) async {});
+      when(() => bridgeLocal.clearLastSyncTimestamp()).thenAnswer((_) async {});
       when(() => bridgeLocal.clearCachedEvents()).thenAnswer((_) async {});
       when(() => bridgeLocal.clearPendingAcks()).thenAnswer((_) async {});
 
-      bridgeContainer = ProviderContainer(overrides: [
-        authRepositoryProvider.overrideWithValue(bridgeRepo),
-        verifyOtpUseCaseProvider.overrideWithValue(bridgeVerifyOtp),
-        // Empty registry keeps the bridge tests narrow — feature wake-ups
-        // are exercised in the orchestrator's own test file.
-        realtimeBootHooksProvider.overrideWith((ref) => const []),
-        realtime_di.fcmHandlerProvider.overrideWithValue(bridgeFcm),
-        realtime_di.eventLocalDataSourceProvider.overrideWithValue(bridgeLocal),
-        eventSyncProvider.overrideWith(_RecordingEventSyncNotifier.new),
-        wsConnectionProvider.overrideWith(_RecordingWsNotifier.new),
-        systemEventProvider.overrideWith(_RecordingSystemEventNotifier.new),
-      ]);
+      bridgeContainer = ProviderContainer(
+        overrides: [
+          authRepositoryProvider.overrideWithValue(bridgeRepo),
+          verifyOtpUseCaseProvider.overrideWithValue(bridgeVerifyOtp),
+          // Empty registry keeps the bridge tests narrow — feature wake-ups
+          // are exercised in the orchestrator's own test file.
+          realtimeBootHooksProvider.overrideWith((ref) => const []),
+          realtime_di.fcmHandlerProvider.overrideWithValue(bridgeFcm),
+          realtime_di.eventLocalDataSourceProvider.overrideWithValue(
+            bridgeLocal,
+          ),
+          eventSyncProvider.overrideWith(_RecordingEventSyncNotifier.new),
+          wsConnectionProvider.overrideWith(_RecordingWsNotifier.new),
+          systemEventProvider.overrideWith(_RecordingSystemEventNotifier.new),
+        ],
+      );
 
-      bridgeWs = bridgeContainer.read(wsConnectionProvider.notifier)
-          as _RecordingWsNotifier;
-      bridgeEventSync = bridgeContainer.read(eventSyncProvider.notifier)
-          as _RecordingEventSyncNotifier;
-      bridgeSystemEvent = bridgeContainer.read(systemEventProvider.notifier)
-          as _RecordingSystemEventNotifier;
+      bridgeWs =
+          bridgeContainer.read(wsConnectionProvider.notifier)
+              as _RecordingWsNotifier;
+      bridgeEventSync =
+          bridgeContainer.read(eventSyncProvider.notifier)
+              as _RecordingEventSyncNotifier;
+      bridgeSystemEvent =
+          bridgeContainer.read(systemEventProvider.notifier)
+              as _RecordingSystemEventNotifier;
     }
 
     tearDown(() => bridgeContainer.dispose());
@@ -493,8 +560,11 @@ void main() {
         // Drain microtasks so the unawaited boot future runs to completion.
         await pumpEventQueue();
 
-        expect(bridgeWs.connectCalls, [tToken],
-            reason: 'boot must reach WS.connect with the cached token');
+        expect(
+          bridgeWs.connectCalls,
+          [tToken],
+          reason: 'boot must reach WS.connect with the cached token',
+        );
         verify(() => bridgeFcm.initialize()).called(1);
         // onUnauthorized is set exactly once by boot; no teardown happened
         // here, so it is still non-null at the end.
@@ -555,8 +625,9 @@ void main() {
           token: tToken,
           nameRequired: true,
         );
-        when(() => bridgeVerifyOtp.execute(tPhone, tOtp))
-            .thenAnswer((_) async => verified);
+        when(
+          () => bridgeVerifyOtp.execute(tPhone, tOtp),
+        ).thenAnswer((_) async => verified);
 
         await bridgeContainer.read(authProvider.future);
         await bridgeContainer
@@ -568,115 +639,125 @@ void main() {
         verify(() => bridgeFcm.initialize()).called(1);
       });
 
-      test('AB6 — successful verify with null token does NOT fire boot',
-          () async {
-        seedBridgeContainer();
-        const verified = UserEntity(
-          phone: tPhone,
-          token: null,
-          nameRequired: true,
-        );
-        when(() => bridgeVerifyOtp.execute(tPhone, tOtp))
-            .thenAnswer((_) async => verified);
+      test(
+        'AB6 — successful verify with null token does NOT fire boot',
+        () async {
+          seedBridgeContainer();
+          const verified = UserEntity(
+            phone: tPhone,
+            token: null,
+            nameRequired: true,
+          );
+          when(
+            () => bridgeVerifyOtp.execute(tPhone, tOtp),
+          ).thenAnswer((_) async => verified);
 
-        await bridgeContainer.read(authProvider.future);
-        await bridgeContainer
-            .read(authProvider.notifier)
-            .verifyOtp(tPhone, tOtp);
-        await pumpEventQueue();
+          await bridgeContainer.read(authProvider.future);
+          await bridgeContainer
+              .read(authProvider.notifier)
+              .verifyOtp(tPhone, tOtp);
+          await pumpEventQueue();
 
-        expect(bridgeWs.connectCalls, isEmpty);
-        // Auth state still lands successfully — only the bridge short-circuits.
-        expect(bridgeContainer.read(authProvider).value?.user?.phone, tPhone);
-      });
+          expect(bridgeWs.connectCalls, isEmpty);
+          // Auth state still lands successfully — only the bridge short-circuits.
+          expect(bridgeContainer.read(authProvider).value?.user?.phone, tPhone);
+        },
+      );
     });
 
     // ─── logout() ────────────────────────────────────────────────────────
 
     group('logout (teardown bridge)', () {
-      test('AB7 — teardown runs BEFORE repository.logout (ordering invariant)',
-          () async {
-        const cached = UserEntity(
-          phone: tPhone,
-          token: tToken,
-          nameRequired: false,
-        );
-        seedBridgeContainer(cachedUser: cached);
-        await bridgeContainer.read(authProvider.future);
-        await pumpEventQueue();
+      test(
+        'AB7 — teardown runs BEFORE repository.logout (ordering invariant)',
+        () async {
+          const cached = UserEntity(
+            phone: tPhone,
+            token: tToken,
+            nameRequired: false,
+          );
+          seedBridgeContainer(cachedUser: cached);
+          await bridgeContainer.read(authProvider.future);
+          await pumpEventQueue();
 
-        // Pre-condition: boot fired, so onUnauthorized is non-null.
-        expect(bridgeEventSync.onUnauthorizedHistory.last, isNotNull);
-        clearInteractions(bridgeFcm);
-        clearInteractions(bridgeLocal);
-        clearInteractions(bridgeRepo);
+          // Pre-condition: boot fired, so onUnauthorized is non-null.
+          expect(bridgeEventSync.onUnauthorizedHistory.last, isNotNull);
+          clearInteractions(bridgeFcm);
+          clearInteractions(bridgeLocal);
+          clearInteractions(bridgeRepo);
 
-        await bridgeContainer.read(authProvider.notifier).logout();
+          await bridgeContainer.read(authProvider.notifier).logout();
 
-        // Strict ordering — performTeardown's documented sequence, then
-        // repository.logout LAST. mocktail's verifyInOrder catches a swap
-        // (which would silently break server-side device-unregister, the
-        // whole reason ordering matters).
-        verifyInOrder([
-          () => bridgeFcm.unregister(),
-          () => bridgeLocal.clearLastSyncTimestamp(),
-          () => bridgeLocal.clearCachedEvents(),
-          () => bridgeLocal.clearPendingAcks(),
-          () => bridgeRepo.logout(),
-        ]);
-        // WS disconnect and systemEvent reset are recorded on the fakes,
-        // not on mocktail mocks — assert via the recorders.
-        expect(bridgeWs.disconnectCount, 1);
-        expect(bridgeSystemEvent.resetCount, 1);
-        // onUnauthorized was set (by boot) then nulled (by teardown).
-        expect(bridgeEventSync.onUnauthorizedHistory.last, isNull);
-        // Final state.
-        expect(bridgeContainer.read(authProvider),
-            const AsyncData(AuthState()));
-      });
+          // Strict ordering — performTeardown's documented sequence, then
+          // repository.logout LAST. mocktail's verifyInOrder catches a swap
+          // (which would silently break server-side device-unregister, the
+          // whole reason ordering matters).
+          verifyInOrder([
+            () => bridgeFcm.unregister(),
+            () => bridgeLocal.clearLastSyncTimestamp(),
+            () => bridgeLocal.clearCachedEvents(),
+            () => bridgeLocal.clearPendingAcks(),
+            () => bridgeRepo.logout(),
+          ]);
+          // WS disconnect and systemEvent reset are recorded on the fakes,
+          // not on mocktail mocks — assert via the recorders.
+          expect(bridgeWs.disconnectCount, 1);
+          expect(bridgeSystemEvent.resetCount, 1);
+          // onUnauthorized was set (by boot) then nulled (by teardown).
+          expect(bridgeEventSync.onUnauthorizedHistory.last, isNull);
+          // Final state.
+          expect(
+            bridgeContainer.read(authProvider),
+            const AsyncData(AuthState()),
+          );
+        },
+      );
 
-      test('AB8 — second concurrent logout call no-ops via isLoading guard',
-          () async {
-        const cached = UserEntity(
-          phone: tPhone,
-          token: tToken,
-          nameRequired: false,
-        );
-        seedBridgeContainer(cachedUser: cached);
-        await bridgeContainer.read(authProvider.future);
-        await pumpEventQueue();
-        clearInteractions(bridgeFcm);
-        clearInteractions(bridgeRepo);
-        bridgeWs.disconnectCount = 0;
-        bridgeSystemEvent.resetCount = 0;
+      test(
+        'AB8 — second concurrent logout call no-ops via isLoading guard',
+        () async {
+          const cached = UserEntity(
+            phone: tPhone,
+            token: tToken,
+            nameRequired: false,
+          );
+          seedBridgeContainer(cachedUser: cached);
+          await bridgeContainer.read(authProvider.future);
+          await pumpEventQueue();
+          clearInteractions(bridgeFcm);
+          clearInteractions(bridgeRepo);
+          bridgeWs.disconnectCount = 0;
+          bridgeSystemEvent.resetCount = 0;
 
-        // Block teardown so the first logout is in-flight when the second
-        // call fires; without the isLoading guard, the second would race the
-        // first into a parallel teardown + repository.logout.
-        final blocker = Completer<void>();
-        when(() => bridgeFcm.unregister())
-            .thenAnswer((_) => blocker.future);
+          // Block teardown so the first logout is in-flight when the second
+          // call fires; without the isLoading guard, the second would race the
+          // first into a parallel teardown + repository.logout.
+          final blocker = Completer<void>();
+          when(() => bridgeFcm.unregister()).thenAnswer((_) => blocker.future);
 
-        final firstFuture =
-            bridgeContainer.read(authProvider.notifier).logout();
-        // Yield so first call enters AsyncLoading and awaits unregister.
-        await pumpEventQueue();
+          final firstFuture = bridgeContainer
+              .read(authProvider.notifier)
+              .logout();
+          // Yield so first call enters AsyncLoading and awaits unregister.
+          await pumpEventQueue();
 
-        // Second call should early-return because state.isLoading is true.
-        final secondFuture =
-            bridgeContainer.read(authProvider.notifier).logout();
-        await secondFuture;
+          // Second call should early-return because state.isLoading is true.
+          final secondFuture = bridgeContainer
+              .read(authProvider.notifier)
+              .logout();
+          await secondFuture;
 
-        // Unblock and finish the first call.
-        blocker.complete();
-        await firstFuture;
+          // Unblock and finish the first call.
+          blocker.complete();
+          await firstFuture;
 
-        // Each teardown step ran exactly once — guard held.
-        verify(() => bridgeFcm.unregister()).called(1);
-        verify(() => bridgeRepo.logout()).called(1);
-        expect(bridgeWs.disconnectCount, 1);
-        expect(bridgeSystemEvent.resetCount, 1);
-      });
+          // Each teardown step ran exactly once — guard held.
+          verify(() => bridgeFcm.unregister()).called(1);
+          verify(() => bridgeRepo.logout()).called(1);
+          expect(bridgeWs.disconnectCount, 1);
+          expect(bridgeSystemEvent.resetCount, 1);
+        },
+      );
     });
   });
 }

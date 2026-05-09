@@ -30,8 +30,9 @@ void main() {
 
   test('cache → read round-trip returns the same model', () async {
     final ds = await newDs();
-    final original =
-        BookingDetailModel.fromJson(bookingDetailJson(id: 42, customerId: 7));
+    final original = BookingDetailModel.fromJson(
+      bookingDetailJson(id: 42, customerId: 7),
+    );
 
     await ds.cache(42, original);
     final out = await ds.read(42);
@@ -62,30 +63,34 @@ void main() {
     await ds.clear(999);
   });
 
-  test('corrupted entry returns null instead of throwing (#B-16/#B-17)',
-      () async {
-    // Simulate schema drift / partial write — the repository depends
-    // on this null fallback to short-circuit to BookingDetailOfflineNoCache
-    // instead of bubbling a JSON parse error to the screen.
-    SharedPreferences.setMockInitialValues({
-      'orchestrator_booking_detail_v1_42': '{not valid json',
-    });
-    final prefs = await SharedPreferences.getInstance();
-    final ds = BookingDetailLocalDataSource(prefs);
+  test(
+    'corrupted entry returns null instead of throwing (#B-16/#B-17)',
+    () async {
+      // Simulate schema drift / partial write — the repository depends
+      // on this null fallback to short-circuit to BookingDetailOfflineNoCache
+      // instead of bubbling a JSON parse error to the screen.
+      SharedPreferences.setMockInitialValues({
+        'orchestrator_booking_detail_v1_42': '{not valid json',
+      });
+      final prefs = await SharedPreferences.getInstance();
+      final ds = BookingDetailLocalDataSource(prefs);
 
-    expect(await ds.read(42), isNull);
-  });
+      expect(await ds.read(42), isNull);
+    },
+  );
 
-  test('cache key uses orchestrator_booking_detail_v1_ prefix (contract)',
-      () async {
-    // The `_v1_` segment is the schema-bump escape hatch — bumping it
-    // invalidates every cached row in one shot. Pin the exact prefix.
-    final ds = await newDs();
-    await ds.cache(42, BookingDetailModel.fromJson(bookingDetailJson()));
-    final prefs = await SharedPreferences.getInstance();
-    final keys = prefs.getKeys();
-    expect(keys, contains('orchestrator_booking_detail_v1_42'));
-  });
+  test(
+    'cache key uses orchestrator_booking_detail_v1_ prefix (contract)',
+    () async {
+      // The `_v1_` segment is the schema-bump escape hatch — bumping it
+      // invalidates every cached row in one shot. Pin the exact prefix.
+      final ds = await newDs();
+      await ds.cache(42, BookingDetailModel.fromJson(bookingDetailJson()));
+      final prefs = await SharedPreferences.getInstance();
+      final keys = prefs.getKeys();
+      expect(keys, contains('orchestrator_booking_detail_v1_42'));
+    },
+  );
 
   test('cache writes JSON-encoded payload (re-decodable as Map)', () async {
     // Sanity: the repository expects to call `BookingDetailModel.fromJson`

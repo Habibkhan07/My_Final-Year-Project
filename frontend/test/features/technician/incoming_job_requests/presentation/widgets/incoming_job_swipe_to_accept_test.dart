@@ -89,8 +89,9 @@ Future<void> _pumpSwipe(
 
 void main() {
   group('IncomingJobSwipeToAccept — render', () {
-    testWidgets('caption renders the formatted payout (Rs. 1,800)',
-        (tester) async {
+    testWidgets('caption renders the formatted payout (Rs. 1,800)', (
+      tester,
+    ) async {
       await _pumpSwipe(
         tester,
         expiresAt: DateTime.now().add(const Duration(minutes: 5)),
@@ -119,8 +120,9 @@ void main() {
   });
 
   group('IncomingJobSwipeToAccept — gestures', () {
-    testWidgets('drag past 80% of the runway fires onAccept exactly once',
-        (tester) async {
+    testWidgets('drag past 80% of the runway fires onAccept exactly once', (
+      tester,
+    ) async {
       var acceptCount = 0;
       await _pumpSwipe(
         tester,
@@ -132,8 +134,13 @@ void main() {
 
       // Find the swipe widget's center for gesture origin. The thumb starts
       // near the left edge; we anchor the gesture there and drag right.
-      final pillCenter = tester.getCenter(find.byType(IncomingJobSwipeToAccept));
-      final thumbStart = Offset(pillCenter.dx - _kPillWidth / 2 + 36, pillCenter.dy);
+      final pillCenter = tester.getCenter(
+        find.byType(IncomingJobSwipeToAccept),
+      );
+      final thumbStart = Offset(
+        pillCenter.dx - _kPillWidth / 2 + 36,
+        pillCenter.dy,
+      );
 
       final gesture = await tester.startGesture(thumbStart);
       // Drag well past 80% of ~328dp runway.
@@ -146,8 +153,9 @@ void main() {
       expect(acceptCount, 1);
     });
 
-    testWidgets('drag short of the threshold does NOT fire onAccept',
-        (tester) async {
+    testWidgets('drag short of the threshold does NOT fire onAccept', (
+      tester,
+    ) async {
       var acceptCount = 0;
       await _pumpSwipe(
         tester,
@@ -157,8 +165,13 @@ void main() {
         onExpire: () {},
       );
 
-      final pillCenter = tester.getCenter(find.byType(IncomingJobSwipeToAccept));
-      final thumbStart = Offset(pillCenter.dx - _kPillWidth / 2 + 36, pillCenter.dy);
+      final pillCenter = tester.getCenter(
+        find.byType(IncomingJobSwipeToAccept),
+      );
+      final thumbStart = Offset(
+        pillCenter.dx - _kPillWidth / 2 + 36,
+        pillCenter.dy,
+      );
 
       final gesture = await tester.startGesture(thumbStart);
       // Drag only ~50dp — far below the 80% threshold of a ~328dp runway.
@@ -171,9 +184,126 @@ void main() {
       expect(acceptCount, 0);
     });
 
+    testWidgets('after accept, additional drags do NOT re-fire onAccept '
+        '(threshold is one-shot)', (tester) async {
+      var acceptCount = 0;
+      await _pumpSwipe(
+        tester,
+        expiresAt: DateTime.now().add(const Duration(minutes: 5)),
+        slaWindow: const Duration(minutes: 5),
+        onAccept: () => acceptCount++,
+        onExpire: () {},
+      );
+
+      final pillCenter = tester.getCenter(
+        find.byType(IncomingJobSwipeToAccept),
+      );
+      final thumbStart = Offset(
+        pillCenter.dx - _kPillWidth / 2 + 36,
+        pillCenter.dy,
+      );
+
+      // First drag — fires onAccept.
+      var gesture = await tester.startGesture(thumbStart);
+      await gesture.moveBy(const Offset(320, 0));
+      await tester.pump();
+      await gesture.up();
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(acceptCount, 1);
+
+      // Second drag — must NOT fire onAccept.
+      gesture = await tester.startGesture(thumbStart);
+      await gesture.moveBy(const Offset(320, 0));
+      await tester.pump();
+      await gesture.up();
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(acceptCount, 1, reason: 'onAccept fires exactly once per build');
+    });
+  });
+
+  group('IncomingJobSwipeToAccept — auto-expire', () {
+    testWidgets('when remaining is already zero, the next ticker fire calls '
+        'onExpire exactly once', (tester) async {
+      var expireCount = 0;
+      await _pumpSwipe(
+        tester,
+        // Expiry is already in the past.
+        expiresAt: DateTime.now().subtract(const Duration(seconds: 1)),
+        slaWindow: const Duration(minutes: 5),
+        onAccept: () {},
+        onExpire: () => expireCount++,
+      );
+
+      // The 250ms periodic ticker should fire shortly. Give it a couple of
+      // ticks to ensure it ran.
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(expireCount, 1);
+    });
+
+    testWidgets('after expire, swipe gestures cannot fire onAccept', (
+      tester,
+    ) async {
+      var acceptCount = 0;
+      var expireCount = 0;
+      await _pumpSwipe(
+        tester,
+        expiresAt: DateTime.now().subtract(const Duration(seconds: 1)),
+        slaWindow: const Duration(minutes: 5),
+        onAccept: () => acceptCount++,
+        onExpire: () => expireCount++,
+      );
+
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(expireCount, 1);
+
+      // Try to drag — gesture handlers must early-out because _expired is
+      // true, AND the colored fill width is zero so maxThumbOffset clamps
+      // to zero. Either way: no accept.
+      final pillCenter = tester.getCenter(
+        find.byType(IncomingJobSwipeToAccept),
+      );
+      final thumbStart = Offset(
+        pillCenter.dx - _kPillWidth / 2 + 36,
+        pillCenter.dy,
+      );
+      final gesture = await tester.startGesture(thumbStart);
+      await gesture.moveBy(const Offset(320, 0));
+      await gesture.up();
+      await tester.pump(const Duration(milliseconds: 50));
+
+      expect(acceptCount, 0);
+    });
+  });
+
+  group('IncomingJobSwipeToAccept — connectivity gate (flag #19 family)', () {
     testWidgets(
-      'after accept, additional drags do NOT re-fire onAccept '
-      '(threshold is one-shot)',
+      'when WS is not connected, the offline caption surfaces and the '
+      '"Slide to accept" caption is hidden',
+      (tester) async {
+        await _pumpSwipe(
+          tester,
+          expiresAt: DateTime.now().add(const Duration(minutes: 5)),
+          slaWindow: const Duration(minutes: 5),
+          onAccept: () {},
+          onExpire: () {},
+          wsStatus: WsConnectionStatus.reconnecting,
+        );
+
+        // Offline caption visible — wifi-off icon plus "Reconnecting…".
+        expect(find.byIcon(Icons.wifi_off_rounded), findsOneWidget);
+        expect(find.text('Reconnecting…'), findsOneWidget);
+        // Default caption is hidden via opacity-0 rather than removed
+        // from the tree, so don't assert it's absent — assert it's not
+        // visually surfaced by checking the wrapping AnimatedOpacity.
+        // (Minimal contract: offline caption present.)
+      },
+    );
+
+    testWidgets(
+      'drag past 80% of the runway does NOT fire onAccept while offline '
+      '— gesture handlers are gated upstream',
       (tester) async {
         var acceptCount = 0;
         await _pumpSwipe(
@@ -182,79 +312,64 @@ void main() {
           slaWindow: const Duration(minutes: 5),
           onAccept: () => acceptCount++,
           onExpire: () {},
+          wsStatus: WsConnectionStatus.disconnected,
         );
 
-        final pillCenter =
-            tester.getCenter(find.byType(IncomingJobSwipeToAccept));
-        final thumbStart =
-            Offset(pillCenter.dx - _kPillWidth / 2 + 36, pillCenter.dy);
+        final pillCenter = tester.getCenter(
+          find.byType(IncomingJobSwipeToAccept),
+        );
+        final thumbStart = Offset(
+          pillCenter.dx - _kPillWidth / 2 + 36,
+          pillCenter.dy,
+        );
 
-        // First drag — fires onAccept.
-        var gesture = await tester.startGesture(thumbStart);
+        final gesture = await tester.startGesture(thumbStart);
+        // Same 320dp drag that fires onAccept in the connected case.
         await gesture.moveBy(const Offset(320, 0));
         await tester.pump();
         await gesture.up();
         await tester.pump(const Duration(milliseconds: 50));
-        expect(acceptCount, 1);
 
-        // Second drag — must NOT fire onAccept.
-        gesture = await tester.startGesture(thumbStart);
-        await gesture.moveBy(const Offset(320, 0));
-        await tester.pump();
-        await gesture.up();
-        await tester.pump(const Duration(milliseconds: 50));
-        expect(acceptCount, 1, reason: 'onAccept fires exactly once per build');
-      },
-    );
-  });
-
-  group('IncomingJobSwipeToAccept — auto-expire', () {
-    testWidgets(
-      'when remaining is already zero, the next ticker fire calls '
-      'onExpire exactly once',
-      (tester) async {
-        var expireCount = 0;
-        await _pumpSwipe(
-          tester,
-          // Expiry is already in the past.
-          expiresAt: DateTime.now().subtract(const Duration(seconds: 1)),
-          slaWindow: const Duration(minutes: 5),
-          onAccept: () {},
-          onExpire: () => expireCount++,
+        expect(
+          acceptCount,
+          0,
+          reason:
+              'offline gesture path must short-circuit at the '
+              'GestureDetector level — onAccept never reached',
         );
-
-        // The 250ms periodic ticker should fire shortly. Give it a couple of
-        // ticks to ensure it ran.
-        await tester.pump(const Duration(milliseconds: 300));
-        await tester.pump(const Duration(milliseconds: 300));
-
-        expect(expireCount, 1);
       },
     );
 
     testWidgets(
-      'after expire, swipe gestures cannot fire onAccept',
+      'WsConnectionStatus.failed (10+ retries) is treated as offline — '
+      'sheet still visible, accept still gated',
       (tester) async {
+        // The sheet should remain visible (the user can still see the
+        // offer / payout / countdown) but accept is physically blocked
+        // until the socket recovers. UI must not collapse to a blank.
         var acceptCount = 0;
-        var expireCount = 0;
         await _pumpSwipe(
           tester,
-          expiresAt: DateTime.now().subtract(const Duration(seconds: 1)),
+          expiresAt: DateTime.now().add(const Duration(minutes: 5)),
           slaWindow: const Duration(minutes: 5),
+          payoutRupees: 1800,
           onAccept: () => acceptCount++,
-          onExpire: () => expireCount++,
+          onExpire: () {},
+          wsStatus: WsConnectionStatus.failed,
         );
 
-        await tester.pump(const Duration(milliseconds: 300));
-        expect(expireCount, 1);
+        // Widget is mounted and showing the offline state.
+        expect(find.byType(IncomingJobSwipeToAccept), findsOneWidget);
+        expect(find.text('Reconnecting…'), findsOneWidget);
 
-        // Try to drag — gesture handlers must early-out because _expired is
-        // true, AND the colored fill width is zero so maxThumbOffset clamps
-        // to zero. Either way: no accept.
-        final pillCenter =
-            tester.getCenter(find.byType(IncomingJobSwipeToAccept));
-        final thumbStart =
-            Offset(pillCenter.dx - _kPillWidth / 2 + 36, pillCenter.dy);
+        // Try the swipe.
+        final pillCenter = tester.getCenter(
+          find.byType(IncomingJobSwipeToAccept),
+        );
+        final thumbStart = Offset(
+          pillCenter.dx - _kPillWidth / 2 + 36,
+          pillCenter.dy,
+        );
         final gesture = await tester.startGesture(thumbStart);
         await gesture.moveBy(const Offset(320, 0));
         await gesture.up();
@@ -263,170 +378,83 @@ void main() {
         expect(acceptCount, 0);
       },
     );
-  });
 
-  group(
-    'IncomingJobSwipeToAccept — connectivity gate (flag #19 family)',
-    () {
-      testWidgets(
-        'when WS is not connected, the offline caption surfaces and the '
-        '"Slide to accept" caption is hidden',
-        (tester) async {
-          await _pumpSwipe(
-            tester,
-            expiresAt: DateTime.now().add(const Duration(minutes: 5)),
-            slaWindow: const Duration(minutes: 5),
-            onAccept: () {},
-            onExpire: () {},
-            wsStatus: WsConnectionStatus.reconnecting,
-          );
+    testWidgets(
+      'connected → reconnecting transition mid-offer immediately gates '
+      'the swipe AND surfaces the offline caption (rebuild contract: '
+      'the widget watches the provider, not just reads it once)',
+      (tester) async {
+        var acceptCount = 0;
+        final container = ProviderContainer(
+          overrides: [
+            wsConnectionProvider.overrideWith(
+              () => _StubWsNotifier(WsConnectionStatus.connected),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
 
-          // Offline caption visible — wifi-off icon plus "Reconnecting…".
-          expect(find.byIcon(Icons.wifi_off_rounded), findsOneWidget);
-          expect(find.text('Reconnecting…'), findsOneWidget);
-          // Default caption is hidden via opacity-0 rather than removed
-          // from the tree, so don't assert it's absent — assert it's not
-          // visually surfaced by checking the wrapping AnimatedOpacity.
-          // (Minimal contract: offline caption present.)
-        },
-      );
-
-      testWidgets(
-        'drag past 80% of the runway does NOT fire onAccept while offline '
-        '— gesture handlers are gated upstream',
-        (tester) async {
-          var acceptCount = 0;
-          await _pumpSwipe(
-            tester,
-            expiresAt: DateTime.now().add(const Duration(minutes: 5)),
-            slaWindow: const Duration(minutes: 5),
-            onAccept: () => acceptCount++,
-            onExpire: () {},
-            wsStatus: WsConnectionStatus.disconnected,
-          );
-
-          final pillCenter =
-              tester.getCenter(find.byType(IncomingJobSwipeToAccept));
-          final thumbStart =
-              Offset(pillCenter.dx - _kPillWidth / 2 + 36, pillCenter.dy);
-
-          final gesture = await tester.startGesture(thumbStart);
-          // Same 320dp drag that fires onAccept in the connected case.
-          await gesture.moveBy(const Offset(320, 0));
-          await tester.pump();
-          await gesture.up();
-          await tester.pump(const Duration(milliseconds: 50));
-
-          expect(acceptCount, 0,
-              reason: 'offline gesture path must short-circuit at the '
-                  'GestureDetector level — onAccept never reached');
-        },
-      );
-
-      testWidgets(
-        'WsConnectionStatus.failed (10+ retries) is treated as offline — '
-        'sheet still visible, accept still gated',
-        (tester) async {
-          // The sheet should remain visible (the user can still see the
-          // offer / payout / countdown) but accept is physically blocked
-          // until the socket recovers. UI must not collapse to a blank.
-          var acceptCount = 0;
-          await _pumpSwipe(
-            tester,
-            expiresAt: DateTime.now().add(const Duration(minutes: 5)),
-            slaWindow: const Duration(minutes: 5),
-            payoutRupees: 1800,
-            onAccept: () => acceptCount++,
-            onExpire: () {},
-            wsStatus: WsConnectionStatus.failed,
-          );
-
-          // Widget is mounted and showing the offline state.
-          expect(find.byType(IncomingJobSwipeToAccept), findsOneWidget);
-          expect(find.text('Reconnecting…'), findsOneWidget);
-
-          // Try the swipe.
-          final pillCenter =
-              tester.getCenter(find.byType(IncomingJobSwipeToAccept));
-          final thumbStart =
-              Offset(pillCenter.dx - _kPillWidth / 2 + 36, pillCenter.dy);
-          final gesture = await tester.startGesture(thumbStart);
-          await gesture.moveBy(const Offset(320, 0));
-          await gesture.up();
-          await tester.pump(const Duration(milliseconds: 50));
-
-          expect(acceptCount, 0);
-        },
-      );
-
-      testWidgets(
-        'connected → reconnecting transition mid-offer immediately gates '
-        'the swipe AND surfaces the offline caption (rebuild contract: '
-        'the widget watches the provider, not just reads it once)',
-        (tester) async {
-          var acceptCount = 0;
-          final container = ProviderContainer(
-            overrides: [
-              wsConnectionProvider.overrideWith(
-                () => _StubWsNotifier(WsConnectionStatus.connected),
-              ),
-            ],
-          );
-          addTearDown(container.dispose);
-
-          await tester.pumpWidget(
-            UncontrolledProviderScope(
-              container: container,
-              child: MaterialApp(
-                home: Scaffold(
-                  body: Center(
-                    child: SizedBox(
-                      width: _kPillWidth,
-                      child: IncomingJobSwipeToAccept(
-                        expiresAt:
-                            DateTime.now().add(const Duration(minutes: 5)),
-                        slaWindow: const Duration(minutes: 5),
-                        payoutRupees: 1800,
-                        onAccept: () => acceptCount++,
-                        onExpire: () {},
-                      ),
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: container,
+            child: MaterialApp(
+              home: Scaffold(
+                body: Center(
+                  child: SizedBox(
+                    width: _kPillWidth,
+                    child: IncomingJobSwipeToAccept(
+                      expiresAt: DateTime.now().add(const Duration(minutes: 5)),
+                      slaWindow: const Duration(minutes: 5),
+                      payoutRupees: 1800,
+                      onAccept: () => acceptCount++,
+                      onExpire: () {},
                     ),
                   ),
                 ),
               ),
             ),
-          );
-          await tester.pump();
+          ),
+        );
+        await tester.pump();
 
-          // Sanity: connected → no offline caption.
-          expect(find.text('Reconnecting…'), findsNothing);
+        // Sanity: connected → no offline caption.
+        expect(find.text('Reconnecting…'), findsNothing);
 
-          // Flip the notifier state to reconnecting via the test-only
-          // setter. `ref.watch` inside the widget's build must re-fire and
-          // surface the offline caption.
-          final notifier = container.read(wsConnectionProvider.notifier)
-              as _StubWsNotifier;
-          notifier.debugSetStatus(WsConnectionStatus.reconnecting);
-          await tester.pump();
+        // Flip the notifier state to reconnecting via the test-only
+        // setter. `ref.watch` inside the widget's build must re-fire and
+        // surface the offline caption.
+        final notifier =
+            container.read(wsConnectionProvider.notifier) as _StubWsNotifier;
+        notifier.debugSetStatus(WsConnectionStatus.reconnecting);
+        await tester.pump();
 
-          expect(find.text('Reconnecting…'), findsOneWidget,
-              reason: 'widget must rebuild on connection-status change');
+        expect(
+          find.text('Reconnecting…'),
+          findsOneWidget,
+          reason: 'widget must rebuild on connection-status change',
+        );
 
-          // And the gesture is now gated.
-          final pillCenter =
-              tester.getCenter(find.byType(IncomingJobSwipeToAccept));
-          final thumbStart =
-              Offset(pillCenter.dx - _kPillWidth / 2 + 36, pillCenter.dy);
-          final gesture = await tester.startGesture(thumbStart);
-          await gesture.moveBy(const Offset(320, 0));
-          await gesture.up();
-          await tester.pump(const Duration(milliseconds: 50));
+        // And the gesture is now gated.
+        final pillCenter = tester.getCenter(
+          find.byType(IncomingJobSwipeToAccept),
+        );
+        final thumbStart = Offset(
+          pillCenter.dx - _kPillWidth / 2 + 36,
+          pillCenter.dy,
+        );
+        final gesture = await tester.startGesture(thumbStart);
+        await gesture.moveBy(const Offset(320, 0));
+        await gesture.up();
+        await tester.pump(const Duration(milliseconds: 50));
 
-          expect(acceptCount, 0,
-              reason: 'gesture must be gated immediately after the '
-                  'connection drops');
-        },
-      );
-    },
-  );
+        expect(
+          acceptCount,
+          0,
+          reason:
+              'gesture must be gated immediately after the '
+              'connection drops',
+        );
+      },
+    );
+  });
 }

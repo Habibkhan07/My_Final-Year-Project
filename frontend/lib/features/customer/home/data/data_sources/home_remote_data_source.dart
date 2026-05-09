@@ -17,7 +17,9 @@ class HomeRemoteDataSource {
     }
 
     // Build URL safely with query params
-    final uri = Uri.parse('$baseUrl/home/').replace(queryParameters: queryParams.isEmpty ? null : queryParams);
+    final uri = Uri.parse(
+      '$baseUrl/home/',
+    ).replace(queryParameters: queryParams.isEmpty ? null : queryParams);
 
     final response = await http.get(uri);
 
@@ -51,7 +53,7 @@ class HomeRemoteDataSource {
       );
     } catch (e) {
       if (e is HttpFailure) rethrow;
-      
+
       throw HttpFailure(
         statusCode: response.statusCode,
         code: 'server_error',

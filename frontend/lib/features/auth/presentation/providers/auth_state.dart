@@ -5,8 +5,6 @@ part 'auth_state.freezed.dart';
 
 @freezed
 abstract class AuthState with _$AuthState {
-  const factory AuthState({
-    String? successMessage,
-    UserEntity? user,
-  }) = _AuthState;
+  const factory AuthState({String? successMessage, UserEntity? user}) =
+      _AuthState;
 }

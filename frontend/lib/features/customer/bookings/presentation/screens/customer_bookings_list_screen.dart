@@ -185,7 +185,10 @@ class _CustomerBookingsListScreenState
     );
   }
 
-  Widget _buildContent(CustomerBookingsListState state, BookingSegment segment) {
+  Widget _buildContent(
+    CustomerBookingsListState state,
+    BookingSegment segment,
+  ) {
     if (state.items.isEmpty) {
       return _wrapInScrollable(
         child: SizedBox(

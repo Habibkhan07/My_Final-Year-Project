@@ -259,7 +259,9 @@ class _IncomingJobSwipeToAcceptState
         if (!mounted) return;
         setState(() {
           _thumbOffset =
-              start + (maxThumbOffset - start) * Curves.easeOut.transform(_confirm.value);
+              start +
+              (maxThumbOffset - start) *
+                  Curves.easeOut.transform(_confirm.value);
         });
       })
       ..forward();
@@ -305,8 +307,7 @@ class _IncomingJobSwipeToAcceptState
         // — the runway the user can swipe along. When the fill shrinks below
         // the thumb diameter, maxThumbOffset clamps to 0 and the swipe is no
         // longer possible (the offer is moments from auto-expiring).
-        final maxThumbOffset =
-            math.max(0.0, fillWidthInner - _thumbDiameter);
+        final maxThumbOffset = math.max(0.0, fillWidthInner - _thumbDiameter);
 
         return GestureDetector(
           behavior: HitTestBehavior.opaque,
@@ -328,9 +329,9 @@ class _IncomingJobSwipeToAcceptState
           child: Semantics(
             label: isConnected
                 ? 'Swipe right to accept job offer for Rs. '
-                    '${widget.payoutRupees}'
+                      '${widget.payoutRupees}'
                 : 'Reconnecting — accept disabled until the connection '
-                    'recovers',
+                      'recovers',
             button: true,
             enabled: isConnected,
             child: SizedBox(
@@ -343,8 +344,7 @@ class _IncomingJobSwipeToAcceptState
                     child: DecoratedBox(
                       decoration: BoxDecoration(
                         color: AppColors.surfaceContainerLow,
-                        borderRadius:
-                            BorderRadius.circular(_pillHeight / 2),
+                        borderRadius: BorderRadius.circular(_pillHeight / 2),
                         border: Border.all(
                           color: accent.withValues(alpha: 0.18),
                           width: 1,
@@ -367,8 +367,9 @@ class _IncomingJobSwipeToAcceptState
                         (_pillHeight - _trackPadding * 2) / 2,
                       ),
                       child: ColoredBox(
-                        color: accent
-                            .withValues(alpha: isConnected ? 0.85 : 0.45),
+                        color: accent.withValues(
+                          alpha: isConnected ? 0.85 : 0.45,
+                        ),
                       ),
                     ),
                   ),
@@ -577,9 +578,7 @@ class _Thumb extends StatelessWidget {
           child: Transform.translate(
             offset: Offset(shift, 0),
             child: Icon(
-              isAccepted
-                  ? Icons.check_rounded
-                  : Icons.chevron_right_rounded,
+              isAccepted ? Icons.check_rounded : Icons.chevron_right_rounded,
               size: 30,
               color: Colors.white,
             ),

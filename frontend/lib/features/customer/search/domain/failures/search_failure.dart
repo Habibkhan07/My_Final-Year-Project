@@ -4,13 +4,19 @@ sealed class SearchFailure implements Exception {
 }
 
 class SearchNetworkFailure extends SearchFailure {
-  const SearchNetworkFailure([super.message = "No internet connection. Please check your settings."]);
+  const SearchNetworkFailure([
+    super.message = "No internet connection. Please check your settings.",
+  ]);
 }
 
 class SearchServerFailure extends SearchFailure {
-  const SearchServerFailure([super.message = "An unexpected error occurred during search."]);
+  const SearchServerFailure([
+    super.message = "An unexpected error occurred during search.",
+  ]);
 }
 
 class SearchParsingFailure extends SearchFailure {
-  const SearchParsingFailure([super.message = "Invalid response format from server."]);
+  const SearchParsingFailure([
+    super.message = "Invalid response format from server.",
+  ]);
 }

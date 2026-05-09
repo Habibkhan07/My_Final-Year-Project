@@ -19,32 +19,36 @@ void main() {
   const tEntity = CreatedBookingEntity(bookingId: 99);
 
   void stubSuccess() {
-    when(() => mockRepository.createInstantBooking(
-          technicianId: any(named: 'technicianId'),
-          addressId: any(named: 'addressId'),
-          serviceId: any(named: 'serviceId'),
-          subServiceId: any(named: 'subServiceId'),
-          promotionId: any(named: 'promotionId'),
-          scheduledStart: any(named: 'scheduledStart'),
-          scheduledEnd: any(named: 'scheduledEnd'),
-        )).thenAnswer((_) async => tEntity);
+    when(
+      () => mockRepository.createInstantBooking(
+        technicianId: any(named: 'technicianId'),
+        addressId: any(named: 'addressId'),
+        serviceId: any(named: 'serviceId'),
+        subServiceId: any(named: 'subServiceId'),
+        promotionId: any(named: 'promotionId'),
+        scheduledStart: any(named: 'scheduledStart'),
+        scheduledEnd: any(named: 'scheduledEnd'),
+      ),
+    ).thenAnswer((_) async => tEntity);
   }
 
-  test('Scenario A — threads serviceId + subServiceId, leaves promotionId null',
-      () async {
-    stubSuccess();
+  test(
+    'Scenario A — threads serviceId + subServiceId, leaves promotionId null',
+    () async {
+      stubSuccess();
 
-    final result = await useCase.call(
-      technicianId: 42,
-      addressId: 7,
-      serviceId: 3,
-      subServiceId: 17,
-      scheduledStart: '2026-04-08T10:00:00+05:00',
-      scheduledEnd: '2026-04-08T11:00:00+05:00',
-    );
+      final result = await useCase.call(
+        technicianId: 42,
+        addressId: 7,
+        serviceId: 3,
+        subServiceId: 17,
+        scheduledStart: '2026-04-08T10:00:00+05:00',
+        scheduledEnd: '2026-04-08T11:00:00+05:00',
+      );
 
-    expect(result, tEntity);
-    verify(() => mockRepository.createInstantBooking(
+      expect(result, tEntity);
+      verify(
+        () => mockRepository.createInstantBooking(
           technicianId: 42,
           addressId: 7,
           serviceId: 3,
@@ -52,22 +56,26 @@ void main() {
           promotionId: null,
           scheduledStart: '2026-04-08T10:00:00+05:00',
           scheduledEnd: '2026-04-08T11:00:00+05:00',
-        )).called(1);
-  });
+        ),
+      ).called(1);
+    },
+  );
 
-  test('Scenario C — inspection booking: optional FK params default to null',
-      () async {
-    stubSuccess();
+  test(
+    'Scenario C — inspection booking: optional FK params default to null',
+    () async {
+      stubSuccess();
 
-    await useCase.call(
-      technicianId: 42,
-      addressId: 7,
-      serviceId: 3,
-      scheduledStart: '2026-04-08T10:00:00+05:00',
-      scheduledEnd: '2026-04-08T11:00:00+05:00',
-    );
+      await useCase.call(
+        technicianId: 42,
+        addressId: 7,
+        serviceId: 3,
+        scheduledStart: '2026-04-08T10:00:00+05:00',
+        scheduledEnd: '2026-04-08T11:00:00+05:00',
+      );
 
-    verify(() => mockRepository.createInstantBooking(
+      verify(
+        () => mockRepository.createInstantBooking(
           technicianId: 42,
           addressId: 7,
           serviceId: 3,
@@ -75,23 +83,27 @@ void main() {
           promotionId: null,
           scheduledStart: any(named: 'scheduledStart'),
           scheduledEnd: any(named: 'scheduledEnd'),
-        )).called(1);
-  });
+        ),
+      ).called(1);
+    },
+  );
 
-  test('Scenario D — promo on parent: passes promotionId, leaves subServiceId null',
-      () async {
-    stubSuccess();
+  test(
+    'Scenario D — promo on parent: passes promotionId, leaves subServiceId null',
+    () async {
+      stubSuccess();
 
-    await useCase.call(
-      technicianId: 42,
-      addressId: 7,
-      serviceId: 3,
-      promotionId: 9,
-      scheduledStart: '2026-04-08T10:00:00+05:00',
-      scheduledEnd: '2026-04-08T11:00:00+05:00',
-    );
+      await useCase.call(
+        technicianId: 42,
+        addressId: 7,
+        serviceId: 3,
+        promotionId: 9,
+        scheduledStart: '2026-04-08T10:00:00+05:00',
+        scheduledEnd: '2026-04-08T11:00:00+05:00',
+      );
 
-    verify(() => mockRepository.createInstantBooking(
+      verify(
+        () => mockRepository.createInstantBooking(
           technicianId: 42,
           addressId: 7,
           serviceId: 3,
@@ -99,19 +111,23 @@ void main() {
           promotionId: 9,
           scheduledStart: any(named: 'scheduledStart'),
           scheduledEnd: any(named: 'scheduledEnd'),
-        )).called(1);
-  });
+        ),
+      ).called(1);
+    },
+  );
 
   test('propagates BookingSlotUnavailableFailure from repository', () {
-    when(() => mockRepository.createInstantBooking(
-          technicianId: any(named: 'technicianId'),
-          addressId: any(named: 'addressId'),
-          serviceId: any(named: 'serviceId'),
-          subServiceId: any(named: 'subServiceId'),
-          promotionId: any(named: 'promotionId'),
-          scheduledStart: any(named: 'scheduledStart'),
-          scheduledEnd: any(named: 'scheduledEnd'),
-        )).thenThrow(const BookingSlotUnavailableFailure());
+    when(
+      () => mockRepository.createInstantBooking(
+        technicianId: any(named: 'technicianId'),
+        addressId: any(named: 'addressId'),
+        serviceId: any(named: 'serviceId'),
+        subServiceId: any(named: 'subServiceId'),
+        promotionId: any(named: 'promotionId'),
+        scheduledStart: any(named: 'scheduledStart'),
+        scheduledEnd: any(named: 'scheduledEnd'),
+      ),
+    ).thenThrow(const BookingSlotUnavailableFailure());
 
     expect(
       () => useCase.call(

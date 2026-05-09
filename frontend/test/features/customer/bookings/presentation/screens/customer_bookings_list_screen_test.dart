@@ -78,7 +78,10 @@ class _MockCounts extends CustomerBookingsCounts {
 
 // ─── fixtures ──────────────────────────────────────────────────────
 
-CustomerBooking _booking({int id = 1, BookingStatus status = BookingStatus.confirmed}) {
+CustomerBooking _booking({
+  int id = 1,
+  BookingStatus status = BookingStatus.confirmed,
+}) {
   return CustomerBooking(
     id: id,
     status: status,
@@ -92,7 +95,11 @@ CustomerBooking _booking({int id = 1, BookingStatus status = BookingStatus.confi
     scheduledStart: DateTime(2026, 5, 6, 15, 0),
     scheduledEnd: DateTime(2026, 5, 6, 17, 0),
     createdAt: DateTime(2026, 5, 5, 9, 0),
-    price: const BookingPrice(amount: 2500, context: 'Fixed Price', uiLabel: 'Rs. 2,500'),
+    price: const BookingPrice(
+      amount: 2500,
+      context: 'Fixed Price',
+      uiLabel: 'Rs. 2,500',
+    ),
     ui: const BookingUi(
       badgeText: 'Confirmed',
       badgeTone: BookingUiTone.positive,
@@ -154,12 +161,12 @@ Widget _build({
 void main() {
   // ───────────────────────── Loading ─────────────────────────
 
-  testWidgets('AsyncLoading (initial, no previous data) → renders skeletons',
-      (tester) async {
-    await tester.pumpWidget(_build(
-      segment: BookingSegment.upcoming,
-      listState: const AsyncLoading(),
-    ));
+  testWidgets('AsyncLoading (initial, no previous data) → renders skeletons', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _build(segment: BookingSegment.upcoming, listState: const AsyncLoading()),
+    );
     await tester.pump();
 
     expect(find.byType(BookingCardSkeleton), findsWidgets);
@@ -167,22 +174,27 @@ void main() {
 
   // ───────────────────────── Data ─────────────────────────
 
-  testWidgets('AsyncData empty + upcoming → BookingsEmptyUpcoming',
-      (tester) async {
-    await tester.pumpWidget(_build(
-      segment: BookingSegment.upcoming,
-      listState: AsyncData(_state(segment: BookingSegment.upcoming)),
-    ));
+  testWidgets('AsyncData empty + upcoming → BookingsEmptyUpcoming', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _build(
+        segment: BookingSegment.upcoming,
+        listState: AsyncData(_state(segment: BookingSegment.upcoming)),
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(find.byType(BookingsEmptyUpcoming), findsOneWidget);
   });
 
   testWidgets('AsyncData empty + past → BookingsEmptyPast', (tester) async {
-    await tester.pumpWidget(_build(
-      segment: BookingSegment.past,
-      listState: AsyncData(_state(segment: BookingSegment.past)),
-    ));
+    await tester.pumpWidget(
+      _build(
+        segment: BookingSegment.past,
+        listState: AsyncData(_state(segment: BookingSegment.past)),
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(find.byType(BookingsEmptyPast), findsOneWidget);
@@ -195,13 +207,17 @@ void main() {
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
-    await tester.pumpWidget(_build(
-      segment: BookingSegment.upcoming,
-      listState: AsyncData(_state(
+    await tester.pumpWidget(
+      _build(
         segment: BookingSegment.upcoming,
-        items: [_booking(id: 1), _booking(id: 2), _booking(id: 3)],
-      )),
-    ));
+        listState: AsyncData(
+          _state(
+            segment: BookingSegment.upcoming,
+            items: [_booking(id: 1), _booking(id: 2), _booking(id: 3)],
+          ),
+        ),
+      ),
+    );
     // Use fixed pumps instead of pumpAndSettle — SvgPicture.asset
     // loading + AnimatedSwitcher inside cards can keep the frame
     // schedule busy past pumpAndSettle's timeout in widget tests.
@@ -211,18 +227,23 @@ void main() {
     expect(find.byType(BookingCard), findsNWidgets(3));
   });
 
-  testWidgets('AsyncData with isStaleCache=true → offline banner pinned',
-      (tester) async {
+  testWidgets('AsyncData with isStaleCache=true → offline banner pinned', (
+    tester,
+  ) async {
     final cachedAt = DateTime(2026, 5, 5, 11, 50);
-    await tester.pumpWidget(_build(
-      segment: BookingSegment.upcoming,
-      listState: AsyncData(_state(
+    await tester.pumpWidget(
+      _build(
         segment: BookingSegment.upcoming,
-        items: [_booking(id: 1)],
-        isStaleCache: true,
-        cachedAt: cachedAt,
-      )),
-    ));
+        listState: AsyncData(
+          _state(
+            segment: BookingSegment.upcoming,
+            items: [_booking(id: 1)],
+            isStaleCache: true,
+            cachedAt: cachedAt,
+          ),
+        ),
+      ),
+    );
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
@@ -230,23 +251,28 @@ void main() {
     expect(find.byType(BookingCard), findsOneWidget);
   });
 
-  testWidgets('AsyncData with isLoadingMore=true → footer spinner',
-      (tester) async {
+  testWidgets('AsyncData with isLoadingMore=true → footer spinner', (
+    tester,
+  ) async {
     // Tall viewport so 2 cards + the footer spinner all fit.
     tester.view.physicalSize = const Size(400, 1600);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
-    await tester.pumpWidget(_build(
-      segment: BookingSegment.upcoming,
-      listState: AsyncData(_state(
+    await tester.pumpWidget(
+      _build(
         segment: BookingSegment.upcoming,
-        items: [_booking(id: 1), _booking(id: 2)],
-        hasMore: true,
-        isLoadingMore: true,
-        nextCursor: 'cur-1',
-      )),
-    ));
+        listState: AsyncData(
+          _state(
+            segment: BookingSegment.upcoming,
+            items: [_booking(id: 1), _booking(id: 2)],
+            hasMore: true,
+            isLoadingMore: true,
+            nextCursor: 'cur-1',
+          ),
+        ),
+      ),
+    );
     // CircularProgressIndicator animates forever — never pumpAndSettle.
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
@@ -256,14 +282,18 @@ void main() {
 
   // ───────────────────────── Errors ─────────────────────────
 
-  testWidgets('AsyncError(OfflineNoCache) → offline error state', (tester) async {
-    await tester.pumpWidget(_build(
-      segment: BookingSegment.upcoming,
-      listState: AsyncError(
-        const CustomerBookingsOfflineNoCache(),
-        StackTrace.empty,
+  testWidgets('AsyncError(OfflineNoCache) → offline error state', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _build(
+        segment: BookingSegment.upcoming,
+        listState: AsyncError(
+          const CustomerBookingsOfflineNoCache(),
+          StackTrace.empty,
+        ),
       ),
-    ));
+    );
     await tester.pumpAndSettle();
 
     expect(find.text("You're offline"), findsOneWidget);
@@ -271,27 +301,33 @@ void main() {
   });
 
   testWidgets('AsyncError(ServerFailure) → server error state', (tester) async {
-    await tester.pumpWidget(_build(
-      segment: BookingSegment.upcoming,
-      listState: AsyncError(
-        const CustomerBookingsServerFailure(),
-        StackTrace.empty,
+    await tester.pumpWidget(
+      _build(
+        segment: BookingSegment.upcoming,
+        listState: AsyncError(
+          const CustomerBookingsServerFailure(),
+          StackTrace.empty,
+        ),
       ),
-    ));
+    );
     await tester.pumpAndSettle();
 
     expect(find.text("Couldn't load your bookings"), findsOneWidget);
     expect(find.textContaining('our end'), findsOneWidget);
   });
 
-  testWidgets('AsyncError(UnknownFailure) → unknown error state', (tester) async {
-    await tester.pumpWidget(_build(
-      segment: BookingSegment.upcoming,
-      listState: AsyncError(
-        const UnknownCustomerBookingsFailure(),
-        StackTrace.empty,
+  testWidgets('AsyncError(UnknownFailure) → unknown error state', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _build(
+        segment: BookingSegment.upcoming,
+        listState: AsyncError(
+          const UnknownCustomerBookingsFailure(),
+          StackTrace.empty,
+        ),
       ),
-    ));
+    );
     await tester.pumpAndSettle();
 
     expect(find.text("Couldn't load your bookings"), findsOneWidget);
@@ -300,57 +336,58 @@ void main() {
 
   // ───────────────────────── Validation auto-refresh ─────────────────────────
 
-  testWidgets(
-    'AsyncError(ValidationFailure) auto-fires refresh() once',
-    (tester) async {
-      final capture = _MockList(AsyncError(
+  testWidgets('AsyncError(ValidationFailure) auto-fires refresh() once', (
+    tester,
+  ) async {
+    final capture = _MockList(
+      AsyncError(
         const CustomerBookingsValidationFailure(code: 'invalid_cursor'),
         StackTrace.empty,
-      ));
-      await tester.pumpWidget(_build(
+      ),
+    );
+    await tester.pumpWidget(
+      _build(
         segment: BookingSegment.upcoming,
         listState: AsyncError(
           const CustomerBookingsValidationFailure(code: 'invalid_cursor'),
           StackTrace.empty,
         ),
         capture: capture,
-      ));
-      await tester.pumpAndSettle();
+      ),
+    );
+    await tester.pumpAndSettle();
 
-      // The screen's ref.listen(error: ...) detects the validation
-      // failure on first transition and calls refresh() once.
-      expect(capture.refreshCalls, 1);
-    },
-  );
+    // The screen's ref.listen(error: ...) detects the validation
+    // failure on first transition and calls refresh() once.
+    expect(capture.refreshCalls, 1);
+  });
 
   // ───────────────────────── Pull-to-refresh ─────────────────────────
 
   testWidgets(
     'pull-to-refresh fires both list.refresh() and counts.refresh()',
     (tester) async {
-      final listCapture = _MockList(AsyncData(_state(
-        segment: BookingSegment.upcoming,
-        items: [_booking(id: 1)],
-      )));
+      final listCapture = _MockList(
+        AsyncData(
+          _state(segment: BookingSegment.upcoming, items: [_booking(id: 1)]),
+        ),
+      );
       final countsCapture = _MockCounts(AsyncData(_counts));
 
-      await tester.pumpWidget(_build(
-        segment: BookingSegment.upcoming,
-        listState: AsyncData(_state(
+      await tester.pumpWidget(
+        _build(
           segment: BookingSegment.upcoming,
-          items: [_booking(id: 1)],
-        )),
-        capture: listCapture,
-        captureCounts: countsCapture,
-      ));
+          listState: AsyncData(
+            _state(segment: BookingSegment.upcoming, items: [_booking(id: 1)]),
+          ),
+          capture: listCapture,
+          captureCounts: countsCapture,
+        ),
+      );
       await tester.pumpAndSettle();
 
       // Drag the ListView down past the trigger threshold.
-      await tester.fling(
-        find.byType(ListView),
-        const Offset(0, 400),
-        1500,
-      );
+      await tester.fling(find.byType(ListView), const Offset(0, 400), 1500);
       await tester.pumpAndSettle();
 
       expect(listCapture.refreshCalls, greaterThanOrEqualTo(1));

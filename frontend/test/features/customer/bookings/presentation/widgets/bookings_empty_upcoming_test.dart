@@ -7,19 +7,19 @@ import 'package:go_router/go_router.dart';
 /// Tapping "Browse services" issues `context.go('/home')` — we land on
 /// the sentinel route below and assert on its text.
 GoRouter _router() => GoRouter(
-      initialLocation: '/bookings',
-      routes: [
-        GoRoute(
-          path: '/bookings',
-          builder: (_, _) => const Scaffold(body: BookingsEmptyUpcoming()),
-        ),
-        GoRoute(
-          path: '/home',
-          builder: (_, _) =>
-              const Scaffold(body: Center(child: Text('HOME-SENTINEL'))),
-        ),
-      ],
-    );
+  initialLocation: '/bookings',
+  routes: [
+    GoRoute(
+      path: '/bookings',
+      builder: (_, _) => const Scaffold(body: BookingsEmptyUpcoming()),
+    ),
+    GoRoute(
+      path: '/home',
+      builder: (_, _) =>
+          const Scaffold(body: Center(child: Text('HOME-SENTINEL'))),
+    ),
+  ],
+);
 
 void main() {
   testWidgets('renders headline + body + Browse services CTA', (tester) async {

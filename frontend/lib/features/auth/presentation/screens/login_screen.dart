@@ -156,8 +156,10 @@ class LoginScreen extends ConsumerWidget {
                     fontWeight: FontWeight.w600,
                   ),
                   onChanged: (phone) {
-  ref.read(phoneNumberProvider.notifier).updatePhone(phone.completeNumber);
-},
+                    ref
+                        .read(phoneNumberProvider.notifier)
+                        .updatePhone(phone.completeNumber);
+                  },
                 ),
                 const SizedBox(height: 32),
 
@@ -181,7 +183,9 @@ class LoginScreen extends ConsumerWidget {
                           ),
                           onPressed: () {
                             if (currentPhone.isNotEmpty) {
-                              ref.read(authProvider.notifier).requestOtp(currentPhone);
+                              ref
+                                  .read(authProvider.notifier)
+                                  .requestOtp(currentPhone);
                             }
                           },
                           child: const Text(

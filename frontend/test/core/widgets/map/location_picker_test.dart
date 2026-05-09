@@ -6,7 +6,9 @@ import 'package:frontend/core/widgets/map/location_picker.dart';
 void main() {
   const tCenter = LatLng(33.6844, 73.0479);
 
-  testWidgets('LocationPicker renders fixed center pin by default', (tester) async {
+  testWidgets('LocationPicker renders fixed center pin by default', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(

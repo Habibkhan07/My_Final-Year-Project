@@ -26,7 +26,9 @@ void main() {
     test('saveRecentSearch adds to top and deduplicates', () async {
       // Arrange: Current history is [A, B]
       when(() => mockPrefs.getStringList(kKey)).thenReturn(['A', 'B']);
-      when(() => mockPrefs.setStringList(any(), any())).thenAnswer((_) async => true);
+      when(
+        () => mockPrefs.setStringList(any(), any()),
+      ).thenAnswer((_) async => true);
 
       // Act: Save B
       await dataSource.saveRecentSearch('B');
@@ -39,7 +41,9 @@ void main() {
       // Arrange: History has 10 items
       final tenItems = List.generate(10, (i) => 'Item $i');
       when(() => mockPrefs.getStringList(kKey)).thenReturn(List.from(tenItems));
-      when(() => mockPrefs.setStringList(any(), any())).thenAnswer((_) async => true);
+      when(
+        () => mockPrefs.setStringList(any(), any()),
+      ).thenAnswer((_) async => true);
 
       // Act: Add 11th item
       await dataSource.saveRecentSearch('New Item');

@@ -11,8 +11,12 @@ import 'package:frontend/features/customer/addresses/data/repositories/address_r
 import 'package:frontend/features/customer/addresses/domain/failures/address_failure.dart';
 
 class MockRemoteDataSource extends Mock implements AddressRemoteDataSource {}
+
 class MockLocalDataSource extends Mock implements AddressLocalDataSource {}
-class MockLocationDataSource extends Mock implements AddressLocationDataSource {}
+
+class MockLocationDataSource extends Mock
+    implements AddressLocationDataSource {}
+
 class MockGeocodingDataSource extends Mock implements GeocodingDataSource {}
 
 void main() {
@@ -34,14 +38,16 @@ void main() {
       mockLocation,
       mockGeocoding,
     );
-    
-    registerFallbackValue(const CreateAddressRequest(
-      label: '',
-      streetAddress: '',
-      latitude: 0,
-      longitude: 0,
-      isDefault: false,
-    ));
+
+    registerFallbackValue(
+      const CreateAddressRequest(
+        label: '',
+        streetAddress: '',
+        latitude: 0,
+        longitude: 0,
+        isDefault: false,
+      ),
+    );
   });
 
   const tModel = CustomerAddressModel(
@@ -56,8 +62,9 @@ void main() {
 
   group('updateAddress', () {
     test('returns entity on success', () async {
-      when(() => mockRemote.updateAddress(any(), any()))
-          .thenAnswer((_) async => tModel);
+      when(
+        () => mockRemote.updateAddress(any(), any()),
+      ).thenAnswer((_) async => tModel);
 
       final result = await repository.updateAddress(id: 1, isDefault: true);
 
@@ -73,24 +80,27 @@ void main() {
           code: 'validation_error',
           message: 'Error',
           errors: {
-            'is_default': ['Invalid value']
+            'is_default': ['Invalid value'],
           },
         ),
       );
 
       expect(
         () => repository.updateAddress(id: 1, isDefault: true),
-        throwsA(isA<AddressServerFailure>().having(
-          (f) => f.message,
-          'message',
-          'is_default: Invalid value',
-        )),
+        throwsA(
+          isA<AddressServerFailure>().having(
+            (f) => f.message,
+            'message',
+            'is_default: Invalid value',
+          ),
+        ),
       );
     });
 
     test('throws AddressNetworkFailure on SocketException', () async {
-      when(() => mockRemote.updateAddress(any(), any()))
-          .thenThrow(const SocketException('no internet'));
+      when(
+        () => mockRemote.updateAddress(any(), any()),
+      ).thenThrow(const SocketException('no internet'));
 
       expect(
         () => repository.updateAddress(id: 1, isDefault: true),

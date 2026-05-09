@@ -18,8 +18,9 @@ import '../../_helpers/booking_detail_fixture.dart';
 void main() {
   group('BookingDetailMapper.toDomain', () {
     test('viewer role is customer when customer.id == currentUserId', () {
-      final model =
-          BookingDetailModel.fromJson(bookingDetailJson(customerId: 7));
+      final model = BookingDetailModel.fromJson(
+        bookingDetailJson(customerId: 7),
+      );
       final domain = BookingDetailMapper.toDomain(model, currentUserId: 7);
       expect(domain.viewerRole, BookingOrchestratorRole.customer);
     });
@@ -33,9 +34,9 @@ void main() {
         // non-participants, so anyone who got past auth and isn't the
         // customer must be the tech.
         final model = BookingDetailModel.fromJson(
-            bookingDetailJson(customerId: 7, technicianId: 99));
-        final domain =
-            BookingDetailMapper.toDomain(model, currentUserId: 555);
+          bookingDetailJson(customerId: 7, technicianId: 99),
+        );
+        final domain = BookingDetailMapper.toDomain(model, currentUserId: 555);
         expect(domain.viewerRole, BookingOrchestratorRole.technician);
       },
     );
@@ -45,20 +46,26 @@ void main() {
       // could silently fail to forward it. Pin both the present and
       // null cases.
       final present = BookingDetailModel.fromJson(
-          bookingDetailJson(childBookingId: 123));
-      final domainPresent =
-          BookingDetailMapper.toDomain(present, currentUserId: 7);
+        bookingDetailJson(childBookingId: 123),
+      );
+      final domainPresent = BookingDetailMapper.toDomain(
+        present,
+        currentUserId: 7,
+      );
       expect(domainPresent.childBookingId, 123);
 
       final absent = BookingDetailModel.fromJson(bookingDetailJson());
-      final domainAbsent =
-          BookingDetailMapper.toDomain(absent, currentUserId: 7);
+      final domainAbsent = BookingDetailMapper.toDomain(
+        absent,
+        currentUserId: 7,
+      );
       expect(domainAbsent.childBookingId, isNull);
     });
 
     test('parentBookingId is preserved (sanity guard)', () {
       final model = BookingDetailModel.fromJson(
-          bookingDetailJson(parentBookingId: 41));
+        bookingDetailJson(parentBookingId: 41),
+      );
       final domain = BookingDetailMapper.toDomain(model, currentUserId: 7);
       expect(domain.parentBookingId, 41);
     });
@@ -78,19 +85,21 @@ void main() {
       // which expected `priced_at`. The wire field on the BookingItem path
       // is `price_charged`. This test pins the wire→domain conversion
       // through the mapper end-to-end.
-      final model = BookingDetailModel.fromJson(bookingDetailJson(
-        bookingItems: [
-          {
-            'id': 5,
-            'sub_service_id': 11,
-            'sub_service_name': 'AC top-up',
-            'quantity': 2,
-            'price_charged': '750.00',
-            'line_total': '1500.00',
-            'sourced_quote_id': 91,
-          },
-        ],
-      ));
+      final model = BookingDetailModel.fromJson(
+        bookingDetailJson(
+          bookingItems: [
+            {
+              'id': 5,
+              'sub_service_id': 11,
+              'sub_service_name': 'AC top-up',
+              'quantity': 2,
+              'price_charged': '750.00',
+              'line_total': '1500.00',
+              'sourced_quote_id': 91,
+            },
+          ],
+        ),
+      );
       final domain = BookingDetailMapper.toDomain(model, currentUserId: 7);
       expect(domain.bookingItems, hasLength(1));
       final item = domain.bookingItems.single;
@@ -108,7 +117,8 @@ void main() {
 
     test('status string decodes via BookingStatus.fromWire', () {
       final model = BookingDetailModel.fromJson(
-          bookingDetailJson(status: 'IN_PROGRESS'));
+        bookingDetailJson(status: 'IN_PROGRESS'),
+      );
       final domain = BookingDetailMapper.toDomain(model, currentUserId: 7);
       expect(domain.status, BookingStatus.inProgress);
     });

@@ -9,7 +9,9 @@ sealed class AddressFailure implements Exception {
 
 /// Device has no active internet and the local cache is empty.
 class AddressNetworkFailure extends AddressFailure {
-  const AddressNetworkFailure([super.message = 'No internet connection. Please check your settings.']);
+  const AddressNetworkFailure([
+    super.message = 'No internet connection. Please check your settings.',
+  ]);
 }
 
 /// Backend returned a non-2xx response.
@@ -19,7 +21,9 @@ class AddressServerFailure extends AddressFailure {
 
 /// Backend returned unexpected JSON that failed to parse.
 class AddressParsingFailure extends AddressFailure {
-  const AddressParsingFailure([super.message = 'Failed to parse address data.']);
+  const AddressParsingFailure([
+    super.message = 'Failed to parse address data.',
+  ]);
 }
 
 /// DELETE returned 404 — address does not exist or belongs to another user.
@@ -29,12 +33,14 @@ class AddressNotFoundFailure extends AddressFailure {
 
 /// User denied location permission.
 class AddressLocationPermissionDenied extends AddressFailure {
-  const AddressLocationPermissionDenied(
-      [super.message = 'Location permission denied. Please enable it in Settings.']);
+  const AddressLocationPermissionDenied([
+    super.message = 'Location permission denied. Please enable it in Settings.',
+  ]);
 }
 
 /// Device GPS is turned off.
 class AddressLocationServiceDisabled extends AddressFailure {
-  const AddressLocationServiceDisabled(
-      [super.message = 'Location services are disabled. Please turn on GPS.']);
+  const AddressLocationServiceDisabled([
+    super.message = 'Location services are disabled. Please turn on GPS.',
+  ]);
 }

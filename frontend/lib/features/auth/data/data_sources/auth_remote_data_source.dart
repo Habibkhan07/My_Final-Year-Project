@@ -50,7 +50,7 @@ class AuthRemoteDataSource {
     // If token passed is empty, fallback to local storage
     String authToken = token;
     if (authToken.isEmpty) {
-        authToken = await localDataSource.getToken() ?? '';
+      authToken = await localDataSource.getToken() ?? '';
     }
 
     final response = await http.post(

@@ -27,8 +27,8 @@ const String jobDispatchChannelId = 'job_dispatch';
 /// Channel name and description are user-visible in OS Settings →
 /// Notifications. English-only for now; Urdu localization is a separate
 /// i18n workstream.
-const AndroidNotificationChannel jobDispatchChannel =
-    AndroidNotificationChannel(
+const AndroidNotificationChannel
+jobDispatchChannel = AndroidNotificationChannel(
   jobDispatchChannelId,
   'Job Requests',
   description:
@@ -51,7 +51,8 @@ Future<void> ensureJobDispatchChannel() async {
   try {
     final android = FlutterLocalNotificationsPlugin()
         .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>();
+          AndroidFlutterLocalNotificationsPlugin
+        >();
     await android?.createNotificationChannel(jobDispatchChannel);
   } catch (e, stack) {
     log(

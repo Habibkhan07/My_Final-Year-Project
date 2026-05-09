@@ -34,19 +34,24 @@ class _SelectTimeSheetState extends ConsumerState<SelectTimeSheet> {
   void initState() {
     super.initState();
     _selectedDate = DateTime.now();
-    _dates = List.generate(7, (index) => DateTime.now().add(Duration(days: index)));
+    _dates = List.generate(
+      7,
+      (index) => DateTime.now().add(Duration(days: index)),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final dateString = DateFormat('yyyy-MM-dd').format(_selectedDate);
 
-    final availabilityAsync = ref.watch(availabilityProvider(
-      technicianId: widget.technician.id,
-      date: dateString,
-      serviceId: widget.serviceId,
-      subServiceId: widget.subServiceId,
-    ));
+    final availabilityAsync = ref.watch(
+      availabilityProvider(
+        technicianId: widget.technician.id,
+        date: dateString,
+        serviceId: widget.serviceId,
+        subServiceId: widget.subServiceId,
+      ),
+    );
 
     final defaultAddressAsync = ref.watch(defaultAddressProvider);
 
@@ -129,7 +134,8 @@ class _SelectTimeSheetState extends ConsumerState<SelectTimeSheet> {
               separatorBuilder: (context, index) => const SizedBox(width: 12),
               itemBuilder: (context, index) {
                 final date = _dates[index];
-                final isSelected = date.day == _selectedDate.day &&
+                final isSelected =
+                    date.day == _selectedDate.day &&
                     date.month == _selectedDate.month &&
                     date.year == _selectedDate.year;
 
@@ -150,7 +156,8 @@ class _SelectTimeSheetState extends ConsumerState<SelectTimeSheet> {
                       border: isSelected
                           ? Border.all(
                               color: const Color(0xFF0051AE).withOpacity(0.1),
-                              width: 2)
+                              width: 2,
+                            )
                           : null,
                     ),
                     child: Column(
@@ -199,19 +206,18 @@ class _SelectTimeSheetState extends ConsumerState<SelectTimeSheet> {
                   child: Center(
                     child: Text(
                       'No slots available on this date.',
-                      style: TextStyle(
-                        color: Color(0xFF727785),
-                        fontSize: 16,
-                      ),
+                      style: TextStyle(color: Color(0xFF727785), fontSize: 16),
                     ),
                   ),
                 );
               }
 
-              final morningSlots =
-                  state.slots.where((s) => s.period == 'AM').toList();
-              final afternoonSlots =
-                  state.slots.where((s) => s.period == 'PM').toList();
+              final morningSlots = state.slots
+                  .where((s) => s.period == 'AM')
+                  .toList();
+              final afternoonSlots = state.slots
+                  .where((s) => s.period == 'PM')
+                  .toList();
 
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -223,12 +229,14 @@ class _SelectTimeSheetState extends ConsumerState<SelectTimeSheet> {
                       slots: morningSlots,
                       selectedSlot: state.selectedSlot,
                       onSlotSelected: (slot) => ref
-                          .read(availabilityProvider(
-                            technicianId: widget.technician.id,
-                            date: dateString,
-                            serviceId: widget.serviceId,
-                            subServiceId: widget.subServiceId,
-                          ).notifier)
+                          .read(
+                            availabilityProvider(
+                              technicianId: widget.technician.id,
+                              date: dateString,
+                              serviceId: widget.serviceId,
+                              subServiceId: widget.subServiceId,
+                            ).notifier,
+                          )
                           .selectSlot(slot),
                     ),
                     const SizedBox(height: 24),
@@ -240,12 +248,14 @@ class _SelectTimeSheetState extends ConsumerState<SelectTimeSheet> {
                       slots: afternoonSlots,
                       selectedSlot: state.selectedSlot,
                       onSlotSelected: (slot) => ref
-                          .read(availabilityProvider(
-                            technicianId: widget.technician.id,
-                            date: dateString,
-                            serviceId: widget.serviceId,
-                            subServiceId: widget.subServiceId,
-                          ).notifier)
+                          .read(
+                            availabilityProvider(
+                              technicianId: widget.technician.id,
+                              date: dateString,
+                              serviceId: widget.serviceId,
+                              subServiceId: widget.subServiceId,
+                            ).notifier,
+                          )
                           .selectSlot(slot),
                     ),
                 ],
@@ -318,7 +328,10 @@ class _PeriodSection extends StatelessWidget {
               onTap: () => onSlotSelected(slot),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
                 decoration: BoxDecoration(
                   gradient: isSelected
                       ? const LinearGradient(
@@ -335,13 +348,14 @@ class _PeriodSection extends StatelessWidget {
                             color: const Color(0xFF0051AE).withOpacity(0.3),
                             blurRadius: 12,
                             offset: const Offset(0, 4),
-                          )
+                          ),
                         ]
                       : null,
                   border: isSelected
                       ? Border.all(
                           color: const Color(0xFF0051AE).withOpacity(0.1),
-                          width: 4)
+                          width: 4,
+                        )
                       : null,
                 ),
                 child: Text(

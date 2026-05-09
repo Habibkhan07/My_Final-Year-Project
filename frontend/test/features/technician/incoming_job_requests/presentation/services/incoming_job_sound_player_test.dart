@@ -37,17 +37,15 @@ void main() {
         // the placeholder picks the right sound type. Click would be too
         // subtle for "new offer arrived"; alert is the deliberate choice.
         final calls = <String>[];
-        TestDefaultBinaryMessengerBinding
-            .instance.defaultBinaryMessenger
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
             .setMockMethodCallHandler(SystemChannels.platform, (call) async {
-          if (call.method == 'SystemSound.play') {
-            calls.add(call.arguments as String);
-          }
-          return null;
-        });
+              if (call.method == 'SystemSound.play') {
+                calls.add(call.arguments as String);
+              }
+              return null;
+            });
         addTearDown(() {
-          TestDefaultBinaryMessengerBinding
-              .instance.defaultBinaryMessenger
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
               .setMockMethodCallHandler(SystemChannels.platform, null);
         });
 

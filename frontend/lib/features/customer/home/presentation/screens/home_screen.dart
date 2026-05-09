@@ -248,7 +248,8 @@ class _HomeFeedTab extends ConsumerWidget {
                           child: TextField(
                             readOnly: true,
                             decoration: InputDecoration(
-                              hintText: 'Try "AC not cooling" or "Leaky pipe"...',
+                              hintText:
+                                  'Try "AC not cooling" or "Leaky pipe"...',
                               hintStyle: TextStyle(
                                 color: Colors.grey,
                                 fontSize: 14,

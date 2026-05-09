@@ -63,8 +63,7 @@ part 'incoming_job_queue_notifier.g.dart';
 /// fresh event id for the same booking.
 @Riverpod(keepAlive: true)
 class IncomingJobQueueNotifier extends _$IncomingJobQueueNotifier {
-  static const _logName =
-      'features.technician.incoming_job_requests.queue';
+  static const _logName = 'features.technician.incoming_job_requests.queue';
 
   @override
   IncomingJobQueueState build() {
@@ -175,9 +174,7 @@ class IncomingJobQueueNotifier extends _$IncomingJobQueueNotifier {
     if (state.inFlightJobIds.contains(jobId)) {
       return const JobActionAlreadyInFlight();
     }
-    state = state.copyWith(
-      inFlightJobIds: {...state.inFlightJobIds, jobId},
-    );
+    state = state.copyWith(inFlightJobIds: {...state.inFlightJobIds, jobId});
 
     try {
       await call(jobId);
@@ -222,10 +219,7 @@ class IncomingJobQueueNotifier extends _$IncomingJobQueueNotifier {
           .where((j) => j.expiresAt.isAfter(now))
           .toList();
       if (alive.isEmpty) {
-        state = state.copyWith(
-          queue: const [],
-          inFlightJobIds: nextInFlight,
-        );
+        state = state.copyWith(queue: const [], inFlightJobIds: nextInFlight);
         return;
       }
       alive.sort(

@@ -26,8 +26,8 @@ abstract class IBookingRemoteDataSource {
 
   /// POST /api/bookings/instant-book/
   Future<InstantBookingResponseModel> createInstantBooking(
-      InstantBookingRequestModel request);
-
+    InstantBookingRequestModel request,
+  );
 }
 
 class BookingRemoteDataSource implements IBookingRemoteDataSource {
@@ -37,10 +37,7 @@ class BookingRemoteDataSource implements IBookingRemoteDataSource {
   // Matches the key written by AuthLocalDataSource
   static const String _tokenKey = 'auth_token';
 
-  BookingRemoteDataSource({
-    required this.client,
-    required this.secureStorage,
-  });
+  BookingRemoteDataSource({required this.client, required this.secureStorage});
 
   @override
   Future<TechnicianProfileModel> getTechnicianProfile({
@@ -98,7 +95,8 @@ class BookingRemoteDataSource implements IBookingRemoteDataSource {
 
   @override
   Future<InstantBookingResponseModel> createInstantBooking(
-      InstantBookingRequestModel request) async {
+    InstantBookingRequestModel request,
+  ) async {
     final token = await secureStorage.read(key: _tokenKey);
 
     final uri = Uri.parse('${AppConstants.baseUrl}/bookings/instant-book/');
@@ -115,7 +113,8 @@ class BookingRemoteDataSource implements IBookingRemoteDataSource {
     _handleResponse(response);
 
     return InstantBookingResponseModel.fromJson(
-        jsonDecode(response.body) as Map<String, dynamic>);
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
   }
 
   void _handleResponse(http.Response response) {

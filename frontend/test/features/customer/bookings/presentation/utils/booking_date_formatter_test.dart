@@ -26,12 +26,11 @@ void main() {
   String fmt(
     DateTime start, {
     BookingStatus status = BookingStatus.confirmed,
-  }) =>
-      formatBookingDate(
-        scheduledStart: start,
-        serverNow: serverNow,
-        status: status,
-      );
+  }) => formatBookingDate(
+    scheduledStart: start,
+    serverNow: serverNow,
+    status: status,
+  );
 
   group('relative minutes (±60)', () {
     test('30 min ahead → "In 30 min"', () {
@@ -106,16 +105,17 @@ void main() {
         BookingStatus.pending,
         BookingStatus.unknown,
       ]) {
-        final result =
-            fmt(serverNow.add(const Duration(minutes: 30)), status: s);
+        final result = fmt(
+          serverNow.add(const Duration(minutes: 30)),
+          status: s,
+        );
         expect(result, isNot(contains('responding within')));
       }
     });
   });
 
   group('server-anchored (no DateTime.now leakage)', () {
-    test('formatter ignores wall-clock when serverNow is far in the past',
-        () {
+    test('formatter ignores wall-clock when serverNow is far in the past', () {
       // If the formatter were calling DateTime.now() instead of using
       // the passed serverNow, this booking (5h ahead of a fake "10
       // years ago" anchor) would format as a far-past or far-future

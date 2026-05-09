@@ -23,7 +23,11 @@ class SearchHistoryTile extends StatelessWidget {
           color: Color(0xFF1F2937),
         ),
       ),
-      trailing: const Icon(Icons.arrow_outward, color: Color(0xFFD1D5DB), size: 20),
+      trailing: const Icon(
+        Icons.arrow_outward,
+        color: Color(0xFFD1D5DB),
+        size: 20,
+      ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16),
       visualDensity: const VisualDensity(vertical: -2),
     );

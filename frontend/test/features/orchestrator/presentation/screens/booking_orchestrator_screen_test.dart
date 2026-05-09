@@ -74,15 +74,15 @@ SystemEventEntity _event({required SystemEventType type, int jobId = 42}) =>
 void main() {
   testWidgets('mounts and renders the orchestrator chrome', (tester) async {
     final repo = _CountingRepo();
-    await tester.pumpWidget(ProviderScope(
-      overrides: [
-        bookingDetailRepositoryProvider.overrideWithValue(repo),
-        systemEventProvider.overrideWith(_FakeSystemEventNotifier.new),
-      ],
-      child: const MaterialApp(
-        home: BookingOrchestratorScreen(jobId: 42),
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          bookingDetailRepositoryProvider.overrideWithValue(repo),
+          systemEventProvider.overrideWith(_FakeSystemEventNotifier.new),
+        ],
+        child: const MaterialApp(home: BookingOrchestratorScreen(jobId: 42)),
       ),
-    ));
+    );
     // Settle the initial load.
     await tester.pumpAndSettle();
 
@@ -96,26 +96,31 @@ void main() {
     (tester) async {
       final repo = _CountingRepo();
       late ProviderContainer container;
-      await tester.pumpWidget(ProviderScope(
-        overrides: [
-          bookingDetailRepositoryProvider.overrideWithValue(repo),
-          systemEventProvider.overrideWith(_FakeSystemEventNotifier.new),
-        ],
-        child: Consumer(builder: (context, ref, _) {
-          container = ProviderScope.containerOf(context);
-          return const MaterialApp(
-            home: BookingOrchestratorScreen(jobId: 42),
-          );
-        }),
-      ));
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            bookingDetailRepositoryProvider.overrideWithValue(repo),
+            systemEventProvider.overrideWith(_FakeSystemEventNotifier.new),
+          ],
+          child: Consumer(
+            builder: (context, ref, _) {
+              container = ProviderScope.containerOf(context);
+              return const MaterialApp(
+                home: BookingOrchestratorScreen(jobId: 42),
+              );
+            },
+          ),
+        ),
+      );
       await tester.pumpAndSettle();
       expect(repo.callCount, 1);
 
       // Push a refresh-trigger event. If the screen used `ref.read`
       // (the regressed pattern), the events notifier would have
       // auto-disposed and this push would do nothing.
-      final fake = container.read(systemEventProvider.notifier)
-          as _FakeSystemEventNotifier;
+      final fake =
+          container.read(systemEventProvider.notifier)
+              as _FakeSystemEventNotifier;
       fake.push(_event(type: SystemEventType.techEnRoute));
       await tester.pumpAndSettle();
 
@@ -128,31 +133,33 @@ void main() {
     },
   );
 
-  testWidgets(
-    'unrelated event types do not refresh',
-    (tester) async {
-      final repo = _CountingRepo();
-      late ProviderContainer container;
-      await tester.pumpWidget(ProviderScope(
+  testWidgets('unrelated event types do not refresh', (tester) async {
+    final repo = _CountingRepo();
+    late ProviderContainer container;
+    await tester.pumpWidget(
+      ProviderScope(
         overrides: [
           bookingDetailRepositoryProvider.overrideWithValue(repo),
           systemEventProvider.overrideWith(_FakeSystemEventNotifier.new),
         ],
-        child: Consumer(builder: (context, ref, _) {
-          container = ProviderScope.containerOf(context);
-          return const MaterialApp(
-            home: BookingOrchestratorScreen(jobId: 42),
-          );
-        }),
-      ));
-      await tester.pumpAndSettle();
+        child: Consumer(
+          builder: (context, ref, _) {
+            container = ProviderScope.containerOf(context);
+            return const MaterialApp(
+              home: BookingOrchestratorScreen(jobId: 42),
+            );
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
 
-      final fake = container.read(systemEventProvider.notifier)
-          as _FakeSystemEventNotifier;
-      fake.push(_event(type: SystemEventType.jobNewRequest));
-      await tester.pumpAndSettle();
+    final fake =
+        container.read(systemEventProvider.notifier)
+            as _FakeSystemEventNotifier;
+    fake.push(_event(type: SystemEventType.jobNewRequest));
+    await tester.pumpAndSettle();
 
-      expect(repo.callCount, 1);
-    },
-  );
+    expect(repo.callCount, 1);
+  });
 }

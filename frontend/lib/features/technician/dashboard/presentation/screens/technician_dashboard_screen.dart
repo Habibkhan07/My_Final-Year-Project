@@ -59,10 +59,8 @@ class TechnicianDashboardScreen extends ConsumerWidget {
           }
           return const _DashboardSkeleton();
         },
-        error: (error, _) => _ErrorState(
-          error: error,
-          onRetry: notifier.refresh,
-        ),
+        error: (error, _) =>
+            _ErrorState(error: error, onRetry: notifier.refresh),
         data: (state) => _DashboardLayout(state: state, notifier: notifier),
       ),
       bottomNavigationBar: const _DashboardNavBar(),
@@ -110,13 +108,15 @@ class _DashboardLayout extends ConsumerWidget {
                     const SizedBox(height: AppSpacing.s4),
                     Padding(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.screenPadding),
+                        horizontal: AppSpacing.screenPadding,
+                      ),
                       child: UpNextJobCard(job: dashboard.upNextJob),
                     ),
                     const SizedBox(height: AppSpacing.s4),
                     Padding(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.screenPadding),
+                        horizontal: AppSpacing.screenPadding,
+                      ),
                       child: LaterTodayList(jobs: dashboard.laterTodayJobs),
                     ),
                     const SizedBox(height: _ledgerScrollPadding),
@@ -163,13 +163,19 @@ class _DashboardSkeleton extends StatelessWidget {
                       children: [
                         const _ShimmerBox(height: 40, width: 40, radius: 20),
                         const SizedBox(width: 12),
-                        Expanded(
-                          child: _ShimmerBox(height: 16, radius: 4),
+                        Expanded(child: _ShimmerBox(height: 16, radius: 4)),
+                        const SizedBox(width: 8),
+                        const _ShimmerBox(
+                          height: 26,
+                          width: 70,
+                          radius: AppShapes.radiusFull,
                         ),
                         const SizedBox(width: 8),
-                        const _ShimmerBox(height: 26, width: 70, radius: AppShapes.radiusFull),
-                        const SizedBox(width: 8),
-                        const _ShimmerBox(height: 26, width: 90, radius: AppShapes.radiusFull),
+                        const _ShimmerBox(
+                          height: 26,
+                          width: 90,
+                          radius: AppShapes.radiusFull,
+                        ),
                       ],
                     ),
                     const SizedBox(height: AppSpacing.s4),
@@ -248,7 +254,10 @@ class _ErrorState extends StatelessWidget {
               Text(
                 message,
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 15, color: AppColors.onSurface),
+                style: const TextStyle(
+                  fontSize: 15,
+                  color: AppColors.onSurface,
+                ),
               ),
               const SizedBox(height: 24),
               ElevatedButton.icon(
@@ -288,8 +297,14 @@ class _DashboardNavBar extends StatelessWidget {
       unselectedItemColor: AppColors.outline,
       currentIndex: 0,
       elevation: 0,
-      selectedLabelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-      unselectedLabelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+      selectedLabelStyle: const TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.w600,
+      ),
+      unselectedLabelStyle: const TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.w500,
+      ),
       items: const [
         BottomNavigationBarItem(
           icon: Icon(Icons.handyman_outlined),

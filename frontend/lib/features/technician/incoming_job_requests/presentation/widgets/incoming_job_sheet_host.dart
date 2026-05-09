@@ -135,8 +135,7 @@ class _IncomingJobSheetHostState extends ConsumerState<IncomingJobSheetHost>
     final prevHeadId = previous == null || previous.queue.isEmpty
         ? null
         : previous.queue.first.jobId;
-    final nextHeadId =
-        next.queue.isEmpty ? null : next.queue.first.jobId;
+    final nextHeadId = next.queue.isEmpty ? null : next.queue.first.jobId;
 
     // Case 1 — empty → first arrival.
     if (prevHeadId == null && nextHeadId != null) {
@@ -203,9 +202,7 @@ class _IncomingJobSheetHostState extends ConsumerState<IncomingJobSheetHost>
     // sound for a tech who's looking away, haptic for one who can't hear
     // it (silent mode, noisy environment), visual for one whose phone is
     // muted and in a pocket. Any one of the three reaches them.
-    unawaited(
-      ref.read(incomingJobSoundPlayerProvider).playNewOfferSound(),
-    );
+    unawaited(ref.read(incomingJobSoundPlayerProvider).playNewOfferSound());
     HapticFeedback.heavyImpact();
 
     await _showController.forward(from: 0.0);
@@ -234,8 +231,9 @@ class _IncomingJobSheetHostState extends ConsumerState<IncomingJobSheetHost>
     // the mounted check below short-circuits.
     await Future<void>.delayed(_acceptConfirmHold);
     if (!mounted) return;
-    final result =
-        await ref.read(incomingJobQueueProvider.notifier).accept(jobId);
+    final result = await ref
+        .read(incomingJobQueueProvider.notifier)
+        .accept(jobId);
     if (!mounted) return;
     _surfaceResult(result, jobId: jobId, action: _JobAction.accept);
   }
@@ -244,8 +242,9 @@ class _IncomingJobSheetHostState extends ConsumerState<IncomingJobSheetHost>
     if (ref.read(incomingJobQueueProvider).inFlightJobIds.contains(jobId)) {
       return;
     }
-    final result =
-        await ref.read(incomingJobQueueProvider.notifier).decline(jobId);
+    final result = await ref
+        .read(incomingJobQueueProvider.notifier)
+        .decline(jobId);
     if (!mounted) return;
     _surfaceResult(result, jobId: jobId, action: _JobAction.decline);
   }
@@ -287,9 +286,7 @@ class _IncomingJobSheetHostState extends ConsumerState<IncomingJobSheetHost>
         return;
       case JobActionConflict():
         HapticFeedback.mediumImpact();
-        _showSnack(
-          message: 'This job is no longer available.',
-        );
+        _showSnack(message: 'This job is no longer available.');
       case JobActionNetworkFailure(:final failure):
         HapticFeedback.mediumImpact();
         _showSnack(
@@ -318,10 +315,7 @@ class _IncomingJobSheetHostState extends ConsumerState<IncomingJobSheetHost>
         content: Text(message),
         action: retry == null
             ? null
-            : SnackBarAction(
-                label: 'Retry',
-                onPressed: retry,
-              ),
+            : SnackBarAction(label: 'Retry', onPressed: retry),
       ),
     );
   }
@@ -427,9 +421,7 @@ class _SheetScrim extends StatelessWidget {
         final alpha = _alphaForSize(size);
         return IgnorePointer(
           ignoring: alpha < 0.02,
-          child: Container(
-            color: Colors.black.withValues(alpha: alpha),
-          ),
+          child: Container(color: Colors.black.withValues(alpha: alpha)),
         );
       },
     );

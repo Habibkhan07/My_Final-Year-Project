@@ -90,10 +90,7 @@ SystemEventEntity _liveEvent({
   );
 }
 
-typedef _Harness = ({
-  ProviderContainer container,
-  _FakeRepository repo,
-});
+typedef _Harness = ({ProviderContainer container, _FakeRepository repo});
 
 Future<_Harness> _pumpHost(
   WidgetTester tester, {
@@ -107,19 +104,20 @@ Future<_Harness> _pumpHost(
     ProviderScope(
       overrides: [
         realtime_di.eventLocalDataSourceProvider.overrideWithValue(local),
-        feature_di.incomingJobSoundPlayerProvider
-            .overrideWithValue(_NoopSoundPlayer()),
+        feature_di.incomingJobSoundPlayerProvider.overrideWithValue(
+          _NoopSoundPlayer(),
+        ),
         feature_di.incomingJobRepositoryProvider.overrideWithValue(repo),
-        feature_di.acceptJobRequestUseCaseProvider
-            .overrideWithValue(AcceptJobRequestUseCase(repo)),
-        feature_di.declineJobRequestUseCaseProvider
-            .overrideWithValue(DeclineJobRequestUseCase(repo)),
+        feature_di.acceptJobRequestUseCaseProvider.overrideWithValue(
+          AcceptJobRequestUseCase(repo),
+        ),
+        feature_di.declineJobRequestUseCaseProvider.overrideWithValue(
+          DeclineJobRequestUseCase(repo),
+        ),
       ],
       child: const MaterialApp(
         home: Scaffold(
-          body: IncomingJobSheetHost(
-            child: Center(child: Text('background')),
-          ),
+          body: IncomingJobSheetHost(child: Center(child: Text('background'))),
         ),
       ),
     ),
@@ -164,8 +162,9 @@ void _invokeExpire(WidgetTester tester) {
 
 void main() {
   group('IncomingJobSheetHost — accept wiring', () {
-    testWidgets('accept calls the use case once and removes the offer',
-        (tester) async {
+    testWidgets('accept calls the use case once and removes the offer', (
+      tester,
+    ) async {
       final h = await _pumpHost(tester);
       h.container
           .read(systemEventProvider.notifier)
@@ -188,8 +187,9 @@ void main() {
       'and removes the offer',
       (tester) async {
         final repo = _FakeRepository()
-          ..acceptThrow =
-              const OfferNoLongerAvailable(currentStatus: 'REJECTED');
+          ..acceptThrow = const OfferNoLongerAvailable(
+            currentStatus: 'REJECTED',
+          );
         final h = await _pumpHost(tester, repository: repo);
         h.container
             .read(systemEventProvider.notifier)
@@ -231,44 +231,42 @@ void main() {
       },
     );
 
-    testWidgets(
-      'tapping Retry re-invokes accept (second wire dispatch)',
-      (tester) async {
-        // First call fails with network; switch to success for the retry
-        // by clearing acceptThrow before tapping Retry.
-        final repo = _FakeRepository()
-          ..acceptThrow = const IncomingJobNetworkFailure();
-        final h = await _pumpHost(tester, repository: repo);
-        h.container
-            .read(systemEventProvider.notifier)
-            .processEvent(_liveEvent(id: 'e1', jobId: 1));
-        await _pumpSlideIn(tester);
+    testWidgets('tapping Retry re-invokes accept (second wire dispatch)', (
+      tester,
+    ) async {
+      // First call fails with network; switch to success for the retry
+      // by clearing acceptThrow before tapping Retry.
+      final repo = _FakeRepository()
+        ..acceptThrow = const IncomingJobNetworkFailure();
+      final h = await _pumpHost(tester, repository: repo);
+      h.container
+          .read(systemEventProvider.notifier)
+          .processEvent(_liveEvent(id: 'e1', jobId: 1));
+      await _pumpSlideIn(tester);
 
-        _invokeAccept(tester);
-        await tester.pump(_acceptTotalDelay);
-        await tester.pump();
-        expect(h.repo.acceptCalls, 1);
+      _invokeAccept(tester);
+      await tester.pump(_acceptTotalDelay);
+      await tester.pump();
+      expect(h.repo.acceptCalls, 1);
 
-        // Switch the repo to success for the retry path.
-        h.repo.acceptThrow = null;
+      // Switch the repo to success for the retry path.
+      h.repo.acceptThrow = null;
 
-        // Invoke the SnackBarAction's onPressed directly — the snackbar's
-        // hit target sits below the 600px test viewport in this layout, but
-        // the production user (taller phone screens, real BottomSheet
-        // positioning) reaches it normally. Bypassing the gesture path
-        // keeps this test focused on the wiring contract.
-        final action =
-            tester.widget<SnackBarAction>(find.byType(SnackBarAction));
-        action.onPressed.call();
+      // Invoke the SnackBarAction's onPressed directly — the snackbar's
+      // hit target sits below the 600px test viewport in this layout, but
+      // the production user (taller phone screens, real BottomSheet
+      // positioning) reaches it normally. Bypassing the gesture path
+      // keeps this test focused on the wiring contract.
+      final action = tester.widget<SnackBarAction>(find.byType(SnackBarAction));
+      action.onPressed.call();
 
-        // Retry re-invokes _handleAccept which awaits the 260ms hold.
-        await tester.pump(_acceptTotalDelay);
-        await tester.pump();
+      // Retry re-invokes _handleAccept which awaits the 260ms hold.
+      await tester.pump(_acceptTotalDelay);
+      await tester.pump();
 
-        expect(h.repo.acceptCalls, 2);
-        expect(h.container.read(incomingJobQueueProvider).queue, isEmpty);
-      },
-    );
+      expect(h.repo.acceptCalls, 2);
+      expect(h.container.read(incomingJobQueueProvider).queue, isEmpty);
+    });
 
     testWidgets(
       'a second tap during the in-flight window does NOT dispatch a second '
@@ -334,8 +332,9 @@ void main() {
   });
 
   group('IncomingJobSheetHost — decline wiring', () {
-    testWidgets('decline calls the use case once and removes the offer',
-        (tester) async {
+    testWidgets('decline calls the use case once and removes the offer', (
+      tester,
+    ) async {
       final h = await _pumpHost(tester);
       h.container
           .read(systemEventProvider.notifier)
@@ -352,11 +351,13 @@ void main() {
       expect(find.byType(SnackBar), findsNothing);
     });
 
-    testWidgets('decline on 409 surfaces the "no longer available" snackbar',
-        (tester) async {
+    testWidgets('decline on 409 surfaces the "no longer available" snackbar', (
+      tester,
+    ) async {
       final repo = _FakeRepository()
-        ..declineThrow =
-            const OfferNoLongerAvailable(currentStatus: 'CONFIRMED');
+        ..declineThrow = const OfferNoLongerAvailable(
+          currentStatus: 'CONFIRMED',
+        );
       final h = await _pumpHost(tester, repository: repo);
       h.container
           .read(systemEventProvider.notifier)

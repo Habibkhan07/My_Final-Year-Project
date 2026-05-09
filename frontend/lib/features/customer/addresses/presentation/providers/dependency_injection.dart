@@ -87,11 +87,11 @@ AddressLocationDataSource addressLocationDataSource(Ref ref) =>
 
 @Riverpod(keepAlive: true)
 IAddressRepository addressRepository(Ref ref) => AddressRepositoryImpl(
-      ref.watch(addressRemoteDataSourceProvider),
-      ref.watch(addressLocalDataSourceProvider),
-      ref.watch(addressLocationDataSourceProvider),
-      ref.watch(geocodingDataSourceProvider),
-    );
+  ref.watch(addressRemoteDataSourceProvider),
+  ref.watch(addressLocalDataSourceProvider),
+  ref.watch(addressLocationDataSourceProvider),
+  ref.watch(geocodingDataSourceProvider),
+);
 
 // ---------------------------------------------------------------------------
 // Use Cases

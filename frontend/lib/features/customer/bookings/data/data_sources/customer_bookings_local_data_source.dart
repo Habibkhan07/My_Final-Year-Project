@@ -60,10 +60,7 @@ class CachedBookingsPage {
   final BookingsListResponseModel response;
   final DateTime cachedAt;
 
-  const CachedBookingsPage({
-    required this.response,
-    required this.cachedAt,
-  });
+  const CachedBookingsPage({required this.response, required this.cachedAt});
 }
 
 class CustomerBookingsLocalDataSource
@@ -99,9 +96,7 @@ class CustomerBookingsLocalDataSource
   }
 
   @override
-  Future<CachedBookingsPage?> getCachedFirstPage(
-    BookingSegment segment,
-  ) async {
+  Future<CachedBookingsPage?> getCachedFirstPage(BookingSegment segment) async {
     final raw = _prefs.getString(_keyFor(segment));
     if (raw == null) return null;
     try {

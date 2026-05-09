@@ -7,16 +7,9 @@ void main() {
   // TechnicianProfileModel
   // ---------------------------------------------------------------------------
   group('TechnicianProfileModel', () {
-    const tSkillJson = {
-      'name': 'AC Repair',
-      'icon_name': 'ac_repair',
-    };
+    const tSkillJson = {'name': 'AC Repair', 'icon_name': 'ac_repair'};
 
-    const tReviewJson = {
-      'reviewer_name': 'Sara',
-      'rating': 5,
-      'text': 'Good',
-    };
+    const tReviewJson = {'reviewer_name': 'Sara', 'rating': 5, 'text': 'Good'};
 
     final tProfileJson = {
       'id': 1,
@@ -56,8 +49,12 @@ void main() {
       primaryPriceRaw: '1000.00',
       priceContext: 'Labor Fee',
       promoTag: '20% OFF',
-      skills: const [TechnicianSkillModel(name: 'AC Repair', iconName: 'ac_repair')],
-      recentReviews: const [TechnicianReviewModel(reviewerName: 'Sara', rating: 5, text: 'Good')],
+      skills: const [
+        TechnicianSkillModel(name: 'AC Repair', iconName: 'ac_repair'),
+      ],
+      recentReviews: const [
+        TechnicianReviewModel(reviewerName: 'Sara', rating: 5, text: 'Good'),
+      ],
     );
 
     test('fromJson parses full profile with primary_price_raw correctly', () {

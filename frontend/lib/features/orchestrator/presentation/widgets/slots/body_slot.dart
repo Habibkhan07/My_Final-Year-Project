@@ -28,15 +28,15 @@ class BodySlot extends StatelessWidget {
       BookingStatus.quoted => QuotedBodyStub(booking: booking),
       BookingStatus.inProgress => InProgressBodyStub(booking: booking),
       BookingStatus.completed => CompletedBodyStub(booking: booking),
-      BookingStatus.completedInspectionOnly =>
-        CompletedInspectionOnlyBodyStub(booking: booking),
+      BookingStatus.completedInspectionOnly => CompletedInspectionOnlyBodyStub(
+        booking: booking,
+      ),
       BookingStatus.cancelled => CancelledBodyStub(booking: booking),
       BookingStatus.rejected => RejectedBodyStub(booking: booking),
       BookingStatus.noShow => NoShowBodyStub(booking: booking),
       BookingStatus.disputed => DisputedBodyStub(booking: booking),
       BookingStatus.pending ||
-      BookingStatus.unknown =>
-        UnknownBodyStub(booking: booking),
+      BookingStatus.unknown => UnknownBodyStub(booking: booking),
     };
   }
 }

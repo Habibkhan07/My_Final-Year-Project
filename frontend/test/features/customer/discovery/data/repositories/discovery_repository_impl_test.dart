@@ -7,7 +7,8 @@ import 'package:frontend/features/customer/discovery/data/models/discovery_model
 import 'package:frontend/features/customer/discovery/data/repositories/discovery_repository_impl.dart';
 import 'package:frontend/features/customer/discovery/domain/failures/discovery_failure.dart';
 
-class MockDiscoveryRemoteDataSource extends Mock implements IDiscoveryRemoteDataSource {}
+class MockDiscoveryRemoteDataSource extends Mock
+    implements IDiscoveryRemoteDataSource {}
 
 void main() {
   late DiscoveryRepositoryImpl repository;
@@ -15,7 +16,9 @@ void main() {
 
   setUp(() {
     mockRemoteDataSource = MockDiscoveryRemoteDataSource();
-    repository = DiscoveryRepositoryImpl(remoteDataSource: mockRemoteDataSource);
+    repository = DiscoveryRepositoryImpl(
+      remoteDataSource: mockRemoteDataSource,
+    );
   });
 
   group('DiscoveryRepositoryImpl Error Propagation Pipeline', () {
@@ -48,9 +51,12 @@ void main() {
       results: [tTechnicianModel],
     );
 
-    test('should return DiscoveryResultEntity when remote call is successful', () async {
-      // Arrange
-      when(() => mockRemoteDataSource.getNearbyTechnicians(
+    test(
+      'should return DiscoveryResultEntity when remote call is successful',
+      () async {
+        // Arrange
+        when(
+          () => mockRemoteDataSource.getNearbyTechnicians(
             lat: any(named: 'lat'),
             lng: any(named: 'lng'),
             query: any(named: 'query'),
@@ -58,20 +64,30 @@ void main() {
             subServiceId: any(named: 'subServiceId'),
             promotionId: any(named: 'promotionId'),
             page: any(named: 'page'),
-          )).thenAnswer((_) async => tDiscoveryResultModel);
+          ),
+        ).thenAnswer((_) async => tDiscoveryResultModel);
 
-      // Act
-      final result = await repository.getNearbyTechnicians(lat: tLat, lng: tLng);
+        // Act
+        final result = await repository.getNearbyTechnicians(
+          lat: tLat,
+          lng: tLng,
+        );
 
-      // Assert
-      expect(result.count, 1);
-      expect(result.results.first.fullName, 'Ali Raza');
-      verify(() => mockRemoteDataSource.getNearbyTechnicians(lat: tLat, lng: tLng)).called(1);
-    });
+        // Assert
+        expect(result.count, 1);
+        expect(result.results.first.fullName, 'Ali Raza');
+        verify(
+          () => mockRemoteDataSource.getNearbyTechnicians(lat: tLat, lng: tLng),
+        ).called(1);
+      },
+    );
 
-    test('should throw DiscoveryValidationFailure when code is validation_error', () async {
-      // Arrange
-      when(() => mockRemoteDataSource.getNearbyTechnicians(
+    test(
+      'should throw DiscoveryValidationFailure when code is validation_error',
+      () async {
+        // Arrange
+        when(
+          () => mockRemoteDataSource.getNearbyTechnicians(
             lat: any(named: 'lat'),
             lng: any(named: 'lng'),
             query: any(named: 'query'),
@@ -79,25 +95,40 @@ void main() {
             subServiceId: any(named: 'subServiceId'),
             promotionId: any(named: 'promotionId'),
             page: any(named: 'page'),
-          )).thenThrow(HttpFailure(
-        statusCode: 400,
-        code: 'validation_error',
-        message: 'Validation failed',
-        errors: {'field': ['error']},
-      ));
+          ),
+        ).thenThrow(
+          HttpFailure(
+            statusCode: 400,
+            code: 'validation_error',
+            message: 'Validation failed',
+            errors: {
+              'field': ['error'],
+            },
+          ),
+        );
 
-      // Act & Assert
-      expect(
-        () => repository.getNearbyTechnicians(lat: tLat, lng: tLng),
-        throwsA(isA<DiscoveryValidationFailure>()
-            .having((e) => e.message, 'message', 'Validation failed')
-            .having((e) => e.errors?['field']?.first, 'first error', 'error')),
-      );
-    });
+        // Act & Assert
+        expect(
+          () => repository.getNearbyTechnicians(lat: tLat, lng: tLng),
+          throwsA(
+            isA<DiscoveryValidationFailure>()
+                .having((e) => e.message, 'message', 'Validation failed')
+                .having(
+                  (e) => e.errors?['field']?.first,
+                  'first error',
+                  'error',
+                ),
+          ),
+        );
+      },
+    );
 
-    test('should throw DiscoveryUnauthorizedFailure when code is unauthorized', () async {
-      // Arrange
-      when(() => mockRemoteDataSource.getNearbyTechnicians(
+    test(
+      'should throw DiscoveryUnauthorizedFailure when code is unauthorized',
+      () async {
+        // Arrange
+        when(
+          () => mockRemoteDataSource.getNearbyTechnicians(
             lat: any(named: 'lat'),
             lng: any(named: 'lng'),
             query: any(named: 'query'),
@@ -105,22 +136,29 @@ void main() {
             subServiceId: any(named: 'subServiceId'),
             promotionId: any(named: 'promotionId'),
             page: any(named: 'page'),
-          )).thenThrow(HttpFailure(
-        statusCode: 401,
-        code: 'unauthorized',
-        message: 'No auth',
-      ));
+          ),
+        ).thenThrow(
+          HttpFailure(
+            statusCode: 401,
+            code: 'unauthorized',
+            message: 'No auth',
+          ),
+        );
 
-      // Act & Assert
-      expect(
-        () => repository.getNearbyTechnicians(lat: tLat, lng: tLng),
-        throwsA(isA<DiscoveryUnauthorizedFailure>()),
-      );
-    });
+        // Act & Assert
+        expect(
+          () => repository.getNearbyTechnicians(lat: tLat, lng: tLng),
+          throwsA(isA<DiscoveryUnauthorizedFailure>()),
+        );
+      },
+    );
 
-    test('should throw DiscoveryNotFoundFailure when code is resource_not_found', () async {
-      // Arrange
-      when(() => mockRemoteDataSource.getNearbyTechnicians(
+    test(
+      'should throw DiscoveryNotFoundFailure when code is resource_not_found',
+      () async {
+        // Arrange
+        when(
+          () => mockRemoteDataSource.getNearbyTechnicians(
             lat: any(named: 'lat'),
             lng: any(named: 'lng'),
             query: any(named: 'query'),
@@ -128,30 +166,42 @@ void main() {
             subServiceId: any(named: 'subServiceId'),
             promotionId: any(named: 'promotionId'),
             page: any(named: 'page'),
-          )).thenThrow(HttpFailure(
-        statusCode: 404,
-        code: 'resource_not_found',
-        message: 'Not found',
-      ));
+          ),
+        ).thenThrow(
+          HttpFailure(
+            statusCode: 404,
+            code: 'resource_not_found',
+            message: 'Not found',
+          ),
+        );
 
-      // Act & Assert
-      expect(
-        () => repository.getNearbyTechnicians(lat: tLat, lng: tLng),
-        throwsA(isA<DiscoveryNotFoundFailure>().having((e) => e.message, 'message', 'Not found')),
-      );
-    });
+        // Act & Assert
+        expect(
+          () => repository.getNearbyTechnicians(lat: tLat, lng: tLng),
+          throwsA(
+            isA<DiscoveryNotFoundFailure>().having(
+              (e) => e.message,
+              'message',
+              'Not found',
+            ),
+          ),
+        );
+      },
+    );
 
     test('should throw DiscoveryNetworkFailure on SocketException', () async {
       // Arrange
-      when(() => mockRemoteDataSource.getNearbyTechnicians(
-            lat: any(named: 'lat'),
-            lng: any(named: 'lng'),
-            query: any(named: 'query'),
-            serviceId: any(named: 'serviceId'),
-            subServiceId: any(named: 'subServiceId'),
-            promotionId: any(named: 'promotionId'),
-            page: any(named: 'page'),
-          )).thenThrow(const SocketException('No internet'));
+      when(
+        () => mockRemoteDataSource.getNearbyTechnicians(
+          lat: any(named: 'lat'),
+          lng: any(named: 'lng'),
+          query: any(named: 'query'),
+          serviceId: any(named: 'serviceId'),
+          subServiceId: any(named: 'subServiceId'),
+          promotionId: any(named: 'promotionId'),
+          page: any(named: 'page'),
+        ),
+      ).thenThrow(const SocketException('No internet'));
 
       // Act & Assert
       expect(
@@ -160,9 +210,12 @@ void main() {
       );
     });
 
-    test('should throw DiscoveryUnexpectedFailure on FormatException', () async {
-      // Arrange
-      when(() => mockRemoteDataSource.getNearbyTechnicians(
+    test(
+      'should throw DiscoveryUnexpectedFailure on FormatException',
+      () async {
+        // Arrange
+        when(
+          () => mockRemoteDataSource.getNearbyTechnicians(
             lat: any(named: 'lat'),
             lng: any(named: 'lng'),
             query: any(named: 'query'),
@@ -170,13 +223,15 @@ void main() {
             subServiceId: any(named: 'subServiceId'),
             promotionId: any(named: 'promotionId'),
             page: any(named: 'page'),
-          )).thenThrow(const FormatException('Bad JSON'));
+          ),
+        ).thenThrow(const FormatException('Bad JSON'));
 
-      // Act & Assert
-      expect(
-        () => repository.getNearbyTechnicians(lat: tLat, lng: tLng),
-        throwsA(isA<DiscoveryUnexpectedFailure>()),
-      );
-    });
+        // Act & Assert
+        expect(
+          () => repository.getNearbyTechnicians(lat: tLat, lng: tLng),
+          throwsA(isA<DiscoveryUnexpectedFailure>()),
+        );
+      },
+    );
   });
 }
