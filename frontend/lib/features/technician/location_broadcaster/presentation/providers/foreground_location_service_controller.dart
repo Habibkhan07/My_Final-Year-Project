@@ -13,9 +13,47 @@
 // shared-prefs blob (so the isolate can authenticate POSTs). The token is
 // also in flutter_secure_storage already; the prefs blob is the SAME
 // trust boundary because both are stored on-device with no remote
-// readback. When the service stops, the blob stays — but it's overwritten
-// on every start (so a tech who logs out and a different tech logs in
-// will write a fresh token).
+// readback. On logout, `AppLifecycleOrchestrator.performTeardown` calls
+// `ForegroundLocationLifecycle.tearDown()` which removes the blob — so a
+// different tech logging in cannot inherit the previous tech's token
+// (audit C3 / S-1).
+//
+// ─── Lifecycle state machine (audit C4 / F-6 / F-7 / F-8 / P-1-3 / S-3) ──
+// The previous `bool _running` was set TRUE only AFTER awaiting
+// `FlutterForegroundTask.startService(...)` — a long stretch through
+// permission requests + token reads + saveData + startService. During
+// that window, multiple races were live:
+//   1. Re-entry: bookingDetailProvider firing twice in quick succession
+//      saw `!_running` both times and called _startService twice
+//      concurrently — two foreground services racing to register.
+//   2. Stop-during-start: status flipping out of EN_ROUTE while we
+//      awaited startService left the listener silently no-oping (the
+//      first call still in flight had _running == false), and the
+//      eventual success set _running = true for a status that no longer
+//      wanted tracking — service leaked.
+//   3. Dispose-during-start: ref.onDispose's `if (_running)` was false,
+//      so the platform service was not torn down; once _startService
+//      completed it set _running = true on a disposed provider — a
+//      ghost service.
+//   4. ServiceAlreadyStartedException: the package wraps this in
+//      `ServiceRequestFailure(error: ServiceAlreadyStartedException())`;
+//      the previous code treated the failure as `BroadcastState.error`
+//      even though the platform was correctly running.
+//
+// The fix:
+//   • Replace `bool _running` with `_LifecycleStatus` (idle | starting |
+//     running | stopping). Set `starting` SYNCHRONOUSLY before any await
+//     so re-entry is guarded structurally.
+//   • Route all transitions through a single `_evaluate()` method that
+//     reads the current bookingDetail snapshot and decides start vs stop.
+//   • `_evaluate()` is called from the listener AND from the tail of
+//     `_startService` / `_stopService` so a status flip that arrived
+//     mid-transition is honoured the moment the in-flight transition
+//     settles.
+//   • `ref.mounted` checked after each await — if disposed, abort and
+//     fire a stopService cleanup if the platform side may have started.
+//   • `ServiceRequestFailure` whose error `is ServiceAlreadyStartedException`
+//     treated as a soft-success (the platform invariant we wanted is met).
 
 import 'dart:async';
 import 'dart:developer' as developer;
@@ -33,6 +71,12 @@ import '../services/foreground_task_handler.dart';
 import 'dependency_injection.dart';
 
 part 'foreground_location_service_controller.g.dart';
+
+/// Internal lifecycle status. Distinct from [BroadcastState] (which is
+/// the UI-facing surface) — the lifecycle is finer-grained because the
+/// transient `starting` / `stopping` phases must be observable to guard
+/// against re-entry, even though the UI conflates them with `idle`.
+enum _LifecycleStatus { idle, starting, running, stopping }
 
 /// Manages the foreground GPS service for a single in-flight booking.
 ///
@@ -53,131 +97,194 @@ class ForegroundLocationServiceController
   static const _kNotificationChannelName = 'Tracking job';
   static const _kLogName = 'feature.location_broadcaster';
 
-  bool _running = false;
+  late final int _jobId;
+  _LifecycleStatus _status = _LifecycleStatus.idle;
 
   @override
   BroadcastState build(int jobId) {
-    ref.listen(bookingDetailProvider(jobId), (previous, next) {
-      next.whenData((booking) async {
-        final shouldRun =
-            booking.viewerRole == BookingOrchestratorRole.technician &&
-            _kSubscribableStatuses.contains(booking.status);
+    _jobId = jobId;
 
-        if (shouldRun && !_running) {
-          await _startService(booking);
-        } else if (!shouldRun && _running) {
-          await _stopService();
-        }
-      });
+    ref.listen(bookingDetailProvider(jobId), (previous, next) {
+      next.whenData((_) => _evaluate());
     });
 
     ref.onDispose(() {
-      // Fire-and-forget: stopService is async but we cannot await
-      // inside onDispose. The platform call is fast (≤100ms typical)
-      // and idempotent — calling stop on a stopped service is safe.
-      if (_running) {
+      // The platform service may be running independently of `_status`
+      // (e.g. dispose fires mid-start; startService is awaiting). Issue
+      // stopService unconditionally for any non-idle status — the
+      // platform call is idempotent and the cost of an extra stop on a
+      // not-running service is nil.
+      if (_status != _LifecycleStatus.idle) {
         unawaited(FlutterForegroundTask.stopService());
-        _running = false;
       }
+      _status = _LifecycleStatus.idle;
     });
 
     return BroadcastState.idle;
   }
 
+  /// Single source of truth for "what should be running right now?".
+  /// Idempotent — safe to call from the listener, from the tail of
+  /// `_startService`, and from the tail of `_stopService`. When a
+  /// transition is in flight (`starting` / `stopping`) this is a no-op;
+  /// the in-flight transition's `finally` block re-invokes `_evaluate`
+  /// so a status flip is settled the moment the wire becomes free.
+  void _evaluate() {
+    if (!ref.mounted) return;
+    if (_status == _LifecycleStatus.starting ||
+        _status == _LifecycleStatus.stopping) {
+      return;
+    }
+
+    final asyncBooking = ref.read(bookingDetailProvider(_jobId));
+    if (!asyncBooking.hasValue) return;
+    final booking = asyncBooking.requireValue;
+    final shouldRun =
+        booking.viewerRole == BookingOrchestratorRole.technician &&
+        _kSubscribableStatuses.contains(booking.status);
+
+    if (shouldRun && _status == _LifecycleStatus.idle) {
+      unawaited(_startService(booking));
+    } else if (!shouldRun && _status == _LifecycleStatus.running) {
+      unawaited(_stopService());
+    }
+  }
+
   Future<void> _startService(BookingDetail booking) async {
-    // SECURITY: tech_profile gate is server-side; we additionally
-    // gate this controller on viewerRole == technician above.
-    final permission = await _ensurePermissions();
-    if (permission != BroadcastState.idle &&
-        permission != BroadcastState.running) {
-      state = permission;
-      return;
-    }
+    // SYNCHRONOUS transition before any await — this is the re-entry
+    // guard. Any concurrent listener / tail re-evaluate sees `starting`
+    // and short-circuits.
+    _status = _LifecycleStatus.starting;
+    try {
+      // SECURITY: tech_profile gate is server-side; we additionally
+      // gate this controller on viewerRole == technician above.
+      final denied = await _ensurePermissions();
+      if (!ref.mounted) return;
+      if (denied != null) {
+        state = denied;
+        _status = _LifecycleStatus.idle;
+        return;
+      }
 
-    final token = await ref
-        .read(locationBroadcasterSecureStorageProvider)
-        .read(key: _kAuthTokenStorageKey);
-    if (token == null || token.isEmpty) {
-      developer.log(
-        'No auth token in secure storage — cannot start tracking.',
-        name: _kLogName,
-        level: 1000,
+      final token = await ref
+          .read(locationBroadcasterSecureStorageProvider)
+          .read(key: _kAuthTokenStorageKey);
+      if (!ref.mounted) return;
+      if (token == null || token.isEmpty) {
+        developer.log(
+          'No auth token in secure storage — cannot start tracking.',
+          name: _kLogName,
+          level: 1000,
+        );
+        state = BroadcastState.error;
+        _status = _LifecycleStatus.idle;
+        return;
+      }
+
+      // AndroidNotificationOptions is NOT a const constructor; the
+      // class instantiates non-const default values (e.g. visibility
+      // wrapper). Build it normally.
+      FlutterForegroundTask.init(
+        androidNotificationOptions: AndroidNotificationOptions(
+          channelId: _kNotificationChannelId,
+          channelName: _kNotificationChannelName,
+          channelDescription:
+              'Sends your live location to the customer for the active job.',
+        ),
+        iosNotificationOptions: const IOSNotificationOptions(),
+        foregroundTaskOptions: ForegroundTaskOptions(
+          // Geolocator's getPositionStream is the heartbeat — we don't
+          // need flutter_foreground_task's onRepeatEvent to fire.
+          // (`ForegroundTaskOptions` is const-eligible but
+          // `ForegroundTaskEventAction.nothing()` constructs a non-const
+          // instance, so the wrapper is non-const too.)
+          eventAction: ForegroundTaskEventAction.nothing(),
+          autoRunOnBoot: false,
+          autoRunOnMyPackageReplaced: false,
+          allowWakeLock: true,
+          allowWifiLock: true,
+        ),
       );
-      state = BroadcastState.error;
-      return;
-    }
 
-    // AndroidNotificationOptions is NOT a const constructor; the
-    // class instantiates non-const default values (e.g. visibility
-    // wrapper). Build it normally.
-    FlutterForegroundTask.init(
-      androidNotificationOptions: AndroidNotificationOptions(
-        channelId: _kNotificationChannelId,
-        channelName: _kNotificationChannelName,
-        channelDescription:
-            'Sends your live location to the customer for the active job.',
-      ),
-      iosNotificationOptions: const IOSNotificationOptions(),
-      foregroundTaskOptions: ForegroundTaskOptions(
-        // Geolocator's getPositionStream is the heartbeat — we don't
-        // need flutter_foreground_task's onRepeatEvent to fire.
-        // (`ForegroundTaskOptions` is const-eligible but
-        // `ForegroundTaskEventAction.nothing()` constructs a non-const
-        // instance, so the wrapper is non-const too.)
-        eventAction: ForegroundTaskEventAction.nothing(),
-        autoRunOnBoot: false,
-        autoRunOnMyPackageReplaced: false,
-        allowWakeLock: true,
-        allowWifiLock: true,
-      ),
-    );
-
-    // saveData BEFORE startService — the isolate reads it on onStart.
-    final config = TechLocationTaskKeys.encodeConfig(
-      authToken: token,
-      bookingId: booking.id,
-    );
-    await FlutterForegroundTask.saveData(
-      key: TechLocationTaskKeys.configKey,
-      value: config,
-    );
-
-    final firstName = booking.customer.fullName.split(' ').first;
-    final result = await FlutterForegroundTask.startService(
-      serviceTypes: const [ForegroundServiceTypes.location],
-      notificationTitle: 'Tracking job',
-      notificationText: 'Sending your location to $firstName',
-      callback: startTechLocationTaskCallback,
-    );
-
-    if (result is ServiceRequestSuccess) {
-      _running = true;
-      state = BroadcastState.running;
-    } else {
-      developer.log(
-        'startService failed: $result',
-        name: _kLogName,
-        level: 1000,
+      // saveData BEFORE startService — the isolate reads it on onStart.
+      final config = TechLocationTaskKeys.encodeConfig(
+        authToken: token,
+        bookingId: booking.id,
       );
-      state = BroadcastState.error;
+      await FlutterForegroundTask.saveData(
+        key: TechLocationTaskKeys.configKey,
+        value: config,
+      );
+      if (!ref.mounted) return;
+
+      final firstName = booking.customer.fullName.split(' ').first;
+      final result = await FlutterForegroundTask.startService(
+        serviceTypes: const [ForegroundServiceTypes.location],
+        notificationTitle: 'Tracking job',
+        notificationText: 'Sending your location to $firstName',
+        callback: startTechLocationTaskCallback,
+      );
+
+      // Audit C4: ServiceAlreadyStartedException is a soft-success — the
+      // platform service is already running, which is exactly the
+      // post-condition this method aims for. The package wraps the
+      // throw inside `ServiceRequestFailure(error: ...)` (see
+      // flutter_foreground_task v9.x source), so we must unwrap.
+      final softSuccess =
+          result is ServiceRequestSuccess ||
+          (result is ServiceRequestFailure &&
+              result.error is ServiceAlreadyStartedException);
+
+      if (!ref.mounted) {
+        // Disposed during startService. Tear down the platform service
+        // explicitly — the dispose hook fires unconditionally now, but
+        // by the time it ran `_status` was still `starting`, so the
+        // hook DID call stopService. Defensive: another stop here is a
+        // no-op but covers the case where dispose ordering changes.
+        if (softSuccess) unawaited(FlutterForegroundTask.stopService());
+        return;
+      }
+
+      if (softSuccess) {
+        _status = _LifecycleStatus.running;
+        state = BroadcastState.running;
+      } else {
+        developer.log(
+          'startService failed: $result',
+          name: _kLogName,
+          level: 1000,
+        );
+        _status = _LifecycleStatus.idle;
+        state = BroadcastState.error;
+      }
+    } finally {
+      // Settle to the latest desired state. If shouldRun flipped to
+      // false while we were starting, _evaluate now triggers a stop.
+      // Idempotent when nothing changed.
+      _evaluate();
     }
   }
 
   Future<void> _stopService() async {
-    await FlutterForegroundTask.stopService();
-    _running = false;
-    state = BroadcastState.idle;
+    _status = _LifecycleStatus.stopping;
+    try {
+      await FlutterForegroundTask.stopService();
+    } finally {
+      if (ref.mounted) {
+        _status = _LifecycleStatus.idle;
+        state = BroadcastState.idle;
+      }
+      // Symmetric tail: a status flip mid-stop (re-entered EN_ROUTE
+      // again) wakes the next start.
+      _evaluate();
+    }
   }
 
   /// Ensures location + (Android 13+) notification permissions are
-  /// granted. Returns:
-  ///   • BroadcastState.idle — green-light to start.
-  ///   • BroadcastState.permissionDenied — location denied.
-  ///   • BroadcastState.notificationPermissionDenied — notification denied.
-  ///
-  /// The orchestrator screen is expected to surface a friendly explainer
-  /// dialog when state flips to a denied variant.
-  Future<BroadcastState> _ensurePermissions() async {
+  /// granted. Returns `null` when all permissions are granted (start
+  /// can proceed); otherwise returns the specific denied state to
+  /// surface in the UI.
+  Future<BroadcastState?> _ensurePermissions() async {
     var permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
@@ -197,6 +304,6 @@ class ForegroundLocationServiceController
       }
     }
 
-    return BroadcastState.idle;
+    return null;
   }
 }
