@@ -168,6 +168,46 @@ void main() {
     );
   });
 
+  group('TrackingSubscriptionController — initial-fire (regression for C1)', () {
+    // Regression: a plain `ref.listen` only fires on future transitions.
+    // If `bookingDetailProvider` is already AsyncData when the controller
+    // is built (e.g. a later widget in the screen mounts the controller
+    // after detail has resolved), the gate would never evaluate and the
+    // customer would silently never subscribe. The fix uses
+    // `fireImmediately: true` so the gate runs against the current value.
+    test(
+      'subscribes when bookingDetailProvider is already resolved before '
+      'controller is built',
+      () async {
+        final ws = _FakeWsNotifier();
+        addTearDown(() => ws.events.close());
+
+        final container = _container(
+          repo: _FixtureRepo(status: 'EN_ROUTE'),
+          ws: ws,
+        );
+
+        // Pre-warm bookingDetailProvider FIRST so it is already AsyncData
+        // before the controller is mounted. This simulates the real-world
+        // ordering bug where the detail provider resolves before the
+        // controller's `build` installs its listener.
+        await container.read(bookingDetailProvider(42).future);
+        expect(ws.sentMessages, isEmpty); // sanity: nothing wired yet
+
+        // Now mount the controller. With the fix it must evaluate the
+        // gate against the existing AsyncData and send subscribe.
+        container.listen(trackingSubscriptionControllerProvider(42), (_, _) {});
+        await Future<void>.microtask(() {});
+
+        expect(ws.sentMessages, hasLength(1));
+        expect(ws.sentMessages.first, {
+          'action': 'subscribe_tracking',
+          'booking_id': 42,
+        });
+      },
+    );
+  });
+
   group('TrackingSubscriptionController — WS reconnect replay', () {
     test(
       'WsConnected event re-issues subscribe_tracking when subscribed',

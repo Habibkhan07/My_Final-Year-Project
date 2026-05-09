@@ -27,6 +27,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../../core/realtime/presentation/notifiers/ws_connection_notifier.dart';
 import '../../../customer/bookings/domain/entities/booking_status.dart';
+import '../../domain/entities/booking_detail.dart';
 import '../../domain/entities/booking_orchestrator_role.dart';
 import 'booking_detail_provider.dart';
 
@@ -50,21 +51,20 @@ class TrackingSubscriptionController extends _$TrackingSubscriptionController {
     final ws = ref.read(wsConnectionProvider.notifier);
 
     // (1) status × role gate — drives subscribe/unsubscribe transitions.
-    ref.listen(bookingDetailProvider(jobId), (previous, next) {
-      next.whenData((booking) {
-        final shouldSubscribe =
-            booking.viewerRole == BookingOrchestratorRole.customer &&
-            _kSubscribableStatuses.contains(booking.status);
-
-        if (shouldSubscribe && !_subscribed) {
-          _send(ws, 'subscribe_tracking', jobId);
-          _subscribed = true;
-        } else if (!shouldSubscribe && _subscribed) {
-          _send(ws, 'unsubscribe_tracking', jobId);
-          _subscribed = false;
-        }
-      });
-    });
+    //
+    // `fireImmediately: true` is load-bearing: a plain `ref.listen` only
+    // fires on future *transitions*. If `bookingDetailProvider` is already
+    // resolved when this controller is built (e.g. the screen rebuilt and
+    // the detail provider had cached data, or a subsequent widget mounts
+    // this controller after the detail resolved), the listener would
+    // never see the existing AsyncData and the customer would silently
+    // never subscribe to tracking. Fire-immediately evaluates the gate
+    // against the current value the moment the listener is installed.
+    ref.listen(
+      bookingDetailProvider(jobId),
+      (previous, next) => next.whenData((b) => _evaluate(b, ws, jobId)),
+      fireImmediately: true,
+    );
 
     // (2) WS reconnect re-subscribe (audit P1-06). Listens to the
     // broadcast Stream; ignores WsDisconnected (the next reconnect
@@ -83,6 +83,24 @@ class TrackingSubscriptionController extends _$TrackingSubscriptionController {
         _subscribed = false;
       }
     });
+  }
+
+  /// Pure gate function: evaluates whether `booking` should be tracked
+  /// and emits the matching subscribe / unsubscribe upstream message.
+  /// Idempotent against `_subscribed` — calling on the same data twice
+  /// is a no-op for the second call.
+  void _evaluate(BookingDetail booking, WsConnectionNotifier ws, int jobId) {
+    final shouldSubscribe =
+        booking.viewerRole == BookingOrchestratorRole.customer &&
+        _kSubscribableStatuses.contains(booking.status);
+
+    if (shouldSubscribe && !_subscribed) {
+      _send(ws, 'subscribe_tracking', jobId);
+      _subscribed = true;
+    } else if (!shouldSubscribe && _subscribed) {
+      _send(ws, 'unsubscribe_tracking', jobId);
+      _subscribed = false;
+    }
   }
 
   static void _send(WsConnectionNotifier ws, String action, int jobId) {
