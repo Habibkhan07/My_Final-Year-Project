@@ -187,10 +187,36 @@ class CustomerBookingsList extends _$CustomerBookingsList {
       case SystemEventType.bookingRejected:
         _patch(event, BookingEventPatchMapper.applyBookingRejected);
         break;
-      // Slot reserved for future events (`quote_generated`,
-      // `quote_approved`, `tech_en_route`, `tech_arrived`,
-      // `job_completed`, `payment_received`). Each will route through
-      // its own mapper static method when it lands. For now: ignore.
+      // Booking-orchestrator v1 (sprint session 3) — these patch the
+      // list row's status + ui block in lockstep with the server's
+      // `customer_bookings_selector._resolve_ui_block` logic.
+      case SystemEventType.bookingCancelled:
+        _patch(event, BookingEventPatchMapper.applyBookingCancelled);
+        break;
+      case SystemEventType.bookingNoShow:
+        _patch(event, BookingEventPatchMapper.applyBookingNoShow);
+        break;
+      case SystemEventType.quoteDeclined:
+        _patch(event, BookingEventPatchMapper.applyQuoteDeclined);
+        break;
+      case SystemEventType.jobCompleted:
+        _patch(event, BookingEventPatchMapper.applyJobCompleted);
+        break;
+      case SystemEventType.bookingRescheduled:
+        _patch(event, BookingEventPatchMapper.applyBookingRescheduled);
+        // The patch flips the original to CANCELLED. The newly-created
+        // child booking is on a different row id and won't appear via
+        // patching — trigger a server-filtered re-fetch so the child shows
+        // up on the user's Upcoming tab without a manual pull-to-refresh.
+        // ignore: discarded_futures
+        refresh();
+        break;
+      // Slot reserved for events without list-side semantics
+      // (`tech_en_route`, `tech_arrived`, `quote_generated`,
+      // `quote_approved`, `quote_revision_requested`, `payment_received`,
+      // `dispute_opened`, `dispute_resolved`). The orchestrator screen
+      // handles those; the list card stays put with whatever status it
+      // had — the next list refresh picks up any drift.
       // ignore: no_default_cases
       default:
         break;

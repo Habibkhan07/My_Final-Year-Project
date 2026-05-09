@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -5,8 +6,8 @@ import '../../features/auth/presentation/providers/auth_notifier.dart';
 import '../../features/auth/presentation/screens/login_screen.dart';
 import '../../features/auth/presentation/screens/otp_screen.dart';
 import '../../features/auth/presentation/screens/profile_setup_screen.dart';
-import '../../features/customer/bookings/presentation/screens/customer_booking_detail_screen.dart';
 import '../../features/customer/bookings/presentation/screens/customer_bookings_list_screen.dart';
+import '../../features/orchestrator/presentation/screens/booking_orchestrator_screen.dart';
 import '../../features/customer/home/presentation/screens/home_screen.dart';
 import '../../features/customer/search/presentation/pages/search_page.dart';
 import '../../features/customer/discovery/presentation/screens/discovery_results_screen.dart';
@@ -95,15 +96,27 @@ final routerProvider = Provider<GoRouter>((ref) {
           );
         },
       ),
-      // `booking_rejected` low-urgency banner taps land here
-      // (`EventUrgencyRouter._lowUrgencyTapPayloadKeys` substitutes
-      // `:job_id` from the event payload). Rich detail UI is deferred —
-      // see `CustomerBookingDetailScreen` and flag #26.
+      // Orchestrator screen — audience-shared (customer + technician).
+      // Closes flag #26: this is the real detail UI that replaces the
+      // pre-orchestrator placeholder at `/customer/booking/:job_id`.
+      // Realtime banners and high-urgency events route here via
+      // `EventUrgencyRouter`'s `:job_id` substitution.
       GoRoute(
-        path: '/customer/booking/:job_id',
+        path: '/booking/:job_id',
+        name: 'booking_orchestrator',
         builder: (context, state) {
-          final id = int.tryParse(state.pathParameters['job_id'] ?? '') ?? 0;
-          return CustomerBookingDetailScreen(bookingId: id);
+          // Malformed job_id (e.g. /booking/abc from a typo'd deep link)
+          // would silently fall back to 0 and trigger a server 404 →
+          // generic "This booking does not exist." The user has no way
+          // to tell whether the booking really vanished or the link was
+          // bad. Surface an explicit invalid-link screen instead so the
+          // distinction is clear and the back button is obvious.
+          final raw = state.pathParameters['job_id'];
+          final id = raw == null ? null : int.tryParse(raw);
+          if (id == null || id <= 0) {
+            return const _InvalidBookingLinkScreen();
+          }
+          return BookingOrchestratorScreen(jobId: id);
         },
       ),
       // My Bookings list. Primary surface is the home shell's bottom-nav
@@ -161,4 +174,47 @@ final routerProvider = Provider<GoRouter>((ref) {
     },
   );
 });
+
+/// Surface for malformed `/booking/<not-a-number>` deep links. Distinct
+/// from the orchestrator's "Not found" failure UI so the user can tell a
+/// bad link from a missing booking — and reach Home with the visible
+/// back-arrow without bouncing through a server 404.
+class _InvalidBookingLinkScreen extends StatelessWidget {
+  const _InvalidBookingLinkScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Scaffold(
+      appBar: AppBar(title: const Text('Invalid link')),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.link_off, size: 56, color: theme.colorScheme.error),
+              const SizedBox(height: 16),
+              Text("This link isn't a valid booking.",
+                  style: theme.textTheme.titleMedium),
+              const SizedBox(height: 8),
+              Text(
+                'The booking id is missing or malformed. Try opening the booking from your bookings list instead.',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 16),
+              FilledButton(
+                onPressed: () => GoRouter.of(context).go('/home'),
+                child: const Text('Go home'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
 

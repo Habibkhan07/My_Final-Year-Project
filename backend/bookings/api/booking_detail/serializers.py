@@ -16,10 +16,27 @@ from __future__ import annotations
 
 from rest_framework import serializers
 
-from bookings.api.quotes.serializers import (
-    QuoteLineItemResponseSerializer,
-    QuoteResponseSerializer,
-)
+from bookings.api.quotes.serializers import QuoteResponseSerializer
+
+
+class _BookingItemResponseSerializer(serializers.Serializer):
+    """Wire shape for an accepted ``BookingItem`` row.
+
+    Distinct from ``QuoteLineItemResponseSerializer`` even though the two
+    look almost identical: the field names diverge (``BookingItem`` has
+    ``price_charged``; ``QuoteLineItem`` has ``priced_at``) and only this
+    one carries ``sourced_quote_id``. Reusing the quote-line serializer
+    here would raise ``AttributeError: 'BookingItem' object has no
+    attribute 'priced_at'`` at runtime — silently undetected because no
+    booking-detail test fixture currently includes a BookingItem row.
+    """
+    id = serializers.IntegerField()
+    sub_service_id = serializers.IntegerField()
+    sub_service_name = serializers.CharField(source="sub_service.name")
+    quantity = serializers.IntegerField()
+    price_charged = serializers.DecimalField(max_digits=10, decimal_places=2)
+    line_total = serializers.DecimalField(max_digits=10, decimal_places=2)
+    sourced_quote_id = serializers.IntegerField(allow_null=True)
 
 
 class _ServiceMiniSerializer(serializers.Serializer):
@@ -222,6 +239,15 @@ class BookingDetailResponseSerializer(serializers.Serializer):
                 "method": booking.cash_collection_method,
             }).data,
             "parent_booking_id": booking.parent_booking_id,
+            # Reschedule lineage forward-pointer. When this booking is the
+            # CANCELLED original of a reschedule chain, surface the child's
+            # id so the orchestrator screen can render a "Continued on #N"
+            # callout — otherwise a customer/tech who returns to the
+            # original (e.g. via a stale FCM tap) is stranded with no way
+            # back to the live booking. Pulled from the related_name on
+            # the parent FK; we pick the most recently created child to
+            # tolerate the (theoretical) case of a chain longer than one.
+            "child_booking_id": payload["child_booking_id"],
             "cancel_reason": booking.cancel_reason,
             "no_show_actor": booking.no_show_actor,
             "active_quote": (
@@ -229,7 +255,7 @@ class BookingDetailResponseSerializer(serializers.Serializer):
                 if payload["active_quote"] is not None
                 else None
             ),
-            "booking_items": QuoteLineItemResponseSerializer(
+            "booking_items": _BookingItemResponseSerializer(
                 payload["booking_items"], many=True,
             ).data,
             "open_tickets_count": payload["open_tickets_count"],

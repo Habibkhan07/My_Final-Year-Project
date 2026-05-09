@@ -6,17 +6,20 @@ Verifies that:
   * The fallback handler kicks in for unknown statuses (defensive only).
   * Each handler returns the expected dict shape (all required keys
     present, ``tone`` is one of the allowed enum values).
+  * Endpoint wire format matches the §24 convention: paths begin with
+    ``/bookings/...`` (no ``/api/`` prefix), and quote-action endpoints
+    interpolate the live ``active_quote.id`` (no literal ``<id>``).
 """
 from __future__ import annotations
 
 import pytest
 
-from bookings.models import JobBooking
+from bookings.models import JobBooking, Quote
 from bookings.selectors.orchestrator_ui import (
     _HANDLERS,
     resolve_orchestrator_ui,
 )
-from tests.factories.bookings import JobBookingConfirmedFactory
+from tests.factories.bookings import JobBookingConfirmedFactory, QuoteFactory
 
 
 pytestmark = pytest.mark.django_db
@@ -33,6 +36,15 @@ _REQUIRED_KEYS = {
     "tone",
 }
 _ALLOWED_TONES = {"positive", "warning", "negative", "neutral", "info"}
+
+
+def _iter_action_endpoints(block):
+    """Yield every ``endpoint`` string in a UI block (primary + secondary)."""
+    primary = block.get("primary_action")
+    if primary is not None:
+        yield primary["endpoint"]
+    for action in block.get("secondary_actions", []):
+        yield action["endpoint"]
 
 
 def test_every_status_has_both_role_handlers():
@@ -52,6 +64,11 @@ def test_every_status_has_both_role_handlers():
 )
 def test_every_handler_returns_expected_shape(status, role):
     booking = JobBookingConfirmedFactory(status=status)
+    if status == JobBooking.STATUS_QUOTED:
+        # Quoted handlers read get_active_quote(); seed a SUBMITTED row so
+        # the customer-side handler renders the action set rather than the
+        # defensive "no actions" fallback.
+        QuoteFactory(booking=booking, status=Quote.STATUS_SUBMITTED)
     block = resolve_orchestrator_ui(booking, viewer=booking.customer, role=role)
     assert _REQUIRED_KEYS.issubset(block.keys())
     assert block["tone"] in _ALLOWED_TONES
@@ -61,8 +78,66 @@ def test_every_handler_returns_expected_shape(status, role):
     assert isinstance(block["show_dispute_button"], bool)
 
 
+@pytest.mark.parametrize("role", ["customer", "technician"])
+@pytest.mark.parametrize(
+    "status",
+    [value for value, _ in JobBooking.STATUS_CHOICES],
+)
+def test_endpoint_wire_format_invariants(status, role):
+    """No ``/api/`` prefix and no literal ``<id>`` placeholders.
+
+    Sprint §24: ``AppConstants.baseUrl`` already includes ``/api``, so
+    handler endpoints concatenate to ``/api/bookings/...`` only when this
+    selector emits ``/bookings/...``. Quote actions must interpolate the
+    real ``active_quote.id`` — frontend never templates URLs.
+    """
+    booking = JobBookingConfirmedFactory(status=status)
+    if status == JobBooking.STATUS_QUOTED:
+        QuoteFactory(booking=booking, status=Quote.STATUS_SUBMITTED)
+    block = resolve_orchestrator_ui(booking, viewer=booking.customer, role=role)
+    for endpoint in _iter_action_endpoints(block):
+        assert not endpoint.startswith("/api/"), (
+            f"Handler ({status!r}, {role!r}) emitted {endpoint!r} with /api/ prefix"
+        )
+        assert endpoint.startswith("/bookings/"), (
+            f"Handler ({status!r}, {role!r}) emitted {endpoint!r} not under /bookings/"
+        )
+        assert "<id>" not in endpoint, (
+            f"Handler ({status!r}, {role!r}) emitted unfilled <id> placeholder in {endpoint!r}"
+        )
+
+
+def test_customer_quoted_endpoints_interpolate_active_quote_id():
+    """Approve/decline/revision URLs must contain the actual quote id."""
+    booking = JobBookingConfirmedFactory(status=JobBooking.STATUS_QUOTED)
+    quote = QuoteFactory(booking=booking, status=Quote.STATUS_SUBMITTED)
+    block = resolve_orchestrator_ui(booking, viewer=booking.customer, role="customer")
+    primary = block["primary_action"]
+    assert primary is not None
+    assert primary["endpoint"] == f"/bookings/{booking.id}/quotes/{quote.id}/approve/"
+    secondary_endpoints = {a["endpoint"] for a in block["secondary_actions"]}
+    assert f"/bookings/{booking.id}/quotes/{quote.id}/decline/" in secondary_endpoints
+    assert (
+        f"/bookings/{booking.id}/quotes/{quote.id}/request-revision/"
+        in secondary_endpoints
+    )
+
+
+def test_customer_quoted_without_active_quote_falls_back_safely():
+    """Defensive: if no quote exists, render no-actions block (not a 500)."""
+    booking = JobBookingConfirmedFactory(status=JobBooking.STATUS_QUOTED)
+    # Intentionally do NOT seed a quote.
+    block = resolve_orchestrator_ui(booking, viewer=booking.customer, role="customer")
+    assert block["tone"] == "warning"
+    assert block["primary_action"] is None
+    # The single secondary action is "Cancel" — also confirms wire format.
+    assert len(block["secondary_actions"]) == 1
+    assert block["secondary_actions"][0]["endpoint"] == f"/bookings/{booking.id}/cancel/"
+
+
 def test_customer_view_on_quoted_shows_approve_action():
     booking = JobBookingConfirmedFactory(status=JobBooking.STATUS_QUOTED)
+    QuoteFactory(booking=booking, status=Quote.STATUS_SUBMITTED)
     block = resolve_orchestrator_ui(booking, viewer=booking.customer, role="customer")
     assert block["primary_action"] is not None
     assert block["primary_action"]["label"].startswith("Approve")

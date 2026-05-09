@@ -4,6 +4,8 @@ enum SystemEventType {
   bookingRejected,
   quoteGenerated,
   quoteApproved,
+  quoteRevisionRequested,
+  quoteDeclined,
   techEnRoute,
   techArrived,
   jobCompleted,
@@ -12,6 +14,9 @@ enum SystemEventType {
   disputeOpened,
   disputeResolved,
   walletLowBalance,
+  bookingCancelled,
+  bookingNoShow,
+  bookingRescheduled,
   unknown;
 
   static const Map<String, SystemEventType> _lookup = {
@@ -20,6 +25,8 @@ enum SystemEventType {
     'booking_rejected': SystemEventType.bookingRejected,
     'quote_generated': SystemEventType.quoteGenerated,
     'quote_approved': SystemEventType.quoteApproved,
+    'quote_revision_requested': SystemEventType.quoteRevisionRequested,
+    'quote_declined': SystemEventType.quoteDeclined,
     'tech_en_route': SystemEventType.techEnRoute,
     'tech_arrived': SystemEventType.techArrived,
     'job_completed': SystemEventType.jobCompleted,
@@ -28,6 +35,9 @@ enum SystemEventType {
     'dispute_opened': SystemEventType.disputeOpened,
     'dispute_resolved': SystemEventType.disputeResolved,
     'wallet_low_balance': SystemEventType.walletLowBalance,
+    'booking_cancelled': SystemEventType.bookingCancelled,
+    'booking_no_show': SystemEventType.bookingNoShow,
+    'booking_rescheduled': SystemEventType.bookingRescheduled,
   };
 
   static SystemEventType fromRawType(String raw) =>

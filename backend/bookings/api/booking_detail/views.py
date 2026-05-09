@@ -77,6 +77,16 @@ class BookingDetailView(APIView):
 
         viewer_role = "customer" if is_customer else "technician"
 
+        # Reschedule-chain forward pointer (audit cycle 2 #B1). When this
+        # booking is the CANCELLED original, surface the child's id so the
+        # orchestrator UI can offer a "Continued on #N" link — otherwise a
+        # user who returns to the original (e.g. via a stale FCM tap) is
+        # stranded. Most-recent child wins to tolerate chains > 1.
+        child = (
+            booking.child_bookings.order_by('-id').only('id').first()
+        )
+        child_booking_id = child.id if child is not None else None
+
         payload = {
             "booking": booking,
             "active_quote": get_active_quote(booking),
@@ -88,6 +98,7 @@ class BookingDetailView(APIView):
             "available_transitions": available_transitions(
                 booking, viewer=request.user, role=viewer_role,
             ),
+            "child_booking_id": child_booking_id,
         }
 
         response = Response(

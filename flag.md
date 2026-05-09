@@ -895,32 +895,19 @@ Medium. The "I confirmed but the customer doesn't know" silence is a real conver
 
 ---
 
-## 26. Customer booking-detail screen is a placeholder (`/customer/booking/:job_id` stub)
+## ~~26. Customer booking-detail screen is a placeholder (`/customer/booking/:job_id` stub)~~ ✅ Resolved (2026-05-09)
 
-**Where**
-- `frontend/lib/features/customer/bookings/presentation/screens/customer_booking_detail_screen.dart` — stub `StatelessWidget` that displays the booking id and a "Detail screen coming soon" note.
-- `frontend/lib/core/routing/app_router.dart` — route `/customer/booking/:job_id` registered against the stub.
+**What changed**
+Booking-orchestrator sprint, session 3 shipped the real audience-shared detail UI as a new top-level feature `lib/features/orchestrator/`. The placeholder `CustomerBookingDetailScreen` is deleted; the route is renamed to `/booking/:job_id` (audience-neutral — both customer and technician land there). All realtime entry points (`EventUrgencyRouter._highUrgencyRoutes` + `_lowUrgencyTapRoutes`, the bookings-list card tap) point to the new path.
 
-**What's wrong**
-The route slot is shipped (the `booking_rejected` MaterialBanner taps land on a real route, the path-param plumbing works end-to-end, GoRouter resolves cleanly) but the destination screen has no real content. There is no `bookings` feature stack — no domain entities, no repository, no data source, no notifier. A customer arriving here sees only "Booking #99482 • Detail screen coming soon."
+The orchestrator screen hydrates from `GET /api/bookings/<id>/` (the session 2 detail endpoint), renders a status-driven slot architecture (header / timeline / body / secondary actions / primary action), and reacts to 13 realtime events via per-screen notifiers. Body widgets are stubs for sessions 4–6 (live tracking map, quote builder, cash collection, edge-case modals) but render the server's `ui` block verbatim today, so happy-path is demo-walkable end-to-end.
 
-**Why we shipped it anyway**
-Flag #22's customer-side surface needed *somewhere* to land taps so the realtime → router → screen wiring could close end-to-end and ship its tests. Building a real customer booking-detail UI (status timeline, re-pick CTA, cancellation history, polling/refresh, offline cache) is its own sprint. Bundling it into flag #22 would have either delayed the rejection-notification user-visible win or shipped a half-done screen we'd later rewrite.
-
-**The proper fix**
-1. Build the `features/customer/bookings/` feature stack: domain entities (`CustomerBooking` with status enum), repository interface, sealed failure hierarchy, use cases (`GetCustomerBookingById`), data models, remote + local data sources, repository impl with offline-first pattern.
-2. Reuse the existing `GET /api/bookings/<id>/` endpoint if it exists, else add one (customer-scoped, IDOR-safe).
-3. Replace the stub with a real `CustomerBookingDetailScreen` that fetches by `bookingId`, renders the booking with its current status and a primary CTA appropriate to the status (re-pick on REJECTED, track-tech on CONFIRMED, etc.).
-4. Add a customer "Your bookings" list screen as the natural sibling so users have a non-tap entry point.
-5. Tests: notifier state transitions, repository data-source-failure pipeline, widget render permutations per status.
-
-**Search hints**
-- `customer_booking_detail_screen.dart` — the placeholder
-- `/customer/booking/:job_id` in `app_router.dart` — the route slot
-- `EventUrgencyRouter._lowUrgencyTapRoutes` — the realtime entry point landing on this route
-
-**Severity**
-Low. The destination today is informational-stub; the user can read "Booking #N — coming soon" and back out. Real damage would be if the realtime surface became more chatty (e.g. bookings list with multiple historical rejections) before the detail screen lands. Pick up before adding any other route that lands customers on a detail-by-id screen.
+**Where it landed**
+- `frontend/lib/features/orchestrator/` — full feature stack (domain entities, sealed failures, repository interface + impl, freezed DTOs, mappers, http remote + SharedPreferences local datasource, Riverpod providers, screen + slot widgets + 14 stub bodies + shared pending sheet).
+- `frontend/lib/core/realtime/presentation/router/event_urgency_router.dart` — high-urgency routes for `quote_generated`, `quote_approved`, `job_completed`, `dispute_opened`, `dispute_resolved` repointed to `/booking/:job_id`; low-urgency tap routes for `jobAccepted`, `bookingRejected`, and the 5 new orchestrator events similarly converged. Nav-guard keys switched to `'job_id'` so the same screen isn't double-pushed for different entity ids.
+- `frontend/lib/core/realtime/domain/entities/system_event_type.dart` + `event_urgency.dart` — extended with `quoteRevisionRequested`, `quoteDeclined`, `bookingCancelled`, `bookingNoShow`, `bookingRescheduled`.
+- `frontend/lib/features/customer/bookings/data/mappers/booking_event_patch_mapper.dart` — added 5 list-side patch methods so the bookings list updates in lockstep with the orchestrator screen.
+- `backend/bookings/selectors/orchestrator_ui.py` — endpoint strings stripped of the `/api/` prefix and the literal `<id>` placeholder substituted with the actual `active_quote.id` (sprint §24 + invariant tests).
 
 ---
 

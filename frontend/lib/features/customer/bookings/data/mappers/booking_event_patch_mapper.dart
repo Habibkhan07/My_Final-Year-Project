@@ -109,4 +109,102 @@ class BookingEventPatchMapper {
       ui: nextUi,
     );
   }
+
+  // ─── Booking-orchestrator v1 transitions (sprint session 3) ─────────────
+  //
+  // These mirror the orchestrator's status → ui table on the list-card
+  // surface. The detail screen renders far richer copy via its own
+  // `ui` block; here we only need the badge + one-line headline.
+  // Drift policy: when backend's `customer_bookings_selector._resolve_ui_block`
+  // changes copy for the new statuses, update here in lockstep.
+
+  /// `booking_cancelled` — applies to `cancel_by_customer`,
+  /// `cancel_by_tech`, and the parent leg of a reschedule. The list
+  /// row goes to CANCELLED with neutral tone.
+  static CustomerBooking applyBookingCancelled(
+    CustomerBooking current,
+    SystemEventEntity event,
+  ) {
+    return current.copyWith(
+      status: BookingStatus.cancelled,
+      ui: const BookingUi(
+        badgeText: 'Cancelled',
+        badgeTone: BookingUiTone.neutral,
+        headline: 'This booking was cancelled',
+      ),
+    );
+  }
+
+  /// `booking_no_show` — `actor` payload field discriminates which side
+  /// failed to show; copy reflects the perspective.
+  static CustomerBooking applyBookingNoShow(
+    CustomerBooking current,
+    SystemEventEntity event,
+  ) {
+    final actor = event.payload['actor']?.toString();
+    final headline = actor == 'customer'
+        ? 'Marked as no-show'
+        : "${current.technician.displayName} did not show";
+    return current.copyWith(
+      status: BookingStatus.noShow,
+      ui: BookingUi(
+        badgeText: 'No-show',
+        badgeTone: BookingUiTone.negative,
+        headline: headline,
+      ),
+    );
+  }
+
+  /// `quote_declined` — booking transitions to `COMPLETED_INSPECTION_ONLY`.
+  /// Customer paid the inspection fee; no further work is being done.
+  static CustomerBooking applyQuoteDeclined(
+    CustomerBooking current,
+    SystemEventEntity event,
+  ) {
+    return current.copyWith(
+      status: BookingStatus.completedInspectionOnly,
+      ui: const BookingUi(
+        badgeText: 'Inspection only',
+        badgeTone: BookingUiTone.neutral,
+        headline: 'You declined the quote',
+      ),
+    );
+  }
+
+  /// `job_completed` — terminal happy-path. Cash is collected, work
+  /// is done. The `final_amount` payload field could surface in the
+  /// headline if we wanted; for v1 we keep the copy generic so the
+  /// header stays consistent across the bookings list.
+  static CustomerBooking applyJobCompleted(
+    CustomerBooking current,
+    SystemEventEntity event,
+  ) {
+    final techName = current.technician.displayName;
+    return current.copyWith(
+      status: BookingStatus.completed,
+      ui: BookingUi(
+        badgeText: 'Completed',
+        badgeTone: BookingUiTone.positive,
+        headline: '$techName finished the job',
+      ),
+    );
+  }
+
+  /// `booking_rescheduled` — the original booking goes to CANCELLED;
+  /// the child appears via list refresh on next pull. We surface the
+  /// reschedule lineage in the headline so the customer recognises why
+  /// the row is no longer active.
+  static CustomerBooking applyBookingRescheduled(
+    CustomerBooking current,
+    SystemEventEntity event,
+  ) {
+    return current.copyWith(
+      status: BookingStatus.cancelled,
+      ui: const BookingUi(
+        badgeText: 'Rescheduled',
+        badgeTone: BookingUiTone.neutral,
+        headline: 'Moved to a new time slot',
+      ),
+    );
+  }
 }

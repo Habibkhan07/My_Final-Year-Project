@@ -109,20 +109,37 @@ class _BookingCardState extends State<BookingCard>
     super.dispose();
   }
 
+  /// Decide whether a card with [s] should animate away from the [seg] tab.
+  ///
+  /// Authoritative segment classification (post-orchestrator):
+  ///   * **Upcoming** — active lifecycle: `awaiting`, `confirmed`, `enRoute`,
+  ///     `arrived`, `inspecting`, `quoted`, `inProgress`.
+  ///   * **Past** — terminal or paused: `completed`, `completedInspectionOnly`,
+  ///     `cancelled`, `rejected`, `noShow`, `disputed`.
+  ///   * `pending` (legacy) and `unknown` are deliberately not classified —
+  ///     leave them on whichever segment the server returned them on.
   static bool _belongsToWrongSegment(BookingStatus s, BookingSegment seg) {
-    if (seg == BookingSegment.upcoming) {
-      return s == BookingStatus.completed ||
-          s == BookingStatus.cancelled ||
-          s == BookingStatus.rejected;
-    }
-    // On Past, awaiting + confirmed don't belong. Pending is ambiguous;
-    // leave it alone — it's a legacy enum the server rarely emits.
-    return s == BookingStatus.awaiting || s == BookingStatus.confirmed;
+    return switch ((seg, s)) {
+      (BookingSegment.upcoming, BookingStatus.completed) => true,
+      (BookingSegment.upcoming, BookingStatus.completedInspectionOnly) => true,
+      (BookingSegment.upcoming, BookingStatus.cancelled) => true,
+      (BookingSegment.upcoming, BookingStatus.rejected) => true,
+      (BookingSegment.upcoming, BookingStatus.noShow) => true,
+      (BookingSegment.upcoming, BookingStatus.disputed) => true,
+      (BookingSegment.past, BookingStatus.awaiting) => true,
+      (BookingSegment.past, BookingStatus.confirmed) => true,
+      (BookingSegment.past, BookingStatus.enRoute) => true,
+      (BookingSegment.past, BookingStatus.arrived) => true,
+      (BookingSegment.past, BookingStatus.inspecting) => true,
+      (BookingSegment.past, BookingStatus.quoted) => true,
+      (BookingSegment.past, BookingStatus.inProgress) => true,
+      _ => false,
+    };
   }
 
   void _handleTap() {
     HapticFeedback.lightImpact();
-    context.push('/customer/booking/${widget.booking.id}');
+    context.push('/booking/${widget.booking.id}');
   }
 
   @override

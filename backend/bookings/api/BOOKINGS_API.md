@@ -916,6 +916,24 @@ Either participant. Composed payload for the orchestrator screen.
 **No HTTP cache** (audit P1-04). Realtime events drive frontend
 re-fetches; a stale 5-second cache would silently mask fresh state.
 
+**URL convention for `ui.*.endpoint` strings.** Every `endpoint` value
+in the `ui` block is a path **relative to `/api/`** — i.e. it starts at
+`/bookings/...`, NOT `/api/bookings/...`. The frontend's
+`BookingActionExecutor` prepends `AppConstants.baseUrl` (which already
+includes the `/api` prefix) before dispatching, so embedding the prefix
+in the response would produce `http://host/api/api/bookings/...` and
+404 every action POST. Pinned by invariant tests in
+`tests/bookings/selectors/test_orchestrator_ui_selector.py`.
+
+**Customer quote-action endpoints interpolate the live `active_quote.id`.**
+The `approve` / `decline` / `request-revision` endpoints in the QUOTED
+state's `ui` block are emitted with the actual quote id substituted —
+never a literal `<id>` placeholder. If `active_quote` is `None` (a
+defensive case the orchestrator's submit-quote contract guarantees
+never happens), the QUOTED state degrades to a "Quote details are
+unavailable. Refresh in a moment." body with `tone: warning` and no
+primary action, rather than 500ing.
+
 **Response (`200 OK`)** — abbreviated:
 ```json
 {
@@ -926,7 +944,7 @@ re-fetches; a stale 5-second cache would silently mask fresh state.
   "technician": {
     "id": 42,
     "display_name": "Ali Raza",
-    "profile_picture_url": "https://api.example.com/media/tech_profiles/42.jpg"
+    "profile_picture_url": "http://api.example.com/media/tech_profiles/42.jpg"
   },
   "customer": { "id": 9, "full_name": "Sara K.", "phone_no": "+923001234567" },
   "address": {
@@ -949,6 +967,7 @@ re-fetches; a stale 5-second cache would silently mask fresh state.
   },
   "cash_collection": { "amount": null, "at": null, "method": "cash" },
   "parent_booking_id": null,
+  "child_booking_id": null,
   "cancel_reason": null,
   "no_show_actor": null,
   "active_quote": { "id": 56, "revision_number": 1, "status": "SUBMITTED", "...": "..." },
@@ -957,7 +976,7 @@ re-fetches; a stale 5-second cache would silently mask fresh state.
   "ui": {
     "status_label": "Quote ready",
     "body_text": "Review the quote and approve, decline, or ask for a revision.",
-    "primary_action": { "label": "Approve quote", "endpoint": "/api/bookings/123/quotes/<id>/approve/", "method": "POST", "style": "primary" },
+    "primary_action": { "label": "Approve quote", "endpoint": "/bookings/123/quotes/56/approve/", "method": "POST", "style": "primary" },
     "secondary_actions": [ { "...": "..." } ],
     "show_tracking": false,
     "show_quote_card": true,
@@ -967,6 +986,16 @@ re-fetches; a stale 5-second cache would silently mask fresh state.
   "available_transitions": ["approve_quote", "decline_quote", "request_revision", "cancel_by_customer"]
 }
 ```
+
+**Selected field semantics**:
+
+| Field | Type | Notes |
+|---|---|---|
+| `technician.profile_picture_url` | string \| null | Absolute URL (built via `request.build_absolute_uri(...)`) when the row has a picture; `null` otherwise. The Flutter `CachedNetworkImage` consumes the absolute URL directly with no client-side host concatenation. |
+| `parent_booking_id` | int \| null | Reverse pointer — set on the *child* of a reschedule chain so the screen can render "Rescheduled from #N". |
+| `child_booking_id` | int \| null | Forward pointer — set on the *cancelled original* of a reschedule chain (most-recent child wins; tolerates a chain longer than one). The orchestrator screen renders a "Continued on #N" callout and routes the link to the child. Without this, a customer who returns to the original via a stale FCM tap is stranded. Added in sprint v1, session 3. |
+| `booking_items[]` | array | Snapshot of accepted quote line items. Wire shape: `{id, sub_service_id, sub_service_name, quantity, price_charged, line_total, sourced_quote_id}`. **Distinct from `active_quote.line_items[]`** — `BookingItem` has `price_charged` (locked at approval); `QuoteLineItem` has `priced_at` (locked at quote submission). The two diverge if the technician edits the quote post-submission and the customer approves the latest revision. |
+| `open_tickets_count` | int | Count of non-resolved `SupportTicket` rows for this booking. Drives the "Open dispute" button suppression on the secondary-actions slot when ≥ 1. |
 
 **Errors**:
 - `403 not_a_participant` — caller is neither customer nor assigned tech.

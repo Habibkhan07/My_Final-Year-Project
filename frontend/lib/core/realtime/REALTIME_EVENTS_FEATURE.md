@@ -156,7 +156,7 @@ lib/core/realtime/
 | Entity | Fields | Source |
 | :--- | :--- | :--- |
 | `SystemEventEntity` | `id`, `rawType`, `eventType`, `targetRole`, `timestamp`, `payload`, `urgency`, `isCritical` | WS frames + `/api/events/sync/` + `/api/events/unacknowledged/` |
-| `SystemEventType` (enum) | 12 known types + `unknown` | Derived from `rawType` string by `SystemEventType.fromRawType` |
+| `SystemEventType` (enum) | 18 known types + `unknown` (sprint v1, session 3 added 5: `quoteRevisionRequested`, `quoteDeclined`, `bookingCancelled`, `bookingNoShow`, `bookingRescheduled`) | Derived from `rawType` string by `SystemEventType.fromRawType` |
 | `EventUrgency` (enum) | `highUrgency`, `lowUrgency`, `silent` | Derived per-type by `EventUrgency.of` |
 | `EventCriticality` | `criticalTypes` set + `isCritical(type)` | Mirrors backend Event Type Registry |
 | `TargetRole` (enum) | `customer`, `technician` | From event's `target_role` string |

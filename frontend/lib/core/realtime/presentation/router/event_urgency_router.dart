@@ -40,40 +40,43 @@ class EventUrgencyRouter {
   // from this map removes the previous list-route plumbing entirely; the
   // queue notifier's `ref.listen(systemEventProvider, ...)` is now the only
   // thing that reacts to a `job_new_request` event on the presentation side.
+  //
+  // Orchestrator-relevant high-urgency events all converge on the single
+  // `/booking/:job_id` orchestrator screen (sprint v1, session 3 — closes
+  // flag #26). The screen adapts its body to the booking's status, so a
+  // single route absorbs `quote_generated`, `quote_approved`, `job_completed`,
+  // `dispute_opened`, and `dispute_resolved`. Path templating below.
   static const _highUrgencyRoutes = <SystemEventType, String>{
-    SystemEventType.quoteGenerated: '/customer/incoming-quote',
-    SystemEventType.quoteApproved: '/technician/quote-approved',
-    SystemEventType.jobCompleted: '/shared/job-completed',
-    SystemEventType.disputeOpened: '/shared/dispute-details',
-    SystemEventType.disputeResolved: '/shared/dispute-resolved',
+    SystemEventType.quoteGenerated: '/booking/:job_id',
+    SystemEventType.quoteApproved: '/booking/:job_id',
+    SystemEventType.jobCompleted: '/booking/:job_id',
+    SystemEventType.disputeOpened: '/booking/:job_id',
+    SystemEventType.disputeResolved: '/booking/:job_id',
   };
 
   static const _lowUrgencyTapRoutes = <SystemEventType, String>{
-    SystemEventType.techEnRoute: '/customer/track-technician',
-    SystemEventType.techArrived: '/customer/track-technician',
+    SystemEventType.techEnRoute: '/booking/:job_id',
+    SystemEventType.techArrived: '/booking/:job_id',
     SystemEventType.chatMessage: '/shared/chat',
     SystemEventType.paymentReceived: '/shared/wallet',
     SystemEventType.walletLowBalance: '/shared/wallet',
-    // `jobAccepted` and `bookingRejected` share the customer-side booking
-    // detail surface — both events are about the same booking, just at
-    // different outcomes. The placeholder route shipped with flag #22
-    // (`CustomerBookingDetailScreen`) will be replaced by the real detail
-    // UI in flag #26's sprint.
-    SystemEventType.jobAccepted: '/customer/booking/:job_id',
-    SystemEventType.bookingRejected: '/customer/booking/:job_id',
-  };
-
-  /// Per-event-type payload key whose value should be substituted into
-  /// the matching `:<key>` token in the low-urgency tap route. Mirrors
-  /// the high-urgency [_navGuardPayloadKeys] mechanism but for path
-  /// templating instead of "already viewing this entity" detection.
-  ///
-  /// Entries are optional — events without a key fall through and the
-  /// raw template path is pushed unchanged (the existing static-path
-  /// behavior is preserved).
-  static const _lowUrgencyTapPayloadKeys = <SystemEventType, String>{
-    SystemEventType.jobAccepted: 'job_id',
-    SystemEventType.bookingRejected: 'job_id',
+    SystemEventType.jobAccepted: '/booking/:job_id',
+    SystemEventType.bookingRejected: '/booking/:job_id',
+    // Booking-orchestrator v1 informational events (session 3). Tap surfaces
+    // the orchestrator screen; in-app `bookingRescheduledNotifier` rewrites
+    // to the child booking when the customer is currently on the original.
+    SystemEventType.quoteRevisionRequested: '/booking/:job_id',
+    SystemEventType.quoteDeclined: '/booking/:job_id',
+    SystemEventType.bookingCancelled: '/booking/:job_id',
+    SystemEventType.bookingNoShow: '/booking/:job_id',
+    // Rescheduled tap goes DIRECTLY to the child booking. The original is
+    // cancelled and not actionable; navigating there leaves the user
+    // stranded (the in-app `bookingRescheduledNotifier` covers the case
+    // where the user is already on the original screen, but it can't
+    // help banner-tap or FCM-cold-launch — `ref.listen` doesn't replay
+    // the current value at subscription time, so a deep-link mounting
+    // the screen AFTER the event arrived would never trigger redirect).
+    SystemEventType.bookingRescheduled: '/booking/:child_booking_id',
   };
 
   static const _bannerIcons = <SystemEventType, IconData>{
@@ -84,6 +87,11 @@ class EventUrgencyRouter {
     SystemEventType.walletLowBalance: Icons.account_balance_wallet_outlined,
     SystemEventType.jobAccepted: Icons.event_available,
     SystemEventType.bookingRejected: Icons.event_busy,
+    SystemEventType.quoteRevisionRequested: Icons.edit_note,
+    SystemEventType.quoteDeclined: Icons.cancel_outlined,
+    SystemEventType.bookingCancelled: Icons.event_busy,
+    SystemEventType.bookingNoShow: Icons.person_off_outlined,
+    SystemEventType.bookingRescheduled: Icons.schedule,
   };
 
   static const _bannerTitles = <SystemEventType, String>{
@@ -94,17 +102,36 @@ class EventUrgencyRouter {
     SystemEventType.walletLowBalance: 'Low Wallet Balance',
     SystemEventType.jobAccepted: 'Booking confirmed',
     SystemEventType.bookingRejected: 'Booking unavailable',
+    SystemEventType.quoteRevisionRequested: 'Customer wants to bargain',
+    SystemEventType.quoteDeclined: 'Quote declined',
+    SystemEventType.bookingCancelled: 'Booking cancelled',
+    SystemEventType.bookingNoShow: 'No-show reported',
+    SystemEventType.bookingRescheduled: 'Booking rescheduled',
   };
 
   /// Per-event-type payload key used to detect "already viewing this exact
   /// entity" for the nav guard. Types not in the map skip the guard and
   /// always push — the guard is an optimization, not a correctness gate.
+  ///
+  /// Every entry below uses `'job_id'` because the orchestrator screen URL
+  /// template is `/booking/:job_id`. Quote / dispute ids are not in the URL,
+  /// so guarding by quote_id / dispute_id would always misfire and double-push.
+  ///
+  /// For `bookingRescheduled` the guard key is `child_booking_id` — once
+  /// the user is on the child screen (auto-redirected by the in-app
+  /// `bookingRescheduledNotifier` OR routed there by an earlier tap), a
+  /// stale banner tap shouldn't push a duplicate of the same screen.
   static const _navGuardPayloadKeys = <SystemEventType, String>{
-    SystemEventType.quoteGenerated: 'quote_id',
-    SystemEventType.quoteApproved: 'quote_id',
+    SystemEventType.quoteGenerated: 'job_id',
+    SystemEventType.quoteApproved: 'job_id',
     SystemEventType.jobCompleted: 'job_id',
-    SystemEventType.disputeOpened: 'dispute_id',
-    SystemEventType.disputeResolved: 'dispute_id',
+    SystemEventType.disputeOpened: 'job_id',
+    SystemEventType.disputeResolved: 'job_id',
+    SystemEventType.quoteRevisionRequested: 'job_id',
+    SystemEventType.quoteDeclined: 'job_id',
+    SystemEventType.bookingCancelled: 'job_id',
+    SystemEventType.bookingNoShow: 'job_id',
+    SystemEventType.bookingRescheduled: 'child_booking_id',
   };
 
   /// Events whose target route is a **list view** rather than a per-entity
@@ -161,15 +188,18 @@ class EventUrgencyRouter {
   // ─── High-urgency: full-screen route push ──────────────────────────────
 
   void _handleHigh(SystemEventEntity event) {
-    final route = _highUrgencyRoutes[event.eventType];
-    if (route == null) return;
+    final template = _highUrgencyRoutes[event.eventType];
+    if (template == null) return;
 
     final ctx = navigatorKey.currentContext;
     if (ctx == null) return;
 
-    if (_isAlreadyOnEntity(ctx, route, event)) return;
+    final resolved = _resolveTemplatedPath(template, event);
+    if (resolved == null) return; // missing required payload key — skip push.
 
-    GoRouter.of(ctx).push(route, extra: jsonEncode(event.payload));
+    if (_isAlreadyOnEntity(ctx, template, event)) return;
+
+    GoRouter.of(ctx).push(resolved, extra: jsonEncode(event.payload));
   }
 
   bool _isAlreadyOnEntity(
@@ -185,7 +215,12 @@ class EventUrgencyRouter {
     final currentUri =
         GoRouter.of(ctx).routerDelegate.currentConfiguration.uri;
     final currentLocation = currentUri.path;
-    if (!currentLocation.startsWith(targetRoute)) return false;
+
+    // For templated routes (`/booking/:job_id`), match against the static
+    // prefix only — the dynamic segment is compared via the nav-guard key
+    // below. `startsWith('/booking/:job_id')` would never match a real URL.
+    final templatePrefix = _staticPrefix(targetRoute);
+    if (!currentLocation.startsWith(templatePrefix)) return false;
 
     // List-route events: a single screen instance handles every entry, so
     // "already on the route" is sufficient — no per-entity discrimination.
@@ -198,10 +233,18 @@ class EventUrgencyRouter {
     if (incomingId == null) return false;
 
     // Match against path segments — works whether the screen reads the id
-    // from the path (`/customer/incoming-quote/42`) or query (`?quote_id=42`).
+    // from the path (`/booking/42`) or query (`?job_id=42`).
     if (currentUri.pathSegments.contains(incomingId)) return true;
     if (currentUri.queryParameters[key] == incomingId) return true;
     return false;
+  }
+
+  /// Strip everything from the first `:` token onward so prefix-startsWith
+  /// checks work for templated routes. `'/booking/:job_id'` → `'/booking/'`.
+  static String _staticPrefix(String template) {
+    final tokenStart = template.indexOf(':');
+    if (tokenStart == -1) return template;
+    return template.substring(0, tokenStart);
   }
 
   // ─── Low-urgency: MaterialBanner ───────────────────────────────────────
@@ -228,7 +271,8 @@ class EventUrgencyRouter {
             final tapRoute = _lowUrgencyTapRoutes[event.eventType];
             final ctx = navigatorKey.currentContext;
             if (tapRoute != null && ctx != null) {
-              final resolved = _resolveLowUrgencyPath(tapRoute, event);
+              final resolved = _resolveTemplatedPath(tapRoute, event);
+              if (resolved == null) return; // missing payload key — skip.
               GoRouter.of(ctx).push(resolved, extra: jsonEncode(event.payload));
             }
           },
@@ -286,26 +330,58 @@ class EventUrgencyRouter {
           default:
             return 'Your booking is no longer available — tap to view.';
         }
+      case SystemEventType.quoteRevisionRequested:
+        return 'Customer is asking to revise the quote — tap to view.';
+      case SystemEventType.quoteDeclined:
+        return 'Customer declined the quote — tap to view.';
+      case SystemEventType.bookingCancelled:
+        // Backend filters delivery so the actor doesn't get notified of
+        // their own cancel; the recipient is always the *other* side. We
+        // discriminate copy by `targetRole` so the customer sees "your
+        // technician cancelled" and the technician sees "the customer
+        // cancelled" — generic "this booking was cancelled" reads as
+        // self-blame to whichever side didn't initiate.
+        return event.targetRole == TargetRole.customer
+            ? 'Your technician cancelled — tap to view.'
+            : 'The customer cancelled — tap to view.';
+      case SystemEventType.bookingNoShow:
+        // `actor` discriminates which side failed to show; recipient is
+        // always the non-actor (backend filters). Phrase the copy from the
+        // recipient's perspective.
+        final actor = p['actor']?.toString();
+        if (actor == 'customer' && event.targetRole == TargetRole.technician) {
+          return 'Customer did not show — tap to view.';
+        }
+        if (actor == 'tech' && event.targetRole == TargetRole.customer) {
+          return 'Your technician did not show — tap to view.';
+        }
+        return 'Marked as a no-show — tap to view.';
+      case SystemEventType.bookingRescheduled:
+        return 'Rescheduled — tap to open the new booking.';
       default:
         return null;
     }
   }
 
-  /// Substitute the `:<payload-key>` token in [template] with the
-  /// stringified payload value, when [event]'s type has an entry in
-  /// [_lowUrgencyTapPayloadKeys] and the payload carries the key.
+  /// Generic `:<token>` substitution. The orchestrator screen path template
+  /// `/booking/:job_id` resolves to `/booking/42` when the event payload
+  /// carries `'job_id': 42`. Works for any path template by reading the
+  /// token name directly from the URL — no per-event-type key map needed.
   ///
-  /// Returns [template] unchanged when:
-  ///   * the event type has no payload-key entry (existing static-path
-  ///     low-urgency events), or
-  ///   * the payload is missing the named key (defensive — push the raw
-  ///     template so the failure is visible at the route layer rather
-  ///     than masked by a silent home-screen fallback).
-  String _resolveLowUrgencyPath(String template, SystemEventEntity event) {
-    final key = _lowUrgencyTapPayloadKeys[event.eventType];
-    if (key == null) return template;
-    final value = event.payload[key]?.toString();
-    if (value == null) return template;
-    return template.replaceFirst(':$key', value);
+  /// Returns `null` (rather than the unresolved template) when a required
+  /// token is missing from the payload. Callers skip the navigation —
+  /// pushing the raw `:job_id` literal would crash GoRouter, and pushing
+  /// the wrong screen silently is worse than a no-op.
+  String? _resolveTemplatedPath(String template, SystemEventEntity event) {
+    if (!template.contains(':')) return template;
+    final regex = RegExp(r':(\w+)');
+    String resolved = template;
+    for (final match in regex.allMatches(template)) {
+      final key = match.group(1)!;
+      final value = event.payload[key]?.toString();
+      if (value == null) return null; // visible failure: skip the push.
+      resolved = resolved.replaceFirst(':$key', value);
+    }
+    return resolved;
   }
 }

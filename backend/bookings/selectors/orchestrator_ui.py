@@ -12,12 +12,18 @@ One handler function per ``(status, role)`` tuple. A neutral fallback
 handler covers any future status that lands without a registered
 handler — the frontend renders the booking with no actions rather than
 a hard error.
+
+Endpoint convention (sprint §24): action ``endpoint`` strings are
+relative paths starting at ``/bookings/...``. The frontend prepends
+``AppConstants.baseUrl`` (already includes the ``/api`` prefix) before
+dispatching, so embedding ``/api/`` here would produce ``/api/api/...``.
 """
 from __future__ import annotations
 
 from typing import Callable, Literal, Optional
 
 from bookings.models import JobBooking
+from bookings.selectors.quote_selector import get_active_quote
 
 # Public type alias documenting what the view treats as opaque copy.
 UiAction = dict[str, str]
@@ -36,7 +42,7 @@ ViewerRole = Literal["customer", "technician"]
 def _customer_cancel_action(booking: JobBooking, label: str) -> UiAction:
     return {
         "label": label,
-        "endpoint": f"/api/bookings/{booking.id}/cancel/",
+        "endpoint": f"/bookings/{booking.id}/cancel/",
         "method": "POST",
         "style": "destructive",
     }
@@ -45,7 +51,7 @@ def _customer_cancel_action(booking: JobBooking, label: str) -> UiAction:
 def _tech_cancel_action(booking: JobBooking) -> UiAction:
     return {
         "label": "Cancel job",
-        "endpoint": f"/api/bookings/{booking.id}/tech-cancel/",
+        "endpoint": f"/bookings/{booking.id}/tech-cancel/",
         "method": "POST",
         "style": "destructive",
     }
@@ -54,7 +60,7 @@ def _tech_cancel_action(booking: JobBooking) -> UiAction:
 def _no_show_action(booking: JobBooking, label: str) -> UiAction:
     return {
         "label": label,
-        "endpoint": f"/api/bookings/{booking.id}/no-show/",
+        "endpoint": f"/bookings/{booking.id}/no-show/",
         "method": "POST",
         "style": "neutral",
     }
@@ -63,7 +69,7 @@ def _no_show_action(booking: JobBooking, label: str) -> UiAction:
 def _reschedule_action(booking: JobBooking) -> UiAction:
     return {
         "label": "Reschedule",
-        "endpoint": f"/api/bookings/{booking.id}/reschedule/",
+        "endpoint": f"/bookings/{booking.id}/reschedule/",
         "method": "POST",
         "style": "neutral",
     }
@@ -72,7 +78,7 @@ def _reschedule_action(booking: JobBooking) -> UiAction:
 def _en_route_action(booking: JobBooking) -> UiAction:
     return {
         "label": "I'm on the way",
-        "endpoint": f"/api/bookings/{booking.id}/en-route/",
+        "endpoint": f"/bookings/{booking.id}/en-route/",
         "method": "POST",
         "style": "primary",
     }
@@ -81,7 +87,7 @@ def _en_route_action(booking: JobBooking) -> UiAction:
 def _arrived_action(booking: JobBooking) -> UiAction:
     return {
         "label": "I've arrived",
-        "endpoint": f"/api/bookings/{booking.id}/arrived/",
+        "endpoint": f"/bookings/{booking.id}/arrived/",
         "method": "POST",
         "style": "primary",
     }
@@ -90,7 +96,7 @@ def _arrived_action(booking: JobBooking) -> UiAction:
 def _start_inspection_action(booking: JobBooking) -> UiAction:
     return {
         "label": "Start inspection",
-        "endpoint": f"/api/bookings/{booking.id}/start-inspection/",
+        "endpoint": f"/bookings/{booking.id}/start-inspection/",
         "method": "POST",
         "style": "primary",
     }
@@ -99,7 +105,7 @@ def _start_inspection_action(booking: JobBooking) -> UiAction:
 def _submit_quote_action(booking: JobBooking, label: str = "Submit quote") -> UiAction:
     return {
         "label": label,
-        "endpoint": f"/api/bookings/{booking.id}/quotes/",
+        "endpoint": f"/bookings/{booking.id}/quotes/",
         "method": "POST",
         "style": "primary",
     }
@@ -114,7 +120,7 @@ def _confirm_cash_action(booking: JobBooking) -> UiAction:
     )
     return {
         "label": label,
-        "endpoint": f"/api/bookings/{booking.id}/confirm-cash-received/",
+        "endpoint": f"/bookings/{booking.id}/confirm-cash-received/",
         "method": "POST",
         "style": "primary",
     }
@@ -286,25 +292,41 @@ def _tech_inspecting(booking, viewer):
 
 
 def _customer_quoted(booking, viewer):
+    # The orchestrator only enters QUOTED via ``submit_quote``, which always
+    # leaves at least one SUBMITTED row in ``booking.quotes``. ``get_active_quote``
+    # never returns None here — but we guard defensively so a stale row with
+    # corrupt data degrades to "no actions" rather than a 500.
+    active_quote = get_active_quote(booking)
+    if active_quote is None:
+        return {
+            "status_label": "Quote ready",
+            "body_text": "Quote details are unavailable. Refresh in a moment.",
+            "primary_action": None,
+            "secondary_actions": [_customer_cancel_action(booking, "Cancel")],
+            "show_tracking": False,
+            "show_quote_card": True,
+            "show_dispute_button": False,
+            "tone": "warning",
+        }
     return {
         "status_label": "Quote ready",
         "body_text": "Review the quote and approve, decline, or ask for a revision.",
         "primary_action": {
             "label": "Approve quote",
-            "endpoint": f"/api/bookings/{booking.id}/quotes/<id>/approve/",
+            "endpoint": f"/bookings/{booking.id}/quotes/{active_quote.id}/approve/",
             "method": "POST",
             "style": "primary",
         },
         "secondary_actions": [
             {
                 "label": "Decline (Rs. 500 inspection fee)",
-                "endpoint": f"/api/bookings/{booking.id}/quotes/<id>/decline/",
+                "endpoint": f"/bookings/{booking.id}/quotes/{active_quote.id}/decline/",
                 "method": "POST",
                 "style": "destructive",
             },
             {
                 "label": "Ask for a revision",
-                "endpoint": f"/api/bookings/{booking.id}/quotes/<id>/request-revision/",
+                "endpoint": f"/bookings/{booking.id}/quotes/{active_quote.id}/request-revision/",
                 "method": "POST",
                 "style": "neutral",
             },

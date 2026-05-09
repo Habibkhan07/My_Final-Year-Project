@@ -52,7 +52,7 @@ GoRouter _router(Widget cardHost, {ValueChanged<int>? onPushed}) {
     routes: [
       GoRoute(path: '/list', builder: (_, _) => Scaffold(body: cardHost)),
       GoRoute(
-        path: '/customer/booking/:job_id',
+        path: '/booking/:job_id',
         builder: (_, state) {
           final id = int.parse(state.pathParameters['job_id']!);
           onPushed?.call(id);
@@ -186,7 +186,7 @@ void main() {
   });
 
   group('BookingCard — interactions', () {
-    testWidgets('tap pushes /customer/booking/{id}', (tester) async {
+    testWidgets('tap pushes /booking/{id}', (tester) async {
       int? pushedId;
       final booking = _booking(id: 42);
       final card = BookingCard(

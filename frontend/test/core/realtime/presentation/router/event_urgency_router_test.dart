@@ -39,7 +39,7 @@ class _RouterTestHarness {
           builder: (_, _) => const Scaffold(body: Text('start')),
         ),
         GoRoute(
-          path: '/customer/booking/:job_id',
+          path: '/booking/:job_id',
           builder: (context, state) {
             capturedBookingId = state.pathParameters['job_id'];
             return Scaffold(body: Text('booking-${capturedBookingId ?? "?"}'));
@@ -175,7 +175,7 @@ void main() {
 
   group('booking_rejected tap target', () {
     testWidgets(
-        'tapping "View" navigates to /customer/booking/<job_id>',
+        'tapping "View" navigates to /booking/<job_id>',
         (tester) async {
       final harness = _RouterTestHarness();
       await tester.pumpWidget(harness.build());
@@ -203,11 +203,16 @@ void main() {
     });
 
     testWidgets(
-        'missing job_id falls back to literal :job_id template (defensive)',
+        'missing job_id skips the push (defensive)',
         (tester) async {
       // Defensive case: backend somehow ships booking_rejected without
-      // job_id. The helper preserves the template, surfacing a visible
-      // route failure rather than silently routing somewhere else.
+      // job_id. The new generic templated-path resolver returns null
+      // when a token is unresolvable, and the tap handler skips the
+      // push — preferable to pushing the literal `:job_id` template
+      // which would crash GoRouter. The user stays on the start screen.
+      //
+      // (Sprint v1, session 3: rewired in lockstep with the orchestrator
+      // route convergence onto `/booking/:job_id`.)
       final harness = _RouterTestHarness();
       await tester.pumpWidget(harness.build());
       await tester.pumpAndSettle();
@@ -224,10 +229,10 @@ void main() {
         await tester.tap(find.text('View'));
         await tester.pumpAndSettle();
 
-        // GoRouter binds the literal token to `:job_id` = ":job_id"
-        // (URL-decoded). The captor sees the literal rather than a
-        // real id, which is what we want — the failure is visible.
-        expect(harness.capturedBookingId, ':job_id');
+        // Captor unchanged → no push happened. Start screen still
+        // visible (defensive: better no-op than crash).
+        expect(harness.capturedBookingId, isNull);
+        expect(find.text('start'), findsOneWidget);
       } finally {
         await tester.pump(const Duration(seconds: 6));
         ref.dispose();
@@ -297,7 +302,7 @@ void main() {
 
   group('job_accepted tap target (flag #25)', () {
     testWidgets(
-        'tapping "View" navigates to /customer/booking/<job_id>',
+        'tapping "View" navigates to /booking/<job_id>',
         (tester) async {
       final harness = _RouterTestHarness();
       await tester.pumpWidget(harness.build());
@@ -319,7 +324,7 @@ void main() {
         await tester.tap(find.text('View'));
         await tester.pumpAndSettle();
 
-        // job_accepted reuses the same /customer/booking/:job_id route
+        // job_accepted reuses the same /booking/:job_id route
         // as booking_rejected (placeholder; flag #26 will swap in the
         // real customer detail screen).
         expect(harness.capturedBookingId, '7777');

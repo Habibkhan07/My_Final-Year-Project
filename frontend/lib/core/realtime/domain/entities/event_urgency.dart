@@ -24,6 +24,15 @@ enum EventUrgency {
     SystemEventType.chatMessage: EventUrgency.lowUrgency,
     SystemEventType.paymentReceived: EventUrgency.lowUrgency,
     SystemEventType.walletLowBalance: EventUrgency.lowUrgency,
+    // Booking-orchestrator v1 events. None are critical (backend
+    // `is_critical=False`) — informational. The orchestrator screen is
+    // the natural surface for the user to see the status change, so a
+    // banner is sufficient. Tap routes them all to /booking/:job_id.
+    SystemEventType.quoteRevisionRequested: EventUrgency.lowUrgency,
+    SystemEventType.quoteDeclined: EventUrgency.lowUrgency,
+    SystemEventType.bookingCancelled: EventUrgency.lowUrgency,
+    SystemEventType.bookingNoShow: EventUrgency.lowUrgency,
+    SystemEventType.bookingRescheduled: EventUrgency.lowUrgency,
     SystemEventType.unknown: EventUrgency.silent,
   };
 

@@ -4,7 +4,7 @@ The customer-side **My Bookings** tab. Powers the scrollable list of upcoming + 
 
 **Backend contract**: `backend/bookings/api/CUSTOMER_BOOKINGS_API.md` — list (`GET /api/bookings/`) and counts (`GET /api/bookings/counts/`).
 
-**Detail screen** is a separate sprint (flag #26). The existing route `/customer/booking/:job_id` continues to land on the placeholder until that work happens — taps from list cards will navigate there once the screen widget exists in the next sprint.
+**Detail screen** lives in `lib/features/orchestrator/` (audience-shared customer + technician). Card taps navigate to `/booking/:job_id` and mount `BookingOrchestratorScreen`. The pre-orchestrator placeholder route `/customer/booking/:job_id` is gone (flag #26 closed 2026-05-09).
 
 ---
 
@@ -194,7 +194,7 @@ Per CLAUDE.md: all async mutations use `AsyncValue.guard(...)`; safe access via 
 | File | Purpose |
 |---|---|
 | `presentation/screens/customer_bookings_list_screen.dart` | Tab destination + deep-link target. |
-| `presentation/widgets/booking_card.dart` | Dumb card. Switches on `ui.badgeTone` for tokens, never on raw status. Stateful for realtime pulse + segment-fade-out + Cancelled visual decay. Hero-tags the service icon as `'booking-icon-${id}'`. Tap fires `HapticFeedback.lightImpact()` then `context.push('/customer/booking/${id}')`. |
+| `presentation/widgets/booking_card.dart` | Dumb card. Switches on `ui.badgeTone` for tokens, never on raw status. Stateful for realtime pulse + segment-fade-out + Cancelled visual decay. Hero-tags the service icon as `'booking-icon-${id}'`. Tap fires `HapticFeedback.lightImpact()` then `context.push('/booking/${id}')` (orchestrator screen, audience-shared). |
 | `presentation/widgets/booking_card_skeleton.dart` | Shimmer placeholder. Outer chrome + region heights + gaps match the real card exactly so there's no relayout flash on data arrival. |
 | `presentation/widgets/booking_status_pill.dart` | Tone-tinted capsule. Caller wraps in `AnimatedSwitcher` keyed on text+tone for 250ms morph on realtime patches. |
 | `presentation/widgets/booking_tech_avatar.dart` | 48px `CachedNetworkImage` with initials fallback. Handles single-name + all-whitespace gracefully (never a broken-image icon). |
