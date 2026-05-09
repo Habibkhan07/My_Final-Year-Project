@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../domain/entities/booking_detail.dart';
 import '../../domain/failures/booking_detail_failure.dart';
+import '../../../technician/location_broadcaster/presentation/providers/foreground_location_service_controller.dart';
 import '../providers/booking_detail_provider.dart';
 import '../providers/booking_orchestrator_events_notifier.dart';
 import '../providers/booking_rescheduled_notifier.dart';
@@ -72,6 +73,7 @@ class BookingOrchestratorScreen extends ConsumerWidget {
     // lockstep with the booking status. (Lands in commit 3.)
     ref.watch(trackingSubscriptionControllerProvider(jobId));
     ref.watch(technicianLocationStreamProvider(jobId));
+    ref.watch(foregroundLocationServiceControllerProvider(jobId));
 
     final detailAsync = ref.watch(bookingDetailProvider(jobId));
 

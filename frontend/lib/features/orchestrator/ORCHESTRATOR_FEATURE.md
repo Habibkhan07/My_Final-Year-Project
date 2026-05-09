@@ -19,13 +19,56 @@ The audience-shared full-screen surface that drives a single booking through its
 | Data (DTOs, mappers, datasources, repository impl) | ✅ Shipped (session 3) |
 | Presentation / providers (DI, detail provider, events notifier, rescheduled notifier, action executor) | ✅ Shipped (session 3) |
 | Presentation / screen + slots (header, timeline, body switch, primary/secondary actions) | ✅ Shipped (session 3) |
-| Stub body widgets (14 statuses) | ✅ Shipped (session 3) |
-| Live tracking map body + tech foreground GPS | ⏳ pending session 4 |
+| Stub body widgets (14 statuses) | ✅ Shipped (session 3); EnRoute + Arrived rewritten to live tracking in session 4. |
+| Live tracking map body + tech foreground GPS | ✅ Shipped (session 4) — `live_tracking_map.dart`, `technician_location_stream_notifier.dart`, `tracking_subscription_controller.dart`, and the tech-side broadcaster at `frontend/lib/features/technician/location_broadcaster/`. |
 | Quote builder body + approval sheet + cash-collection sheet | ⏳ pending session 5 |
 | Cancel/reschedule/no-show/dispute rich flows | ⏳ pending session 6 |
 | Realtime: 5 new event types + router rewiring | ✅ Shipped (session 3) |
 | GoRoute `/booking/:job_id` registration | ✅ Shipped (session 3) |
-| Tests | ✅ Shipped (session 3) — 130 frontend + 15 backend pinning regressions across all 23 audit findings (cycles 1+2). See `Tests` section below. |
+| Tests | ✅ Shipped (session 3) — 130 frontend + 15 backend pinning regressions across all 23 audit findings (cycles 1+2). Session 4 added ~30 net-new tests (map adapter, directions services, stream notifier, subscription controller, ws-upstream extension, marker factory, live tracking widget). |
+
+---
+
+## Realtime Stream Consumer Pattern (codebase reference)
+
+Session 4 lit up the codebase's first `kind: "stream"` consumer
+(`tech_gps`). The pattern below documents it for future stream features
+(live wallet balance display, AI chatbot tokens, typing indicators).
+
+**Touch-points** — analogous to the per-event pattern in CLAUDE.md:
+
+1. **Payload model + mapper in the consumer feature** (NOT in `core/realtime`).
+   - Wire DTO with `fromJson` (the dispatcher passes `frame['payload']`,
+     not the envelope).
+   - Mapper to domain entity. If the payload omits a field the domain
+     needs (e.g. `tech_gps` has no payload-level timestamp), the mapper
+     stamps it from the client clock at conversion time.
+2. **A `@Riverpod(keepAlive: false)` family notifier whose `build()`
+     registers the handler with `WsFrameDispatcher`.**
+   - Audit P1-05: `state` mutations inside the handler MUST defer past
+     `build()` via `Future.microtask` + `ref.mounted` guard.
+   - Audit P0-07: `dispatcher.unregister(streamType)` is single-arg —
+     the dispatcher is single-handler-per-type (flag #34 deferred).
+3. **A `TrackingSubscriptionController`-style upstream gate (only if
+     the stream requires `subscribe_<topic>` upstream messages).**
+   - Listens to whatever provider gates the subscription (booking
+     status × role, current screen, etc.).
+   - Listens to `wsConnectionProvider.connectionEvents` and replays the
+     subscribe message on every `WsConnected` (audit P1-06).
+4. **The screen `ref.watch`-es the notifier in `build()` (NOT
+     `ref.read` in `initState`).**
+   - The same contract pinned by the session-3 regression test
+     (`screen_ref_watch_keeps_event_notifier_alive_refresh_fires`)
+     applies here. `keepAlive: false` notifiers MUST be watched, or
+     they auto-dispose and the handler unregisters silently.
+5. **No event-urgency-router changes** — streams don't navigate; they
+     update state in place.
+
+Reference impl:
+- `lib/features/orchestrator/presentation/providers/technician_location_stream_notifier.dart`
+- `lib/features/orchestrator/presentation/providers/tracking_subscription_controller.dart`
+- `lib/features/orchestrator/data/{models,mappers}/tech_gps_frame*.dart`
+- `lib/features/orchestrator/domain/entities/tech_gps_frame.dart`
 
 ---
 

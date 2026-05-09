@@ -1113,3 +1113,80 @@ CLAUDE.md explicitly forbids a Redis dependency for v1 ratelimiting ("no Redis d
 
 **Severity**
 P2. Observability + bandwidth concern; no correctness risk because the auto-transition path is idempotent. Becomes P1 once we run > 1 worker AND have a paying-customer base whose data plans we care about.
+
+---
+
+## 34. `WsFrameDispatcher` is single-handler-per-stream-type
+
+**Where**
+- `frontend/lib/core/realtime/presentation/services/ws_frame_dispatcher.dart`
+  - `_streamHandlers: Map<String, void Function(Map<String, dynamic> payload)>`
+  - `register(streamType, handler)` — last-writer-wins
+  - `unregister(streamType)` — single-arg, no handler param
+- Audit reference: cycle-2 P0-07 (resolved by adoption; this flag tracks the structural follow-up)
+- First consumer: `frontend/lib/features/orchestrator/presentation/providers/technician_location_stream_notifier.dart` (session 4)
+
+**What's wrong**
+The dispatcher's stream-handler registry stores ONE handler per `streamType`. Calling `register('tech_gps', A)` and then `register('tech_gps', B)` silently replaces A with B — the first consumer's frames now go to the second consumer's closure, and A's `unregister('tech_gps')` (no handler arg) tears down B's handler too.
+
+The contract is acceptable in v1 because the UX shows exactly one orchestrator screen at a time, so only one `TechnicianLocationStreamNotifier(jobId)` is ever alive. Two parallel orchestrator screens for two different bookings (e.g. picture-in-picture, split-screen, app-resume race) would break — the second screen's `register` overwrites the first's handler, and the first screen's polyline + marker freeze until it re-watches the provider on next rebuild.
+
+**Why we shipped it**
+The single-handler API matches the existing v1 single-screen UX. A multi-handler refactor (`Map<String, List<Handler>>` + token-based unregister) needed:
+- A new `HandlerToken` returned from `register` and required by `unregister`.
+- All current call sites updated to track + pass the token.
+- A test surface for "two consumers of the same streamType receive both frames."
+
+That refactor was out of scope for session 4, whose goal was to ship live tracking end-to-end. Ratifying the single-handler constraint and flagging the limitation was the cheapest path forward.
+
+**The proper fix**
+1. Change `_streamHandlers` to `Map<String, List<_HandlerEntry>>` where each `_HandlerEntry` carries the handler + a unique `Object` token.
+2. `register(streamType, handler)` returns the token; callers store it.
+3. `unregister(streamType, token)` removes only that one entry.
+4. `_routeStream` invokes every handler for the matched streamType.
+5. Update `TechnicianLocationStreamNotifier` to capture + pass the token in its `ref.onDispose` cleanup.
+6. Add a regression test: two notifiers register for `tech_gps`; both receive the same frame; one disposes; the other still receives subsequent frames.
+
+**Search hints**
+- `_streamHandlers`, `WsFrameDispatcher`, `register('tech_gps'`
+- `unregister('tech_gps')` — every call site needs updating
+- `flutter/lib/core/realtime/presentation/services/ws_frame_dispatcher.dart` v9.x (current)
+
+**Severity**
+P3. Becomes P2 if/when the product introduces split-screen or any UX that mounts two orchestrator screens concurrently.
+
+---
+
+## 35. iOS foreground location service deferred (Booking Orchestrator session 4)
+
+**Where**
+- `frontend/lib/features/technician/location_broadcaster/` — Android-only feature folder.
+- `frontend/lib/features/technician/location_broadcaster/presentation/providers/foreground_location_service_controller.dart` — invokes `FlutterForegroundTask.startService` which on iOS becomes a foreground notification only (not a true background-capable service).
+- `frontend/android/app/src/main/AndroidManifest.xml` — `FOREGROUND_SERVICE_LOCATION` permission + service registration.
+- iOS plist + Swift code — UNTOUCHED.
+
+**What's wrong**
+The tech-side GPS broadcaster runs only on Android. iOS testers will see the orchestrator screen render the customer-side map happily, but the technician device cannot publish GPS frames — meaning a customer with an iOS-tech assigned will see "Waiting for technician's location…" indefinitely on `EN_ROUTE`, then "Technician offline" after 60 seconds.
+
+This is the iOS half of pre-existing flag #10 ("iOS native realtime push capability"). Session 4 added the tech-location broadcaster on Android; iOS is a strict no-op pending Mac-based development capacity to author the equivalent native foreground task host.
+
+**Why we shipped it**
+- No Mac in the dev pipeline; iOS code-signing + simulator + device testing not viable for v1.
+- `flutter_foreground_task` provides an iOS placeholder (`IOSNotificationOptions`) but its iOS impl is a notification-only banner — the OS does not allow background location updates with the same generosity Android grants foreground services. A real iOS broadcaster needs CoreLocation `allowsBackgroundLocationUpdates = true` plus a properly configured `UIBackgroundModes` plist entry + battery-conservation tuning.
+- The product's launch market is Pakistan with predominantly Android phones; iOS demand is thin enough that "Android-only v1" is acceptable to the founding team.
+
+**The proper fix**
+1. Pair with an iOS dev (or schedule a Mac sprint) to wire native CoreLocation in a Dart-callable plugin.
+2. Configure `UIBackgroundModes: [location]` in `Info.plist` + `NSLocationAlwaysAndWhenInUseUsageDescription` copy.
+3. Extend `ForegroundLocationServiceController` to platform-dispatch on `Theme.of(...).platform` or `Platform.isIOS` and call the iOS variant.
+4. Adapt `STREAMS_TECH_GPS.md` to drop the "Android-only" caveat.
+5. Test on a TestFlight build with at least one real iOS user — the simulator's CoreLocation behaviour diverges substantially from device.
+
+**Search hints**
+- `flutter_foreground_task` (Android-only path)
+- `Geolocator.getPositionStream` (cross-platform; works on iOS but the foreground host is the missing piece)
+- `lib/features/technician/location_broadcaster/`
+- Pre-existing flag #10 — bundle the closure of both flags together once iOS lands.
+
+**Severity**
+P3 today (Android dominates the launch market). Becomes P1 the moment a paying iOS technician onboards.
