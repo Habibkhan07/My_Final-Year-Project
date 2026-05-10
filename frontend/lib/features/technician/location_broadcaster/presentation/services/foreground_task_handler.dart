@@ -76,8 +76,10 @@ class TechLocationTaskKeys {
 
   /// ASCII Unit Separator (0x1F). Picked because it cannot legally
   /// appear inside an auth token or numeric booking id, so a simple
-  /// `split` round-trips losslessly without JSON serialization.
-  static const String _delimiter = '';
+  /// `split` round-trips losslessly without JSON serialization. The
+  /// `` escape is preferred over a literal byte because some
+  /// editors / file writers strip the unprintable char silently.
+  static const String _delimiter = '';
 
   /// Encode `(authToken, bookingId)` to a single string the
   /// foreground task handler can split back. Used by the controller's
