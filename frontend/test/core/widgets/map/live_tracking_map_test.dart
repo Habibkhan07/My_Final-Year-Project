@@ -789,12 +789,42 @@ void main() {
   );
 
   testWidgets(
-    'T-2j ETA pill hides when connection is offline (>60s stale)',
+    'T-2j ETA pill hides when connection transitions from fresh to offline',
     (tester) async {
+      // TEST-1 (Batch I): pre-fix this test mounted directly into the
+      // offline state, so the pill never rendered in the first place
+      // and `findsNothing` was trivially satisfied. A meaningful
+      // regression test must mount FRESH (pill renders), then
+      // transition to OFFLINE (pill disappears) — that's the actual
+      // contract the offline-gates-pill code path enforces.
       final fake = _FakeDirectionsService()
         ..responses = [_result(etaSeconds: 240)];
       final c = _container(directions: fake);
 
+      // Phase 1 — mount with a fresh frame; assert the pill renders.
+      await tester.pumpWidget(
+        _wrap(
+          c,
+          LiveTrackingMap(
+            technicianPosition: techStart,
+            lastFrameAt: DateTime.now(),
+            destination: destination,
+            phase: TrackingPhase.enRoute,
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(
+        find.text('min'),
+        findsOneWidget,
+        reason: 'Pill must render with a fresh frame',
+      );
+
+      // Phase 2 — rebuild with a stale frame (>60s); assert the pill
+      // disappears AND the offline banner replaces the connection
+      // strip. This is the actual transition the offline gate is
+      // meant to enforce.
       await tester.pumpWidget(
         _wrap(
           c,
@@ -807,14 +837,16 @@ void main() {
         ),
       );
       await tester.pump();
-      // Give the directions future time to resolve.
       await tester.pump(const Duration(milliseconds: 50));
-      expect(find.text('min'), findsNothing);
-      // Sanity: the offline banner IS visible — we're in offline state,
-      // not pre-first-frame.
+      expect(
+        find.text('min'),
+        findsNothing,
+        reason: 'Offline transition must hide the ETA pill',
+      );
       expect(
         find.textContaining("Technician's phone seems to be offline"),
         findsOneWidget,
+        reason: 'Offline banner must replace the connection strip',
       );
     },
   );

@@ -222,6 +222,19 @@ void main() {
       final settings = h.geolocator.getPositionStreamCalls.first!;
       expect(settings.accuracy, LocationAccuracy.high);
       expect(settings.distanceFilter, 10);
+      // T-HND-2 (Batch I): F-21 stationary heartbeat regression test.
+      // Pre-fix the handler used plain `LocationSettings` so a tech
+      // stuck at a stoplight produced no fixes for as long as they
+      // didn't move 10m — customer's marker froze and the staleness
+      // banner tripped despite GPS being healthy. The fix wraps the
+      // settings in `AndroidSettings(intervalDuration: 15s)`. Without
+      // this assertion, a future refactor that drops the wrapper or
+      // changes the interval passes the suite silently.
+      expect(settings, isA<AndroidSettings>());
+      expect(
+        (settings as AndroidSettings).intervalDuration,
+        const Duration(seconds: 15),
+      );
 
       h.geolocator.positionController.add(fakePosition());
       await pumpEventQueue();
@@ -282,6 +295,52 @@ void main() {
     final body = jsonDecode(h.requests.single.body) as Map<String, dynamic>;
     expect(body['accuracy_meters'], 12.5);
 
+    await h.geolocator.close();
+  });
+
+  // ────────── T-HND-3 (Batch I): isFinite guard regression ─────────────
+  // Pre-fix the handler had no `isFinite` guard and would happily POST
+  // a position with NaN/Infinity coords. jsonEncode writes those as
+  // `null`, the backend serializer 400s, and the isolate logs+drops —
+  // wasting one round-trip per glitched fix. The fix (audit P2-4)
+  // drops early. Without these regression tests, a refactor that
+  // removes the guard passes silently.
+
+  test('T-HND-3 _onFix drops NaN latitude (no POST)', () async {
+    final h = buildHandler(
+      respond: (_) async => fail('client should not be invoked for NaN'),
+      configBlob: _validConfig,
+    );
+    await h.handler.onStart(DateTime.now(), TaskStarter.developer);
+    h.geolocator.positionController.add(fakePosition(lat: double.nan));
+    await pumpEventQueue();
+    expect(h.requests, isEmpty);
+    await h.geolocator.close();
+  });
+
+  test('T-HND-3 _onFix drops infinite longitude (no POST)', () async {
+    final h = buildHandler(
+      respond: (_) async => fail('client should not be invoked for ∞'),
+      configBlob: _validConfig,
+    );
+    await h.handler.onStart(DateTime.now(), TaskStarter.developer);
+    h.geolocator.positionController.add(fakePosition(lng: double.infinity));
+    await pumpEventQueue();
+    expect(h.requests, isEmpty);
+    await h.geolocator.close();
+  });
+
+  test('T-HND-3 _onFix drops both-NaN coords (no POST)', () async {
+    final h = buildHandler(
+      respond: (_) async => fail('client should not be invoked for NaN/NaN'),
+      configBlob: _validConfig,
+    );
+    await h.handler.onStart(DateTime.now(), TaskStarter.developer);
+    h.geolocator.positionController.add(
+      fakePosition(lat: double.nan, lng: double.negativeInfinity),
+    );
+    await pumpEventQueue();
+    expect(h.requests, isEmpty);
     await h.geolocator.close();
   });
 
