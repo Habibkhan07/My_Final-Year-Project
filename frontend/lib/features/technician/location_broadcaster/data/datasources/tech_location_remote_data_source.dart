@@ -8,7 +8,9 @@
 // Per audit P0-03 + sprint meta §24: package:http only, no Dio. URL
 // concatenation does NOT add `/api/` because AppConstants.baseUrl
 // already terminates in `/api`.
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io' show SocketException;
 
 import 'package:http/http.dart' as http;
 
@@ -47,15 +49,42 @@ class TechLocationRemoteDataSource {
       heading: heading,
     ).toJson();
 
-    final response = await _client.post(
-      Uri.parse('${AppConstants.baseUrl}/bookings/$bookingId/tech-location/'),
-      headers: {
-        'Authorization': 'Token $authToken',
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-      body: jsonEncode(body),
-    );
+    final http.Response response;
+    try {
+      // Audit H3 (F-19/T-7d): a hung POST blocks the foreground task's
+      // serial executor — Geolocator keeps producing fixes that queue
+      // behind the in-flight call, and the customer sees "tech offline"
+      // after 60s even though GPS is working. 8s is well above the
+      // p99 mobile-network round-trip and well below the customer's
+      // staleness threshold.
+      response = await _client
+          .post(
+            Uri.parse(
+              '${AppConstants.baseUrl}/bookings/$bookingId/tech-location/',
+            ),
+            headers: {
+              'Authorization': 'Token $authToken',
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+            body: jsonEncode(body),
+          )
+          .timeout(const Duration(seconds: 8));
+    } on TimeoutException {
+      throw HttpFailure(
+        statusCode: 0,
+        code: 'network_timeout',
+        message: 'tech-location POST timed out',
+        errors: const {},
+      );
+    } on SocketException {
+      throw HttpFailure(
+        statusCode: 0,
+        code: 'network_failure',
+        message: 'tech-location POST: network unreachable',
+        errors: const {},
+      );
+    }
 
     if (response.statusCode == 200) return true;
     if (response.statusCode == 429) return false; // throttled — drop silently

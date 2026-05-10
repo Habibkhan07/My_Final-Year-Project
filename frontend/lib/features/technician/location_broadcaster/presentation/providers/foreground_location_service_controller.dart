@@ -100,6 +100,21 @@ class ForegroundLocationServiceController
   late final int _jobId;
   _LifecycleStatus _status = _LifecycleStatus.idle;
 
+  /// Audit H4: latched true when the isolate reports a fatal auth
+  /// error (401 / 403). Blocks `_evaluate` from restarting the service
+  /// until the booking transitions out of {EN_ROUTE, ARRIVED} — which
+  /// is the only meaningful "state changed, retry" signal we have
+  /// inside the screen's lifetime. Without this, _stopService's tail
+  /// re-evaluate would start a fresh service that immediately fails
+  /// with the same bad token in a tight loop.
+  bool _fatalAuthErrorLatched = false;
+
+  /// Audit H4: instance method bound to `addTaskDataCallback` so the
+  /// isolate can signal fatal auth errors back to the main isolate.
+  /// Stored as a field so we can identity-equal-remove on stop /
+  /// dispose (the package's API requires the SAME callback reference).
+  void Function(Object data)? _isolateDataCallback;
+
   @override
   BroadcastState build(int jobId) {
     _jobId = jobId;
@@ -117,6 +132,7 @@ class ForegroundLocationServiceController
       if (_status != _LifecycleStatus.idle) {
         unawaited(FlutterForegroundTask.stopService());
       }
+      _unregisterIsolateDataCallback();
       _status = _LifecycleStatus.idle;
     });
 
@@ -143,7 +159,15 @@ class ForegroundLocationServiceController
         booking.viewerRole == BookingOrchestratorRole.technician &&
         _kSubscribableStatuses.contains(booking.status);
 
-    if (shouldRun && _status == _LifecycleStatus.idle) {
+    // Audit H4: clearing the latch on shouldRun=false is the only
+    // automatic recovery path — the booking moving out of EN_ROUTE
+    // (or screen pop disposing the controller) gets us out of the
+    // error state. While latched + shouldRun, do NOT restart.
+    if (!shouldRun) _fatalAuthErrorLatched = false;
+
+    if (shouldRun &&
+        _status == _LifecycleStatus.idle &&
+        !_fatalAuthErrorLatched) {
       unawaited(_startService(booking));
     } else if (!shouldRun && _status == _LifecycleStatus.running) {
       unawaited(_stopService());
@@ -248,6 +272,7 @@ class ForegroundLocationServiceController
       if (softSuccess) {
         _status = _LifecycleStatus.running;
         state = BroadcastState.running;
+        _registerIsolateDataCallback();
       } else {
         developer.log(
           'startService failed: $result',
@@ -267,6 +292,7 @@ class ForegroundLocationServiceController
 
   Future<void> _stopService() async {
     _status = _LifecycleStatus.stopping;
+    _unregisterIsolateDataCallback();
     try {
       await FlutterForegroundTask.stopService();
     } finally {
@@ -277,6 +303,58 @@ class ForegroundLocationServiceController
       // Symmetric tail: a status flip mid-stop (re-entered EN_ROUTE
       // again) wakes the next start.
       _evaluate();
+    }
+  }
+
+  /// Audit H4: registers a `FlutterForegroundTask.addTaskDataCallback`
+  /// listener so the isolate's `sendDataToMain` messages reach this
+  /// controller. Idempotent — calling twice is a no-op (the package
+  /// dedupes on identity).
+  void _registerIsolateDataCallback() {
+    if (_isolateDataCallback != null) return;
+    final callback = _onIsolateData;
+    _isolateDataCallback = callback;
+    FlutterForegroundTask.addTaskDataCallback(callback);
+  }
+
+  void _unregisterIsolateDataCallback() {
+    final callback = _isolateDataCallback;
+    if (callback == null) return;
+    FlutterForegroundTask.removeTaskDataCallback(callback);
+    _isolateDataCallback = null;
+  }
+
+  /// Receives messages forwarded from `_TechLocationTaskHandler` via
+  /// `FlutterForegroundTask.sendDataToMain`. Currently only handles
+  /// `fatal_auth_error` — token expired or tech reassigned, both
+  /// terminal for this booking. Stops the service and surfaces
+  /// `BroadcastState.error` so the C6 banner shows the failure.
+  void _onIsolateData(Object data) {
+    if (!ref.mounted) return;
+    if (data is! Map) return;
+    final kind = data[TechLocationTaskKeys.messageKind];
+    if (kind != TechLocationTaskKeys.fatalAuthErrorKind) return;
+
+    developer.log(
+      'Fatal auth error from isolate: '
+      'statusCode=${data[TechLocationTaskKeys.messageStatusCode]} '
+      'code=${data[TechLocationTaskKeys.messageCode]}',
+      name: _kLogName,
+      level: 1000,
+    );
+    // Latch BEFORE stopping so _stopService's tail _evaluate sees the
+    // latch and does not restart immediately. State transitions to
+    // error first; _stopService will overwrite to idle in its tail
+    // — re-set to error after to keep the banner visible.
+    _fatalAuthErrorLatched = true;
+    if (_status == _LifecycleStatus.running) {
+      unawaited(
+        _stopService().whenComplete(() {
+          if (ref.mounted) state = BroadcastState.error;
+        }),
+      );
+    } else {
+      state = BroadcastState.error;
     }
   }
 

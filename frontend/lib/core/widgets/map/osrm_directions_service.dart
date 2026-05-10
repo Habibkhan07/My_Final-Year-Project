@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io' show SocketException;
 
@@ -43,7 +44,14 @@ class OsrmDirectionsService implements IDirectionsService {
 
     final http.Response response;
     try {
-      response = await _client.get(uri);
+      // Audit H3 (M-5/T-7d): public OSRM routinely hangs 8-30s. Without
+      // a timeout, the in-flight directions fetch sits in `_fetching`
+      // forever and the polyline never updates. 8s is generous enough
+      // for a fully-warm OSRM call and short enough that the user
+      // doesn't watch a stale ETA tickdown for half a minute.
+      response = await _client.get(uri).timeout(const Duration(seconds: 8));
+    } on TimeoutException {
+      throw const DirectionsNetworkFailure();
     } on SocketException {
       throw const DirectionsNetworkFailure();
     } catch (e) {

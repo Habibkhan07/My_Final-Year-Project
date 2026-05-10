@@ -12,11 +12,13 @@
 // itself.
 
 import 'dart:async';
+import 'dart:developer' as developer;
 
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 
+import '../../../../../core/common/errors/http_failure.dart';
 import '../../data/datasources/tech_location_remote_data_source.dart';
 
 /// Top-level entry point. `flutter_foreground_task` requires the
@@ -35,6 +37,20 @@ void startTechLocationTaskCallback() {
 /// imports these.
 class TechLocationTaskKeys {
   static const String configKey = 'tech_location_config';
+
+  /// Audit H4: wire-format keys for `FlutterForegroundTask.sendDataToMain`
+  /// messages. The isolate emits a fatal-auth message when a POST
+  /// returns 401 / 403; the controller's `addTaskDataCallback` listens
+  /// and flips `BroadcastState.error`.
+  ///
+  /// SendPort serialization survives `Map<String, Object?>` of
+  /// primitives, so we keep the wire shape plain JSON-ish.
+  static const String messageKind = 'kind';
+  static const String fatalAuthErrorKind = 'fatal_auth_error';
+  static const String messageStatusCode = 'status_code';
+  static const String messageCode = 'code';
+
+  static const String _logName = 'feature.location_broadcaster.handler';
 
   /// ASCII Unit Separator (0x1F). Picked because it cannot legally
   /// appear inside an auth token or numeric booking id, so a simple
@@ -130,10 +146,39 @@ class _TechLocationTaskHandler extends TaskHandler {
         // bike marker on the customer's map.
         heading: position.headingAccuracy <= 0 ? null : position.heading,
       );
-    } catch (_) {
-      // Transient failures are expected (network blips, 5xx). The
-      // foreground service stays alive; the next fix retries
-      // implicitly. No retry queue — telemetry is fine to drop.
+    } on HttpFailure catch (e, stack) {
+      // Audit H4 (F-11/S-6): the previous `catch (_) {}` swallowed
+      // EVERY error silently — a 401 (token expired) or 403 (not the
+      // assigned tech) would keep firing GPS into a wall forever.
+      developer.log(
+        'tech-location POST failed: ${e.statusCode} ${e.code} ${e.message}',
+        name: TechLocationTaskKeys._logName,
+        level: 1000,
+        stackTrace: stack,
+      );
+      if (e.statusCode == 401 || e.statusCode == 403) {
+        // Fatal — no GPS frame will succeed until the tech logs in
+        // again or is reassigned. Tell main to stop the service and
+        // surface `BroadcastState.error`.
+        FlutterForegroundTask.sendDataToMain({
+          TechLocationTaskKeys.messageKind:
+              TechLocationTaskKeys.fatalAuthErrorKind,
+          TechLocationTaskKeys.messageStatusCode: e.statusCode,
+          TechLocationTaskKeys.messageCode: e.code,
+        });
+      }
+      // Transient failures (5xx, network) just drop this frame; the
+      // next fix retries implicitly.
+    } catch (e, stack) {
+      // Anything else — log so it's not silent. No main-side signal
+      // because we can't classify "fatal" vs "transient" without a
+      // typed error.
+      developer.log(
+        'tech-location POST threw unexpected: $e',
+        name: TechLocationTaskKeys._logName,
+        level: 1000,
+        stackTrace: stack,
+      );
     }
   }
 

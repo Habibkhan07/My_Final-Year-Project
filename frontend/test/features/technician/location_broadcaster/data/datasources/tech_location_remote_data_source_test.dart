@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -121,6 +122,51 @@ void main() {
         ),
       );
     });
+
+    test('timeout → throws HttpFailure(0, network_timeout)', () async {
+      // Audit H3 (F-19/T-7d): the client is configured with an 8s
+      // timeout. We can't sleep 8s in a test, so simulate by making
+      // the MockClient never respond (Completer never completes) and
+      // shrink the wait to a fast assertion. We rely on the fact that
+      // `package:http/testing.dart`'s MockClient awaits the handler —
+      // a non-completing handler effectively "hangs" until timeout.
+      //
+      // To keep the suite fast we wrap the call in our own timeout
+      // and assert HttpFailure surfaces with the expected envelope.
+      final neverCompletes = Completer<http.Response>();
+      final client = MockClient((_) => neverCompletes.future);
+      final svc = TechLocationRemoteDataSource(client);
+
+      // Race with a short timeout so we don't actually wait 8s. The
+      // production `.timeout(Duration(seconds: 8))` proves the path
+      // exists — here we just confirm the `TimeoutException` branch
+      // produces the right envelope by triggering it via dart:async
+      // directly through a wrapping timeout call from the test.
+      //
+      // Because the data source's own timeout is 8s and we don't want
+      // to wait that long, we instead instrument the test by
+      // shortening the awaited future via a wrapper. Simpler: assert
+      // the exact envelope emerges when the future does eventually
+      // hit the data source's own timeout — the assertion completes
+      // in 8s + epsilon; we mark this test with a higher timeout.
+      await expectLater(
+        svc
+            .postLocation(
+              bookingId: 42,
+              authToken: 'tok',
+              lat: 31.5,
+              lng: 74.3,
+            )
+            .timeout(const Duration(seconds: 10)),
+        throwsA(
+          isA<HttpFailure>()
+              .having((e) => e.statusCode, 'statusCode', 0)
+              .having((e) => e.code, 'code', 'network_timeout'),
+        ),
+      );
+      // Ensure the dangling completer doesn't keep the test alive.
+      neverCompletes.complete(http.Response('', 200));
+    }, timeout: const Timeout(Duration(seconds: 15)));
 
     test('5xx → throws HttpFailure even when body is non-JSON', () async {
       // Some load balancers return raw HTML on 502.

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io' show SocketException;
 
@@ -55,7 +56,11 @@ class GoogleDirectionsService implements IDirectionsService {
 
     final http.Response response;
     try {
-      response = await _client.get(uri);
+      // Audit H3 (M-5/T-7d): bound the wait so a slow Google response
+      // doesn't keep `_fetching` true forever in `LiveTrackingMap`.
+      response = await _client.get(uri).timeout(const Duration(seconds: 8));
+    } on TimeoutException {
+      throw const DirectionsNetworkFailure();
     } on SocketException {
       throw const DirectionsNetworkFailure();
     } catch (e) {
