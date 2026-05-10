@@ -1,15 +1,19 @@
 // Top-level entry point for the flutter_foreground_task isolate.
 //
 // The isolate is NOT in Riverpod's world — providers don't cross
-// isolate boundaries. We construct a fresh `http.Client()` here and
-// read the auth token + booking id from the shared-prefs blob saved
-// by the controller via FlutterForegroundTask.saveData().
+// isolate boundaries. The production callback constructs adapters
+// + factories explicitly and hands them to the handler.
 //
 // SECURITY: this isolate runs Geolocator and POSTs each fix to the
 // backend's tech-location endpoint, which gates by tech_profile +
 // assigned-tech IDOR + 4-second throttle. The client only carries
 // the auth token forward; it never makes authorisation decisions
 // itself.
+//
+// Audit H13 (isolate side): the handler accepts ports + factories via
+// constructor with production defaults. Tests construct the handler
+// directly with fakes and drive `onStart` / `_onFix` / `onDestroy`
+// without going through `setTaskHandler` at all.
 
 import 'dart:async';
 import 'dart:developer' as developer;
@@ -19,7 +23,11 @@ import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 
 import '../../../../../core/common/errors/http_failure.dart';
+import '../../data/adapters/isolate_flutter_foreground_task_backend.dart';
+import '../../data/adapters/isolate_geolocator_backend.dart';
 import '../../data/datasources/tech_location_remote_data_source.dart';
+import '../../domain/ports/isolate_foreground_task_backend.dart';
+import '../../domain/ports/isolate_geolocator_backend.dart';
 
 /// Top-level entry point. `flutter_foreground_task` requires the
 /// callback to be a top-level (non-method) function annotated with
@@ -28,8 +36,22 @@ import '../../data/datasources/tech_location_remote_data_source.dart';
 /// passed by reference to `FlutterForegroundTask.startService(callback:)`.
 @pragma('vm:entry-point')
 void startTechLocationTaskCallback() {
-  FlutterForegroundTask.setTaskHandler(_TechLocationTaskHandler());
+  FlutterForegroundTask.setTaskHandler(
+    TechLocationTaskHandler(
+      foregroundTask: const IsolateFlutterForegroundTaskBackend(),
+      geolocator: const IsolateGeolocatorBackend(),
+    ),
+  );
 }
+
+/// Default `http.Client` factory — kept as a top-level so the handler
+/// stays free of `dart:io` imports beyond what's already needed.
+http.Client _defaultClientFactory() => http.Client();
+
+/// Default `TechLocationRemoteDataSource` factory — closes over the
+/// just-created client.
+TechLocationRemoteDataSource _defaultRemoteFactory(http.Client client) =>
+    TechLocationRemoteDataSource(client);
 
 /// Keys + delimiter for the config blob the controller saves before
 /// startService. Kept as constants in this file (not the controller's)
@@ -55,7 +77,7 @@ class TechLocationTaskKeys {
   /// ASCII Unit Separator (0x1F). Picked because it cannot legally
   /// appear inside an auth token or numeric booking id, so a simple
   /// `split` round-trips losslessly without JSON serialization.
-  static const String _delimiter = '';
+  static const String _delimiter = '';
 
   /// Encode `(authToken, bookingId)` to a single string the
   /// foreground task handler can split back. Used by the controller's
@@ -76,7 +98,14 @@ class TechLocationTaskKeys {
   }
 }
 
-class _TechLocationTaskHandler extends TaskHandler {
+/// Public so tests can construct + drive directly. Production callers
+/// go through `startTechLocationTaskCallback`.
+class TechLocationTaskHandler extends TaskHandler {
+  final IIsolateForegroundTaskBackend _foregroundTask;
+  final IIsolateGeolocatorBackend _geolocator;
+  final http.Client Function() _clientFactory;
+  final TechLocationRemoteDataSource Function(http.Client) _remoteFactory;
+
   StreamSubscription<Position>? _positionSub;
   http.Client? _isolateClient;
   TechLocationRemoteDataSource? _remote;
@@ -84,9 +113,20 @@ class _TechLocationTaskHandler extends TaskHandler {
   int _bookingId = -1;
   String _authToken = '';
 
+  TechLocationTaskHandler({
+    required IIsolateForegroundTaskBackend foregroundTask,
+    required IIsolateGeolocatorBackend geolocator,
+    http.Client Function() clientFactory = _defaultClientFactory,
+    TechLocationRemoteDataSource Function(http.Client) remoteFactory =
+        _defaultRemoteFactory,
+  }) : _foregroundTask = foregroundTask,
+       _geolocator = geolocator,
+       _clientFactory = clientFactory,
+       _remoteFactory = remoteFactory;
+
   @override
   Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
-    final raw = await FlutterForegroundTask.getData<String>(
+    final raw = await _foregroundTask.getData<String>(
       key: TechLocationTaskKeys.configKey,
     );
     if (raw == null) {
@@ -101,28 +141,30 @@ class _TechLocationTaskHandler extends TaskHandler {
     _authToken = decoded.authToken;
     _bookingId = decoded.bookingId;
 
-    _isolateClient = http.Client();
-    _remote = TechLocationRemoteDataSource(_isolateClient!);
+    _isolateClient = _clientFactory();
+    _remote = _remoteFactory(_isolateClient!);
 
     // Permission may have been revoked between the controller's check
     // and this isolate spinning up. Re-check defensively.
-    final permission = await Geolocator.checkPermission();
+    final permission = await _geolocator.checkPermission();
     if (permission == LocationPermission.denied ||
         permission == LocationPermission.deniedForever) {
       return; // controller's status listener will handle the UI surface
     }
 
-    _positionSub = Geolocator.getPositionStream(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.high,
-        // 10m + the geolocator's internal timer (which fires roughly
-        // every second on most Android devices) gives us GPS frames at
-        // a real-world cadence near 5s while moving and rarely while
-        // stationary. The backend's 4s throttle absorbs occasional
-        // sub-5s bursts.
-        distanceFilter: 10,
-      ),
-    ).listen(_onFix);
+    _positionSub = _geolocator
+        .getPositionStream(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.high,
+            // 10m + the geolocator's internal timer (which fires roughly
+            // every second on most Android devices) gives us GPS frames at
+            // a real-world cadence near 5s while moving and rarely while
+            // stationary. The backend's 4s throttle absorbs occasional
+            // sub-5s bursts.
+            distanceFilter: 10,
+          ),
+        )
+        .listen(_onFix);
   }
 
   Future<void> _onFix(Position position) async {
@@ -160,7 +202,7 @@ class _TechLocationTaskHandler extends TaskHandler {
         // Fatal — no GPS frame will succeed until the tech logs in
         // again or is reassigned. Tell main to stop the service and
         // surface `BroadcastState.error`.
-        FlutterForegroundTask.sendDataToMain({
+        _foregroundTask.sendDataToMain({
           TechLocationTaskKeys.messageKind:
               TechLocationTaskKeys.fatalAuthErrorKind,
           TechLocationTaskKeys.messageStatusCode: e.statusCode,
