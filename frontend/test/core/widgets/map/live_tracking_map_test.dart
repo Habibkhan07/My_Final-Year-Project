@@ -1046,7 +1046,10 @@ void main() {
       expect(formatDistanceMeters(7), '10 m');
       expect(formatDistanceMeters(150), '150 m');
       expect(formatDistanceMeters(296), '300 m');
-      expect(formatDistanceMeters(999), '1000 m');
+      // LTM-13 (Batch I): 994 still rounds to 990 m (sub-km). The
+      // boundary at 999 used to render as "1000 m" — now flips to
+      // "1.0 km" because we round-then-branch.
+      expect(formatDistanceMeters(994), '990 m');
     });
 
     test('>= 1 km renders as one-decimal km', () {
@@ -1054,6 +1057,10 @@ void main() {
       expect(formatDistanceMeters(1234), '1.2 km');
       expect(formatDistanceMeters(4999), '5.0 km');
       expect(formatDistanceMeters(12345), '12.3 km');
+      // LTM-13 (Batch I): values that round up to 1000 m flip to
+      // "1.0 km" cleanly — no 4-digit metres at the boundary.
+      expect(formatDistanceMeters(995), '1.0 km');
+      expect(formatDistanceMeters(999), '1.0 km');
     });
   });
 }

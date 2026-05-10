@@ -137,6 +137,17 @@ class _LiveTrackingMapState extends ConsumerState<LiveTrackingMap>
   // ─── Camera follow ────────────────────────────────────────────────
   bool _autoFollow = true;
   bool _firstFitDone = false;
+  // LTM-6 (Batch I): hold auto-follow off briefly after the initial
+  // fit so the customer actually sees the wide "tech + destination"
+  // view before follow zooms in. Without this the bounds-fit was
+  // visible for one frame at most before the next-frame follow
+  // collapsed it.
+  DateTime? _initialFollowBlockedUntil;
+  // LTM-1 (Batch I): apply the follow zoom only on the first follow
+  // after a recentre / initial fit. Subsequent follow ticks pass
+  // null zoom so a user's pinch-zoom is preserved while follow keeps
+  // the camera centred on the tech.
+  bool _followZoomApplied = false;
   // Programmatic camera target — setting this drives the underlying
   // map widget via `cameraTarget` prop. We `null`-out after fitting
   // to bounds so the user can pan freely afterward.
@@ -157,12 +168,12 @@ class _LiveTrackingMapState extends ConsumerState<LiveTrackingMap>
     // a handful of times in a booking).
     _stalenessTicker = Timer.periodic(const Duration(seconds: 5), (_) {
       if (!mounted) return;
-      final next = _quality;
+      final next = _quality(_serverNow());
       if (next != _lastQuality) {
         setState(() => _lastQuality = next);
       }
     });
-    _lastQuality = _quality;
+    _lastQuality = _quality(_serverNow());
     // Seed marker rendering from initial widget state.
     _renderedPosition = widget.technicianPosition;
     _renderedHeading = widget.technicianHeadingDegrees ?? 0.0;
@@ -197,6 +208,18 @@ class _LiveTrackingMapState extends ConsumerState<LiveTrackingMap>
       _etaTicker?.cancel();
       _etaTicker = null;
       _etaCountdownSeconds = 0;
+      // LTM-17 (Batch I): stop the in-flight marker tween — without
+      // this the marker keeps sliding for up to ~4.8s while the
+      // "arrived" badge already shows.
+      if (_markerAnim.isAnimating) {
+        _markerAnim.stop();
+        final to = _tweenToPosition;
+        if (to != null) _renderedPosition = to;
+        _tweenFromPosition = null;
+        _tweenToPosition = null;
+        _tweenFromHeading = null;
+        _tweenToHeading = null;
+      }
     }
 
     if (newPos != null && oldPos == null) {
@@ -295,28 +318,51 @@ class _LiveTrackingMapState extends ConsumerState<LiveTrackingMap>
     _cameraBounds = [tech, widget.destination];
     _cameraTarget = null;
     _firstFitDone = true;
+    // LTM-6 (Batch I): grace window so the bounds-fit (wide
+    // tech+destination view) is actually visible to the customer
+    // before the next-frame follow takes over.
+    _initialFollowBlockedUntil = DateTime.now().add(
+      const Duration(seconds: 3),
+    );
+    _followZoomApplied = false;
     // Schedule a follow-up to clear the bounds prop, otherwise rebuild
     // would re-fit on every frame.
+    // LTM-10 (Batch I): mutate the field directly without setState —
+    // the next legitimate rebuild (tween tick / didUpdateWidget) will
+    // pick up the cleared bounds. The post-frame setState was firing
+    // a redundant rebuild whose only effect was clearing transient
+    // state already settled by the underlying adapter.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      setState(() {
-        _cameraBounds = null;
-      });
+      _cameraBounds = null;
     });
   }
 
   void _maybeFollowCamera() {
     if (!_autoFollow) return;
+    // LTM-6 (Batch I): respect the post-initial-fit grace so the
+    // customer sees the wide view before follow zooms in.
+    final blocked = _initialFollowBlockedUntil;
+    if (blocked != null && DateTime.now().isBefore(blocked)) return;
     final tech = widget.technicianPosition;
     if (tech == null) return;
     _cameraTarget = tech;
-    _cameraZoom = _kFollowZoom;
+    // LTM-1 (Batch I): apply the follow zoom only on the first follow
+    // after a recentre / initial fit. Subsequent ticks pass null so
+    // a user's pinch-zoom-out is preserved by the underlying adapter
+    // (per the M-14 contract).
+    if (!_followZoomApplied) {
+      _cameraZoom = _kFollowZoom;
+      _followZoomApplied = true;
+    } else {
+      _cameraZoom = null;
+    }
     // Clear next frame so the user can pan thereafter.
+    // LTM-10 (Batch I): mutate directly, no setState — see
+    // _scheduleInitialFit for rationale.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      setState(() {
-        _cameraTarget = null;
-      });
+      _cameraTarget = null;
     });
   }
 
@@ -331,14 +377,20 @@ class _LiveTrackingMapState extends ConsumerState<LiveTrackingMap>
     if (tech == null) return;
     setState(() {
       _autoFollow = true;
+      // LTM-6 (Batch I): recentre is an explicit user request, so
+      // skip any remaining initial-fit grace.
+      _initialFollowBlockedUntil = null;
       _cameraTarget = tech;
       _cameraZoom = _kFollowZoom;
+      // LTM-1 (Batch I): zoom is intentionally applied here; flip
+      // the flag so subsequent follow ticks preserve the user's
+      // pinch-zoom instead of resetting to _kFollowZoom every frame.
+      _followZoomApplied = true;
     });
+    // LTM-10 (Batch I): mutate the camera target directly post-frame.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      setState(() {
-        _cameraTarget = null;
-      });
+      _cameraTarget = null;
     });
   }
 
@@ -407,30 +459,39 @@ class _LiveTrackingMapState extends ConsumerState<LiveTrackingMap>
       // Soft-fail. Keep last polyline / ETA. Don't snackbar — routing
       // is best-effort polish, not load-bearing UX.
     } finally {
-      if (mounted) {
-        setState(() => _fetching = false);
-      } else {
-        _fetching = false;
-      }
+      // LTM-5 (Batch I): _fetching is a re-entry guard, not a UI
+      // input — don't trigger a frame rebuild just to flip it. The
+      // success / failure branches above already setState when the
+      // result needs to render.
+      _fetching = false;
     }
   }
 
   // ─── Connection quality ───────────────────────────────────────────
 
-  _ConnectionQuality get _quality {
+  /// LTM-2 (Batch I): compute the band given an externally-supplied
+  /// server-anchored `now` so each `build()` reads `serverNow()` once
+  /// instead of per-Stack-child. Combined with the 60Hz tween-driven
+  /// rebuilds, the prior `_quality` getter was re-reading the anchor
+  /// dozens of times per second and could flip the band across two
+  /// consecutive milliseconds in the same second.
+  ///
+  /// Audit H8 (W-13): the anchor is server-time, not local wall
+  /// clock, so a device with skew cannot mis-classify a fresh frame
+  /// as offline. Paired with `TechnicianLocationStreamNotifier`
+  /// stamping `frameArrivedAt` through the same anchor — both halves
+  /// of `now - last` are on the same clock.
+  _ConnectionQuality _quality(DateTime now) {
     final last = widget.lastFrameAt;
     if (last == null) return _ConnectionQuality.good; // pre-first-frame
-    // Audit H8 (W-13): server-anchored "now" so a device with a skewed
-    // wall clock cannot flip a fresh frame to "offline." Paired with
-    // `TechnicianLocationStreamNotifier` stamping `frameArrivedAt`
-    // through the same anchor — both halves of `now - last` are on
-    // the same clock.
-    final now = ref.read(systemEventProvider.notifier).serverNow();
     final age = now.difference(last);
     if (age > _kStalenessOfflineThreshold) return _ConnectionQuality.offline;
     if (age > _kStalenessWeakThreshold) return _ConnectionQuality.weak;
     return _ConnectionQuality.good;
   }
+
+  DateTime _serverNow() =>
+      ref.read(systemEventProvider.notifier).serverNow();
 
   // ─── Build ─────────────────────────────────────────────────────────
 
@@ -438,6 +499,12 @@ class _LiveTrackingMapState extends ConsumerState<LiveTrackingMap>
   Widget build(BuildContext context) {
     final builder = ref.watch(appMapBuilderProvider);
     final renderedPos = _renderedPosition;
+    // LTM-2 (Batch I): compute the connection-quality band ONCE per
+    // build, not per Stack child. The prior `_quality` getter was
+    // called from each Positioned that gated on it, and each call
+    // re-read `serverNow()` — at 60Hz tween rebuilds the anchor was
+    // sampled hundreds of times per second.
+    final quality = _quality(_serverNow());
 
     final markers = <MapMarker>[
       MapMarker(
@@ -493,7 +560,7 @@ class _LiveTrackingMapState extends ConsumerState<LiveTrackingMap>
               if (widget.technicianPosition == null)
                 const _WaitingForFirstFramePill()
               else
-                _ConnectionStrip(quality: _quality),
+                _ConnectionStrip(quality: quality),
             ],
           ),
         ),
@@ -501,7 +568,7 @@ class _LiveTrackingMapState extends ConsumerState<LiveTrackingMap>
         // offline (offline shows "last known" position; ETA would lie).
         if (_directions != null &&
             renderedPos != null &&
-            _quality != _ConnectionQuality.offline)
+            quality != _ConnectionQuality.offline)
           Positioned(
             bottom: 24,
             left: 0,
@@ -594,7 +661,13 @@ class _EtaPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final mins = (etaSeconds / 60).ceil();
+    // LTM-9 (Batch I): floor the displayed minutes at 1. Without
+    // this, an `etaSeconds: 0` first response (server thinks the
+    // tech is already at destination) renders as "0 min" — looks
+    // broken next to a non-zero distance. The 1Hz ticker already
+    // cancels at `next <= 0`; this guards the very-first response
+    // shape too.
+    final mins = math.max(1, (etaSeconds / 60).ceil());
     final distanceText = formatDistanceMeters(distanceMeters);
     // Audit W-38 (Batch G): pre-fix TalkBack read each text node
     // independently ("5", "min", "·", "300 m"). The merged Semantics
@@ -800,11 +873,14 @@ class _WaitingForFirstFramePill extends StatelessWidget {
 /// without driving a `LiveTrackingMap` widget.
 @visibleForTesting
 String formatDistanceMeters(int distanceMeters) {
-  if (distanceMeters < 1000) {
-    final rounded = (distanceMeters / 10).round() * 10;
-    return '$rounded m';
-  }
-  return '${(distanceMeters / 1000.0).toStringAsFixed(1)} km';
+  // LTM-13 (Batch I): round-then-branch. Pre-fix, 999 m rounded to
+  // 1000 m (a 4-digit metres reading right at the km boundary), and
+  // 1000 m correctly formatted as "1.0 km" — visually inconsistent
+  // either side of the cutover. Round first, then choose the unit
+  // so values that round up to 1000 m flip to "1.0 km" cleanly.
+  final rounded = (distanceMeters / 10).round() * 10;
+  if (rounded < 1000) return '$rounded m';
+  return '${(rounded / 1000.0).toStringAsFixed(1)} km';
 }
 
 @visibleForTesting
