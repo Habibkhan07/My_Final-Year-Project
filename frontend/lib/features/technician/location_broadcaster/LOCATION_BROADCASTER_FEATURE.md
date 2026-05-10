@@ -317,11 +317,8 @@ Lifecycle:
   renders the same `LiveTrackingMap` for both audiences (with the
   same procedural marker bubbles); a tech-specific overlay (e.g.
   bigger "I have arrived" CTA) is sprint-v2 polish.
-- Unit tests for the controller / isolate task handler — tracked in
-  flag #36 alongside the parallel map-widget coverage gap (audit
-  H13). Closing this requires a port-and-adapter refactor wrapping
-  `FlutterForegroundTask.<static>` and `Geolocator.<static>` behind
-  injectable interfaces.
+- iOS support — flag #10 / #35 keep this open; the Android-only
+  channel registration + foreground service type is ASSUME-ANDROID.
 
 ---
 
@@ -330,19 +327,28 @@ Lifecycle:
 | File | Coverage |
 |---|---|
 | `test/features/technician/location_broadcaster/data/datasources/tech_location_remote_data_source_test.dart` | URL + auth header + body shape; 200/429/403/5xx response handling; **8s timeout → `HttpFailure(0, 'network_timeout')`** (audit H3). |
+| `test/features/technician/location_broadcaster/presentation/providers/foreground_location_service_controller_test.dart` | Status × role gate, permission flow (granted / denied / deniedForever, notification permission denied), settings deep-link, ServiceRequestFailure handling, fatal-auth latch + recovery on next status hop, `_LifecycleStatus` FSM, `addTaskDataCallback` register/unregister symmetry (audit H13 main side, commits 73b77d0 + 0df111e). |
+| `test/features/technician/location_broadcaster/presentation/services/foreground_task_handler_test.dart` | All 15 enumerated T-3 branches: `onStart` early-return paths (config null / malformed / permission denied / deniedForever); happy-path subscribe + POST with high-accuracy/10m settings; wire-format edge cases (accuracy=0 → omit, headingAccuracy<=0 → omit per audit H1); 401/403 → `sendDataToMain(fatal_auth_error)`; 5xx/429/non-HttpFailure swallowed; `onDestroy` cancels subscription + closes client; `encodeConfig`/`decodeConfig` round-trip + malformed-input rejection (audit H13 isolate side, commits c0e010d + 8b008da). |
 | `test/features/technician/location_broadcaster/presentation/widgets/broadcast_state_banner_test.dart` | Render-nothing for `idle`/`running`; failure-state matrix (icon + copy); "Open settings" CTA visibility (audit C2 — only on the two permission-denied variants); tap dispatch through `onOpenSettings`. |
 | (orchestrator-side) `test/features/orchestrator/data/mappers/tech_gps_frame_mapper_test.dart` | Wire-shape parse + bounds validation (audit H5 — out-of-range lat/lng/heading drop). |
 | (auth/realtime sides) `test/core/realtime/presentation/app_lifecycle_orchestrator_test.dart`, `test/features/auth/presentation/providers/auth_notifier_*_test.dart` | `performTeardown` `verifyInOrder` pins `foregroundLocationLifecycle.tearDown()` between `fcm.unregister` and `ws.disconnect` (audit C3). |
 
-The `ForegroundLocationServiceController` and the
-`TechLocationTaskHandler` are NOT unit-tested — both depend on
-`FlutterForegroundTask` static method calls which require a wrapper
-abstraction to mock (audit H13). The controller's logic (status × role
-→ start/stop, the `_LifecycleStatus` FSM, the `_fatalAuthErrorLatched`
-recovery, the `addTaskDataCallback` registration / unregistration)
-ships covered only by inspection + the manual smoke checklist in
-`booking_orchestrator_sprint/session_4_live_tracking_and_dual_maps.md
-§6`. Tracked in flag #36 alongside the analogous map-widget gap.
+Both the `ForegroundLocationServiceController` and the
+`TechLocationTaskHandler` are now fully unit-tested. The static-method
+coupling that made H13 a concern was lifted by introducing parallel
+port-and-adapter pairs:
+
+- Main side: `IForegroundTaskBackend` + `IGeolocatorBackend` (in
+  `domain/ports/`) with production adapters in `data/adapters/`.
+- Isolate side: `IIsolateForegroundTaskBackend` +
+  `IIsolateGeolocatorBackend` (kept distinct because their surfaces
+  don't overlap and Riverpod doesn't cross isolate boundaries
+  anyway).
+
+Tests inject recording fakes for the ports + a `MockClient` for
+the HTTP layer; `MockClient` requests are inspected for the wire
+payload, and `simulateIsolateMessage(...)` (main side) /
+`positionController.add(...)` (isolate side) drive the rest.
 
 ---
 
