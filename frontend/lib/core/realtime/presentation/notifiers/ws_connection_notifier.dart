@@ -238,7 +238,22 @@ class WsConnectionNotifier extends _$WsConnectionNotifier {
     if (channel == null) return;
     try {
       channel.sink.add(jsonEncode(message));
+    } on StateError catch (e) {
+      // Audit R-12 (Batch F): expected race — between the `_channel`
+      // capture and the `sink.add` call, the socket can close (server
+      // dropped us, network blip, Daphne restart). `WebSocketSink`
+      // throws `StateError` on add-after-close. Log at INFO so this
+      // doesn't masquerade as a real bug; the connectionEvents listener
+      // will fire WsDisconnected and the consumer will replay on the
+      // next WsConnected.
+      log(
+        'WS upstream send dropped on closed sink (expected race): $e',
+        name: _logName,
+        level: 800, // info
+      );
     } catch (e, stack) {
+      // Anything else IS a real bug (encoder failure, channel
+      // implementation throwing unexpected types). Keep the loud log.
       log('WS upstream send failed: $e', name: _logName, stackTrace: stack);
     }
   }

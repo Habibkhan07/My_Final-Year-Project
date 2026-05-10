@@ -189,14 +189,22 @@ class TechLocationTaskHandler extends TaskHandler {
 
     _positionSub = _geolocator
         .getPositionStream(
-          locationSettings: const LocationSettings(
+          // Audit F-21 (Batch F): use `AndroidSettings` so a stationary
+          // tech still emits a heartbeat fix every 15s. With plain
+          // `LocationSettings(distanceFilter: 10)` a tech stuck at a
+          // traffic light or door produces no fixes for as long as
+          // they don't move 10m — the customer's marker freezes and
+          // the staleness banner trips ("Connection is weak…")
+          // despite GPS being healthy. 15s is well above the backend's
+          // 4s throttle but well below the 60s "offline" threshold,
+          // so the heartbeat keeps the customer's live map green even
+          // when the tech is genuinely stationary. We do NOT set
+          // `foregroundNotificationConfig` here — flutter_foreground_task
+          // owns the notification (session 4 risk #8 caveat).
+          locationSettings: AndroidSettings(
             accuracy: LocationAccuracy.high,
-            // 10m + the geolocator's internal timer (which fires roughly
-            // every second on most Android devices) gives us GPS frames at
-            // a real-world cadence near 5s while moving and rarely while
-            // stationary. The backend's 4s throttle absorbs occasional
-            // sub-5s bursts.
             distanceFilter: 10,
+            intervalDuration: const Duration(seconds: 15),
           ),
         )
         .listen(_onFix, onError: _onPositionStreamError);

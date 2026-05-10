@@ -43,11 +43,28 @@ class TrackingSubscriptionController extends _$TrackingSubscriptionController {
     BookingStatus.arrived,
   };
 
+  /// Audit S-12 (Batch F): semantically this is "intent to be
+  /// subscribed", NOT "currently subscribed on the wire." A
+  /// `_send(subscribe_tracking)` while the WS is disconnected is a
+  /// no-op (sendUpstream silently drops on null channel — audit R-12).
+  /// We still flip `_subscribed = true` so the connectionEvents
+  /// listener replays the subscribe on the next WsConnected. If we
+  /// gated the flag on connection state, the replay would never fire
+  /// and a customer who opened the orchestrator screen during a
+  /// reconnect window would never receive frames.
   bool _subscribed = false;
   StreamSubscription<WsConnectionEvent>? _wsEventsSub;
 
   @override
   void build(int jobId) {
+    // Audit R-16 (Batch F): caching the notifier instance at build()
+    // time is safe in this controller because `wsConnectionProvider`
+    // is `keepAlive: true` — the same notifier instance survives
+    // every connect/disconnect/reconnect cycle within a session. The
+    // only path that would invalidate this reference is a logout,
+    // which pops the orchestrator screen (disposing this controller
+    // before the cached `ws` could be re-used). Verified by the
+    // dispose-when-not-subscribed regression test.
     final ws = ref.read(wsConnectionProvider.notifier);
 
     // (1) status × role gate — drives subscribe/unsubscribe transitions.
@@ -89,6 +106,21 @@ class TrackingSubscriptionController extends _$TrackingSubscriptionController {
       _wsEventsSub?.cancel();
       _wsEventsSub = null;
       if (_subscribed) {
+        // Audit R-13 (Batch F): this is BEST-EFFORT. If the WS is
+        // currently disconnected (logout cascade often disposes the
+        // socket BEFORE popping the orchestrator screen), this
+        // upstream message will silently drop — sendUpstream returns
+        // immediately on a null channel. That's acceptable because:
+        //   • The backend's `tracking_job_<id>` group membership is
+        //     auto-cleaned when the underlying channel disconnects.
+        //   • An orphan membership only wastes a Redis-backed
+        //     subscription slot until the channel layer reaps it.
+        // So a missing unsubscribe is at worst a brief Redis cleanup
+        // delay, never a leak. If you see this comment because you
+        // need the unsubscribe to be guaranteed (e.g. backend rate
+        // limits per-channel-group memberships), the proper fix is
+        // an authenticated REST `DELETE /bookings/<id>/tracking/`
+        // endpoint — not WS-side at all.
         _send(ws, 'unsubscribe_tracking', jobId);
         _subscribed = false;
       }

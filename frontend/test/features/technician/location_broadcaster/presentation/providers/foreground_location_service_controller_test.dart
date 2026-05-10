@@ -85,7 +85,7 @@ class _FixtureRepo implements IBookingDetailRepository {
 class _MockSecureStorage extends Mock implements FlutterSecureStorage {}
 
 ProviderContainer _container({
-  required _FixtureRepo repo,
+  required IBookingDetailRepository repo,
   required FakeForegroundTaskBackend fg,
   required FakeGeolocatorBackend geo,
   String? authToken = 'tok-abc',
@@ -683,4 +683,146 @@ void main() {
       },
     );
   });
+
+  // ──── status oscillation stress test (audit F-9, Batch F) ───────────
+  // The orchestrator can flip the booking through EN_ROUTE → ARRIVED →
+  // EN_ROUTE rapidly (e.g. tech taps "I have arrived" then the customer
+  // disputes / the auto-transition fires twice on a flaky GPS reading).
+  // The controller's gate must:
+  //   • Stay in `_LifecycleStatus.running` across status transitions
+  //     within the subscribable window {EN_ROUTE, ARRIVED}.
+  //   • NOT churn stop/start on every transition (only one start total
+  //     across multiple in-window flips).
+  //   • Stop cleanly when the status leaves the window for real.
+
+  group('status oscillation (audit F-9)', () {
+    test(
+      'EN_ROUTE → ARRIVED → EN_ROUTE within the subscribable window: '
+      'service stays running; only one start fires total',
+      () async {
+        final fg = FakeForegroundTaskBackend();
+        final geo = FakeGeolocatorBackend();
+        final repo = _MutableFixtureRepo(
+          status: 'EN_ROUTE',
+          currentUserId: 99,
+        );
+        final c = _container(repo: repo, fg: fg, geo: geo);
+
+        await _settle(c, 42);
+        expect(fg.startCalls, 1);
+        expect(fg.stopCalls, 0);
+        expect(
+          c.read(foregroundLocationServiceControllerProvider(42)),
+          BroadcastState.running,
+        );
+
+        // Flip ARRIVED. Both EN_ROUTE and ARRIVED are in the
+        // subscribable window so shouldRun stays true; the controller
+        // must NOT stop+restart, just stay running.
+        repo.status = 'ARRIVED';
+        c.invalidate(bookingDetailProvider(42));
+        await c.read(bookingDetailProvider(42).future);
+        for (var i = 0; i < 5; i++) {
+          await Future<void>.delayed(Duration.zero);
+        }
+        expect(fg.startCalls, 1, reason: 'no second start on EN_ROUTE → ARRIVED');
+        expect(fg.stopCalls, 0, reason: 'no stop on EN_ROUTE → ARRIVED');
+        expect(
+          c.read(foregroundLocationServiceControllerProvider(42)),
+          BroadcastState.running,
+        );
+
+        // Flip back to EN_ROUTE. Same gate — still in window.
+        repo.status = 'EN_ROUTE';
+        c.invalidate(bookingDetailProvider(42));
+        await c.read(bookingDetailProvider(42).future);
+        for (var i = 0; i < 5; i++) {
+          await Future<void>.delayed(Duration.zero);
+        }
+        expect(fg.startCalls, 1);
+        expect(fg.stopCalls, 0);
+
+        // Now leave the window for real (CONFIRMED is outside) — the
+        // service must stop.
+        repo.status = 'CONFIRMED';
+        c.invalidate(bookingDetailProvider(42));
+        await c.read(bookingDetailProvider(42).future);
+        for (var i = 0; i < 5; i++) {
+          await Future<void>.delayed(Duration.zero);
+        }
+        expect(fg.stopCalls, 1, reason: 'leaving the window must stop');
+        expect(
+          c.read(foregroundLocationServiceControllerProvider(42)),
+          BroadcastState.idle,
+        );
+      },
+    );
+
+    test(
+      'rapid bounce within the same window does not double-start',
+      () async {
+        // Fire 10 invalidations back-to-back with status alternating
+        // EN_ROUTE / ARRIVED. The FSM must collapse them into a single
+        // running service.
+        final fg = FakeForegroundTaskBackend();
+        final geo = FakeGeolocatorBackend();
+        final repo = _MutableFixtureRepo(
+          status: 'EN_ROUTE',
+          currentUserId: 99,
+        );
+        final c = _container(repo: repo, fg: fg, geo: geo);
+
+        await _settle(c, 42);
+        expect(fg.startCalls, 1);
+
+        for (var i = 0; i < 10; i++) {
+          repo.status = i.isEven ? 'ARRIVED' : 'EN_ROUTE';
+          c.invalidate(bookingDetailProvider(42));
+          await c.read(bookingDetailProvider(42).future);
+        }
+        for (var i = 0; i < 5; i++) {
+          await Future<void>.delayed(Duration.zero);
+        }
+
+        expect(
+          fg.startCalls,
+          1,
+          reason: '10 in-window oscillations must not produce 10 starts',
+        );
+        expect(fg.stopCalls, 0);
+      },
+    );
+  });
+}
+
+// Audit F-9 (Batch F): mutable repo lets a single test drive the
+// controller through multiple status transitions without recreating
+// the ProviderContainer between phases. Same shape as `_FixtureRepo`
+// but with a non-final `status` field.
+class _MutableFixtureRepo implements IBookingDetailRepository {
+  _MutableFixtureRepo({
+    required this.status,
+    this.customerId = 7,
+    this.technicianId = 99,
+    required this.currentUserId,
+  });
+
+  String status;
+  final int customerId;
+  final int technicianId;
+  final int currentUserId;
+
+  @override
+  Future<BookingDetail> getBookingDetail(int bookingId) async {
+    final json = bookingDetailJson(
+      id: bookingId,
+      status: status,
+      customerId: customerId,
+      technicianId: technicianId,
+    );
+    return BookingDetailMapper.toDomain(
+      BookingDetailModel.fromJson(json),
+      currentUserId: currentUserId,
+    );
+  }
 }
