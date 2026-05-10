@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io' show SocketException;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:frontend/core/widgets/map/directions_failures.dart';
@@ -152,5 +154,37 @@ void main() {
       await svc.getRoute(origin: _origin, destination: _destination);
       expect(requestedHost, 'my.osrm.example');
     });
+
+    // ────────── T-8 (Batch E): network-level error branches ─────────
+
+    test(
+      'T-8 (Batch E) SocketException → DirectionsNetworkFailure',
+      () async {
+        final client = MockClient((_) async {
+          throw const SocketException('host unreachable');
+        });
+        final svc = OsrmDirectionsService(client);
+
+        await expectLater(
+          svc.getRoute(origin: _origin, destination: _destination),
+          throwsA(isA<DirectionsNetworkFailure>()),
+        );
+      },
+    );
+
+    test('T-8 (Batch E) timeout → DirectionsNetworkFailure', () async {
+      // 8s timeout in production. Non-completing handler triggers it.
+      final neverCompletes = Completer<http.Response>();
+      final client = MockClient((_) => neverCompletes.future);
+      final svc = OsrmDirectionsService(client);
+
+      await expectLater(
+        svc
+            .getRoute(origin: _origin, destination: _destination)
+            .timeout(const Duration(seconds: 10)),
+        throwsA(isA<DirectionsNetworkFailure>()),
+      );
+      neverCompletes.complete(http.Response('', 200));
+    }, timeout: const Timeout(Duration(seconds: 15)));
   });
 }

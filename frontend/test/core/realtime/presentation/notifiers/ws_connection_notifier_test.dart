@@ -568,6 +568,44 @@ void main() {
       });
     });
 
+    // ────────── T-4 (Batch E): connectionEvents stream-on-dispose ───
+
+    test(
+      'T-4 (Batch E) connectionEvents stream is closed when the provider '
+      'is disposed (listeners receive done)',
+      () {
+        fakeAsync((async) {
+          final fake = _FakeWebSocketChannel();
+          WsConnectionNotifier.channelFactoryForTesting = (_) => fake;
+          fake.completeReady();
+
+          final container = _container(repo: repo, local: local);
+          final notifier = container.read(wsConnectionProvider.notifier);
+
+          var doneFired = false;
+          notifier.connectionEvents.listen(
+            (_) {},
+            onDone: () {
+              doneFired = true;
+            },
+          );
+
+          // Dispose the container — this fires the notifier's
+          // ref.onDispose hook, which closes _connectionEvents.
+          container.dispose();
+          async.flushMicrotasks();
+
+          expect(
+            doneFired,
+            isTrue,
+            reason:
+                'connectionEvents must close on provider dispose so '
+                'listeners (e.g. TrackingSubscriptionController) clean up',
+          );
+        });
+      },
+    );
+
     // ────────────────────────────────────────────────────────────────────
     // Audit H2 (R-5/R-6/R-21) regression coverage
     // ────────────────────────────────────────────────────────────────────

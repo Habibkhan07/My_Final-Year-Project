@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:io' show SocketException;
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:frontend/core/widgets/map/directions_failures.dart';
 import 'package:frontend/core/widgets/map/google_directions_service.dart';
@@ -204,5 +207,36 @@ void main() {
         throwsA(isA<UnknownDirectionsFailure>()),
       );
     });
+
+    // ────────── T-9 (Batch E): network-level error branches ─────────
+
+    test(
+      'T-9 (Batch E) SocketException → DirectionsNetworkFailure',
+      () async {
+        final client = MockClient((_) async {
+          throw const SocketException('host unreachable');
+        });
+        final svc = GoogleDirectionsService(client, apiKey: 'TEST_KEY');
+
+        await expectLater(
+          svc.getRoute(origin: _origin, destination: _destination),
+          throwsA(isA<DirectionsNetworkFailure>()),
+        );
+      },
+    );
+
+    test('T-9 (Batch E) timeout → DirectionsNetworkFailure', () async {
+      final neverCompletes = Completer<http.Response>();
+      final client = MockClient((_) => neverCompletes.future);
+      final svc = GoogleDirectionsService(client, apiKey: 'TEST_KEY');
+
+      await expectLater(
+        svc
+            .getRoute(origin: _origin, destination: _destination)
+            .timeout(const Duration(seconds: 10)),
+        throwsA(isA<DirectionsNetworkFailure>()),
+      );
+      neverCompletes.complete(http.Response('', 200));
+    }, timeout: const Timeout(Duration(seconds: 15)));
   });
 }

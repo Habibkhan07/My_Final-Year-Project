@@ -291,5 +291,47 @@ void main() {
         ws.events.close();
       },
     );
+
+    // ────────── T-5 (Batch E): dispose-when-not-subscribed ──────────
+
+    test(
+      'T-5 (Batch E) dispose with no active subscription does NOT fire a '
+      'spurious unsubscribe',
+      () async {
+        // Tech viewer + EN_ROUTE: the gate returns false (subscribe is
+        // customer-only), so `_subscribed` stays false. Disposing must
+        // not fire `unsubscribe_tracking` — that would tell the backend
+        // to remove a membership that was never created.
+        final ws = _FakeWsNotifier();
+
+        final container = ProviderContainer(
+          overrides: [
+            bookingDetailRepositoryProvider.overrideWithValue(
+              // currentUserId=99 == technicianId, so the viewer is the
+              // tech (gate returns false; subscribe never fires).
+              _FixtureRepo(status: 'EN_ROUTE', currentUserId: 99),
+            ),
+            wsConnectionProvider.overrideWith(() => ws),
+          ],
+        );
+
+        final sub = container.listen(
+          trackingSubscriptionControllerProvider(42),
+          (_, _) {},
+        );
+        await container.read(bookingDetailProvider(42).future);
+        await Future<void>.microtask(() {});
+        // Tech viewer never subscribes.
+        expect(ws.sentMessages, isEmpty);
+
+        sub.close();
+        container.dispose();
+
+        // Still empty — disposal did not invent an unsubscribe message.
+        expect(ws.sentMessages, isEmpty);
+
+        ws.events.close();
+      },
+    );
   });
 }

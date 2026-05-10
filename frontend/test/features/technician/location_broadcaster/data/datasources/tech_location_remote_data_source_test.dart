@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io' show SocketException;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:frontend/core/common/errors/http_failure.dart';
@@ -189,5 +190,124 @@ void main() {
         ),
       );
     });
+
+    // ────────── T-7 (Batch E): missing branches ──────────────────────
+
+    test(
+      'T-7 (Batch E) 401 token_expired → throws HttpFailure with '
+      'auth-failed code',
+      () async {
+        final client = MockClient(
+          (_) async => http.Response(
+            jsonEncode({
+              'status': 401,
+              'code': 'authentication_failed',
+              'message': 'Invalid or expired token.',
+              'errors': {},
+            }),
+            401,
+          ),
+        );
+        final svc = TechLocationRemoteDataSource(client);
+
+        await expectLater(
+          svc.postLocation(
+            bookingId: 42,
+            authToken: 'expired-tok',
+            lat: 31.5,
+            lng: 74.3,
+          ),
+          throwsA(
+            isA<HttpFailure>()
+                .having((e) => e.statusCode, 'statusCode', 401)
+                .having((e) => e.code, 'code', 'authentication_failed'),
+          ),
+        );
+      },
+    );
+
+    test(
+      'T-7 (Batch E) 400 validation_error → throws HttpFailure with '
+      'errors map populated',
+      () async {
+        final client = MockClient(
+          (_) async => http.Response(
+            jsonEncode({
+              'status': 400,
+              'code': 'validation_error',
+              'message': 'lat must be between -90 and 90.',
+              'errors': {
+                'lat': ['Out of range.'],
+              },
+            }),
+            400,
+          ),
+        );
+        final svc = TechLocationRemoteDataSource(client);
+
+        await expectLater(
+          svc.postLocation(
+            bookingId: 42,
+            authToken: 'tok',
+            lat: 999.0,
+            lng: 74.3,
+          ),
+          throwsA(
+            isA<HttpFailure>()
+                .having((e) => e.statusCode, 'statusCode', 400)
+                .having((e) => e.code, 'code', 'validation_error')
+                .having(
+                  (e) => e.errors,
+                  'errors',
+                  containsPair('lat', anything),
+                ),
+          ),
+        );
+      },
+    );
+
+    test(
+      'T-7 (Batch E) SocketException → throws '
+      'HttpFailure(0, network_failure)',
+      () async {
+        final client = MockClient((_) async {
+          throw const SocketException('host unreachable');
+        });
+        final svc = TechLocationRemoteDataSource(client);
+
+        await expectLater(
+          svc.postLocation(
+            bookingId: 42,
+            authToken: 'tok',
+            lat: 31.5,
+            lng: 74.3,
+          ),
+          throwsA(
+            isA<HttpFailure>()
+                .having((e) => e.statusCode, 'statusCode', 0)
+                .having((e) => e.code, 'code', 'network_failure'),
+          ),
+        );
+      },
+    );
+
+    test(
+      'T-7 (Batch E) 200 with empty body → returns true (happy path '
+      'tolerates absent payload)',
+      () async {
+        // Backend returns 204-style on success in some configurations
+        // (no body, just status). Data source must accept this.
+        final client = MockClient((_) async => http.Response('', 200));
+        final svc = TechLocationRemoteDataSource(client);
+
+        final ok = await svc.postLocation(
+          bookingId: 42,
+          authToken: 'tok',
+          lat: 31.5,
+          lng: 74.3,
+        );
+        expect(ok, isTrue);
+      },
+    );
   });
 }
