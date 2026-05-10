@@ -12,6 +12,18 @@ build/
 # If you're building an application, you may want to check-in your pubspec.lock
 #pubspec.lock
 
+# Kotlin compiler-daemon liveness markers. Created automatically by the
+# Kotlin Gradle plugin every time the Android side compiles; never
+# meant to be committed. (The base flutter .gitignore template hasn't
+# caught up to this directory yet.)
+**/.kotlin/
+
+# Defensive: an aborted `mkdir -p frontend/...` from cwd=frontend/
+# pastes the tree into `frontend/frontend/`. We only ever want one
+# `frontend/` — ignore any sibling-named slip so a stray `pub get`
+# inside it doesn't inflate it with .dart_tool.
+/frontend/
+
 # Directory created by dartdoc
 # If you don't generate documentation locally you can remove this line.
 doc/api/
