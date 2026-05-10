@@ -250,3 +250,89 @@ final class GeolocatorBackendProvider
 }
 
 String _$geolocatorBackendHash() => r'da1a963673e9a44cc5d4ff5c1501a8108acf7271';
+
+/// Audit Batch H: production booking deep-link router.
+///
+/// Reads `navigatorKey` from the realtime DI (the same key
+/// `EventUrgencyRouter` uses) and routes to `/booking/$bookingId` via
+/// GoRouter when the controller receives an `open_booking` envelope
+/// from the isolate. Best-effort — if `currentContext` is null (app in
+/// a transient state during launch), the navigation is skipped and
+/// the standard route restoration takes over on the next frame.
+///
+/// Tests override this provider with a recording closure so the
+/// navigation can be asserted without spinning up a MaterialApp +
+/// GoRouter.
+
+@ProviderFor(bookingDeepLinkRouter)
+final bookingDeepLinkRouterProvider = BookingDeepLinkRouterProvider._();
+
+/// Audit Batch H: production booking deep-link router.
+///
+/// Reads `navigatorKey` from the realtime DI (the same key
+/// `EventUrgencyRouter` uses) and routes to `/booking/$bookingId` via
+/// GoRouter when the controller receives an `open_booking` envelope
+/// from the isolate. Best-effort — if `currentContext` is null (app in
+/// a transient state during launch), the navigation is skipped and
+/// the standard route restoration takes over on the next frame.
+///
+/// Tests override this provider with a recording closure so the
+/// navigation can be asserted without spinning up a MaterialApp +
+/// GoRouter.
+
+final class BookingDeepLinkRouterProvider
+    extends
+        $FunctionalProvider<
+          BookingDeepLinkRouter,
+          BookingDeepLinkRouter,
+          BookingDeepLinkRouter
+        >
+    with $Provider<BookingDeepLinkRouter> {
+  /// Audit Batch H: production booking deep-link router.
+  ///
+  /// Reads `navigatorKey` from the realtime DI (the same key
+  /// `EventUrgencyRouter` uses) and routes to `/booking/$bookingId` via
+  /// GoRouter when the controller receives an `open_booking` envelope
+  /// from the isolate. Best-effort — if `currentContext` is null (app in
+  /// a transient state during launch), the navigation is skipped and
+  /// the standard route restoration takes over on the next frame.
+  ///
+  /// Tests override this provider with a recording closure so the
+  /// navigation can be asserted without spinning up a MaterialApp +
+  /// GoRouter.
+  BookingDeepLinkRouterProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'bookingDeepLinkRouterProvider',
+        isAutoDispose: false,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$bookingDeepLinkRouterHash();
+
+  @$internal
+  @override
+  $ProviderElement<BookingDeepLinkRouter> $createElement(
+    $ProviderPointer pointer,
+  ) => $ProviderElement(pointer);
+
+  @override
+  BookingDeepLinkRouter create(Ref ref) {
+    return bookingDeepLinkRouter(ref);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(BookingDeepLinkRouter value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<BookingDeepLinkRouter>(value),
+    );
+  }
+}
+
+String _$bookingDeepLinkRouterHash() =>
+    r'90c801cadd09b7802d5daa4c016efd3e6c317351';

@@ -89,6 +89,7 @@ ProviderContainer _container({
   required FakeForegroundTaskBackend fg,
   required FakeGeolocatorBackend geo,
   String? authToken = 'tok-abc',
+  broadcaster_di.BookingDeepLinkRouter? deepLinkRouter,
 }) {
   final secure = _MockSecureStorage();
   when(
@@ -102,6 +103,13 @@ ProviderContainer _container({
       broadcaster_di.geolocatorBackendProvider.overrideWithValue(geo),
       broadcaster_di.locationBroadcasterSecureStorageProvider
           .overrideWithValue(secure),
+      // Audit Batch H: tests that exercise the open_booking handler
+      // override this with a recording closure; default is a no-op so
+      // tests that don't care can ignore the wire.
+      if (deepLinkRouter != null)
+        broadcaster_di.bookingDeepLinkRouterProvider.overrideWith(
+          (ref) => deepLinkRouter,
+        ),
     ],
   );
   addTearDown(c.dispose);
@@ -680,6 +688,111 @@ void main() {
               'permission is granted at the OS level even while status '
               'stays EN_ROUTE',
         );
+      },
+    );
+  });
+
+  // ──── open_booking deep link (audit Batch H) ────────────────────────
+
+  group('open_booking deep link (audit Batch H)', () {
+    test(
+      'matching booking_id → invokes deep-link router with that id',
+      () async {
+        final fg = FakeForegroundTaskBackend();
+        final geo = FakeGeolocatorBackend();
+        final routedBookingIds = <int>[];
+        final c = _container(
+          repo: _FixtureRepo(status: 'EN_ROUTE', currentUserId: 99),
+          fg: fg,
+          geo: geo,
+          deepLinkRouter: routedBookingIds.add,
+        );
+
+        await _settle(c, 42);
+        expect(routedBookingIds, isEmpty);
+
+        // Simulate the isolate's onNotificationPressed firing.
+        fg.simulateIsolateMessage({
+          TechLocationTaskKeys.messageKind:
+              TechLocationTaskKeys.openBookingKind,
+          TechLocationTaskKeys.messageBookingId: 42,
+        });
+        for (var i = 0; i < 5; i++) {
+          await Future<void>.delayed(Duration.zero);
+        }
+
+        expect(routedBookingIds, [42]);
+        // The service must NOT have been stopped — open_booking is
+        // a navigation signal, not a lifecycle one.
+        expect(fg.stopCalls, 0);
+        expect(
+          c.read(foregroundLocationServiceControllerProvider(42)),
+          BroadcastState.running,
+        );
+      },
+    );
+
+    test(
+      'mismatched booking_id → router NOT invoked (defensive against '
+      'stale callback registration)',
+      () async {
+        final fg = FakeForegroundTaskBackend();
+        final geo = FakeGeolocatorBackend();
+        final routedBookingIds = <int>[];
+        final c = _container(
+          repo: _FixtureRepo(status: 'EN_ROUTE', currentUserId: 99),
+          fg: fg,
+          geo: geo,
+          deepLinkRouter: routedBookingIds.add,
+        );
+
+        await _settle(c, 42);
+
+        // Stale envelope for a different booking id.
+        fg.simulateIsolateMessage({
+          TechLocationTaskKeys.messageKind:
+              TechLocationTaskKeys.openBookingKind,
+          TechLocationTaskKeys.messageBookingId: 999,
+        });
+        for (var i = 0; i < 3; i++) {
+          await Future<void>.delayed(Duration.zero);
+        }
+
+        expect(routedBookingIds, isEmpty);
+      },
+    );
+
+    test(
+      'missing or non-int booking_id → router NOT invoked',
+      () async {
+        final fg = FakeForegroundTaskBackend();
+        final geo = FakeGeolocatorBackend();
+        final routedBookingIds = <int>[];
+        final c = _container(
+          repo: _FixtureRepo(status: 'EN_ROUTE', currentUserId: 99),
+          fg: fg,
+          geo: geo,
+          deepLinkRouter: routedBookingIds.add,
+        );
+
+        await _settle(c, 42);
+
+        // Wrong type.
+        fg.simulateIsolateMessage({
+          TechLocationTaskKeys.messageKind:
+              TechLocationTaskKeys.openBookingKind,
+          TechLocationTaskKeys.messageBookingId: '42',
+        });
+        // Missing.
+        fg.simulateIsolateMessage({
+          TechLocationTaskKeys.messageKind:
+              TechLocationTaskKeys.openBookingKind,
+        });
+        for (var i = 0; i < 3; i++) {
+          await Future<void>.delayed(Duration.zero);
+        }
+
+        expect(routedBookingIds, isEmpty);
       },
     );
   });

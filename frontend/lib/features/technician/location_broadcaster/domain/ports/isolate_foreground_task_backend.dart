@@ -25,4 +25,18 @@ abstract class IIsolateForegroundTaskBackend {
   /// signal fatal-auth (401/403) errors so the controller can stop the
   /// service and surface `BroadcastState.error`.
   void sendDataToMain(Object data);
+
+  /// Audit Batch H: brings the host app to the foreground (or starts it
+  /// if it is no longer in memory). Wired to
+  /// `FlutterForegroundTask.launchApp` on the production side. The
+  /// optional [route] is delivered as an Android intent extra named
+  /// `"route"` — readable via the standard initial-route mechanism on
+  /// fresh launch, but for already-running apps the route has to be
+  /// surfaced via `sendDataToMain` instead because Flutter doesn't
+  /// auto-rebuild the navigator from `onNewIntent`.
+  ///
+  /// Used by `TechLocationTaskHandler.onNotificationPressed` so a tech
+  /// who taps the persistent tracking notification while the app is
+  /// backgrounded lands back on the orchestrator screen.
+  void launchApp([String? route]);
 }

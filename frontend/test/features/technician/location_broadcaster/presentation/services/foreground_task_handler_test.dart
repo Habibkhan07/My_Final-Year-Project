@@ -674,4 +674,63 @@ void main() {
     },
   );
 
+  // ────────── T-3s: notification-tap deep link (audit Batch H) ────────
+
+  test(
+    'T-3s (Batch H) onNotificationPressed sends open_booking envelope '
+    'and calls launchApp',
+    () async {
+      final h = buildHandler(
+        respond: (_) async => http.Response('{}', 200),
+        configBlob: _validConfig,
+      );
+
+      // Bring the handler into a started state so `_bookingId` is
+      // populated. T-3n's encode/decode round-trip pins the format
+      // we rely on here.
+      await h.handler.onStart(DateTime.now(), TaskStarter.developer);
+
+      // Simulate the package's notification-tap callback.
+      h.handler.onNotificationPressed();
+
+      // Envelope: kind = open_booking, booking_id = the parsed config blob's id.
+      expect(h.foregroundTask.sentToMain, hasLength(1));
+      final msg = h.foregroundTask.sentToMain.single as Map<String, Object?>;
+      expect(
+        msg[TechLocationTaskKeys.messageKind],
+        TechLocationTaskKeys.openBookingKind,
+      );
+      // _validConfig encodes booking_id=42; the handler captures it on onStart.
+      expect(msg[TechLocationTaskKeys.messageBookingId], 42);
+
+      // launchApp called once with no route (we rely on sendDataToMain
+      // for navigation; launchApp just brings the app to foreground).
+      expect(h.foregroundTask.launchAppCalls, [null]);
+
+      await h.geolocator.close();
+    },
+  );
+
+  test(
+    'T-3s2 (Batch H) onNotificationPressed before onStart is a no-op '
+    '(no envelope, no launchApp)',
+    () async {
+      // Defensive: if the package fires onNotificationPressed before
+      // onStart somehow (notification re-displayed across a service
+      // restart, etc.), `_bookingId` is still -1. Sending an envelope
+      // with -1 would route to a malformed `/booking/-1` URL.
+      final h = buildHandler(
+        respond: (_) async => fail('client should not be invoked'),
+        configBlob: _validConfig,
+      );
+
+      // Don't call onStart. _bookingId stays at its -1 sentinel.
+      h.handler.onNotificationPressed();
+
+      expect(h.foregroundTask.sentToMain, isEmpty);
+      expect(h.foregroundTask.launchAppCalls, isEmpty);
+
+      await h.geolocator.close();
+    },
+  );
 }

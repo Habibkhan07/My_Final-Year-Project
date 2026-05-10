@@ -17,4 +17,9 @@ class IsolateFlutterForegroundTaskBackend
   void sendDataToMain(Object data) {
     FlutterForegroundTask.sendDataToMain(data);
   }
+
+  @override
+  void launchApp([String? route]) {
+    FlutterForegroundTask.launchApp(route);
+  }
 }

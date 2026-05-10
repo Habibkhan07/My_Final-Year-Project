@@ -19,6 +19,7 @@ class FakeIsolateForegroundTaskBackend implements IIsolateForegroundTaskBackend 
 
   final List<String> getDataCalls = [];
   final List<Object> sentToMain = [];
+  final List<String?> launchAppCalls = [];
 
   @override
   Future<T?> getData<T>({required String key}) async {
@@ -29,6 +30,11 @@ class FakeIsolateForegroundTaskBackend implements IIsolateForegroundTaskBackend 
   @override
   void sendDataToMain(Object data) {
     sentToMain.add(data);
+  }
+
+  @override
+  void launchApp([String? route]) {
+    launchAppCalls.add(route);
   }
 }
 

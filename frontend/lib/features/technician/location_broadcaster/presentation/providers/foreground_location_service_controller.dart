@@ -369,7 +369,7 @@ class ForegroundLocationServiceController
   }
 
   /// Receives messages forwarded from `_TechLocationTaskHandler` via
-  /// `FlutterForegroundTask.sendDataToMain`. Handles two envelopes:
+  /// `FlutterForegroundTask.sendDataToMain`. Handles three envelopes:
   ///
   /// • `fatal_auth_error` (audit H4) — token expired or tech reassigned;
   ///   terminal for this booking. Stops the service and flips
@@ -379,6 +379,12 @@ class ForegroundLocationServiceController
   ///   the isolate's spin-up, OR mid-session. Stops the service and
   ///   flips `BroadcastState.permissionDenied` so the C6 banner
   ///   surfaces with the "Open Settings" deep-link.
+  /// • `open_booking` (audit Batch H) — tech tapped the persistent
+  ///   tracking notification while the app was backgrounded. Routes
+  ///   the navigator to `/booking/$bookingId` via the injected
+  ///   `bookingDeepLinkRouter` callback. No-op when the carried
+  ///   booking_id doesn't match this controller's jobId (defensive
+  ///   against a stale callback registration during a re-mount).
   void _onIsolateData(Object data) {
     if (!ref.mounted) return;
     if (data is! Map) return;
@@ -392,12 +398,51 @@ class ForegroundLocationServiceController
       _handlePermissionLostFromIsolate();
       return;
     }
+    if (kind == TechLocationTaskKeys.openBookingKind) {
+      _handleOpenBookingFromIsolate(data);
+      return;
+    }
     // Unknown kind — log so a wire-format drift doesn't disappear.
     developer.log(
       'Unknown isolate envelope kind: $kind',
       name: _kLogName,
       level: 900,
     );
+  }
+
+  /// Audit Batch H: route the navigator back to `/booking/$bookingId`.
+  /// Defensive against stale callbacks: only fires when the carried
+  /// `booking_id` matches `_jobId` (this controller's binding). Stale
+  /// registrations would happen if a previous orchestrator screen for
+  /// a different booking somehow left its callback alive — the
+  /// fatal-auth + permission-lost handlers do not gate on bookingId
+  /// because their data is per-isolate-session, but `open_booking`
+  /// must be per-booking to avoid routing the user to the wrong tab.
+  void _handleOpenBookingFromIsolate(Map<dynamic, dynamic> data) {
+    final raw = data[TechLocationTaskKeys.messageBookingId];
+    if (raw is! int) {
+      developer.log(
+        'open_booking envelope missing or non-int booking_id: $raw',
+        name: _kLogName,
+        level: 900,
+      );
+      return;
+    }
+    if (raw != _jobId) {
+      developer.log(
+        'open_booking envelope bookingId=$raw does not match controller '
+        'jobId=$_jobId — dropping',
+        name: _kLogName,
+        level: 900,
+      );
+      return;
+    }
+    developer.log(
+      'Routing to /booking/$raw on notification tap',
+      name: _kLogName,
+      level: 800,
+    );
+    ref.read(bookingDeepLinkRouterProvider)(raw);
   }
 
   void _handleFatalAuthFromIsolate(Map<dynamic, dynamic> data) {

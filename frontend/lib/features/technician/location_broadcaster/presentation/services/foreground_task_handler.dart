@@ -83,6 +83,21 @@ class TechLocationTaskKeys {
   /// frozen marker with no explanation.
   static const String permissionLostKind = 'permission_lost';
 
+  /// Audit Batch H: wire-format kind for the `open_booking` envelope.
+  /// Emitted when the tech taps the persistent tracking notification
+  /// while the app is backgrounded — the controller's data callback
+  /// uses the carried `booking_id` to route the tech back to the
+  /// orchestrator screen. The accompanying `_foregroundTask.launchApp()`
+  /// call brings the app to foreground from a backgrounded-but-alive
+  /// state; if the app was killed entirely, Android starts a fresh
+  /// instance via the launch intent and the standard Flutter route
+  /// restoration takes over.
+  static const String openBookingKind = 'open_booking';
+
+  /// Wire-format key for the booking id in the `open_booking` envelope.
+  /// Reused as the path-parameter for the orchestrator route.
+  static const String messageBookingId = 'booking_id';
+
   static const String _logName = 'feature.location_broadcaster.handler';
 
   /// ASCII Unit Separator (0x1F). Picked because it cannot legally
@@ -313,6 +328,33 @@ class TechLocationTaskHandler extends TaskHandler {
   @override
   void onRepeatEvent(DateTime timestamp) {
     // ForegroundTaskOptions.eventAction = nothing(); not used.
+  }
+
+  /// Audit Batch H: tap on the persistent tracking notification.
+  ///
+  /// flutter_foreground_task v9 calls this when the user taps the
+  /// notification body. We do two things:
+  ///   1. Send an `open_booking` envelope to the main isolate so the
+  ///      controller's `addTaskDataCallback` can route the tech back
+  ///      to the orchestrator screen for `_bookingId`. Necessary
+  ///      whether the app was actively visible (no-op-ish — go() to
+  ///      same route) or backgrounded with a child screen pushed.
+  ///   2. Call `launchApp()` to bring the app to foreground when it
+  ///      was suspended. Safe to call when the app is already
+  ///      foregrounded — the package treats it as a no-op.
+  ///
+  /// We do NOT pass a `route` to launchApp because Flutter doesn't
+  /// auto-rebuild the navigator from `onNewIntent` extras for an
+  /// already-running app — the `sendDataToMain` envelope is the
+  /// reliable navigation signal in that case.
+  @override
+  void onNotificationPressed() {
+    if (_bookingId < 0) return; // never started; no booking to open
+    _foregroundTask.sendDataToMain({
+      TechLocationTaskKeys.messageKind: TechLocationTaskKeys.openBookingKind,
+      TechLocationTaskKeys.messageBookingId: _bookingId,
+    });
+    _foregroundTask.launchApp();
   }
 
   @override
