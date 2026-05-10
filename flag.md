@@ -1190,3 +1190,41 @@ This is the iOS half of pre-existing flag #10 ("iOS native realtime push capabil
 
 **Severity**
 P3 today (Android dominates the launch market). Becomes P1 the moment a paying iOS technician onboards.
+
+---
+
+## 36. Map widget dynamic-state coverage gated on platform-channel injection
+
+**Where**
+- `frontend/lib/core/widgets/map/google_app_map.dart` — `_maybeApplyCamera`, `_programmaticMoveInFlight` flag, `_resolveMarkers`'s `setState` + `mounted` guard.
+- `frontend/lib/core/widgets/map/osm_app_map.dart` — same family of dynamic state (camera follow, gesture detection).
+- `frontend/lib/core/widgets/map/live_tracking_map.dart` — 13 enumerated uncovered branches (audit H14 / T-2).
+
+**What's wrong**
+The map widgets couple directly to `gmaps.GoogleMapController` (completed by `onMapCreated`, which only fires in a real Flutter binding with the `google_maps_flutter` host) and `flutter_map`'s `MapController` in the same way. Unit tests cannot drive the controller-dependent branches:
+
+- `_programmaticMoveInFlight` flag never observable.
+- `_maybeApplyCamera`'s target-vs-bounds priority never asserted.
+- `_resolveMarkers`'s `setState` post-`mounted` check never asserted.
+- `LiveTrackingMap`'s 13 dynamic branches (T-2a–T-2m: tween animation, hard-jump suppression, recentre FAB tap, polyline cooldown, ETA tickdown lifecycle, etc.) all require a widget-tester pump on a real-controller surface.
+
+H12 covered the pure helpers (`markersEqual`, `listsAreSame`, `computeBounds`, `resolveAllMarkers`); H14 hasn't been touched. Together this leaves the customer's most critical screen — the live-tracking map — at ~25% behavioural coverage.
+
+**Why we shipped it**
+Closing this requires extracting injectable seams for the controllers — analogous to H13's `IForegroundTaskBackend` — across three widgets. That's the same effort tier as H13 (1-2 days) and the audit explicitly called both out as separate priorities. Bundling the test-coverage with the architecture refactor keeps the H12 test commit focused on what's tractable today, and avoids landing a sprawling refactor under the guise of "testing."
+
+**The proper fix**
+1. Define `IMapController` protocol in `core/widgets/map/` with the camera-animate API both adapters need (`animateToTarget`, `fitBounds`).
+2. `_GoogleAppMapState` and `_OsmAppMapState` accept an `IMapController` (resolved via Riverpod or constructor injection) instead of completing internal completers from `onMapCreated`.
+3. Test fakes implement `IMapController` and let tests drive the camera/marker flow synchronously, with explicit hooks for asserting `_programmaticMoveInFlight` transitions and re-entrancy.
+4. Backfill the dynamic-state tests for both adapters + the 13 enumerated `LiveTrackingMap` branches.
+5. Coordinate with flag #34 (multi-handler `WsFrameDispatcher`) and H13's `IForegroundTaskBackend` — same port-and-adapter family, similar effort budget; sequencing them in one "platform-seam refactor" sprint avoids three separate disruptions to the realtime/orchestrator stack.
+
+**Search hints**
+- `gmaps.GoogleMapController`, `_controllerCompleter`, `_programmaticMoveInFlight`
+- `MapController` (flutter_map's equivalent in `OsmAppMap`)
+- `LiveTrackingMap` — `_markerAnim`, `_etaTicker`, `_stalenessTicker`, `_maybeFetchDirections`
+- audit findings T-1, T-2 (a–m), M-9 in `booking_orchestrator_sprint/session_4_audit_findings.md`
+
+**Severity**
+P2. Coverage gap on a load-bearing screen, but the screen itself works in production (covered by manual smoke + integration). Becomes P1 if a regression in the live-tracking map ships unnoticed because of the missing automation.
