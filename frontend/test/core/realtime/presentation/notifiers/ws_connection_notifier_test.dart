@@ -567,5 +567,112 @@ void main() {
         expect(received.whereType<WsDisconnected>(), hasLength(1));
       });
     });
+
+    // ────────────────────────────────────────────────────────────────────
+    // Audit H2 (R-5/R-6/R-21) regression coverage
+    // ────────────────────────────────────────────────────────────────────
+
+    test(
+      'S4-H2a — token-refresh: connect() called twice emits Disconnected '
+      'between the two Connecteds (R-5)',
+      () async {
+        // Real-async test (no fakeAsync). The second connect's body
+        // awaits subscription.cancel + sink.close + ready, all of
+        // which schedule microtasks across multiple cycles —
+        // `flushMicrotasks` misses microtasks scheduled inside
+        // microtasks, so here we just drive the test on real time.
+        WsConnectionNotifier.channelFactoryForTesting = (_) {
+          final f = _FakeWebSocketChannel();
+          f.completeReady();
+          return f;
+        };
+
+        final container = _container(repo: repo, local: local);
+        final notifier = container.read(wsConnectionProvider.notifier);
+
+        final received = <WsConnectionEvent>[];
+        notifier.connectionEvents.listen(received.add);
+
+        await notifier.connect('tok-old');
+        // No explicit disconnect — this simulates a token-refresh
+        // call site that hands the new token directly to connect().
+        await notifier.connect('tok-new');
+        // One last microtask flush so the broadcast stream has
+        // delivered all events to the listener.
+        await Future<void>.delayed(Duration.zero);
+
+        // Sequence MUST be Connected (old) → Disconnected (old) →
+        // Connected (new). Without the fix this would have been
+        // Connected → Connected, hiding the intermediate disconnect
+        // from reconnect-aware consumers like
+        // `TrackingSubscriptionController` (which would never replay
+        // subscribe_tracking after a token refresh).
+        expect(received, hasLength(3));
+        expect(received[0], isA<WsConnected>());
+        expect(received[1], isA<WsDisconnected>());
+        expect(received[2], isA<WsConnected>());
+      },
+    );
+
+    test(
+      'S4-H2b — disconnect() without a prior successful connect emits '
+      'no WsDisconnected (R-6)',
+      () {
+        final container = _container(repo: repo, local: local);
+        final notifier = container.read(wsConnectionProvider.notifier);
+
+        final received = <WsConnectionEvent>[];
+        notifier.connectionEvents.listen(received.add);
+
+        // Cold disconnect — never called connect() at all.
+        notifier.disconnect();
+
+        expect(
+          received,
+          isEmpty,
+          reason: 'no Connected was announced, so no Disconnected should fire',
+        );
+      },
+    );
+
+    test(
+      'S4-H2c — onError after manual disconnect does NOT schedule a reconnect '
+      '(R-21)',
+      () {
+        fakeAsync((async) {
+          final fake = _FakeWebSocketChannel();
+          WsConnectionNotifier.channelFactoryForTesting = (_) => fake;
+          fake.completeReady();
+
+          final container = _container(repo: repo, local: local);
+          final notifier = container.read(wsConnectionProvider.notifier);
+
+          unawaited(notifier.connect('tok'));
+          async.flushMicrotasks();
+          expect(notifier.state, WsConnectionStatus.connected);
+
+          // User logs out — _manualDisconnect = true, state = disconnected.
+          notifier.disconnect();
+          async.flushMicrotasks();
+          expect(notifier.state, WsConnectionStatus.disconnected);
+
+          // A late stream error fires (race: socket was closing). The
+          // onError path used to ignore _manualDisconnect and would
+          // call _scheduleReconnect, opening a socket on the
+          // logged-out user.
+          fake._streamController.addError(StateError('late error'));
+          async.flushMicrotasks();
+          // Advance well past the initial backoff. If the bug were
+          // present, a reconnect would have fired by now.
+          async.elapse(const Duration(seconds: 2));
+
+          expect(
+            notifier.state,
+            WsConnectionStatus.disconnected,
+            reason: 'manual disconnect must suppress reconnect from onError',
+          );
+        });
+      },
+    );
   });
 }

@@ -79,6 +79,18 @@ class WsConnectionNotifier extends _$WsConnectionNotifier {
   Duration _currentBackoff = _kInitialBackoff;
   bool _manualDisconnect = false;
 
+  /// Audit H2 (R-5/R-6): tracks whether the most recent socket cycle
+  /// emitted `WsConnected`. The `_emitDisconnect` helper only fires
+  /// `WsDisconnected` when this is true so we cannot:
+  ///   • emit `WsDisconnected` from `disconnect()` when the user
+  ///     never successfully connected (R-6), or
+  ///   • silently drop a `WsDisconnected` for a prior connection that
+  ///     gets closed by `connect()` (token refresh) before the new
+  ///     handshake (R-5).
+  /// Set true after `_connectionEvents.add(WsConnected)`; reset false
+  /// in `_emitDisconnect` after a successful emission.
+  bool _announcedConnected = false;
+
   // Session 4: lifecycle event broadcast for reconnect-aware consumers.
   // Late subscribers see only events that fire after they listen
   // (no replay) — intentional, see WsConnectionEvent docs.
@@ -112,10 +124,15 @@ class WsConnectionNotifier extends _$WsConnectionNotifier {
   /// calling `disconnect()` in between.
   Future<void> connect(String authToken) async {
     _manualDisconnect = false;
+    // Audit H2 (R-5): if a prior socket was open and announced, fire
+    // WsDisconnected for it BEFORE we tear it down. Otherwise the
+    // sequence "Connected → Connected" (token refresh) hides the
+    // intermediate disconnect from reconnect-aware consumers.
     await _socketSubscription?.cancel();
     _socketSubscription = null;
     await _channel?.sink.close();
     _channel = null;
+    _emitDisconnect();
 
     state = WsConnectionStatus.connecting;
 
@@ -131,6 +148,13 @@ class WsConnectionNotifier extends _$WsConnectionNotifier {
       await _channel!.ready;
     } catch (e, stack) {
       log('WebSocket handshake failed: $e', name: _logName, stackTrace: stack);
+      // Audit H2 (R-5): the handshake-throw path schedules a reconnect
+      // but never emits the disconnect for whatever the *prior* cycle
+      // was. _emitDisconnect was already called above for the prior
+      // socket; this is just defence — if a future change adds a
+      // post-_emitDisconnect transition that announces, this path
+      // still cleans up correctly.
+      _emitDisconnect();
       _scheduleReconnect(authToken);
       return;
     }
@@ -141,6 +165,7 @@ class WsConnectionNotifier extends _$WsConnectionNotifier {
     // has been closed during shutdown.
     if (!_connectionEvents.isClosed) {
       _connectionEvents.add(WsConnected(DateTime.now()));
+      _announcedConnected = true;
     }
     _retryCount = 0;
     _currentBackoff = _kInitialBackoff;
@@ -163,6 +188,13 @@ class WsConnectionNotifier extends _$WsConnectionNotifier {
           name: _logName,
           stackTrace: stack,
         );
+        // Audit H2 (R-21): mirror the manual-disconnect guard from
+        // onDone. Without this, a stream error fired while logging
+        // out (after `_manualDisconnect = true` in disconnect()) would
+        // schedule a reconnect on a logged-out user — opening a
+        // socket with a token the auth feature is about to clear,
+        // and triggering the reconnect loop the audit warned about.
+        if (_manualDisconnect) return;
         _emitDisconnect();
         _scheduleReconnect(authToken);
       },
@@ -225,9 +257,15 @@ class WsConnectionNotifier extends _$WsConnectionNotifier {
   }
 
   void _emitDisconnect() {
+    // Audit H2 (R-6): only emit if we previously announced a Connected.
+    // Spurious WsDisconnected events from `disconnect()` calls on a
+    // never-connected notifier confuse reconnect-aware consumers
+    // (they'd think a prior cycle existed when none did).
+    if (!_announcedConnected) return;
     if (!_connectionEvents.isClosed) {
       _connectionEvents.add(WsDisconnected(DateTime.now()));
     }
+    _announcedConnected = false;
   }
 
   void _scheduleReconnect(String authToken) {
