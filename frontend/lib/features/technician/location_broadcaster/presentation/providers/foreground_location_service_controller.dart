@@ -228,12 +228,21 @@ class ForegroundLocationServiceController
       // AndroidNotificationOptions is NOT a const constructor; the
       // class instantiates non-const default values (e.g. visibility
       // wrapper). Build it normally.
+      //
+      // Audit F-5 (Batch D): `onlyAlertOnce: true` so the persistent
+      // tracking notification doesn't heads-up alert on Android 7-8
+      // service restarts (Pakistan low-end fleet has an Android 8-9
+      // tail). Android 7-8's notification semantics treat every
+      // service restart as a new notification by default; the alert
+      // would buzz repeatedly even though the channel is LOW
+      // importance.
       _foregroundTask.init(
         androidNotificationOptions: AndroidNotificationOptions(
           channelId: _kNotificationChannelId,
           channelName: _kNotificationChannelName,
           channelDescription:
               'Sends your live location to the customer for the active job.',
+          onlyAlertOnce: true,
         ),
         iosNotificationOptions: const IOSNotificationOptions(),
         foregroundTaskOptions: ForegroundTaskOptions(

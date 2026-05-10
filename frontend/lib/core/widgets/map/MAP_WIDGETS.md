@@ -203,3 +203,84 @@ Standardized UI for map-related async states.
    `LocationPicker` emits `onLocationChanged` when a `MapEventMoveEnd`
    is simulated.
 2. Goldens (optional) — recommended for the fixed center pin alignment.
+
+---
+
+## Google Maps API key — production restrictions (audit S-9)
+
+The Google Maps API key shipped via `--dart-define=GOOGLE_MAPS_API_KEY=...`
+is embedded in the Android APK manifest as a `meta-data` entry; it is
+**not a secret** in the cryptographic sense — anyone who can install
+the APK can extract the key. Google's intended security model for Maps
+keys is **server-side restrictions**, not key obscurity.
+
+Before shipping a Google-flavoured production build, the deploying
+operator MUST configure the following in the Google Cloud Console
+(Maps Platform → Credentials → API key → Edit):
+
+### 1. Application restriction — Android apps
+
+Restrict the key to the production Android package + signing-key SHA-1
+fingerprint pair so an attacker who extracts the key from a stolen APK
+cannot reuse it from a different package or unsigned build:
+
+- **Package name**: the value of `applicationId` in
+  `frontend/android/app/build.gradle.kts` (e.g.
+  `com.example.fyp_project`).
+- **SHA-1 fingerprint**: the production signing key's fingerprint
+  obtained via:
+  ```bash
+  keytool -list -v -keystore <release-keystore.jks> -alias <alias>
+  ```
+  Add **both** the release fingerprint AND the upload fingerprint
+  (Google Play App Signing re-signs your APK on the Play Store, so
+  the fingerprint observed by the Maps API at runtime is Google's
+  upload-key fingerprint, NOT your own). The Play Console exposes
+  both under **Setup → App integrity → App signing key certificate**
+  and **Upload key certificate**.
+
+For the OSM build (`MAP_PROVIDER=osm`, no API key needed) this
+section does not apply — `OsrmDirectionsService` hits the public
+OSRM demo instance (see flag #37) and `flutter_map` reads OSM tiles
+directly without authentication.
+
+### 2. API restriction — least privilege
+
+Restrict the key to ONLY the APIs the app actually consumes:
+
+- **Maps SDK for Android** (renders `GoogleAppMap` tiles).
+- **Directions API** (consumed by `GoogleDirectionsService`).
+
+Do NOT enable Geocoding API, Roads API, Places API, or any other
+Maps Platform service unless this app starts using them. Each enabled
+API on a leaked key is a separate billable surface for an attacker.
+
+### 3. Quota + budget alerts
+
+Set a hard daily quota slightly above expected production traffic
+(e.g. expected DAU × 200 directions calls per booking) plus a budget
+alert at 50% of monthly spend. A misconfigured app that retries
+directions on every frame would otherwise burn the entire monthly
+budget in hours.
+
+### 4. Pre-flight check
+
+Before submitting a Google-flavoured release to the Play Store:
+
+1. Verify `GOOGLE_MAPS_API_KEY` is set in CI's secret store, NOT
+   committed to the repo.
+2. Verify the build command propagates it:
+   `flutter build apk --release --dart-define=MAP_PROVIDER=google
+   --dart-define=GOOGLE_MAPS_API_KEY=$GOOGLE_MAPS_API_KEY`.
+3. Verify the Console's API restrictions are saved (changes take
+   ~5 min to propagate).
+4. Verify `--dart-define=BASE_URL=https://...` and
+   `--dart-define=BASE_WS_URL=wss://...` are set — the S-8 boot-time
+   assertion will throw `StateError` on a cleartext release build.
+
+### 5. What still needs a runtime fix
+
+Even with all four steps above, the API key is observable by anyone
+running mitmproxy against an Android emulator. The real defence is
+the application-restriction signature check + the per-API quota — not
+the key itself. Treat the key as a public identifier, not a secret.

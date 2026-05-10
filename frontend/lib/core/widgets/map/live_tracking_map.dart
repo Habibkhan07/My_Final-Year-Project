@@ -595,7 +595,7 @@ class _EtaPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final mins = (etaSeconds / 60).ceil();
-    final km = distanceMeters / 1000.0;
+    final distanceText = formatDistanceMeters(distanceMeters);
     return Material(
       elevation: 4,
       borderRadius: BorderRadius.circular(28),
@@ -643,7 +643,7 @@ class _EtaPill extends StatelessWidget {
             ),
             const SizedBox(width: 12),
             Text(
-              '${km.toStringAsFixed(1)} km',
+              distanceText,
               style: const TextStyle(fontSize: 16, color: Color(0xFF202124)),
             ),
           ],
@@ -691,9 +691,15 @@ class _ConnectionStrip extends StatelessWidget {
                     : 'Connection is weak…',
                 style: TextStyle(
                   fontSize: 14,
+                  // Audit W-27 (Batch D): the previous weak-state text
+                  // colour 0xFFE65100 against the 0xFFFFF8E1 wash gave
+                  // ~4.6:1 contrast — borderline AA, fails AAA. Darkened
+                  // to 0xFFAB3F00 for ~6.7:1 (clears AAA for normal
+                  // text) while staying visually distinct from the
+                  // offline state's deeper-red 0xFFBF360C.
                   color: isOffline
                       ? const Color(0xFFBF360C)
-                      : const Color(0xFFE65100),
+                      : const Color(0xFFAB3F00),
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -752,6 +758,23 @@ class _WaitingForFirstFramePill extends StatelessWidget {
 /// Marked `@visibleForTesting` so a unit test can verify the math
 /// without spinning up an `AnimationController` and pumping it to a
 /// partial value.
+/// Audit W-25 (Batch D): distance formatter for the ETA pill. < 1 km
+/// renders as metres rounded to the nearest 10 ("300 m" — the concrete
+/// walking-distance signal); ≥ 1 km renders as one-decimal kilometres
+/// ("1.2 km"). Rounded-to-10 cuts jitter on a slow tech (300 m → 290 m
+/// → 280 m feels precise) without losing meaningful precision.
+///
+/// Marked `@visibleForTesting` so a unit test can pin the formatter
+/// without driving a `LiveTrackingMap` widget.
+@visibleForTesting
+String formatDistanceMeters(int distanceMeters) {
+  if (distanceMeters < 1000) {
+    final rounded = (distanceMeters / 10).round() * 10;
+    return '$rounded m';
+  }
+  return '${(distanceMeters / 1000.0).toStringAsFixed(1)} km';
+}
+
 @visibleForTesting
 double shortestArcLerpDegrees(double from, double to, double t) {
   var delta = ((to - from + 540) % 360) - 180;

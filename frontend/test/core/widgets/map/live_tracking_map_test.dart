@@ -1037,4 +1037,23 @@ void main() {
       }
     });
   });
+
+  // ────────── formatDistanceMeters (audit W-25 / Batch D) ─────────────
+
+  group('formatDistanceMeters (audit W-25)', () {
+    test('< 1 km renders as metres rounded to nearest 10', () {
+      expect(formatDistanceMeters(0), '0 m');
+      expect(formatDistanceMeters(7), '10 m');
+      expect(formatDistanceMeters(150), '150 m');
+      expect(formatDistanceMeters(296), '300 m');
+      expect(formatDistanceMeters(999), '1000 m');
+    });
+
+    test('>= 1 km renders as one-decimal km', () {
+      expect(formatDistanceMeters(1000), '1.0 km');
+      expect(formatDistanceMeters(1234), '1.2 km');
+      expect(formatDistanceMeters(4999), '5.0 km');
+      expect(formatDistanceMeters(12345), '12.3 km');
+    });
+  });
 }

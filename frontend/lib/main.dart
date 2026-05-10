@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'core/constants.dart';
 import 'core/realtime/presentation/app_lifecycle_orchestrator.dart';
 import 'core/realtime/presentation/providers/dependency_injection.dart'
     as realtime_di;
@@ -105,6 +106,10 @@ Widget buildAppRootWidget() => const _Bootstrap();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Audit S-8 (Batch D): in release mode, fail-fast if baseUrl /
+  // baseWsUrl point at cleartext. Dev / profile builds remain free
+  // to use http://127.0.0.1 against the Django dev server.
+  AppConstants.assertReleaseSafeNetworking();
   runApp(await bootApp());
 }
 

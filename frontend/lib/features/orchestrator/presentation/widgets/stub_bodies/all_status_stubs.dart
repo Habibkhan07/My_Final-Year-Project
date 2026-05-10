@@ -198,7 +198,16 @@ class ArrivedBodyStub extends ConsumerWidget {
                 : null,
           ),
           SizedBox(
-            height: 220,
+            // Audit W-20 (Batch D): scale ARRIVED map height by screen
+            // size so the layout stays balanced on small phones (the
+            // hardcoded 220 left only ~480 px for body content on
+            // sub-700-px screens). Clamp to [180, 260] so very tall
+            // phones don't get a comically large map and very short
+            // ones still get a readable map.
+            height: (MediaQuery.of(context).size.height * 0.28).clamp(
+              180.0,
+              260.0,
+            ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(14),
               child: LiveTrackingMap(
