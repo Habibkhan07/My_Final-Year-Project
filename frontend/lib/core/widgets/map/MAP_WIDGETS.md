@@ -144,8 +144,8 @@ widget-tree rebuild on every screen.
 | `OsmAppMap` (renders TileLayer, MarkerLayer, PolylineLayer; resolves markers via factory) | ✅ |
 | `GoogleAppMap` pure helpers + marker-resolution future-merge (audit H12) | ✅ via `GoogleAppMapInternals` |
 | `GoogleAppMap` controller-dependent branches (programmatic-move flag, camera priority, mounted guard) | ⏳ deferred via flag #36 — needs an `IMapController` injection seam |
-| `LiveTrackingMap` connection-quality, waiting pill, phone-FAB happy path | ✅ ~25% |
-| `LiveTrackingMap` 13 dynamic branches (T-2a–T-2m: tween, hard-jump, cooldown, ETA tickdown lifecycle, recentre FAB, etc.) | ⏳ deferred via flag #36 — same `IMapController` seam |
+| `LiveTrackingMap` connection-quality, waiting pill, phone-FAB happy path | ✅ |
+| `LiveTrackingMap` 13 dynamic branches (T-2a–T-2m: tween, hard-jump, cooldown, ETA tickdown lifecycle, recentre FAB, etc.) | ✅ via `IUrlLauncher` port + recording stub `IAppMap` (audit H14) |
 | `OsrmDirectionsService` / `GoogleDirectionsService` happy path + each failure branch | ✅ |
 | `LiveMarkerFactory` Widget build + BitmapDescriptor cache hit | ✅ |
 
