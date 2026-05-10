@@ -12,6 +12,7 @@ import 'i_app_map.dart';
 import 'i_directions_service.dart';
 import 'osm_app_map.dart';
 import 'osrm_directions_service.dart';
+import 'url_launcher_port.dart';
 
 part 'map_provider.g.dart';
 
@@ -115,3 +116,9 @@ IDirectionsService directionsService(Ref ref) {
     MapProviderType.osm => OsrmDirectionsService(client),
   };
 }
+
+/// URL launcher seam — `LiveTrackingMap`'s phone-call FAB delegates
+/// here so widget tests can verify the snackbar fallback when the
+/// dialler intent is rejected (audit H14, T-2k).
+@Riverpod(keepAlive: true)
+IUrlLauncher urlLauncher(Ref ref) => const UrlLauncherAdapter();

@@ -173,3 +173,55 @@ final class DirectionsServiceProvider
 }
 
 String _$directionsServiceHash() => r'beed40db1ffff1085a0b2d1aecd03bbd3456ab55';
+
+/// URL launcher seam — `LiveTrackingMap`'s phone-call FAB delegates
+/// here so widget tests can verify the snackbar fallback when the
+/// dialler intent is rejected (audit H14, T-2k).
+
+@ProviderFor(urlLauncher)
+final urlLauncherProvider = UrlLauncherProvider._();
+
+/// URL launcher seam — `LiveTrackingMap`'s phone-call FAB delegates
+/// here so widget tests can verify the snackbar fallback when the
+/// dialler intent is rejected (audit H14, T-2k).
+
+final class UrlLauncherProvider
+    extends $FunctionalProvider<IUrlLauncher, IUrlLauncher, IUrlLauncher>
+    with $Provider<IUrlLauncher> {
+  /// URL launcher seam — `LiveTrackingMap`'s phone-call FAB delegates
+  /// here so widget tests can verify the snackbar fallback when the
+  /// dialler intent is rejected (audit H14, T-2k).
+  UrlLauncherProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'urlLauncherProvider',
+        isAutoDispose: false,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$urlLauncherHash();
+
+  @$internal
+  @override
+  $ProviderElement<IUrlLauncher> $createElement($ProviderPointer pointer) =>
+      $ProviderElement(pointer);
+
+  @override
+  IUrlLauncher create(Ref ref) {
+    return urlLauncher(ref);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(IUrlLauncher value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<IUrlLauncher>(value),
+    );
+  }
+}
+
+String _$urlLauncherHash() => r'1920da3005300b4bad2b242ff2ef7459b93397a3';

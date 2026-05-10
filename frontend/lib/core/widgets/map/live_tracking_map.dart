@@ -21,7 +21,6 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../realtime/presentation/notifiers/system_event_notifier.dart';
 import 'directions_failures.dart';
@@ -508,7 +507,7 @@ class _LiveTrackingMapState extends ConsumerState<LiveTrackingMap>
     final raw = widget.callPhoneNumber;
     if (raw == null) return;
     final uri = Uri(scheme: 'tel', path: raw);
-    final launched = await launchUrl(uri);
+    final launched = await ref.read(urlLauncherProvider).launch(uri);
     if (!launched && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Could not open dialler for $raw')),
