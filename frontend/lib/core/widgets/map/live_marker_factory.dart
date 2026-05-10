@@ -95,25 +95,42 @@ class LiveMarkerFactory {
   }
 
   // ─── Google Maps — BitmapDescriptor cache ──────────────────────────
+  //
+  // Audit M-1: drop shadow on the bubble (OSM had it via `BoxShadow`;
+  // Google painter previously had none — flat-vs-raised inconsistency).
+  // Audit M-2: align the painted fill / ring geometry so both providers
+  // visually match (ring outer = container edge, fill goes to ring
+  // inner edge, ring stroke covers the gap on top).
+  // Audit M-3: cache key now includes devicePixelRatio so a 3x device
+  // doesn't reuse a 2x-rendered descriptor (would render visibly small
+  // on 3x phones). Cheap memory cost — one descriptor per kind per
+  // distinct dpr the device is asked to render at (typically 1).
+  // Audit M-4: pass `imagePixelRatio` to `BitmapDescriptor.bytes` so
+  // Google Maps scales the bitmap down to logical pixels. Pre-fix, the
+  // bitmap defaulted to 1.0 dpr — a 3x device showed a marker 3x its
+  // intended logical size.
 
-  static final Map<MarkerKind, gmaps.BitmapDescriptor> _cache = {};
+  static final Map<({MarkerKind kind, double dpr}), gmaps.BitmapDescriptor>
+  _cache = {};
 
-  /// Lazily builds (and caches) a [gmaps.BitmapDescriptor] for [kind].
-  /// First call per kind paints to a `Canvas` and converts the result
-  /// to PNG bytes; subsequent calls return the cached descriptor.
+  /// Lazily builds (and caches) a [gmaps.BitmapDescriptor] for [kind]
+  /// at the supplied [devicePixelRatio]. First call per (kind, dpr)
+  /// paints to a `Canvas` and converts the result to PNG bytes;
+  /// subsequent calls return the cached descriptor.
   ///
   /// Rotation is NOT baked in — Google's `Marker.rotation` rotates the
   /// bitmap natively. Two calls with different rotations on the same
-  /// kind both share one descriptor.
+  /// kind+dpr both share one descriptor.
   static Future<gmaps.BitmapDescriptor> buildGoogleMarker(
     MarkerKind kind, {
     double devicePixelRatio = 2.0,
   }) async {
-    final cached = _cache[kind];
+    final key = (kind: kind, dpr: devicePixelRatio);
+    final cached = _cache[key];
     if (cached != null) return cached;
 
     final descriptor = await _paintGoogleMarker(kind, devicePixelRatio);
-    _cache[kind] = descriptor;
+    _cache[key] = descriptor;
     return descriptor;
   }
 
@@ -125,20 +142,43 @@ class LiveMarkerFactory {
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
 
-    // Fill bubble.
     final centre = Offset(size / 2, size / 2);
-    final bubbleRadius = size / 2 - (_ringWidth * devicePixelRatio / 2);
+    final ringWidthPx = _ringWidth * devicePixelRatio;
+    // Ring outer = container edge (size/2). Ring center radius is one
+    // half-stroke inside; ring inner radius is one full stroke inside.
+    // Fill is painted to ring INNER radius so the ring stroke (drawn
+    // on top, centered on `ringCenterRadius`) cleanly covers the gap.
+    // Mirrors OSM's `Container(56) + Border.all(3)` semantics.
+    final ringOuterRadius = size / 2;
+    final ringCenterRadius = ringOuterRadius - ringWidthPx / 2;
+    final fillRadius = ringOuterRadius - ringWidthPx;
 
-    canvas.drawCircle(centre, bubbleRadius, Paint()..color = _bubbleFill);
+    // Audit M-1: drop shadow under the bubble. Mirror OSM's
+    // BoxShadow(color: 0x33000000, blurRadius: 6, offset: (0, 2)).
+    // Sigma = blurRadius / 2 for Material parity.
+    canvas.drawCircle(
+      Offset(centre.dx, centre.dy + 2 * devicePixelRatio),
+      ringOuterRadius,
+      Paint()
+        ..color = const Color(0x33000000)
+        ..maskFilter = MaskFilter.blur(
+          BlurStyle.normal,
+          3 * devicePixelRatio,
+        ),
+    );
 
-    // Ring.
+    // Fill (extends to ring inner edge).
+    canvas.drawCircle(centre, fillRadius, Paint()..color = _bubbleFill);
+
+    // Ring (stroke centered on `ringCenterRadius`, covering the area
+    // from fillRadius to ringOuterRadius).
     canvas.drawCircle(
       centre,
-      bubbleRadius,
+      ringCenterRadius,
       Paint()
         ..color = _ringFor(kind)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = _ringWidth * devicePixelRatio,
+        ..strokeWidth = ringWidthPx,
     );
 
     // Icon. We render the IconData glyph through TextPainter — same
@@ -165,7 +205,13 @@ class LiveMarkerFactory {
     final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
     final bytes = byteData!.buffer.asUint8List();
     image.dispose();
-    return gmaps.BitmapDescriptor.bytes(Uint8List.fromList(bytes));
+    // Audit M-4: explicit `imagePixelRatio` so Google Maps renders the
+    // bitmap at `bubbleDiameter` logical pixels regardless of the host
+    // device's pixel ratio.
+    return gmaps.BitmapDescriptor.bytes(
+      Uint8List.fromList(bytes),
+      imagePixelRatio: devicePixelRatio,
+    );
   }
 
   // ─── Helpers ───────────────────────────────────────────────────────

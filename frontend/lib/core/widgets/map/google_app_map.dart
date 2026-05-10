@@ -79,9 +79,16 @@ class _GoogleAppMapState extends State<GoogleAppMap> {
   }
 
   Future<void> _resolveMarkers(List<MapMarker> incoming) async {
+    // Audit M-3 (Batch C): pass the host device's pixel ratio through
+    // to the marker factory so the cache key + bitmap rendering match
+    // the device. `View.of(context)` works from initState (unlike
+    // `MediaQuery.of(context)` which requires the inherited-widget
+    // tree to be ready).
+    final dpr = View.of(context).devicePixelRatio;
     final resolved = await GoogleAppMapInternals.resolveAllMarkers(
       incoming,
-      resolveIcon: LiveMarkerFactory.buildGoogleMarker,
+      resolveIcon: (kind) =>
+          LiveMarkerFactory.buildGoogleMarker(kind, devicePixelRatio: dpr),
     );
     if (!mounted) return;
     setState(() => _renderedMarkers = resolved);
@@ -102,12 +109,22 @@ class _GoogleAppMapState extends State<GoogleAppMap> {
 
     if (targetChanged) {
       _programmaticMoveInFlight = true;
-      await controller.animateCamera(
-        gmaps.CameraUpdate.newLatLngZoom(
-          gmaps.LatLng(newTarget.latitude, newTarget.longitude),
-          widget.cameraZoom ?? widget.initialZoom,
-        ),
-      );
+      // Audit M-14 (Batch C): when the caller does NOT supply a zoom,
+      // preserve the current camera zoom (matches OSM's behaviour of
+      // `widget.cameraZoom ?? _controller.camera.zoom`). Pre-fix, a
+      // target-only follow-camera move snapped back to `initialZoom`,
+      // erasing whatever pinch-zoom the user had applied. The
+      // `newLatLng` constructor preserves the current zoom natively.
+      final zoom = widget.cameraZoom;
+      final update = zoom != null
+          ? gmaps.CameraUpdate.newLatLngZoom(
+              gmaps.LatLng(newTarget.latitude, newTarget.longitude),
+              zoom,
+            )
+          : gmaps.CameraUpdate.newLatLng(
+              gmaps.LatLng(newTarget.latitude, newTarget.longitude),
+            );
+      await controller.animateCamera(update);
       _programmaticMoveInFlight = false;
       return;
     }

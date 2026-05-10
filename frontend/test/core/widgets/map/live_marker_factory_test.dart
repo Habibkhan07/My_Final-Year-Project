@@ -105,5 +105,35 @@ void main() {
         expect(identical(a, c), isFalse);
       });
     });
+
+    // Audit M-3 (Batch C): cache key now includes devicePixelRatio.
+    // Pre-fix the cache was keyed only on `MarkerKind`, so a 3x device
+    // would reuse the descriptor rendered at the default 2.0 dpr —
+    // marker visibly small on 3x phones. Same kind + different dpr
+    // must produce different descriptors.
+    testWidgets(
+      'cache distinguishes same kind at different devicePixelRatios',
+      (tester) async {
+        await tester.runAsync(() async {
+          final at2x = await LiveMarkerFactory.buildGoogleMarker(
+            MarkerKind.customer,
+            devicePixelRatio: 2.0,
+          );
+          final at3x = await LiveMarkerFactory.buildGoogleMarker(
+            MarkerKind.customer,
+            devicePixelRatio: 3.0,
+          );
+          // Different dpr → different descriptor (NOT identical).
+          expect(identical(at2x, at3x), isFalse);
+
+          // But same kind + same dpr → cache hit.
+          final at2xAgain = await LiveMarkerFactory.buildGoogleMarker(
+            MarkerKind.customer,
+            devicePixelRatio: 2.0,
+          );
+          expect(identical(at2x, at2xAgain), isTrue);
+        });
+      },
+    );
   });
 }
