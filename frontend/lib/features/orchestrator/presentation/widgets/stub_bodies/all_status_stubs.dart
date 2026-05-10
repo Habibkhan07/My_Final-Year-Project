@@ -14,6 +14,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../../../../../core/constants.dart';
 import '../../../../../core/widgets/map/live_tracking_map.dart';
 import '../../../../customer/bookings/domain/entities/booking_status.dart';
 import '../../../../technician/location_broadcaster/domain/entities/broadcast_state.dart';
@@ -23,6 +24,29 @@ import '../../../domain/entities/booking_detail.dart';
 import '../../../domain/entities/booking_orchestrator_role.dart';
 import '../../../domain/entities/booking_quote.dart';
 import '../../providers/technician_location_stream_notifier.dart';
+
+/// Audit H11 (W-8): resolves the call FAB number + tooltip for the
+/// live-tracking map. Tech viewer dials the customer; customer viewer
+/// dials configured support (no tech phone in the wire contract yet —
+/// see flag #booking-detail-tech-phone). Returns `(phone: null, _)` to
+/// suppress the FAB when no number is reachable (customer view in dev
+/// where `--dart-define=SUPPORT_PHONE_NUMBER` was not passed).
+///
+/// [supportPhone] is a seam for tests (the compile-time constant from
+/// `--dart-define` is otherwise un-overridable). Production callers
+/// always use the default.
+@visibleForTesting
+({String? phone, String tooltip}) resolveLiveCallTarget(
+  BookingDetail booking, {
+  String supportPhone = AppConstants.supportPhoneNumber,
+}) {
+  final isTech = booking.viewerRole == BookingOrchestratorRole.technician;
+  if (isTech) {
+    return (phone: booking.customer.phoneNo, tooltip: 'Call customer');
+  }
+  if (supportPhone.isEmpty) return (phone: null, tooltip: 'Call');
+  return (phone: supportPhone, tooltip: 'Call support');
+}
 
 class AwaitingBodyStub extends StatelessWidget {
   const AwaitingBodyStub({super.key, required this.booking});
@@ -46,10 +70,14 @@ class ConfirmedBodyStub extends StatelessWidget {
 ///
 /// Map fills the body — it IS the experience while the tech is on the
 /// move. The booking's UI prose ("Tech will reach you in a few minutes")
-/// sits below as supporting text. The phone-call button is surfaced for
-/// the tech (who has the customer's phoneNo); the customer-side call
-/// button stays hidden until the BookingDetail wire contract exposes
-/// the tech's phoneNo (flag #booking-detail-tech-phone, see flag.md).
+/// sits below as supporting text.
+///
+/// Audit H11 (W-8): the tech viewer dials the customer; the customer
+/// viewer dials configured support (`AppConstants.supportPhoneNumber`).
+/// The customer-side FAB stays hidden ONLY when support is unconfigured
+/// (dev builds), not unconditionally. Proper fix is to expose
+/// `technician.phoneNo` in the wire contract — flag
+/// #booking-detail-tech-phone tracks that.
 class EnRouteBodyStub extends ConsumerWidget {
   const EnRouteBodyStub({super.key, required this.booking});
   final BookingDetail booking;
@@ -66,7 +94,7 @@ class EnRouteBodyStub extends ConsumerWidget {
     final frame = ref.watch(technicianLocationStreamProvider(booking.id));
     final destination = LatLng(addr.latitude, addr.longitude);
     final isTech = booking.viewerRole == BookingOrchestratorRole.technician;
-    final callPhone = isTech ? booking.customer.phoneNo : null;
+    final callTarget = resolveLiveCallTarget(booking);
     // Audit C6: surface non-running BroadcastState to the tech so they
     // know their location is NOT being shared. Customer view never sees
     // the banner — the controller stays `idle` for non-tech viewers.
@@ -107,8 +135,8 @@ class EnRouteBodyStub extends ConsumerWidget {
                 lastFrameAt: frame?.frameArrivedAt,
                 destination: destination,
                 phase: TrackingPhase.enRoute,
-                callPhoneNumber: callPhone,
-                callTooltip: isTech ? 'Call customer' : 'Call technician',
+                callPhoneNumber: callTarget.phone,
+                callTooltip: callTarget.tooltip,
               ),
             ),
           ),
@@ -144,7 +172,7 @@ class ArrivedBodyStub extends ConsumerWidget {
     final frame = ref.watch(technicianLocationStreamProvider(booking.id));
     final destination = LatLng(addr.latitude, addr.longitude);
     final isTech = booking.viewerRole == BookingOrchestratorRole.technician;
-    final callPhone = isTech ? booking.customer.phoneNo : null;
+    final callTarget = resolveLiveCallTarget(booking);
     final broadcastState = isTech
         ? ref.watch(foregroundLocationServiceControllerProvider(booking.id))
         : BroadcastState.idle;
@@ -181,8 +209,8 @@ class ArrivedBodyStub extends ConsumerWidget {
                 lastFrameAt: frame?.frameArrivedAt,
                 destination: destination,
                 phase: TrackingPhase.arrived,
-                callPhoneNumber: callPhone,
-                callTooltip: isTech ? 'Call customer' : 'Call technician',
+                callPhoneNumber: callTarget.phone,
+                callTooltip: callTarget.tooltip,
               ),
             ),
           ),

@@ -48,4 +48,23 @@ class AppConstants {
     'GOOGLE_MAPS_API_KEY',
     defaultValue: '',
   );
+
+  /// Customer-side support phone for the live-tracking call FAB
+  /// (audit H11 / W-8). The booking detail wire contract does not
+  /// surface `technician.phoneNo` to customers, so the customer can't
+  /// dial the assigned tech directly. Until the API exposes it,
+  /// the customer's call FAB dials this support number — non-zero is
+  /// strictly better than the previous behaviour (customer sees no
+  /// FAB at all and has no path to reach anyone if something goes
+  /// wrong on their side of the booking).
+  ///
+  /// Empty by default in dev; production builds pass
+  /// `--dart-define=SUPPORT_PHONE_NUMBER=+92...`. When empty the
+  /// customer-side FAB stays hidden (same UX as before, but failure
+  /// mode is now "intentionally unconfigured" rather than "silently
+  /// dropped because backend doesn't surface tech phone").
+  static const String supportPhoneNumber = String.fromEnvironment(
+    'SUPPORT_PHONE_NUMBER',
+    defaultValue: '',
+  );
 }
