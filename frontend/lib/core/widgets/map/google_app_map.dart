@@ -95,7 +95,19 @@ class _GoogleAppMapState extends State<GoogleAppMap> {
   }
 
   Future<void> _maybeApplyCamera(GoogleAppMap oldWidget) async {
-    final controller = await _controllerCompleter.future;
+    // GMAP-3 (Batch I): bound the wait on the controller completer
+    // so test isolates (which never mount a real `gmaps.GoogleMap`,
+    // so `onMapCreated` never fires) don't hang forever. Production
+    // is unaffected — `onMapCreated` resolves the completer within
+    // a few hundred ms of mount. A 5s ceiling is well past that and
+    // short enough that a stuck test fails fast.
+    final gmaps.GoogleMapController controller;
+    try {
+      controller = await _controllerCompleter.future
+          .timeout(const Duration(seconds: 5));
+    } on TimeoutException {
+      return;
+    }
     if (!mounted) return;
 
     final newTarget = widget.cameraTarget;

@@ -55,7 +55,10 @@ class OsrmDirectionsService implements IDirectionsService {
       throw const DirectionsNetworkFailure();
     } on SocketException {
       throw const DirectionsNetworkFailure();
-    } catch (e) {
+    } on Exception catch (e) {
+      // GD-1 (Batch I): narrow to Exception so Errors (LateInit,
+      // StateError, OutOfMemoryError) propagate loudly instead of
+      // being silently rewritten as UnknownDirectionsFailure.
       throw UnknownDirectionsFailure(e.toString());
     }
 
@@ -98,15 +101,34 @@ class OsrmDirectionsService implements IDirectionsService {
       throw const DirectionsNoRoute();
     }
 
-    final route = routes.first as Map<String, dynamic>;
-    final geometry = route['geometry'] as Map<String, dynamic>?;
-    final coordinates = geometry?['coordinates'] as List?;
-    if (coordinates == null || coordinates.isEmpty) {
-      throw const DirectionsNoRoute();
+    // GD-2 (Batch I): wrap shape-dependent casts so a malformed body
+    // (route[0] not a Map, etc.) becomes UnknownDirectionsFailure
+    // instead of an unhandled TypeError.
+    final List coordinates;
+    final int etaSeconds;
+    final int distanceMeters;
+    try {
+      final route = routes.first as Map<String, dynamic>;
+      final geometry = route['geometry'] as Map<String, dynamic>?;
+      final coords = geometry?['coordinates'] as List?;
+      if (coords == null || coords.isEmpty) {
+        throw const DirectionsNoRoute();
+      }
+      coordinates = coords;
+      etaSeconds = ((route['duration'] as num?) ?? 0).round();
+      distanceMeters = ((route['distance'] as num?) ?? 0).round();
+    } on TypeError catch (e) {
+      throw UnknownDirectionsFailure('OSRM body shape: $e');
     }
 
+    // OD-1 (Batch I): filter malformed coords (`[]`, `[74.3]`,
+    // `[null, 31.5]`, string-typed lat/lng from older mirrors)
+    // before the cast chain. Pre-fix, any one malformed coord would
+    // throw `RangeError` / `TypeError` outside the try/catch and
+    // crash out of getRoute.
     final points = coordinates
         .whereType<List>()
+        .where((c) => c.length >= 2 && c[0] is num && c[1] is num)
         .map(
           (c) => LatLng(
             (c[1] as num).toDouble(), // GeoJSON is lng,lat — flip to lat,lng
@@ -114,9 +136,11 @@ class OsrmDirectionsService implements IDirectionsService {
           ),
         )
         .toList(growable: false);
-
-    final etaSeconds = ((route['duration'] as num?) ?? 0).round();
-    final distanceMeters = ((route['distance'] as num?) ?? 0).round();
+    // OD-1 (Batch I): if every coord was malformed and got filtered
+    // out, treat as no-route — same UX as receiving an empty polyline.
+    if (points.isEmpty) {
+      throw const DirectionsNoRoute();
+    }
 
     return DirectionsResult(
       polyline: points,

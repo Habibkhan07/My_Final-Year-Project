@@ -87,7 +87,12 @@ class _OsmAppMapState extends State<OsmAppMap> {
       // Reset on next frame — flutter_map fires onPositionChanged
       // synchronously inside `move`, so by the next microtask the
       // gesture window is open again.
+      // OSM-2 (Batch I): mounted-guard inside the post-frame callback.
+      // If the widget unmounts before the next frame fires (rare —
+      // navigation pop mid-camera-move), the callback was writing to
+      // a defunct State.
       WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
         _programmaticMoveInFlight = false;
       });
       return;
@@ -106,7 +111,9 @@ class _OsmAppMapState extends State<OsmAppMap> {
           padding: const EdgeInsets.all(64),
         ),
       );
+      // OSM-2 (Batch I): mounted-guard, see above.
       WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
         _programmaticMoveInFlight = false;
       });
     }

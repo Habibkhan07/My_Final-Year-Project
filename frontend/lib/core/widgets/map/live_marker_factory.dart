@@ -110,8 +110,15 @@ class LiveMarkerFactory {
   // bitmap defaulted to 1.0 dpr — a 3x device showed a marker 3x its
   // intended logical size.
 
-  static final Map<({MarkerKind kind, double dpr}), gmaps.BitmapDescriptor>
-  _cache = {};
+  // MF-1 (Batch I): cache stores the in-flight `Future`, not the
+  // resolved descriptor. Without this, two concurrent callers (e.g.
+  // GoogleAppMap's `_resolveAllMarkers` resolving customer + technician
+  // markers in parallel via `Future.wait`) would both miss the cache,
+  // both render to canvas → PNG (the expensive op), and one overwrite
+  // the other's entry. `putIfAbsent` makes resolution single-flight:
+  // exactly one paint per (kind, dpr) regardless of concurrency.
+  static final Map<({MarkerKind kind, double dpr}),
+      Future<gmaps.BitmapDescriptor>> _cache = {};
 
   /// Lazily builds (and caches) a [gmaps.BitmapDescriptor] for [kind]
   /// at the supplied [devicePixelRatio]. First call per (kind, dpr)
@@ -124,14 +131,12 @@ class LiveMarkerFactory {
   static Future<gmaps.BitmapDescriptor> buildGoogleMarker(
     MarkerKind kind, {
     double devicePixelRatio = 2.0,
-  }) async {
+  }) {
     final key = (kind: kind, dpr: devicePixelRatio);
-    final cached = _cache[key];
-    if (cached != null) return cached;
-
-    final descriptor = await _paintGoogleMarker(kind, devicePixelRatio);
-    _cache[key] = descriptor;
-    return descriptor;
+    return _cache.putIfAbsent(
+      key,
+      () => _paintGoogleMarker(kind, devicePixelRatio),
+    );
   }
 
   static Future<gmaps.BitmapDescriptor> _paintGoogleMarker(

@@ -63,7 +63,10 @@ class GoogleDirectionsService implements IDirectionsService {
       throw const DirectionsNetworkFailure();
     } on SocketException {
       throw const DirectionsNetworkFailure();
-    } catch (e) {
+    } on Exception catch (e) {
+      // GD-1 (Batch I): narrow to Exception so Errors (LateInit,
+      // StateError, OutOfMemoryError) propagate loudly instead of
+      // being silently rewritten as UnknownDirectionsFailure.
       throw UnknownDirectionsFailure(e.toString());
     }
 
@@ -118,31 +121,54 @@ class GoogleDirectionsService implements IDirectionsService {
       throw const DirectionsNoRoute();
     }
 
-    final firstRoute = routes.first as Map<String, dynamic>;
-    final overview =
-        (firstRoute['overview_polyline'] as Map?)?['points'] as String?;
-    final legs = firstRoute['legs'] as List?;
-    if (overview == null || legs == null || legs.isEmpty) {
-      throw const DirectionsNoRoute();
-    }
+    // GD-2 (Batch I): a proxy / mirror that returns malformed JSON
+    // (e.g. routes[0] is a String or null) would TypeError-crash the
+    // unguarded `as Map<String, dynamic>` casts below. Convert any
+    // shape mismatch into UnknownDirectionsFailure so the caller's
+    // soft-fail path takes over.
+    final int etaSeconds;
+    final int distanceMeters;
+    final String overview;
+    try {
+      final firstRoute = routes.first as Map<String, dynamic>;
+      final overviewMaybe =
+          (firstRoute['overview_polyline'] as Map?)?['points'] as String?;
+      final legs = firstRoute['legs'] as List?;
+      if (overviewMaybe == null || legs == null || legs.isEmpty) {
+        throw const DirectionsNoRoute();
+      }
+      overview = overviewMaybe;
 
-    final firstLeg = legs.first as Map<String, dynamic>;
-    // duration_in_traffic is best-effort (only when departure_time set
-    // AND for routes Google has traffic data on); fall back to the
-    // standard duration field.
-    final durationInTraffic =
-        (firstLeg['duration_in_traffic'] as Map<String, dynamic>?)?['value'];
-    final duration = (firstLeg['duration'] as Map<String, dynamic>?)?['value'];
-    final etaSeconds = ((durationInTraffic ?? duration ?? 0) as num).round();
-    final distanceMeters =
-        (((firstLeg['distance'] as Map<String, dynamic>?)?['value']) as num? ??
-                0)
-            .round();
+      final firstLeg = legs.first as Map<String, dynamic>;
+      // duration_in_traffic is best-effort (only when departure_time
+      // set AND for routes Google has traffic data on); fall back to
+      // the standard duration field.
+      final durationInTraffic =
+          (firstLeg['duration_in_traffic'] as Map<String, dynamic>?)?['value'];
+      final duration =
+          (firstLeg['duration'] as Map<String, dynamic>?)?['value'];
+      etaSeconds = ((durationInTraffic ?? duration ?? 0) as num).round();
+      distanceMeters =
+          (((firstLeg['distance'] as Map<String, dynamic>?)?['value'])
+                      as num? ??
+                  0)
+              .round();
+    } on TypeError catch (e) {
+      throw UnknownDirectionsFailure('Google body shape: $e');
+    }
 
     final decoded = PolylinePoints()
         .decodePolyline(overview)
         .map((p) => LatLng(p.latitude, p.longitude))
         .toList(growable: false);
+    // GD-3 (Batch I): a malformed `points` string can yield an empty
+    // polyline while the leg still reports non-zero duration / distance.
+    // The consumer (`LiveTrackingMap`) renders the ETA pill plus a
+    // missing route line, breaking the visual contract. OSRM has the
+    // equivalent guard upstream; Google did not until now.
+    if (decoded.isEmpty) {
+      throw const DirectionsNoRoute();
+    }
 
     return DirectionsResult(
       polyline: decoded,
