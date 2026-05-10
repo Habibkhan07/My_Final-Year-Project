@@ -19,6 +19,7 @@ import 'dart:async';
 import 'dart:developer' as developer;
 
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 
@@ -53,12 +54,35 @@ http.Client _defaultClientFactory() => http.Client();
 TechLocationRemoteDataSource _defaultRemoteFactory(http.Client client) =>
     TechLocationRemoteDataSource(client);
 
-/// Keys + delimiter for the config blob the controller saves before
+/// CTRL-13 (Batch I): factory for the isolate-side
+/// `FlutterSecureStorage` reader. flutter_foreground_task v9
+/// initialises platform channels for the task isolate on startup,
+/// so secure storage works the same way it does on the main isolate
+/// (Android Keystore-backed EncryptedSharedPreferences). Tests inject
+/// a recording fake whose `read` returns a stubbed token.
+FlutterSecureStorage _defaultSecureStorageFactory() =>
+    const FlutterSecureStorage();
+
+/// Keys for the config blob the controller saves before
 /// startService. Kept as constants in this file (not the controller's)
 /// because the isolate side is the source of truth — the controller
 /// imports these.
+///
+/// CTRL-13 (Batch I): the blob now carries ONLY the bookingId (no
+/// secrets). The auth token is read from `flutter_secure_storage`
+/// inside the isolate's `onStart`. Pre-fix, the JWT was encoded
+/// alongside the bookingId and persisted to a plain shared-prefs
+/// file — which is readable on rooted devices and via `adb backup`,
+/// violating CLAUDE.md's "JWT tokens: flutter_secure_storage only"
+/// rule.
 class TechLocationTaskKeys {
   static const String configKey = 'tech_location_config';
+
+  /// CTRL-13 (Batch I): secure-storage key the auth token lives
+  /// under. Owned by this file so the controller and the handler
+  /// agree on the lookup path without one importing the other's
+  /// internal constants.
+  static const String authTokenStorageKey = 'auth_token';
 
   /// Audit H4: wire-format keys for `FlutterForegroundTask.sendDataToMain`
   /// messages. The isolate emits a fatal-auth message when a POST
@@ -100,33 +124,23 @@ class TechLocationTaskKeys {
 
   static const String _logName = 'feature.location_broadcaster.handler';
 
-  /// ASCII Unit Separator (0x1F). Picked because it cannot legally
-  /// appear inside an auth token or numeric booking id, so a simple
-  /// `split` round-trips losslessly without JSON serialization. The
-  /// `\u001F` escape sequence is used here (NOT a literal 0x1F byte)
-  /// because some editors / file writers strip the unprintable char
-  /// silently. If that happened, `encodeConfig` would collapse to
-  /// `'$authToken$bookingId'` and every isolate spin-up would fail
-  /// silently when `decodeConfig` rejects parts.length != 2. Audit
-  /// P1-3 caught a regression where this had become a literal byte.
-  static const String _delimiter = '\u001F';
-
-  /// Encode `(authToken, bookingId)` to a single string the
-  /// foreground task handler can split back. Used by the controller's
-  /// `_startService`.
-  static String encodeConfig({
-    required String authToken,
-    required int bookingId,
-  }) => '$authToken$_delimiter$bookingId';
+  /// CTRL-13 (Batch I): encode the bookingId to a string the isolate
+  /// can decode back. Pre-fix this also carried the auth token via a
+  /// 0x1F-delimited blob — the JWT is now read from secure storage in
+  /// the isolate instead, so the blob carries no secret.
+  static String encodeConfig({required int bookingId}) => '$bookingId';
 
   /// Inverse of [encodeConfig]. Returns `null` on malformed input
   /// (caller treats this as "do not start broadcasting").
-  static ({String authToken, int bookingId})? decodeConfig(String raw) {
-    final parts = raw.split(_delimiter);
-    if (parts.length != 2) return null;
-    final id = int.tryParse(parts[1]);
-    if (id == null || id < 0 || parts[0].isEmpty) return null;
-    return (authToken: parts[0], bookingId: id);
+  ///
+  /// HND-9 (Batch I): tightened from `< 0` to `<= 0` since
+  /// auto-incrementing booking ids start at 1; bookingId=0 cannot
+  /// legitimately appear and would only land here from a malformed
+  /// blob.
+  static int? decodeConfig(String raw) {
+    final id = int.tryParse(raw);
+    if (id == null || id <= 0) return null;
+    return id;
   }
 }
 
@@ -137,6 +151,10 @@ class TechLocationTaskHandler extends TaskHandler {
   final IIsolateGeolocatorBackend _geolocator;
   final http.Client Function() _clientFactory;
   final TechLocationRemoteDataSource Function(http.Client) _remoteFactory;
+  /// CTRL-13 (Batch I): factory for the isolate-side secure-storage
+  /// reader. Production uses real flutter_secure_storage; tests inject
+  /// a recording fake whose `read` returns a stubbed token.
+  final FlutterSecureStorage Function() _secureStorageFactory;
 
   StreamSubscription<Position>? _positionSub;
   http.Client? _isolateClient;
@@ -161,10 +179,13 @@ class TechLocationTaskHandler extends TaskHandler {
     http.Client Function() clientFactory = _defaultClientFactory,
     TechLocationRemoteDataSource Function(http.Client) remoteFactory =
         _defaultRemoteFactory,
+    FlutterSecureStorage Function() secureStorageFactory =
+        _defaultSecureStorageFactory,
   }) : _foregroundTask = foregroundTask,
        _geolocator = geolocator,
        _clientFactory = clientFactory,
-       _remoteFactory = remoteFactory;
+       _remoteFactory = remoteFactory,
+       _secureStorageFactory = secureStorageFactory;
 
   @override
   Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
@@ -178,10 +199,40 @@ class TechLocationTaskHandler extends TaskHandler {
       // is the safest tradeoff.
       return;
     }
-    final decoded = TechLocationTaskKeys.decodeConfig(raw);
-    if (decoded == null) return;
-    _authToken = decoded.authToken;
-    _bookingId = decoded.bookingId;
+    final bookingId = TechLocationTaskKeys.decodeConfig(raw);
+    if (bookingId == null) return;
+    _bookingId = bookingId;
+
+    // CTRL-13 (Batch I): read the auth token from secure storage in
+    // the isolate. flutter_foreground_task v9 initialises platform
+    // channels for this isolate so flutter_secure_storage works the
+    // same way it does on the main isolate. A missing / empty token
+    // is fatal — emit fatal_auth_error so the controller flips
+    // BroadcastState.error and the C6 banner surfaces.
+    String token;
+    try {
+      token = await _secureStorageFactory()
+              .read(key: TechLocationTaskKeys.authTokenStorageKey) ??
+          '';
+    } on Exception catch (e, stack) {
+      developer.log(
+        'tech-location secure-storage read failed: $e',
+        name: TechLocationTaskKeys._logName,
+        level: 1000,
+        stackTrace: stack,
+      );
+      token = '';
+    }
+    if (token.isEmpty) {
+      _foregroundTask.sendDataToMain({
+        TechLocationTaskKeys.messageKind:
+            TechLocationTaskKeys.fatalAuthErrorKind,
+        TechLocationTaskKeys.messageStatusCode: 0,
+        TechLocationTaskKeys.messageCode: 'no_token',
+      });
+      return;
+    }
+    _authToken = token;
 
     _isolateClient = _clientFactory();
     _remote = _remoteFactory(_isolateClient!);

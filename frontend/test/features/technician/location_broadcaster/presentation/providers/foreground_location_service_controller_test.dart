@@ -148,9 +148,26 @@ void main() {
         expect(fg.startCalls, 1);
         expect(fg.saveDataCalls, hasLength(1));
         expect(fg.saveDataCalls.first.key, TechLocationTaskKeys.configKey);
-        // Token + booking id encoded into the blob.
-        expect(fg.saveDataCalls.first.value, contains('tok-abc'));
-        expect(fg.saveDataCalls.first.value, contains('42'));
+        // CTRL-13 (Batch I): the saveData blob now carries ONLY the
+        // bookingId. The auth token is read from secure storage
+        // inside the isolate's onStart, NOT bundled into this blob.
+        // T-CTRL-1 (Batch I): assert exact equality with the
+        // documented encoder output so a regression that flips back
+        // to bundling the token (or reverses the field order)
+        // fails loudly.
+        expect(
+          fg.saveDataCalls.first.value,
+          TechLocationTaskKeys.encodeConfig(bookingId: 42),
+        );
+        expect(fg.saveDataCalls.first.value, '42');
+        // CTRL-6 (Batch I): the controller passes a NotificationIcon
+        // pointing at the manifest meta-data so the foreground-service
+        // notification doesn't fall back to a white-square launcher
+        // icon at the status bar.
+        expect(
+          fg.lastNotificationIconMetaDataName,
+          'com.example.frontend.tech_location_tracking_icon',
+        );
         expect(
           c.read(foregroundLocationServiceControllerProvider(42)),
           BroadcastState.running,

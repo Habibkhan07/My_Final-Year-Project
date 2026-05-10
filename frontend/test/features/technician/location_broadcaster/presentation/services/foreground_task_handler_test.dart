@@ -33,14 +33,22 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:frontend/features/technician/location_broadcaster/data/datasources/tech_location_remote_data_source.dart';
 import 'package:frontend/features/technician/location_broadcaster/presentation/services/foreground_task_handler.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:mocktail/mocktail.dart';
 
 import '../../_helpers/fake_isolate_backends.dart';
+
+/// CTRL-13 (Batch I): mock for the isolate-side secure-storage read.
+/// Production handler uses real flutter_secure_storage; tests inject
+/// this mock via `secureStorageFactory` so the auth token comes from a
+/// stubbed value rather than the platform Keystore.
+class _MockSecureStorage extends Mock implements FlutterSecureStorage {}
 
 // ──────────────────────────────────────────────────────────────────────
 // Helpers
@@ -70,11 +78,20 @@ buildHandler({
   required Future<http.Response> Function(http.Request) respond,
   String? configBlob,
   LocationPermission permission = LocationPermission.always,
+  // CTRL-13 (Batch I): the auth token now lives in secure storage,
+  // read by the handler in `onStart`. The test default mirrors the
+  // pre-CTRL-13 token value (`'token-abc'`) so existing assertions on
+  // `Authorization: Token token-abc` continue to hold.
+  String? authToken = 'token-abc',
 }) {
   final foregroundTask = FakeIsolateForegroundTaskBackend()
     ..nextConfigBlob = configBlob;
   final geolocator = FakeIsolateGeolocatorBackend()
     ..nextPermission = permission;
+  final secureStorage = _MockSecureStorage();
+  when(
+    () => secureStorage.read(key: any(named: 'key')),
+  ).thenAnswer((_) async => authToken);
   final requests = <http.Request>[];
   final client = ClosableMockClient((request) async {
     requests.add(request);
@@ -85,6 +102,7 @@ buildHandler({
     geolocator: geolocator,
     clientFactory: () => client,
     remoteFactory: TechLocationRemoteDataSource.new,
+    secureStorageFactory: () => secureStorage,
   );
   return (
     handler: handler,
@@ -111,7 +129,10 @@ class ClosableMockClient extends MockClient {
 }
 
 
-const _validConfig = 'token-abc42';
+// CTRL-13 (Batch I): the saveData blob now carries ONLY the
+// bookingId — the auth token is read from secure storage by the
+// isolate. Pre-fix the constant was `'token-abc<0x1F>42'`.
+const _validConfig = '42';
 
 void main() {
   // ────────── T-3a / T-3b: bad config ─────────────────────────────────
@@ -470,37 +491,31 @@ void main() {
   );
 
   // ────────── T-3n: encode/decode round-trip ──────────────────────────
+  // CTRL-13 (Batch I): the blob now carries ONLY the bookingId (the
+  // auth token is read from secure storage in the isolate). This
+  // narrows the encode/decode surface; the corresponding raw-0x1F
+  // delimiter regression vector (T-HND-1) is moot and has been removed.
 
-  test(
-    'T-3n encodeConfig / decodeConfig round-trips token + booking id',
-    () {
-      final encoded = TechLocationTaskKeys.encodeConfig(
-        authToken: 'abcdef-1234567890',
-        bookingId: 42,
-      );
-      final decoded = TechLocationTaskKeys.decodeConfig(encoded);
-      expect(decoded, isNotNull);
-      expect(decoded!.authToken, 'abcdef-1234567890');
-      expect(decoded.bookingId, 42);
-    },
-  );
+  test('T-3n encodeConfig / decodeConfig round-trips booking id', () {
+    final encoded = TechLocationTaskKeys.encodeConfig(bookingId: 42);
+    final decoded = TechLocationTaskKeys.decodeConfig(encoded);
+    expect(decoded, 42);
+  });
 
   // ────────── T-3o: decodeConfig rejects malformed input ──────────────
 
   test('T-3o decodeConfig returns null on malformed input', () {
-    // Missing delimiter → only 1 part.
-    expect(TechLocationTaskKeys.decodeConfig('justtoken'), isNull);
-    // Empty token half.
-    expect(TechLocationTaskKeys.decodeConfig('42'), isNull);
-    // Non-numeric booking id.
-    expect(TechLocationTaskKeys.decodeConfig('tokenabc'), isNull);
-    // Negative booking id (rejected explicitly).
-    expect(TechLocationTaskKeys.decodeConfig('token-1'), isNull);
-    // Too many delimiters → split yields >2 parts.
-    expect(
-      TechLocationTaskKeys.decodeConfig('token42extra'),
-      isNull,
-    );
+    // Non-numeric input.
+    expect(TechLocationTaskKeys.decodeConfig('not-a-number'), isNull);
+    // HND-9 (Batch I): bookingId=0 rejected (auto-increment ids
+    // start at 1; 0 cannot legitimately appear).
+    expect(TechLocationTaskKeys.decodeConfig('0'), isNull);
+    // Negative booking id rejected.
+    expect(TechLocationTaskKeys.decodeConfig('-1'), isNull);
+    // Empty string.
+    expect(TechLocationTaskKeys.decodeConfig(''), isNull);
+    // Float (tryParse(int) fails on decimals).
+    expect(TechLocationTaskKeys.decodeConfig('42.5'), isNull);
   });
 
   // ────────── T-3p / T-3q: F-15 permission_lost signalling ────

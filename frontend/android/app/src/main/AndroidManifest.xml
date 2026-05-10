@@ -69,6 +69,20 @@
             android:name="com.google.android.geo.API_KEY"
             android:value="${GOOGLE_MAPS_API_KEY}" />
 
+        <!--
+            Audit CTRL-6 (Batch I): icon for the persistent
+            tech-location tracking notification. Pre-fix, the
+            foreground-service notification fell back to the launcher
+            icon (`@mipmap/ic_launcher`) which Android renders as a
+            solid white square at the status bar — visually broken on
+            every modern phone. flutter_foreground_task v9 looks up the
+            icon via this meta-data name when the controller passes
+            `NotificationIcon(metaDataName: ...)` to startService.
+        -->
+        <meta-data
+            android:name="com.example.frontend.tech_location_tracking_icon"
+            android:resource="@drawable/ic_notification" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

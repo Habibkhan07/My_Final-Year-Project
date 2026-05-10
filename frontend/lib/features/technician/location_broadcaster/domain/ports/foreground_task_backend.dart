@@ -33,6 +33,7 @@ abstract class IForegroundTaskBackend {
     List<ForegroundServiceTypes>? serviceTypes,
     required String notificationTitle,
     required String notificationText,
+    NotificationIcon? notificationIcon,
     Function? callback,
   });
 

@@ -77,16 +77,23 @@ class FakeForegroundTaskBackend implements IForegroundTaskBackend {
     removeDataCalls.add(key);
   }
 
+  /// CTRL-6 (Batch I): test exposes the icon meta-data name passed by
+  /// the controller so a regression that drops `notificationIcon` (or
+  /// flips back to a missing meta-data name) fails loudly.
+  String? lastNotificationIconMetaDataName;
+
   @override
   Future<ServiceRequestResult> startService({
     List<ForegroundServiceTypes>? serviceTypes,
     required String notificationTitle,
     required String notificationText,
+    NotificationIcon? notificationIcon,
     Function? callback,
   }) async {
     startCalls++;
     lastNotificationTitle = notificationTitle;
     lastNotificationText = notificationText;
+    lastNotificationIconMetaDataName = notificationIcon?.metaDataName;
     return nextStartResult;
   }
 

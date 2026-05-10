@@ -9,14 +9,16 @@
 //     means popping the screen disposes the provider, which auto-stops
 //     the service via the dispose hook.
 //
-// SECURITY: this controller writes the auth token to FlutterForegroundTask's
-// shared-prefs blob (so the isolate can authenticate POSTs). The token is
-// also in flutter_secure_storage already; the prefs blob is the SAME
-// trust boundary because both are stored on-device with no remote
-// readback. On logout, `AppLifecycleOrchestrator.performTeardown` calls
-// `ForegroundLocationLifecycle.tearDown()` which removes the blob — so a
-// different tech logging in cannot inherit the previous tech's token
-// (audit C3 / S-1).
+// SECURITY: this controller saves ONLY the bookingId to
+// FlutterForegroundTask's shared-prefs blob. The auth token is read
+// from `flutter_secure_storage` directly inside the isolate's onStart
+// (audit CTRL-13 / Batch I): pre-fix the token was encoded into the
+// saveData blob alongside the bookingId, which violated CLAUDE.md's
+// "JWT tokens: flutter_secure_storage only" rule — saveData writes
+// to a plain shared-prefs file that is readable on rooted devices /
+// via `adb backup` even when private storage is honoured. Now the
+// blob carries no secret and the isolate is responsible for the
+// secure-storage read at spin-up time.
 //
 // ─── Lifecycle state machine (audit C4 / F-6 / F-7 / F-8 / P-1-3 / S-3) ──
 // The previous `bool _running` was set TRUE only AFTER awaiting
@@ -94,9 +96,20 @@ class ForegroundLocationServiceController
     BookingStatus.enRoute,
     BookingStatus.arrived,
   };
-  static const _kAuthTokenStorageKey = 'auth_token';
+  // CTRL-13 (Batch I): the token's storage key is owned by the
+  // isolate now — see TechLocationTaskKeys.authTokenStorageKey. The
+  // controller no longer reads or writes the token; it only verifies
+  // the secure-storage entry is present so we don't start a service
+  // that's guaranteed to immediately fail with a no-token error.
   static const _kNotificationChannelId = 'tech_location_tracking';
   static const _kNotificationChannelName = 'Tracking job';
+  /// CTRL-6 (Batch I): meta-data name in AndroidManifest.xml that
+  /// points the foreground-service notification at
+  /// `@drawable/ic_notification`. Without this, the notification
+  /// falls back to `@mipmap/ic_launcher` which Android renders as a
+  /// solid white square at the status bar.
+  static const _kNotificationIconMetaDataName =
+      'com.example.frontend.tech_location_tracking_icon';
   static const _kLogName = 'feature.location_broadcaster';
 
   late final int _jobId;
@@ -210,9 +223,15 @@ class ForegroundLocationServiceController
         return;
       }
 
+      // CTRL-13 (Batch I): verify the token exists in secure storage
+      // before we start. The isolate will read it directly from
+      // flutter_secure_storage in onStart, so we don't need the value
+      // here — but a missing token is a fatal precondition (the
+      // isolate would just emit fatal_auth_error immediately and
+      // tear itself down). Surface that early.
       final token = await ref
           .read(locationBroadcasterSecureStorageProvider)
-          .read(key: _kAuthTokenStorageKey);
+          .read(key: TechLocationTaskKeys.authTokenStorageKey);
       if (!ref.mounted) return;
       if (token == null || token.isEmpty) {
         developer.log(
@@ -236,12 +255,20 @@ class ForegroundLocationServiceController
       // service restart as a new notification by default; the alert
       // would buzz repeatedly even though the channel is LOW
       // importance.
+      //
+      // CTRL-5 (Batch I): explicitly pass `channelImportance: LOW`.
+      // The package's v9.2.2 default already happens to be LOW, but
+      // future versions could change it; the explicit value defends
+      // against version-drift surfacing as a notification that
+      // suddenly heads-up alerts in production.
       _foregroundTask.init(
         androidNotificationOptions: AndroidNotificationOptions(
           channelId: _kNotificationChannelId,
           channelName: _kNotificationChannelName,
           channelDescription:
               'Sends your live location to the customer for the active job.',
+          channelImportance: NotificationChannelImportance.LOW,
+          priority: NotificationPriority.LOW,
           onlyAlertOnce: true,
         ),
         iosNotificationOptions: const IOSNotificationOptions(),
@@ -259,9 +286,12 @@ class ForegroundLocationServiceController
         ),
       );
 
-      // saveData BEFORE startService — the isolate reads it on onStart.
+      // CTRL-13 (Batch I): saveData carries ONLY the bookingId now.
+      // The auth token is read by the isolate from
+      // flutter_secure_storage at onStart. saveData writes to a
+      // plain shared-prefs file that's readable on rooted devices,
+      // so any secret stored here violates CLAUDE.md.
       final config = TechLocationTaskKeys.encodeConfig(
-        authToken: token,
         bookingId: booking.id,
       );
       await _foregroundTask.saveData(
@@ -281,10 +311,20 @@ class ForegroundLocationServiceController
       final firstName = trimmedName.isEmpty
           ? 'customer'
           : trimmedName.split(RegExp(r'\s+')).first;
+      // CTRL-6 (Batch I): pass `NotificationIcon` so the persistent
+      // tracking notification renders the dedicated
+      // `@drawable/ic_notification` silhouette. Without this, Android
+      // falls back to `@mipmap/ic_launcher` which it renders as a
+      // solid white square at the status bar — looks broken on every
+      // modern phone. The meta-data lookup name is registered in
+      // AndroidManifest.xml.
       final result = await _foregroundTask.startService(
         serviceTypes: const [ForegroundServiceTypes.location],
         notificationTitle: 'Tracking job',
         notificationText: 'Sending your location to $firstName',
+        notificationIcon: const NotificationIcon(
+          metaDataName: _kNotificationIconMetaDataName,
+        ),
         callback: startTechLocationTaskCallback,
       );
 

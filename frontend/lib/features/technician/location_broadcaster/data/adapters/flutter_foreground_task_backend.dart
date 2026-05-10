@@ -43,12 +43,14 @@ class FlutterForegroundTaskBackend implements IForegroundTaskBackend {
     List<ForegroundServiceTypes>? serviceTypes,
     required String notificationTitle,
     required String notificationText,
+    NotificationIcon? notificationIcon,
     Function? callback,
   }) {
     return FlutterForegroundTask.startService(
       serviceTypes: serviceTypes,
       notificationTitle: notificationTitle,
       notificationText: notificationText,
+      notificationIcon: notificationIcon,
       callback: callback,
     );
   }
