@@ -54,44 +54,52 @@ class BroadcastStateBanner extends StatelessWidget {
 
     final showCta = spec.isPermissionDenied && onOpenSettings != null;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: spec.background,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: spec.foreground.withValues(alpha: 0.25)),
-      ),
-      child: Row(
-        children: [
-          Icon(spec.icon, size: 24, color: spec.foreground),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              spec.message,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: spec.foreground,
-                fontWeight: FontWeight.w600,
+    // Audit W-38 (Batch G): liveRegion so TalkBack announces the
+    // banner appearance immediately. The tech needs to know the
+    // moment broadcasting fails — silent appearance defeats the
+    // C6 visibility purpose for screen-reader users.
+    return Semantics(
+      liveRegion: true,
+      container: true,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: spec.background,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: spec.foreground.withValues(alpha: 0.25)),
+        ),
+        child: Row(
+          children: [
+            Icon(spec.icon, size: 24, color: spec.foreground),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                spec.message,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: spec.foreground,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
-          ),
-          if (showCta) ...[
-            const SizedBox(width: 8),
-            TextButton(
-              onPressed: onOpenSettings,
-              style: TextButton.styleFrom(
-                foregroundColor: spec.foreground,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                minimumSize: const Size(0, 36),
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            if (showCta) ...[
+              const SizedBox(width: 8),
+              TextButton(
+                onPressed: onOpenSettings,
+                style: TextButton.styleFrom(
+                  foregroundColor: spec.foreground,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  minimumSize: const Size(0, 36),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: const Text(
+                  'Open settings',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
               ),
-              child: const Text(
-                'Open settings',
-                style: TextStyle(fontWeight: FontWeight.w700),
-              ),
-            ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }

@@ -596,57 +596,70 @@ class _EtaPill extends StatelessWidget {
   Widget build(BuildContext context) {
     final mins = (etaSeconds / 60).ceil();
     final distanceText = formatDistanceMeters(distanceMeters);
-    return Material(
-      elevation: 4,
-      borderRadius: BorderRadius.circular(28),
-      color: Colors.white,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.access_time_filled_outlined,
-              color: Color(0xFFEF6C00),
-              size: 28,
-            ),
-            const SizedBox(width: 10),
-            // Big number, small unit — works for users who can read
-            // numerals but not English words.
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.baseline,
-              textBaseline: TextBaseline.alphabetic,
-              children: [
-                Text(
-                  '$mins',
-                  style: const TextStyle(
-                    fontSize: 26,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF202124),
-                  ),
-                ),
-                const SizedBox(width: 4),
-                const Text(
-                  'min',
-                  style: TextStyle(fontSize: 14, color: Color(0xFF5F6368)),
-                ),
-              ],
-            ),
-            const SizedBox(width: 12),
-            Container(
-              width: 4,
-              height: 4,
-              decoration: const BoxDecoration(
-                color: Color(0xFF9AA0A6),
-                shape: BoxShape.circle,
+    // Audit W-38 (Batch G): pre-fix TalkBack read each text node
+    // independently ("5", "min", "·", "300 m"). The merged Semantics
+    // label collapses them into one announcement and makes the pill
+    // a single focusable element. `excludeSemantics: true` suppresses
+    // the children's individual labels so we don't get a double-read.
+    final minuteWord = mins == 1 ? 'minute' : 'minutes';
+    final semanticsLabel =
+        'Estimated arrival in $mins $minuteWord, $distanceText away';
+    return Semantics(
+      label: semanticsLabel,
+      container: true,
+      excludeSemantics: true,
+      child: Material(
+        elevation: 4,
+        borderRadius: BorderRadius.circular(28),
+        color: Colors.white,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.access_time_filled_outlined,
+                color: Color(0xFFEF6C00),
+                size: 28,
               ),
-            ),
-            const SizedBox(width: 12),
-            Text(
-              distanceText,
-              style: const TextStyle(fontSize: 16, color: Color(0xFF202124)),
-            ),
-          ],
+              const SizedBox(width: 10),
+              // Big number, small unit — works for users who can read
+              // numerals but not English words.
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  Text(
+                    '$mins',
+                    style: const TextStyle(
+                      fontSize: 26,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF202124),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  const Text(
+                    'min',
+                    style: TextStyle(fontSize: 14, color: Color(0xFF5F6368)),
+                  ),
+                ],
+              ),
+              const SizedBox(width: 12),
+              Container(
+                width: 4,
+                height: 4,
+                decoration: const BoxDecoration(
+                  color: Color(0xFF9AA0A6),
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                distanceText,
+                style: const TextStyle(fontSize: 16, color: Color(0xFF202124)),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -663,48 +676,58 @@ class _ConnectionStrip extends StatelessWidget {
       return const SizedBox.shrink();
     }
     final isOffline = quality == _ConnectionQuality.offline;
-    return Material(
-      elevation: 2,
-      borderRadius: BorderRadius.circular(10),
-      color: isOffline
-          ? const Color(0xFFFFEDDB) // soft orange wash
-          : const Color(0xFFFFF8E1), // amber wash
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        child: Row(
-          children: [
-            Icon(
-              isOffline
-                  ? Icons.signal_wifi_off_rounded
-                  : Icons.network_check_rounded,
-              size: 22,
-              color: isOffline
-                  ? const Color(0xFFD84315)
-                  : const Color(0xFFEF6C00),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
+    // Audit W-38 (Batch G): wrap with `Semantics(liveRegion: true)`
+    // so TalkBack announces band transitions (good → weak → offline)
+    // as soon as they appear. Without `liveRegion`, TalkBack stays
+    // silent until the user navigates focus to the strip — defeats
+    // the purpose of the surface as a live status indicator for
+    // visually-impaired users on a stationary phone.
+    return Semantics(
+      liveRegion: true,
+      container: true,
+      child: Material(
+        elevation: 2,
+        borderRadius: BorderRadius.circular(10),
+        color: isOffline
+            ? const Color(0xFFFFEDDB) // soft orange wash
+            : const Color(0xFFFFF8E1), // amber wash
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          child: Row(
+            children: [
+              Icon(
                 isOffline
-                    ? "Technician's phone seems to be offline. "
-                          'Last position is shown.'
-                    : 'Connection is weak…',
-                style: TextStyle(
-                  fontSize: 14,
-                  // Audit W-27 (Batch D): the previous weak-state text
-                  // colour 0xFFE65100 against the 0xFFFFF8E1 wash gave
-                  // ~4.6:1 contrast — borderline AA, fails AAA. Darkened
-                  // to 0xFFAB3F00 for ~6.7:1 (clears AAA for normal
-                  // text) while staying visually distinct from the
-                  // offline state's deeper-red 0xFFBF360C.
-                  color: isOffline
-                      ? const Color(0xFFBF360C)
-                      : const Color(0xFFAB3F00),
-                  fontWeight: FontWeight.w500,
+                    ? Icons.signal_wifi_off_rounded
+                    : Icons.network_check_rounded,
+                size: 22,
+                color: isOffline
+                    ? const Color(0xFFD84315)
+                    : const Color(0xFFEF6C00),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  isOffline
+                      ? "Technician's phone seems to be offline. "
+                            'Last position is shown.'
+                      : 'Connection is weak…',
+                  style: TextStyle(
+                    fontSize: 14,
+                    // Audit W-27 (Batch D): the previous weak-state text
+                    // colour 0xFFE65100 against the 0xFFFFF8E1 wash gave
+                    // ~4.6:1 contrast — borderline AA, fails AAA. Darkened
+                    // to 0xFFAB3F00 for ~6.7:1 (clears AAA for normal
+                    // text) while staying visually distinct from the
+                    // offline state's deeper-red 0xFFBF360C.
+                    color: isOffline
+                        ? const Color(0xFFBF360C)
+                        : const Color(0xFFAB3F00),
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -716,34 +739,43 @@ class _WaitingForFirstFramePill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      elevation: 2,
-      borderRadius: BorderRadius.circular(10),
-      color: const Color(0xFFE3F2FD),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        child: Row(
-          children: const [
-            SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: Color(0xFF1565C0),
-              ),
-            ),
-            SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                "Waiting for technician's location…",
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Color(0xFF0D47A1),
-                  fontWeight: FontWeight.w500,
+    // Audit W-38 (Batch G): liveRegion announces the appearance to
+    // TalkBack so a customer on the orchestrator screen knows the
+    // app is waiting (vs sitting silently with a blank map).
+    return Semantics(
+      liveRegion: true,
+      container: true,
+      label: "Waiting for technician's location",
+      excludeSemantics: true,
+      child: Material(
+        elevation: 2,
+        borderRadius: BorderRadius.circular(10),
+        color: const Color(0xFFE3F2FD),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          child: Row(
+            children: const [
+              SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Color(0xFF1565C0),
                 ),
               ),
-            ),
-          ],
+              SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  "Waiting for technician's location…",
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Color(0xFF0D47A1),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
