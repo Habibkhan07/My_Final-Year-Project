@@ -118,12 +118,17 @@ class _TechLocationTaskHandler extends TaskHandler {
         authToken: _authToken,
         lat: position.latitude,
         lng: position.longitude,
-        // Geolocator returns 0 for accuracy and heading when unknown.
-        // Backend serializer accepts null but tolerates 0 too — pass
-        // null when the value is meaningless to keep the wire payload
-        // minimal.
+        // Geolocator returns 0 for accuracy when unknown; pass null to
+        // keep the wire payload minimal (backend tolerates either).
         accuracyMeters: position.accuracy > 0 ? position.accuracy : null,
-        heading: position.heading >= 0 ? position.heading : null,
+        // Audit H1 (F-4): `heading == 0.0` is ambiguous in geolocator —
+        // it means BOTH "facing true north" AND "device cannot report
+        // heading." `0.0 >= 0` is true, so a `>= 0` check would never
+        // fire null. Use `headingAccuracy` instead: <= 0 means the
+        // device has no compass fix, regardless of the heading value.
+        // Without this, stationary techs always get a north-pointing
+        // bike marker on the customer's map.
+        heading: position.headingAccuracy <= 0 ? null : position.heading,
       );
     } catch (_) {
       // Transient failures are expected (network blips, 5xx). The

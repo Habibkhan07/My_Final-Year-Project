@@ -120,6 +120,13 @@ class SystemEventNotifier extends _$SystemEventNotifier {
   /// Best estimate of the current server-side wall clock. Returns the
   /// server-anchored value if a WS event has ever been observed,
   /// otherwise falls back to local UTC. Always returns UTC.
+  ///
+  /// Public surface for non-realtime consumers that need a clock-skew-
+  /// resistant "now" — e.g. `LiveTrackingMap` uses this for the staleness
+  /// banner so a device with a +2h-skewed clock doesn't instantly mark
+  /// a fresh frame as offline (audit H8 / W-13).
+  DateTime serverNow() => _serverNow();
+
   DateTime _serverNow() {
     final localNow = (debugLocalNow ?? () => DateTime.now()).call().toUtc();
     final anchorTs = _serverAnchorTimestamp;

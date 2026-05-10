@@ -18,7 +18,8 @@ void main() {
 
       final entity = TechGpsFrameMapper.toDomain(model, now: injectedNow);
 
-      expect(entity.bookingId, 42);
+      expect(entity, isNotNull);
+      expect(entity!.bookingId, 42);
       expect(entity.latitude, 31.5204);
       expect(entity.longitude, 74.3587);
       expect(entity.accuracyMeters, 8.5);
@@ -33,7 +34,8 @@ void main() {
 
         final entity = TechGpsFrameMapper.toDomain(model, now: injectedNow);
 
-        expect(entity.accuracyMeters, isNull);
+        expect(entity, isNotNull);
+        expect(entity!.accuracyMeters, isNull);
         expect(entity.heading, isNull);
       },
     );
@@ -45,8 +47,9 @@ void main() {
       final entity = TechGpsFrameMapper.toDomain(model);
       final after = DateTime.now();
 
+      expect(entity, isNotNull);
       expect(
-        entity.frameArrivedAt.isAfter(
+        entity!.frameArrivedAt.isAfter(
           before.subtract(const Duration(seconds: 1)),
         ),
         isTrue,
@@ -54,6 +57,85 @@ void main() {
       expect(
         entity.frameArrivedAt.isBefore(after.add(const Duration(seconds: 1))),
         isTrue,
+      );
+    });
+  });
+
+  // ───────────────────────────────────────────────────────────────────────
+  // Audit H5 (S-2) — payload validation
+  // ───────────────────────────────────────────────────────────────────────
+  // Streams bypass envelope-layer recipient/expiry filters in
+  // SystemEventNotifier; the mapper is the only place a malformed
+  // tech_gps payload gets stopped. These tests pin the boundary so a
+  // future contributor can't silently relax the validator and let an
+  // out-of-range frame reach the map widget (where flutter_map can
+  // throw and Google clamps differently — either way, broken UX).
+
+  group('TechGpsFrameMapper.toDomain — bounds validation', () {
+    DateTime injectedNow() => DateTime.utc(2026, 5, 10);
+
+    test('rejects out-of-range latitude (> 90)', () {
+      const model = TechGpsFrameModel(bookingId: 42, lat: 91.0, lng: 0.0);
+      expect(TechGpsFrameMapper.toDomain(model, now: injectedNow), isNull);
+    });
+
+    test('rejects out-of-range latitude (< -90)', () {
+      const model = TechGpsFrameModel(bookingId: 42, lat: -90.5, lng: 0.0);
+      expect(TechGpsFrameMapper.toDomain(model, now: injectedNow), isNull);
+    });
+
+    test('rejects out-of-range longitude (> 180)', () {
+      const model = TechGpsFrameModel(bookingId: 42, lat: 0.0, lng: 200.0);
+      expect(TechGpsFrameMapper.toDomain(model, now: injectedNow), isNull);
+    });
+
+    test('rejects out-of-range longitude (< -180)', () {
+      const model = TechGpsFrameModel(bookingId: 42, lat: 0.0, lng: -181.0);
+      expect(TechGpsFrameMapper.toDomain(model, now: injectedNow), isNull);
+    });
+
+    test('rejects out-of-range heading (>= 360)', () {
+      const model = TechGpsFrameModel(
+        bookingId: 42,
+        lat: 31.5,
+        lng: 74.3,
+        heading: 360.0,
+      );
+      expect(TechGpsFrameMapper.toDomain(model, now: injectedNow), isNull);
+    });
+
+    test('rejects negative heading', () {
+      const model = TechGpsFrameModel(
+        bookingId: 42,
+        lat: 31.5,
+        lng: 74.3,
+        heading: -1.0,
+      );
+      expect(TechGpsFrameMapper.toDomain(model, now: injectedNow), isNull);
+    });
+
+    test('rejects NaN latitude', () {
+      final model = TechGpsFrameModel(bookingId: 42, lat: double.nan, lng: 0.0);
+      expect(TechGpsFrameMapper.toDomain(model, now: injectedNow), isNull);
+    });
+
+    test('accepts boundary values (lat=90, lng=180, heading=0, heading≈360)', () {
+      const at90 = TechGpsFrameModel(
+        bookingId: 42,
+        lat: 90.0,
+        lng: 180.0,
+        heading: 0.0,
+      );
+      const justUnder360 = TechGpsFrameModel(
+        bookingId: 42,
+        lat: 31.5,
+        lng: 74.3,
+        heading: 359.999,
+      );
+      expect(TechGpsFrameMapper.toDomain(at90, now: injectedNow), isNotNull);
+      expect(
+        TechGpsFrameMapper.toDomain(justUnder360, now: injectedNow),
+        isNotNull,
       );
     });
   });

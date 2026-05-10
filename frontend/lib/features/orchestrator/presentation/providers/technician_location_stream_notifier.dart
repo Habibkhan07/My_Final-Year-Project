@@ -22,6 +22,7 @@ import 'dart:async';
 
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../../../core/realtime/presentation/notifiers/system_event_notifier.dart';
 import '../../../../core/realtime/presentation/providers/dependency_injection.dart';
 import '../../data/mappers/tech_gps_frame_mapper.dart';
 import '../../data/models/tech_gps_frame_model.dart';
@@ -65,7 +66,18 @@ class TechnicianLocationStreamNotifier
       // booking we already left. Drop anything that's not us.
       if (model.bookingId != jobId) return;
 
-      final frame = TechGpsFrameMapper.toDomain(model);
+      // Audit H5 (S-2): mapper returns null on out-of-range lat/lng/
+      // heading. Drop silently (same path as a JSON-decode failure).
+      //
+      // Audit H8 (W-13): stamp `frameArrivedAt` via the server-anchored
+      // clock so the live-map staleness check (which also uses
+      // serverNow) is computed on a single coherent clock — a device
+      // with a skewed wall clock doesn't poison either half.
+      final frame = TechGpsFrameMapper.toDomain(
+        model,
+        now: () => ref.read(systemEventProvider.notifier).serverNow(),
+      );
+      if (frame == null) return;
       // Audit P1-05: defer past build()'s return + guard against
       // post-disposal writes.
       Future.microtask(() {

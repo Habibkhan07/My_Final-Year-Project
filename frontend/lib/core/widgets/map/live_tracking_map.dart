@@ -23,6 +23,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../realtime/presentation/notifiers/system_event_notifier.dart';
 import 'directions_failures.dart';
 import 'i_app_map.dart';
 import 'i_directions_service.dart';
@@ -84,6 +85,10 @@ class _LiveTrackingMapState extends ConsumerState<LiveTrackingMap>
   // ─── Tunables (single source of truth) ─────────────────────────────
   static const double _kPolylineRefreshDistanceMeters = 500.0;
   static const int _kPolylineMinIntervalSeconds = 30;
+  // Audit H7 (W-14): even when the tech hasn't moved, the polyline /
+  // ETA must be refreshed past this max-staleness bound so a stationary
+  // tech at a stoplight doesn't keep showing a 5-minute-old ETA.
+  static const int _kPolylineMaxStaleSeconds = 300; // 5 minutes
   static const Duration _kStalenessWeakThreshold = Duration(seconds: 15);
   static const Duration _kStalenessOfflineThreshold = Duration(seconds: 60);
   // Slightly under the 5s GPS cadence so the tween settles before the
@@ -115,6 +120,11 @@ class _LiveTrackingMapState extends ConsumerState<LiveTrackingMap>
   // Tick once every 5s to re-evaluate the staleness band so the
   // banner appears even if no new frame arrives.
   Timer? _stalenessTicker;
+  // Audit H9 (W-2): memoize the last quality so the ticker only
+  // triggers a rebuild when the quality band actually transitions —
+  // the previous unconditional setState burned battery rebuilding
+  // for a quality that hadn't changed in minutes.
+  _ConnectionQuality _lastQuality = _ConnectionQuality.good;
 
   // ─── Camera follow ────────────────────────────────────────────────
   bool _autoFollow = true;
@@ -133,9 +143,18 @@ class _LiveTrackingMapState extends ConsumerState<LiveTrackingMap>
       vsync: this,
       duration: _kFrameTweenDuration,
     )..addListener(_onTweenTick);
+    // Audit H9: only rebuild on a quality-band transition. Cheap getter
+    // call, expensive setState — gating reduces the rebuild rate from
+    // every-5s to "every time the band changes" (typically zero or
+    // a handful of times in a booking).
     _stalenessTicker = Timer.periodic(const Duration(seconds: 5), (_) {
-      if (mounted) setState(() {});
+      if (!mounted) return;
+      final next = _quality;
+      if (next != _lastQuality) {
+        setState(() => _lastQuality = next);
+      }
     });
+    _lastQuality = _quality;
     // Seed marker rendering from initial widget state.
     _renderedPosition = widget.technicianPosition;
     _renderedHeading = widget.technicianHeadingDegrees ?? 0.0;
@@ -150,6 +169,27 @@ class _LiveTrackingMapState extends ConsumerState<LiveTrackingMap>
     super.didUpdateWidget(oldWidget);
     final oldPos = oldWidget.technicianPosition;
     final newPos = widget.technicianPosition;
+
+    // Audit H6 (W-5): destination can change mid-tracking when admin
+    // reschedules / corrects the address. Without this, the polyline
+    // stays anchored to the OLD destination forever (cooldown +
+    // distance gate both fail to refire). Force a fresh fetch by
+    // clearing the prior result and bypassing the cooldown.
+    if (oldWidget.destination != widget.destination) {
+      _directions = null;
+      _polylineAnchor = null;
+      _maybeFetchDirections();
+    }
+
+    // Audit H9 (W-3): the ETA tickdown timer was never cancelled when
+    // the booking transitioned EN_ROUTE → ARRIVED. Cancel here so the
+    // 1Hz rebuild storm stops the moment the tech arrives.
+    if (oldWidget.phase != widget.phase &&
+        widget.phase == TrackingPhase.arrived) {
+      _etaTicker?.cancel();
+      _etaTicker = null;
+      _etaCountdownSeconds = 0;
+    }
 
     if (newPos != null && oldPos == null) {
       // First frame — hard-set, no tween.
@@ -275,11 +315,19 @@ class _LiveTrackingMapState extends ConsumerState<LiveTrackingMap>
         hasDirections &&
         _haversineMeters(tech, _polylineAnchor!) >
             _kPolylineRefreshDistanceMeters;
+    final ageSeconds = hasDirections
+        ? DateTime.now().difference(_directions!.fetchedAt).inSeconds
+        : 0;
     final cooldownPassed =
-        !hasDirections ||
-        DateTime.now().difference(_directions!.fetchedAt).inSeconds >=
-            _kPolylineMinIntervalSeconds;
-    final shouldFetch = (!hasDirections || movedFar) && cooldownPassed;
+        !hasDirections || ageSeconds >= _kPolylineMinIntervalSeconds;
+    // Audit H7 (W-14): the cooldown is a *minimum* — after 5 minutes
+    // refetch unconditionally even if the tech hasn't moved. A
+    // stationary tech at a stoplight would otherwise show the original
+    // ETA from when the route was first computed.
+    final maxStaleExceeded =
+        hasDirections && ageSeconds >= _kPolylineMaxStaleSeconds;
+    final shouldFetch =
+        maxStaleExceeded || ((!hasDirections || movedFar) && cooldownPassed);
     if (!shouldFetch) return;
 
     _fetching = true; // before await — re-entry guard
@@ -296,11 +344,20 @@ class _LiveTrackingMapState extends ConsumerState<LiveTrackingMap>
         _etaCountdownSeconds = result.etaSeconds;
       });
       _etaTicker?.cancel();
+      // Don't start a 1Hz tick at all if we're already arrived — the
+      // ETA pill is hidden in that phase.
+      if (widget.phase == TrackingPhase.arrived) return;
       _etaTicker = Timer.periodic(const Duration(seconds: 1), (_) {
         if (!mounted) return;
-        setState(() {
-          _etaCountdownSeconds = (_etaCountdownSeconds - 1).clamp(0, 1 << 30);
-        });
+        // Audit H9 (W-3): when countdown hits zero, cancel the ticker
+        // — the previous version kept calling setState forever with
+        // a clamped-zero value, churning rebuilds for no visual change.
+        final next = (_etaCountdownSeconds - 1).clamp(0, 1 << 30);
+        if (next == 0) {
+          _etaTicker?.cancel();
+          _etaTicker = null;
+        }
+        setState(() => _etaCountdownSeconds = next);
       });
     } on DirectionsFailure {
       // Soft-fail. Keep last polyline / ETA. Don't snackbar — routing
@@ -319,7 +376,13 @@ class _LiveTrackingMapState extends ConsumerState<LiveTrackingMap>
   _ConnectionQuality get _quality {
     final last = widget.lastFrameAt;
     if (last == null) return _ConnectionQuality.good; // pre-first-frame
-    final age = DateTime.now().difference(last);
+    // Audit H8 (W-13): server-anchored "now" so a device with a skewed
+    // wall clock cannot flip a fresh frame to "offline." Paired with
+    // `TechnicianLocationStreamNotifier` stamping `frameArrivedAt`
+    // through the same anchor — both halves of `now - last` are on
+    // the same clock.
+    final now = ref.read(systemEventProvider.notifier).serverNow();
+    final age = now.difference(last);
     if (age > _kStalenessOfflineThreshold) return _ConnectionQuality.offline;
     if (age > _kStalenessWeakThreshold) return _ConnectionQuality.weak;
     return _ConnectionQuality.good;
