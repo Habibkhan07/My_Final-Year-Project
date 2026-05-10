@@ -2,6 +2,22 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <!--
+        Audit C2 (F-1) — required so the tech-side foreground GPS
+        broadcaster can keep streaming after the OS classifies the app
+        as "background" (screen lock, app switcher, brief launcher
+        excursion). Without this, Android 10+ throttles location to
+        ~hourly batched updates the moment the app loses foreground
+        prominence — even though the foreground service notification
+        is showing.
+        Android 11+ note: this permission cannot be granted via the
+        runtime request dialog after the user picks "While using the
+        app" once. The user MUST grant it via OS Settings → App →
+        Permissions → Location → "Allow all the time".
+        `ForegroundLocationServiceController.openSystemSettings()` and
+        the explainer banner deep-link the tech there.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+    <!--
         Android 13+ runtime permission for notifications. Harmless on
         targetSdk <33 (auto-granted). Runtime dialog only fires when
         targetSdk >=33 — see app/build.gradle.kts (currently

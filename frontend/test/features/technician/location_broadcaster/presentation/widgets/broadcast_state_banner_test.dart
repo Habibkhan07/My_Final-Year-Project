@@ -17,11 +17,18 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:frontend/features/technician/location_broadcaster/domain/entities/broadcast_state.dart';
 import 'package:frontend/features/technician/location_broadcaster/presentation/widgets/broadcast_state_banner.dart';
 
-Future<void> _pump(WidgetTester tester, BroadcastState state) async {
+Future<void> _pump(
+  WidgetTester tester,
+  BroadcastState state, {
+  VoidCallback? onOpenSettings,
+}) async {
   await tester.pumpWidget(
     MaterialApp(
       home: Scaffold(
-        body: BroadcastStateBanner(state: state),
+        body: BroadcastStateBanner(
+          state: state,
+          onOpenSettings: onOpenSettings,
+        ),
       ),
     ),
   );
@@ -78,6 +85,58 @@ void main() {
           find.textContaining('Tracking unavailable', findRichText: false),
           findsOneWidget,
         );
+      },
+    );
+  });
+
+  group('BroadcastStateBanner — Open settings CTA (audit C2)', () {
+    testWidgets(
+      'permissionDenied with onOpenSettings → "Open settings" rendered + '
+      'tapping invokes the callback',
+      (tester) async {
+        var taps = 0;
+        await _pump(
+          tester,
+          BroadcastState.permissionDenied,
+          onOpenSettings: () => taps++,
+        );
+
+        expect(find.text('Open settings'), findsOneWidget);
+        await tester.tap(find.text('Open settings'));
+        expect(taps, 1);
+      },
+    );
+
+    testWidgets(
+      'notificationPermissionDenied with onOpenSettings → CTA rendered',
+      (tester) async {
+        await _pump(
+          tester,
+          BroadcastState.notificationPermissionDenied,
+          onOpenSettings: () {},
+        );
+        expect(find.text('Open settings'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'permissionDenied WITHOUT onOpenSettings → message renders, no CTA',
+      (tester) async {
+        await _pump(tester, BroadcastState.permissionDenied);
+        expect(find.byIcon(Icons.location_off), findsOneWidget);
+        expect(find.text('Open settings'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'error WITH onOpenSettings → no CTA (settings does not fix this state)',
+      (tester) async {
+        await _pump(
+          tester,
+          BroadcastState.error,
+          onOpenSettings: () {},
+        );
+        expect(find.text('Open settings'), findsNothing);
       },
     );
   });

@@ -78,7 +78,22 @@ class EnRouteBodyStub extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          BroadcastStateBanner(state: broadcastState),
+          BroadcastStateBanner(
+            state: broadcastState,
+            // Audit C2: deep-link to OS settings on the two
+            // permission-denied variants. Tech-side only — customer
+            // viewers never see the banner because the controller
+            // stays `idle` for them.
+            onOpenSettings: isTech
+                ? () => ref
+                      .read(
+                        foregroundLocationServiceControllerProvider(
+                          booking.id,
+                        ).notifier,
+                      )
+                      .openSystemSettings()
+                : null,
+          ),
           // Map fills the body. SizedBox + Expanded gives the map all
           // remaining vertical space minus the body text caption.
           Expanded(
@@ -138,7 +153,22 @@ class ArrivedBodyStub extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          BroadcastStateBanner(state: broadcastState),
+          BroadcastStateBanner(
+            state: broadcastState,
+            // Audit C2: deep-link to OS settings on the two
+            // permission-denied variants. Tech-side only — customer
+            // viewers never see the banner because the controller
+            // stays `idle` for them.
+            onOpenSettings: isTech
+                ? () => ref
+                      .read(
+                        foregroundLocationServiceControllerProvider(
+                          booking.id,
+                        ).notifier,
+                      )
+                      .openSystemSettings()
+                : null,
+          ),
           SizedBox(
             height: 220,
             child: ClipRRect(

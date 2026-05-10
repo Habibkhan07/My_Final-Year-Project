@@ -7,6 +7,12 @@
 // no UI signal at all — the tech keeps driving thinking the customer
 // can see them, while the customer's map sits frozen on "tech offline".
 //
+// Audit C2 (F-1): for the two permission-denied variants, the banner is
+// the deep-link entry point to the OS Settings page. On Android 11+
+// `ACCESS_BACKGROUND_LOCATION` cannot be granted via the runtime dialog
+// at all — Settings is the only path. The banner exposes an "Open
+// settings" affordance via `onOpenSettings`.
+//
 // UX (illiterate-first per CLAUDE.md memory):
 //   • Big icon, large readable line of plain copy. No jargon.
 //   • Colour communicates severity at a glance:
@@ -16,23 +22,37 @@
 //       - orange — generic error (tracking failed for another reason).
 //   • Render-only for non-blocking states (`idle` / `running`):
 //     `SizedBox.shrink()` keeps the layout pristine.
-//
-// The banner is intentionally informational this session — the
-// "Open settings" action lands with C2 (background-location flow).
+//   • Permission-denied variants get a tap target ("Open settings");
+//     plain `error` does not (settings won't help with a generic init
+//     failure).
 
 import 'package:flutter/material.dart';
 
 import '../../domain/entities/broadcast_state.dart';
 
 class BroadcastStateBanner extends StatelessWidget {
-  const BroadcastStateBanner({super.key, required this.state});
+  const BroadcastStateBanner({
+    super.key,
+    required this.state,
+    this.onOpenSettings,
+  });
 
   final BroadcastState state;
+
+  /// Invoked when the tech taps a permission-denied banner's "Open
+  /// settings" CTA. Wired by the orchestrator screen to
+  /// `ForegroundLocationServiceController.openSystemSettings()`.
+  ///
+  /// Null disables the CTA — the banner still renders the message but
+  /// without the tap affordance. Useful for tests + the `error` state.
+  final VoidCallback? onOpenSettings;
 
   @override
   Widget build(BuildContext context) {
     final spec = _specFor(state);
     if (spec == null) return const SizedBox.shrink();
+
+    final showCta = spec.isPermissionDenied && onOpenSettings != null;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -55,6 +75,22 @@ class BroadcastStateBanner extends StatelessWidget {
               ),
             ),
           ),
+          if (showCta) ...[
+            const SizedBox(width: 8),
+            TextButton(
+              onPressed: onOpenSettings,
+              style: TextButton.styleFrom(
+                foregroundColor: spec.foreground,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                minimumSize: const Size(0, 36),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: const Text(
+                'Open settings',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -71,6 +107,7 @@ class BroadcastStateBanner extends StatelessWidget {
           message: 'Location is off — customer cannot see you.',
           background: Color(0xFFFFEBEE), // red 50
           foreground: Color(0xFFC62828), // red 800
+          isPermissionDenied: true,
         );
       case BroadcastState.notificationPermissionDenied:
         return const _BannerSpec(
@@ -78,6 +115,7 @@ class BroadcastStateBanner extends StatelessWidget {
           message: 'Allow notifications so tracking can stay on.',
           background: Color(0xFFFFF8E1), // amber 50
           foreground: Color(0xFFB07000), // amber 900-ish, AA on amber 50
+          isPermissionDenied: true,
         );
       case BroadcastState.error:
         return const _BannerSpec(
@@ -85,6 +123,7 @@ class BroadcastStateBanner extends StatelessWidget {
           message: 'Tracking unavailable. Try reopening this booking.',
           background: Color(0xFFFFF3E0), // orange 50
           foreground: Color(0xFFE65100), // orange 900
+          isPermissionDenied: false,
         );
     }
   }
@@ -96,9 +135,14 @@ class _BannerSpec {
     required this.message,
     required this.background,
     required this.foreground,
+    required this.isPermissionDenied,
   });
   final IconData icon;
   final String message;
   final Color background;
   final Color foreground;
+
+  /// True when tapping "Open settings" can plausibly fix the state.
+  /// `error` is generic and settings won't necessarily help.
+  final bool isPermissionDenied;
 }

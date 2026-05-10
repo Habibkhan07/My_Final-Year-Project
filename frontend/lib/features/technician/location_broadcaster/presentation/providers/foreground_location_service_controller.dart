@@ -281,9 +281,19 @@ class ForegroundLocationServiceController
   }
 
   /// Ensures location + (Android 13+) notification permissions are
-  /// granted. Returns `null` when all permissions are granted (start
-  /// can proceed); otherwise returns the specific denied state to
-  /// surface in the UI.
+  /// granted. Returns `null` when the service has the minimum
+  /// permissions to start (foreground location + notifications);
+  /// otherwise returns the specific denied state to surface in the UI.
+  ///
+  /// **Background location is best-effort** (audit C2 / F-1). After
+  /// foreground location is granted, this method attempts to upgrade
+  /// to `LocationPermission.always` (= `ACCESS_BACKGROUND_LOCATION`).
+  /// On Android 10 this can succeed via the runtime dialog. On
+  /// Android 11+ the runtime upgrade is blocked — only the OS Settings
+  /// page can grant it. We do NOT fail-closed if background is denied:
+  /// the foreground service can still publish GPS while the notification
+  /// keeps the app foregrounded by the OS. We just log it; the banner
+  /// + tap-to-settings flow lets the tech upgrade later.
   Future<BroadcastState?> _ensurePermissions() async {
     var permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
@@ -304,6 +314,35 @@ class ForegroundLocationServiceController
       }
     }
 
+    // Best-effort upgrade to background location.
+    if (permission == LocationPermission.whileInUse) {
+      // On Android 10 this prompts the user; on 11+ it returns
+      // whileInUse unchanged (user must use Settings).
+      final upgraded = await Geolocator.requestPermission();
+      if (upgraded != LocationPermission.always) {
+        developer.log(
+          'ACCESS_BACKGROUND_LOCATION not granted (got $upgraded). Tracking '
+          'will work while the app is foregrounded by the notification but '
+          'may drop on screen lock on some Android versions. Tech can '
+          'upgrade via OS Settings → Permissions → Location → "Allow all '
+          'the time".',
+          name: _kLogName,
+          level: 800, // info
+        );
+      }
+    }
+
     return null;
   }
+
+  /// Opens the OS app-settings page so the tech can grant a denied
+  /// permission. Used by the banner's tap-to-settings affordance
+  /// (audit C2). Returns true when the OS launched the settings activity.
+  ///
+  /// We do NOT auto-restart the service after the tech returns from
+  /// settings: the controller's existing listener on
+  /// `bookingDetailProvider` plus the `onResumed` lifecycle hook means
+  /// the next status fire (or app resume) re-evaluates and starts the
+  /// service if permissions are now sufficient.
+  Future<bool> openSystemSettings() => Geolocator.openAppSettings();
 }
