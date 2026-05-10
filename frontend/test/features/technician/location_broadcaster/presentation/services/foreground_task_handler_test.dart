@@ -29,6 +29,7 @@
 // Geolocator.{checkPermission, getPositionStream} synchronously; a
 // MockClient drives the HTTP layer.
 
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
@@ -501,4 +502,176 @@ void main() {
       isNull,
     );
   });
+
+  // ────────── T-3p / T-3q: F-15 permission_lost signalling ────
+
+  test(
+    'T-3p (F-15) onStart with permission denied sends permission_lost to main',
+    () async {
+      final h = buildHandler(
+        respond: (_) async => fail('client should not be invoked'),
+        configBlob: _validConfig,
+        permission: LocationPermission.denied,
+      );
+
+      await h.handler.onStart(DateTime.now(), TaskStarter.developer);
+
+      expect(h.foregroundTask.sentToMain, hasLength(1));
+      final msg = h.foregroundTask.sentToMain.single as Map<String, Object?>;
+      expect(
+        msg[TechLocationTaskKeys.messageKind],
+        TechLocationTaskKeys.permissionLostKind,
+      );
+      // No POST should have fired and no position stream subscription
+      // should be active.
+      expect(h.requests, isEmpty);
+      expect(h.geolocator.getPositionStreamCalls, isEmpty);
+
+      await h.geolocator.close();
+    },
+  );
+
+  test(
+    'T-3p2 (F-15) onStart with permission deniedForever also sends '
+    'permission_lost',
+    () async {
+      final h = buildHandler(
+        respond: (_) async => fail('client should not be invoked'),
+        configBlob: _validConfig,
+        permission: LocationPermission.deniedForever,
+      );
+
+      await h.handler.onStart(DateTime.now(), TaskStarter.developer);
+
+      expect(h.foregroundTask.sentToMain, hasLength(1));
+      final msg = h.foregroundTask.sentToMain.single as Map<String, Object?>;
+      expect(
+        msg[TechLocationTaskKeys.messageKind],
+        TechLocationTaskKeys.permissionLostKind,
+      );
+
+      await h.geolocator.close();
+    },
+  );
+
+  test(
+    'T-3q (F-15) position stream PermissionDeniedException sends permission_lost',
+    () async {
+      final h = buildHandler(
+        respond: (_) async => http.Response('{}', 200),
+        configBlob: _validConfig,
+      );
+
+      await h.handler.onStart(DateTime.now(), TaskStarter.developer);
+      // Mid-session permission revocation: Geolocator surfaces the
+      // exception via the stream's error channel.
+      h.geolocator.positionController.addError(
+        const PermissionDeniedException('revoked mid-session'),
+      );
+      await pumpEventQueue();
+
+      expect(h.foregroundTask.sentToMain, hasLength(1));
+      final msg = h.foregroundTask.sentToMain.single as Map<String, Object?>;
+      expect(
+        msg[TechLocationTaskKeys.messageKind],
+        TechLocationTaskKeys.permissionLostKind,
+      );
+
+      await h.geolocator.close();
+    },
+  );
+
+  test(
+    'T-3q2 (F-15) position stream LocationServiceDisabledException sends '
+    'permission_lost',
+    () async {
+      final h = buildHandler(
+        respond: (_) async => http.Response('{}', 200),
+        configBlob: _validConfig,
+      );
+
+      await h.handler.onStart(DateTime.now(), TaskStarter.developer);
+      h.geolocator.positionController.addError(
+        const LocationServiceDisabledException(),
+      );
+      await pumpEventQueue();
+
+      expect(h.foregroundTask.sentToMain, hasLength(1));
+      final msg = h.foregroundTask.sentToMain.single as Map<String, Object?>;
+      expect(
+        msg[TechLocationTaskKeys.messageKind],
+        TechLocationTaskKeys.permissionLostKind,
+      );
+
+      await h.geolocator.close();
+    },
+  );
+
+  test(
+    'T-3q3 (F-15) position stream non-permission errors do NOT send '
+    'permission_lost',
+    () async {
+      final h = buildHandler(
+        respond: (_) async => http.Response('{}', 200),
+        configBlob: _validConfig,
+      );
+
+      await h.handler.onStart(DateTime.now(), TaskStarter.developer);
+      // Some other exception type — should be logged but NOT signaled.
+      h.geolocator.positionController.addError(
+        const FormatException('unexpected stream error'),
+      );
+      await pumpEventQueue();
+
+      expect(h.foregroundTask.sentToMain, isEmpty);
+
+      await h.geolocator.close();
+    },
+  );
+
+  // ────────── T-3r: F-20 in-flight POST guard ─────────
+
+  test(
+    'T-3r (F-20) second fix is dropped while first POST is in flight',
+    () async {
+      // Use a Completer so the first POST hangs until we explicitly
+      // unblock it. While it's hanging, push a second position; the
+      // handler must drop it (no second request).
+      final responseGate = Completer<http.Response>();
+      var requestCount = 0;
+      final h = buildHandler(
+        respond: (_) async {
+          requestCount++;
+          return responseGate.future;
+        },
+        configBlob: _validConfig,
+      );
+
+      await h.handler.onStart(DateTime.now(), TaskStarter.developer);
+      h.geolocator.positionController.add(fakePosition());
+      // Let the listen-callback fire and reach the await on POST.
+      await pumpEventQueue();
+      expect(requestCount, 1);
+
+      // Second emission while first is in flight — should be dropped.
+      h.geolocator.positionController.add(fakePosition(lat: 31.6, lng: 74.4));
+      await pumpEventQueue();
+      expect(requestCount, 1, reason: 'second fix must be dropped');
+
+      // Unblock the first POST; subsequent emissions must POST again.
+      responseGate.complete(http.Response('{}', 200));
+      await pumpEventQueue();
+
+      h.geolocator.positionController.add(fakePosition(lat: 31.7, lng: 74.5));
+      await pumpEventQueue();
+      expect(
+        requestCount,
+        2,
+        reason: 'after in-flight clears, the next fix must POST',
+      );
+
+      await h.geolocator.close();
+    },
+  );
+
 }

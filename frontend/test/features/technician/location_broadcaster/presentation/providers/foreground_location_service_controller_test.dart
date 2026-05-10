@@ -556,4 +556,131 @@ void main() {
       },
     );
   });
+
+  // ──── permission-lost channel (audit F-15, Batch B) ─────────────────
+  // Mirror of the fatal-auth tests for the new isolate→main signal.
+  // The isolate sends `permission_lost` when its onStart re-check
+  // finds permission denied, OR when the position stream errors with
+  // a PermissionDeniedException / LocationServiceDisabledException
+  // mid-session. The controller must stop the service and flip
+  // BroadcastState.permissionDenied so the C6 banner surfaces.
+
+  group('permission-lost channel (audit F-15)', () {
+    test(
+      'isolate permission-lost message → state = permissionDenied; '
+      'service stopped; callback unregistered',
+      () async {
+        final fg = FakeForegroundTaskBackend();
+        // Drive permission sequence so that the tail _evaluate after
+        // _stopService's `whenComplete` sees a denied permission and
+        // legitimately surfaces permissionDenied rather than racing to
+        // restart. (FakeGeolocator's default `[always]` would let the
+        // tail _evaluate restart and the test would observe `running`.)
+        final geo = FakeGeolocatorBackend()
+          ..checkPermissionSequence = [
+            LocationPermission.always, // initial settle
+            LocationPermission.denied, // post-permission-lost tail
+          ]
+          ..requestPermissionSequence = [
+            LocationPermission.denied, // user really did revoke
+          ];
+        final c = _container(
+          repo: _FixtureRepo(status: 'EN_ROUTE', currentUserId: 99),
+          fg: fg,
+          geo: geo,
+        );
+
+        await _settle(c, 42);
+        expect(
+          c.read(foregroundLocationServiceControllerProvider(42)),
+          BroadcastState.running,
+        );
+        expect(fg.registeredCallbacks, hasLength(1));
+
+        fg.simulateIsolateMessage({
+          TechLocationTaskKeys.messageKind:
+              TechLocationTaskKeys.permissionLostKind,
+        });
+        for (var i = 0; i < 10; i++) {
+          await Future<void>.delayed(Duration.zero);
+        }
+
+        expect(
+          c.read(foregroundLocationServiceControllerProvider(42)),
+          BroadcastState.permissionDenied,
+        );
+        expect(fg.stopCalls, 1);
+        expect(fg.registeredCallbacks, isEmpty);
+      },
+    );
+
+    test(
+      'permission-lost does NOT latch — restart can fire while booking '
+      'stays in EN_ROUTE (contrast with fatal-auth latch)',
+      () async {
+        // The fatal-auth latch test (above) asserts startCalls stays
+        // at 1 after the message + invalidation while status stays
+        // EN_ROUTE (latch blocks restart). Permission-lost has NO
+        // such latch — once permission is granted at OS level, the
+        // controller's standard _evaluate path can restart cleanly.
+        // Mirror the fatal-auth latch test's shape but assert the
+        // inverse outcome: more than one start fires.
+        final fg = FakeForegroundTaskBackend();
+        // Sequence: initial start [.always], post-permission-lost tail
+        // sees denied (user really revoked), then user grants in
+        // Settings before the invalidate fires → 3rd checkPermission
+        // returns always.
+        final geo = FakeGeolocatorBackend()
+          ..checkPermissionSequence = [
+            LocationPermission.always, // initial settle
+            LocationPermission.denied, // post-permission-lost tail
+            LocationPermission.always, // user re-granted; invalidate
+          ]
+          ..requestPermissionSequence = [
+            LocationPermission.denied, // 1st request: still denied
+            LocationPermission.always, // 2nd request: granted
+          ];
+        final c = _container(
+          repo: _FixtureRepo(status: 'EN_ROUTE', currentUserId: 99),
+          fg: fg,
+          geo: geo,
+        );
+
+        await _settle(c, 42);
+        expect(fg.startCalls, 1);
+
+        // Fire permission-lost from isolate.
+        fg.simulateIsolateMessage({
+          TechLocationTaskKeys.messageKind:
+              TechLocationTaskKeys.permissionLostKind,
+        });
+        for (var i = 0; i < 10; i++) {
+          await Future<void>.delayed(Duration.zero);
+        }
+        // After this the tail _evaluate saw denied → state =
+        // permissionDenied; latch IS NOT set (F-15 contract).
+
+        // Invalidate to simulate the user returning from Settings;
+        // status stays EN_ROUTE so the listener fires _evaluate
+        // again. Without the latch, _evaluate must be able to restart.
+        c.invalidate(bookingDetailProvider(42));
+        await c.read(bookingDetailProvider(42).future);
+        for (var i = 0; i < 10; i++) {
+          await Future<void>.delayed(Duration.zero);
+        }
+
+        // Contrast with fatal-auth latch: that test asserts
+        // startCalls == 1. Here permission-lost did NOT latch, so
+        // a restart must have fired at some point along the way.
+        expect(
+          fg.startCalls,
+          greaterThan(1),
+          reason:
+              'permission-lost has no latch; restart should fire when '
+              'permission is granted at the OS level even while status '
+              'stays EN_ROUTE',
+        );
+      },
+    );
+  });
 }

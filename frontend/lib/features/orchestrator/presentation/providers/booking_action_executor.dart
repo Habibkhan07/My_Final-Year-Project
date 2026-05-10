@@ -66,20 +66,18 @@ class BookingActionExecutor {
 
   void _ensureOk(http.Response response) {
     if (response.statusCode >= 200 && response.statusCode < 300) return;
-    Map<String, dynamic>? envelope;
+    // Audit S-14 (Batch B): defensive parse via HttpFailure.fromEnvelope
+    // — coerces non-string code/message and tolerates non-JSON bodies.
+    Object? decoded;
     try {
-      final decoded = jsonDecode(response.body);
-      if (decoded is Map<String, dynamic>) envelope = decoded;
+      decoded = jsonDecode(response.body);
     } catch (_) {
-      // Non-JSON body — fall through to generic message.
+      decoded = null;
     }
-    throw HttpFailure(
+    throw HttpFailure.fromEnvelope(
       statusCode: response.statusCode,
-      code: envelope?['code'] as String? ?? 'unknown',
-      message:
-          envelope?['message'] as String? ??
-          'Action failed (${response.statusCode}).',
-      errors: (envelope?['errors'] as Map<String, dynamic>?) ?? const {},
+      body: decoded,
+      fallbackMessage: 'Action failed (${response.statusCode}).',
     );
   }
 }

@@ -360,16 +360,38 @@ class ForegroundLocationServiceController
   }
 
   /// Receives messages forwarded from `_TechLocationTaskHandler` via
-  /// `FlutterForegroundTask.sendDataToMain`. Currently only handles
-  /// `fatal_auth_error` — token expired or tech reassigned, both
-  /// terminal for this booking. Stops the service and surfaces
-  /// `BroadcastState.error` so the C6 banner shows the failure.
+  /// `FlutterForegroundTask.sendDataToMain`. Handles two envelopes:
+  ///
+  /// • `fatal_auth_error` (audit H4) — token expired or tech reassigned;
+  ///   terminal for this booking. Stops the service and flips
+  ///   `BroadcastState.error` so the C6 banner shows.
+  /// • `permission_lost` (audit F-15, Batch B) — location permission
+  ///   was revoked between the controller's pre-flight check and
+  ///   the isolate's spin-up, OR mid-session. Stops the service and
+  ///   flips `BroadcastState.permissionDenied` so the C6 banner
+  ///   surfaces with the "Open Settings" deep-link.
   void _onIsolateData(Object data) {
     if (!ref.mounted) return;
     if (data is! Map) return;
     final kind = data[TechLocationTaskKeys.messageKind];
-    if (kind != TechLocationTaskKeys.fatalAuthErrorKind) return;
 
+    if (kind == TechLocationTaskKeys.fatalAuthErrorKind) {
+      _handleFatalAuthFromIsolate(data);
+      return;
+    }
+    if (kind == TechLocationTaskKeys.permissionLostKind) {
+      _handlePermissionLostFromIsolate();
+      return;
+    }
+    // Unknown kind — log so a wire-format drift doesn't disappear.
+    developer.log(
+      'Unknown isolate envelope kind: $kind',
+      name: _kLogName,
+      level: 900,
+    );
+  }
+
+  void _handleFatalAuthFromIsolate(Map<dynamic, dynamic> data) {
     developer.log(
       'Fatal auth error from isolate: '
       'statusCode=${data[TechLocationTaskKeys.messageStatusCode]} '
@@ -390,6 +412,28 @@ class ForegroundLocationServiceController
       );
     } else {
       state = BroadcastState.error;
+    }
+  }
+
+  /// Audit F-15 (Batch B): mirror of `_handleFatalAuthFromIsolate`
+  /// for permission-lost. We do NOT latch — when the user grants
+  /// permission again (via Settings), the next `_evaluate` call
+  /// should re-attempt startService cleanly. The C6 banner's
+  /// "Open Settings" deep-link is the intended recovery flow.
+  void _handlePermissionLostFromIsolate() {
+    developer.log(
+      'Permission lost reported by isolate — service stopping.',
+      name: _kLogName,
+      level: 1000,
+    );
+    if (_status == _LifecycleStatus.running) {
+      unawaited(
+        _stopService().whenComplete(() {
+          if (ref.mounted) state = BroadcastState.permissionDenied;
+        }),
+      );
+    } else {
+      state = BroadcastState.permissionDenied;
     }
   }
 

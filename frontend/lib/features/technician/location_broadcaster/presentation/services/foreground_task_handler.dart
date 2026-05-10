@@ -72,6 +72,17 @@ class TechLocationTaskKeys {
   static const String messageStatusCode = 'status_code';
   static const String messageCode = 'code';
 
+  /// Audit F-15 (Batch B): wire-format kind for the
+  /// `permission_lost` envelope. Emitted when the isolate detects
+  /// that location permission was revoked between the controller's
+  /// pre-flight check and the isolate's spin-up, OR mid-session
+  /// (Geolocator throws `PermissionDeniedException` /
+  /// `LocationServiceDisabledException` from the position stream).
+  /// The controller flips `BroadcastState.permissionDenied` so the
+  /// C6 banner surfaces — without this signal, the customer sees a
+  /// frozen marker with no explanation.
+  static const String permissionLostKind = 'permission_lost';
+
   static const String _logName = 'feature.location_broadcaster.handler';
 
   /// ASCII Unit Separator (0x1F). Picked because it cannot legally
@@ -119,6 +130,16 @@ class TechLocationTaskHandler extends TaskHandler {
   int _bookingId = -1;
   String _authToken = '';
 
+  /// Audit F-20 (Batch B): serialize `_onFix` so two POSTs can never
+  /// be in flight at the same time. `Stream.listen` does NOT await
+  /// async callbacks — if a hung HTTP call (e.g. flaky tower handover)
+  /// runs past the next 5s position emission, both POSTs run
+  /// concurrently and race the backend's per-tech 4s throttle.
+  /// Dropping mid-flight fixes is safe: the next geolocator emission
+  /// is at most ~5s away and the customer's marker tween is keyed
+  /// off the latest accepted frame, not the dropped one.
+  bool _postInFlight = false;
+
   TechLocationTaskHandler({
     required IIsolateForegroundTaskBackend foregroundTask,
     required IIsolateGeolocatorBackend geolocator,
@@ -151,11 +172,19 @@ class TechLocationTaskHandler extends TaskHandler {
     _remote = _remoteFactory(_isolateClient!);
 
     // Permission may have been revoked between the controller's check
-    // and this isolate spinning up. Re-check defensively.
+    // and this isolate spinning up. Re-check defensively. Audit F-15
+    // (Batch B): pre-fix this was a silent early-return — controller
+    // had no signal that the isolate gave up, customer saw frozen
+    // marker with no banner. Now we send `permission_lost` to main
+    // so the C6 banner surfaces with "Open Settings".
     final permission = await _geolocator.checkPermission();
     if (permission == LocationPermission.denied ||
         permission == LocationPermission.deniedForever) {
-      return; // controller's status listener will handle the UI surface
+      _foregroundTask.sendDataToMain({
+        TechLocationTaskKeys.messageKind:
+            TechLocationTaskKeys.permissionLostKind,
+      });
+      return;
     }
 
     _positionSub = _geolocator
@@ -170,7 +199,30 @@ class TechLocationTaskHandler extends TaskHandler {
             distanceFilter: 10,
           ),
         )
-        .listen(_onFix);
+        .listen(_onFix, onError: _onPositionStreamError);
+  }
+
+  /// Audit F-15 (Batch B): handle errors emitted by the position
+  /// stream. Geolocator surfaces `PermissionDeniedException` /
+  /// `LocationServiceDisabledException` when permission is revoked
+  /// or location services turned off mid-session. Pre-fix the
+  /// stream had no `onError` and these exceptions silently bubbled
+  /// to the zone, leaving the customer with a frozen marker. Now
+  /// we signal main and stop emitting.
+  void _onPositionStreamError(Object error, StackTrace stack) {
+    developer.log(
+      'tech-location position stream error: $error',
+      name: TechLocationTaskKeys._logName,
+      level: 1000,
+      stackTrace: stack,
+    );
+    if (error is PermissionDeniedException ||
+        error is LocationServiceDisabledException) {
+      _foregroundTask.sendDataToMain({
+        TechLocationTaskKeys.messageKind:
+            TechLocationTaskKeys.permissionLostKind,
+      });
+    }
   }
 
   Future<void> _onFix(Position position) async {
@@ -183,6 +235,12 @@ class TechLocationTaskHandler extends TaskHandler {
     if (!position.latitude.isFinite || !position.longitude.isFinite) {
       return;
     }
+    // Audit F-20 (Batch B): re-entry guard. If a previous POST is
+    // still in flight, drop this fix rather than firing a second
+    // concurrent request — see `_postInFlight` rationale on the
+    // field declaration.
+    if (_postInFlight) return;
+    _postInFlight = true;
     try {
       await remote.postLocation(
         bookingId: _bookingId,
@@ -234,6 +292,13 @@ class TechLocationTaskHandler extends TaskHandler {
         level: 1000,
         stackTrace: stack,
       );
+    } finally {
+      // Audit F-20 (Batch B): always clear the in-flight guard so the
+      // next emitted fix can attempt its POST. Inside `finally` so
+      // even an exception leak (which shouldn't reach here — both
+      // catch blocks are above — but defensive) won't latch the
+      // guard true.
+      _postInFlight = false;
     }
   }
 

@@ -60,6 +60,16 @@ class TrackingSubscriptionController extends _$TrackingSubscriptionController {
     // never see the existing AsyncData and the customer would silently
     // never subscribe to tracking. Fire-immediately evaluates the gate
     // against the current value the moment the listener is installed.
+    //
+    // Audit R-18 (Batch B): we deliberately use `whenData` only — i.e.
+    // an AsyncError on `bookingDetailProvider` does NOT unsubscribe.
+    // Transient backend 500s would otherwise drop the customer's
+    // tech_gps subscription and surface "tech offline" until the
+    // detail provider recovered. Staying subscribed during error
+    // costs nothing (WS subgroup membership is server-side state)
+    // and lets the next AsyncData seamlessly resume frames. If the
+    // booking genuinely terminates, the next AsyncData fires
+    // _evaluate with a non-tracking status and unsubscribes cleanly.
     ref.listen(
       bookingDetailProvider(jobId),
       (previous, next) => next.whenData((b) => _evaluate(b, ws, jobId)),

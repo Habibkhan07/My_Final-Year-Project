@@ -89,22 +89,22 @@ class TechLocationRemoteDataSource {
     if (response.statusCode == 200) return true;
     if (response.statusCode == 429) return false; // throttled — drop silently
 
-    Map<String, dynamic>? envelope;
+    // Audit S-14 (Batch B): defensive parse via HttpFailure.fromEnvelope
+    // — coerces non-string code/message and tolerates non-JSON bodies
+    // (HTML 502 from a load balancer, mistyped fields from a server
+    // bug). Pre-fix the inline `as String?` cast threw `TypeError` on
+    // any shape drift, bubbling out of the isolate's narrow catch.
+    Object? decoded;
     try {
-      final decoded = jsonDecode(response.body);
-      if (decoded is Map<String, dynamic>) envelope = decoded;
+      decoded = jsonDecode(response.body);
     } catch (_) {
-      // Server returned non-JSON (HTML 502 page from a load balancer,
-      // for instance). Fall through to the generic envelope shape.
+      decoded = null;
     }
-
-    throw HttpFailure(
+    throw HttpFailure.fromEnvelope(
       statusCode: response.statusCode,
-      code: envelope?['code'] as String? ?? 'unknown',
-      message:
-          envelope?['message'] as String? ??
+      body: decoded,
+      fallbackMessage:
           'tech-location POST failed (${response.statusCode})',
-      errors: (envelope?['errors'] as Map<String, dynamic>?) ?? const {},
     );
   }
 }

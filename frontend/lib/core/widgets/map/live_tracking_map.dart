@@ -105,6 +105,15 @@ class _LiveTrackingMapState extends ConsumerState<LiveTrackingMap>
   LatLng? _tweenFromPosition;
   LatLng? _tweenToPosition;
   double _renderedHeading = 0.0;
+  // Audit W-12 (Batch B): shortest-arc heading lerp. Pre-fix the
+  // marker hard-set heading on every frame which produced a visible
+  // snap mid-position-tween (359° → 1° looked like a 358° backward
+  // spin). When set, `_onTweenTick` lerps the heading along the
+  // shortest arc using the same animation progress as the position
+  // tween. Cleared (set to null) on hard-set paths (first frame,
+  // hard jump > 200m, no-heading frames).
+  double? _tweenFromHeading;
+  double? _tweenToHeading;
 
   // ─── Polyline fetch state ──────────────────────────────────────────
   DirectionsResult? _directions;
@@ -194,6 +203,8 @@ class _LiveTrackingMapState extends ConsumerState<LiveTrackingMap>
       // First frame — hard-set, no tween.
       _renderedPosition = newPos;
       _renderedHeading = widget.technicianHeadingDegrees ?? 0.0;
+      _tweenFromHeading = null; // audit W-12: clear any tween state
+      _tweenToHeading = null;
       _scheduleInitialFit();
       _maybeFetchDirections();
       setState(() {});
@@ -207,6 +218,8 @@ class _LiveTrackingMapState extends ConsumerState<LiveTrackingMap>
         // the marker through unrelated streets.
         _renderedPosition = newPos;
         _renderedHeading = widget.technicianHeadingDegrees ?? _renderedHeading;
+        _tweenFromHeading = null;
+        _tweenToHeading = null;
       } else {
         _tweenFromPosition = oldPos;
         _tweenToPosition = newPos;
@@ -214,15 +227,31 @@ class _LiveTrackingMapState extends ConsumerState<LiveTrackingMap>
           ..stop()
           ..value = 0.0
           ..forward();
-        // Heading lerp would need angular wrap-around handling; v1
-        // hard-sets heading to the latest value (visual is fine since
-        // direction changes are usually correlated with movement).
-        _renderedHeading = widget.technicianHeadingDegrees ?? _renderedHeading;
+        // Audit W-12 (Batch B): set up shortest-arc heading lerp
+        // alongside the position tween. If the new frame has no
+        // heading (compass dead), preserve the previous rendered
+        // value AND clear the tween — null `_tweenToHeading` means
+        // `_onTweenTick` skips the heading lerp branch. The position
+        // still tweens.
+        final newHeading = widget.technicianHeadingDegrees;
+        if (newHeading != null) {
+          _tweenFromHeading = _renderedHeading;
+          _tweenToHeading = newHeading;
+        } else {
+          _tweenFromHeading = null;
+          _tweenToHeading = null;
+        }
       }
       _maybeFetchDirections();
       _maybeFollowCamera();
     }
   }
+
+  /// Audit W-12: lerp `from` toward `to` along the shortest arc on
+  /// the [0, 360) circle. Forwards to the top-level
+  /// [shortestArcLerpDegrees] which is `@visibleForTesting`.
+  static double _shortestArcLerp(double from, double to, double t) =>
+      shortestArcLerpDegrees(from, to, t);
 
   void _onTweenTick() {
     final from = _tweenFromPosition;
@@ -231,11 +260,21 @@ class _LiveTrackingMapState extends ConsumerState<LiveTrackingMap>
     final t = _markerAnim.value;
     final lat = from.latitude + (to.latitude - from.latitude) * t;
     final lng = from.longitude + (to.longitude - from.longitude) * t;
+    // Audit W-12: lerp heading along the shortest arc when both
+    // endpoints are set. Skip if `_tweenToHeading` is null (frame
+    // had no compass reading).
+    final fromHeading = _tweenFromHeading;
+    final toHeading = _tweenToHeading;
+    final nextHeading = (fromHeading != null && toHeading != null)
+        ? _shortestArcLerp(fromHeading, toHeading, t)
+        : _renderedHeading;
     setState(() {
       _renderedPosition = LatLng(lat, lng);
+      _renderedHeading = nextHeading;
     });
     if (_markerAnim.value >= 1.0) {
       _renderedPosition = to;
+      if (toHeading != null) _renderedHeading = toHeading;
     }
   }
 
@@ -703,4 +742,23 @@ class _WaitingForFirstFramePill extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Audit W-12 (Batch B): top-level helper for shortest-arc heading
+/// interpolation. Lerp `from` toward `to` along the shortest arc on
+/// the `[0, 360)` circle. Normalizes the delta to `[-180, 180]` so a
+/// 359° → 1° transition takes the +2° path, not the -358° path.
+///
+/// Marked `@visibleForTesting` so a unit test can verify the math
+/// without spinning up an `AnimationController` and pumping it to a
+/// partial value.
+@visibleForTesting
+double shortestArcLerpDegrees(double from, double to, double t) {
+  var delta = ((to - from + 540) % 360) - 180;
+  // Antipodal edge case: an exactly-180° turn lands on `delta = -180`
+  // by the normalization, which would rotate counterclockwise. Prefer
+  // the forward (+180) direction for a more natural visual.
+  if (delta == -180) delta = 180;
+  final next = (from + delta * t) % 360;
+  return next < 0 ? next + 360 : next;
 }

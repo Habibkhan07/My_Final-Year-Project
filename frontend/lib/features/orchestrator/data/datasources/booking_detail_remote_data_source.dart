@@ -43,21 +43,19 @@ class BookingDetailRemoteDataSource implements IBookingDetailRemoteDataSource {
   /// (no cache) or returns the cached entity (offline-first).
   void _ensureOk(http.Response response) {
     if (response.statusCode >= 200 && response.statusCode < 300) return;
-    Map<String, dynamic>? envelope;
+    // Audit S-14 (Batch B): defensive parse via HttpFailure.fromEnvelope
+    // — coerces non-string code/message and tolerates non-JSON bodies
+    // (Django HTML error page, mistyped fields).
+    Object? decoded;
     try {
-      final decoded = jsonDecode(response.body);
-      if (decoded is Map<String, dynamic>) envelope = decoded;
+      decoded = jsonDecode(response.body);
     } catch (_) {
-      // Non-JSON body (e.g. Django HTML error page). Fall through to
-      // generic message — the failure is still surfaced.
+      decoded = null;
     }
-    throw HttpFailure(
+    throw HttpFailure.fromEnvelope(
       statusCode: response.statusCode,
-      code: envelope?['code'] as String? ?? 'unknown',
-      message:
-          envelope?['message'] as String? ??
-          'Request failed (${response.statusCode}).',
-      errors: (envelope?['errors'] as Map<String, dynamic>?) ?? const {},
+      body: decoded,
+      fallbackMessage: 'Request failed (${response.statusCode}).',
     );
   }
 }

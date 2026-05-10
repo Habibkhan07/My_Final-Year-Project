@@ -992,4 +992,49 @@ void main() {
       expect(MapProbe.cameraBounds, isNull);
     },
   );
+
+  // ────────── T-2n: shortest-arc heading lerp (audit W-12) ─────────────
+  // Pure-math unit tests for the `shortestArcLerpDegrees` helper.
+  // Pre-fix the marker hard-set heading on every frame, producing a
+  // visible snap mid-tween; post-fix the heading lerps along the
+  // shortest arc on the [0, 360) circle.
+
+  group('shortestArcLerpDegrees (audit W-12)', () {
+    test('forward small delta: 10 -> 20 at t=0.5 returns 15', () {
+      expect(shortestArcLerpDegrees(10, 20, 0.5), closeTo(15, 1e-9));
+    });
+
+    test('wrap forward: 359 -> 1 at t=0.5 returns 0 (NOT 180)', () {
+      // The naive (1-359)*0.5 + 359 = 180 path is wrong — that is the
+      // long way around. Shortest arc is +2 deg → midpoint = 0.
+      expect(shortestArcLerpDegrees(359, 1, 0.5), closeTo(0, 1e-9));
+    });
+
+    test('wrap backward: 1 -> 359 at t=0.5 returns 0', () {
+      // Mirror of the forward case — shortest arc is -2 deg →
+      // midpoint = 0.
+      expect(shortestArcLerpDegrees(1, 359, 0.5), closeTo(0, 1e-9));
+    });
+
+    test('antipodal 0 -> 180 at t=0.5 returns 90', () {
+      // Either direction is valid (delta normalizes to -180); the
+      // implementation deterministically picks the +180 deg path.
+      expect(shortestArcLerpDegrees(0, 180, 0.5), closeTo(90, 1e-9));
+    });
+
+    test('t=0 returns from, t=1 returns to', () {
+      expect(shortestArcLerpDegrees(45, 200, 0), closeTo(45, 1e-9));
+      expect(shortestArcLerpDegrees(45, 200, 1), closeTo(200, 1e-9));
+    });
+
+    test('result is always normalized to [0, 360)', () {
+      // Going through the boundary should not produce a negative or
+      // >= 360 value.
+      for (final t in [0.1, 0.25, 0.5, 0.75, 0.9]) {
+        final v = shortestArcLerpDegrees(350, 10, t);
+        expect(v, greaterThanOrEqualTo(0));
+        expect(v, lessThan(360));
+      }
+    });
+  });
 }
