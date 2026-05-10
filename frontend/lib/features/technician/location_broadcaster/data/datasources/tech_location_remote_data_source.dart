@@ -86,7 +86,14 @@ class TechLocationRemoteDataSource {
       );
     }
 
-    if (response.statusCode == 200) return true;
+    // DS-1 (Batch I): accept any 2xx as success. Pre-fix only 200
+    // counted as success — if the backend ever switched to 204 No
+    // Content (more correct for an idempotent fire-and-forget
+    // endpoint) or returned 202 Accepted, the data source would
+    // throw HttpFailure and the isolate logs+drops every fix.
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return true;
+    }
     if (response.statusCode == 429) return false; // throttled — drop silently
 
     // Audit S-14 (Batch B): defensive parse via HttpFailure.fromEnvelope

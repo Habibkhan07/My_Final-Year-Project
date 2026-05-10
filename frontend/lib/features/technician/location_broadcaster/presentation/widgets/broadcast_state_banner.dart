@@ -84,13 +84,19 @@ class BroadcastStateBanner extends StatelessWidget {
             ),
             if (showCta) ...[
               const SizedBox(width: 8),
+              // BANNER-1b (Batch I): bumped from `Size(0, 36)` to
+              // `Size(0, 48)` and dropped `MaterialTapTargetSize
+              // .shrinkWrap`. 36 dp tall is below Material / Android
+              // accessibility's 48 dp tap-target minimum — for a
+              // fix-permission CTA on the tracking-failed path
+              // (high-stress UX) this is exactly the wrong place to
+              // economise on tap area.
               TextButton(
                 onPressed: onOpenSettings,
                 style: TextButton.styleFrom(
                   foregroundColor: spec.foreground,
                   padding: const EdgeInsets.symmetric(horizontal: 12),
-                  minimumSize: const Size(0, 36),
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  minimumSize: const Size(0, 48),
                 ),
                 child: const Text(
                   'Open settings',

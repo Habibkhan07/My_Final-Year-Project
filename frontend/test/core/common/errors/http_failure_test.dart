@@ -129,5 +129,39 @@ void main() {
       expect(f.code, 'network_failure');
       expect(f.message, 'network unreachable');
     });
+
+    test('Map<dynamic, dynamic> body is accepted (HF-1)', () {
+      // HF-1 (Batch I): some pre-decoded paths produce
+      // `Map<dynamic, dynamic>` rather than `Map<String, dynamic>`.
+      // The strict-narrow check used to reject these and silently
+      // fall through to the fallback envelope, losing every error
+      // key the server actually sent. The broadened `body is Map`
+      // + `.cast<String, dynamic>()` accepts both shapes.
+      final body = <dynamic, dynamic>{
+        'code': 'validation_error',
+        'message': 'oops',
+      };
+      final f = HttpFailure.fromEnvelope(statusCode: 400, body: body);
+      expect(f.code, 'validation_error');
+      expect(f.message, 'oops');
+    });
+
+    test('Map<String, List<String>> errors shape is accepted (HF-2)', () {
+      // HF-2 (Batch I): DRF emits per-field validation errors as
+      // `Map<String, List<String>>`. The pre-fix narrow check on
+      // `errors` rejected this typed shape and dropped every
+      // per-field message. The broadened `is Map` + cast accepts.
+      final body = <String, dynamic>{
+        'code': 'validation_error',
+        'message': 'bad payload',
+        'errors': <String, List<String>>{
+          'phone_no': const ['This field may not be blank.'],
+          'name': const ['Too short.'],
+        },
+      };
+      final f = HttpFailure.fromEnvelope(statusCode: 400, body: body);
+      expect(f.errors['phone_no'], ['This field may not be blank.']);
+      expect(f.errors['name'], ['Too short.']);
+    });
   });
 }

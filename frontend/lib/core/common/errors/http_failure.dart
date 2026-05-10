@@ -28,9 +28,15 @@ class HttpFailure implements Exception {
     String fallbackCode = 'unknown',
     String? fallbackMessage,
   }) {
+    // HF-1 (Batch I): broaden the Map-shape check. `jsonDecode`
+    // typically returns `Map<String, dynamic>` for object literals,
+    // but some decoders / pre-decoded paths produce
+    // `Map<dynamic, dynamic>`. The strict `is Map<String, dynamic>`
+    // rejected the latter and silently fell through to the fallback
+    // envelope, losing every error key the server actually sent.
     Map<String, dynamic>? envelope;
-    if (body is Map<String, dynamic>) {
-      envelope = body;
+    if (body is Map) {
+      envelope = body.cast<String, dynamic>();
     }
 
     final rawCode = envelope?['code'];
@@ -41,9 +47,14 @@ class HttpFailure implements Exception {
         ? (fallbackMessage ?? 'request failed ($statusCode)')
         : rawMessage.toString();
 
+    // HF-2 (Batch I): same broadening on `errors`. Backend may emit
+    // `Map<String, List<String>>` (DRF's per-field validation list
+    // shape) which fails the narrow `Map<String, dynamic>` check.
+    // `Map.cast` returns a view; the wrapping is correct because
+    // every concrete `Map` from `jsonDecode` has String keys.
     final rawErrors = envelope?['errors'];
-    final errors = rawErrors is Map<String, dynamic>
-        ? rawErrors
+    final errors = rawErrors is Map
+        ? rawErrors.cast<String, dynamic>()
         : <String, dynamic>{};
 
     return HttpFailure(
