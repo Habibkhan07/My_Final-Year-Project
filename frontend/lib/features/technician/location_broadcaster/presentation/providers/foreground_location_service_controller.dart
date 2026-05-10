@@ -189,6 +189,16 @@ class ForegroundLocationServiceController
     // guard. Any concurrent listener / tail re-evaluate sees `starting`
     // and short-circuits.
     _status = _LifecycleStatus.starting;
+    // Tail re-evaluate runs only after a successful settle — without
+    // this gate a failed start (denied permission, missing token,
+    // platform error) would leave `_status = idle` + `shouldRun = true`
+    // and the tail `_evaluate()` would restart the service in a tight
+    // loop forever, since the cause of failure has not changed. The
+    // listener on `bookingDetailProvider` is the natural recovery
+    // channel — when status flips OUT of EN_ROUTE/ARRIVED or the user
+    // re-grants a permission and any provider invalidates, the next
+    // listener fire will retry. (Audit H13 surfaced this loop.)
+    var settledRunning = false;
     try {
       // SECURITY: tech_profile gate is server-side; we additionally
       // gate this controller on viewerRole == technician above.
@@ -283,6 +293,7 @@ class ForegroundLocationServiceController
         _status = _LifecycleStatus.running;
         state = BroadcastState.running;
         _registerIsolateDataCallback();
+        settledRunning = true;
       } else {
         developer.log(
           'startService failed: $result',
@@ -293,10 +304,14 @@ class ForegroundLocationServiceController
         state = BroadcastState.error;
       }
     } finally {
-      // Settle to the latest desired state. If shouldRun flipped to
-      // false while we were starting, _evaluate now triggers a stop.
-      // Idempotent when nothing changed.
-      _evaluate();
+      // Tail re-evaluate ONLY after a successful settle (running). On
+      // success this catches the case where shouldRun flipped to false
+      // mid-start — the listener short-circuited because we were
+      // `starting`, so the tail evaluate is the only chance to honour
+      // the flip. On failure, re-evaluating would just retry with the
+      // same bad inputs in a tight loop (see comment at the top of
+      // this method).
+      if (settledRunning) _evaluate();
     }
   }
 

@@ -110,7 +110,7 @@ final class TechnicianLocationStreamNotifierProvider
 }
 
 String _$technicianLocationStreamNotifierHash() =>
-    r'205f98d6e753db3aeeff0543cd62f31683ff2828';
+    r'2348f7f3cb4ed6c33e883eb8f6a375077b0d7699';
 
 /// Holds the latest [TechGpsFrame] received for [jobId], or `null`
 /// before the first frame arrives.
