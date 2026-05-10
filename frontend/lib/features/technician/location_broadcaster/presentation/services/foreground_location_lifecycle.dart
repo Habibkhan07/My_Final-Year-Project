@@ -14,13 +14,18 @@
 // Called from `AppLifecycleOrchestrator.performTeardown` between
 // `fcmHandler.unregister()` and `wsConnection.disconnect()` so the
 // device stops publishing GPS BEFORE the WS connection drops.
+//
+// Audit H13: consumes the `IForegroundTaskBackend` port instead of the
+// static `FlutterForegroundTask.X` API directly so tests can verify the
+// teardown contract with a recording fake.
 
-import 'package:flutter_foreground_task/flutter_foreground_task.dart';
-
+import '../../domain/ports/foreground_task_backend.dart';
 import 'foreground_task_handler.dart';
 
 class ForegroundLocationLifecycle {
-  const ForegroundLocationLifecycle();
+  final IForegroundTaskBackend _foregroundTask;
+
+  const ForegroundLocationLifecycle(this._foregroundTask);
 
   /// Stops any in-flight tech-location foreground service AND removes
   /// the saved config blob (auth token + booking id) from
@@ -31,9 +36,7 @@ class ForegroundLocationLifecycle {
   /// the auth-bridge teardown regardless of whether the user was a tech
   /// who had been broadcasting (or even a tech at all).
   Future<void> tearDown() async {
-    await FlutterForegroundTask.stopService();
-    await FlutterForegroundTask.removeData(
-      key: TechLocationTaskKeys.configKey,
-    );
+    await _foregroundTask.stopService();
+    await _foregroundTask.removeData(key: TechLocationTaskKeys.configKey);
   }
 }

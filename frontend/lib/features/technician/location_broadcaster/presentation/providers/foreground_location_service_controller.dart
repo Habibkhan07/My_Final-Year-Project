@@ -67,6 +67,8 @@ import '../../../../orchestrator/domain/entities/booking_detail.dart';
 import '../../../../orchestrator/domain/entities/booking_orchestrator_role.dart';
 import '../../../../orchestrator/presentation/providers/booking_detail_provider.dart';
 import '../../domain/entities/broadcast_state.dart';
+import '../../domain/ports/foreground_task_backend.dart';
+import '../../domain/ports/geolocator_backend.dart';
 import '../services/foreground_task_handler.dart';
 import 'dependency_injection.dart';
 
@@ -100,6 +102,12 @@ class ForegroundLocationServiceController
   late final int _jobId;
   _LifecycleStatus _status = _LifecycleStatus.idle;
 
+  /// Audit H13: ports cached at `build()` so the controller body can
+  /// invoke them like local fields and tests can override the
+  /// providers without threading `ref` through every helper.
+  late final IForegroundTaskBackend _foregroundTask;
+  late final IGeolocatorBackend _geolocator;
+
   /// Audit H4: latched true when the isolate reports a fatal auth
   /// error (401 / 403). Blocks `_evaluate` from restarting the service
   /// until the booking transitions out of {EN_ROUTE, ARRIVED} — which
@@ -118,6 +126,8 @@ class ForegroundLocationServiceController
   @override
   BroadcastState build(int jobId) {
     _jobId = jobId;
+    _foregroundTask = ref.watch(foregroundTaskBackendProvider);
+    _geolocator = ref.watch(geolocatorBackendProvider);
 
     ref.listen(bookingDetailProvider(jobId), (previous, next) {
       next.whenData((_) => _evaluate());
@@ -130,7 +140,7 @@ class ForegroundLocationServiceController
       // platform call is idempotent and the cost of an extra stop on a
       // not-running service is nil.
       if (_status != _LifecycleStatus.idle) {
-        unawaited(FlutterForegroundTask.stopService());
+        unawaited(_foregroundTask.stopService());
       }
       _unregisterIsolateDataCallback();
       _status = _LifecycleStatus.idle;
@@ -208,7 +218,7 @@ class ForegroundLocationServiceController
       // AndroidNotificationOptions is NOT a const constructor; the
       // class instantiates non-const default values (e.g. visibility
       // wrapper). Build it normally.
-      FlutterForegroundTask.init(
+      _foregroundTask.init(
         androidNotificationOptions: AndroidNotificationOptions(
           channelId: _kNotificationChannelId,
           channelName: _kNotificationChannelName,
@@ -235,14 +245,14 @@ class ForegroundLocationServiceController
         authToken: token,
         bookingId: booking.id,
       );
-      await FlutterForegroundTask.saveData(
+      await _foregroundTask.saveData(
         key: TechLocationTaskKeys.configKey,
         value: config,
       );
       if (!ref.mounted) return;
 
       final firstName = booking.customer.fullName.split(' ').first;
-      final result = await FlutterForegroundTask.startService(
+      final result = await _foregroundTask.startService(
         serviceTypes: const [ForegroundServiceTypes.location],
         notificationTitle: 'Tracking job',
         notificationText: 'Sending your location to $firstName',
@@ -265,7 +275,7 @@ class ForegroundLocationServiceController
         // by the time it ran `_status` was still `starting`, so the
         // hook DID call stopService. Defensive: another stop here is a
         // no-op but covers the case where dispose ordering changes.
-        if (softSuccess) unawaited(FlutterForegroundTask.stopService());
+        if (softSuccess) unawaited(_foregroundTask.stopService());
         return;
       }
 
@@ -294,7 +304,7 @@ class ForegroundLocationServiceController
     _status = _LifecycleStatus.stopping;
     _unregisterIsolateDataCallback();
     try {
-      await FlutterForegroundTask.stopService();
+      await _foregroundTask.stopService();
     } finally {
       if (ref.mounted) {
         _status = _LifecycleStatus.idle;
@@ -314,13 +324,13 @@ class ForegroundLocationServiceController
     if (_isolateDataCallback != null) return;
     final callback = _onIsolateData;
     _isolateDataCallback = callback;
-    FlutterForegroundTask.addTaskDataCallback(callback);
+    _foregroundTask.addTaskDataCallback(callback);
   }
 
   void _unregisterIsolateDataCallback() {
     final callback = _isolateDataCallback;
     if (callback == null) return;
-    FlutterForegroundTask.removeTaskDataCallback(callback);
+    _foregroundTask.removeTaskDataCallback(callback);
     _isolateDataCallback = null;
   }
 
@@ -373,20 +383,18 @@ class ForegroundLocationServiceController
   /// keeps the app foregrounded by the OS. We just log it; the banner
   /// + tap-to-settings flow lets the tech upgrade later.
   Future<BroadcastState?> _ensurePermissions() async {
-    var permission = await Geolocator.checkPermission();
+    var permission = await _geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
+      permission = await _geolocator.requestPermission();
     }
     if (permission == LocationPermission.denied ||
         permission == LocationPermission.deniedForever) {
       return BroadcastState.permissionDenied;
     }
 
-    final notifGranted =
-        await FlutterForegroundTask.checkNotificationPermission();
+    final notifGranted = await _foregroundTask.checkNotificationPermission();
     if (notifGranted != NotificationPermission.granted) {
-      final requested =
-          await FlutterForegroundTask.requestNotificationPermission();
+      final requested = await _foregroundTask.requestNotificationPermission();
       if (requested != NotificationPermission.granted) {
         return BroadcastState.notificationPermissionDenied;
       }
@@ -396,7 +404,7 @@ class ForegroundLocationServiceController
     if (permission == LocationPermission.whileInUse) {
       // On Android 10 this prompts the user; on 11+ it returns
       // whileInUse unchanged (user must use Settings).
-      final upgraded = await Geolocator.requestPermission();
+      final upgraded = await _geolocator.requestPermission();
       if (upgraded != LocationPermission.always) {
         developer.log(
           'ACCESS_BACKGROUND_LOCATION not granted (got $upgraded). Tracking '
@@ -422,5 +430,5 @@ class ForegroundLocationServiceController
   /// `bookingDetailProvider` plus the `onResumed` lifecycle hook means
   /// the next status fire (or app resume) re-evaluates and starts the
   /// service if permissions are now sufficient.
-  Future<bool> openSystemSettings() => Geolocator.openAppSettings();
+  Future<bool> openSystemSettings() => _geolocator.openAppSettings();
 }

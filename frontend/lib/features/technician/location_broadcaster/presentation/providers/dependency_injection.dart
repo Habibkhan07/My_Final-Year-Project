@@ -12,7 +12,11 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../data/adapters/flutter_foreground_task_backend.dart';
+import '../../data/adapters/geolocator_backend.dart';
 import '../../data/datasources/tech_location_remote_data_source.dart';
+import '../../domain/ports/foreground_task_backend.dart';
+import '../../domain/ports/geolocator_backend.dart';
 import '../services/foreground_location_lifecycle.dart';
 
 part 'dependency_injection.g.dart';
@@ -46,4 +50,19 @@ TechLocationRemoteDataSource techLocationRemoteDataSource(Ref ref) {
 /// kept as a provider so tests can override with a recording fake.
 @Riverpod(keepAlive: true)
 ForegroundLocationLifecycle foregroundLocationLifecycle(Ref ref) =>
-    const ForegroundLocationLifecycle();
+    ForegroundLocationLifecycle(ref.watch(foregroundTaskBackendProvider));
+
+/// Audit H13: port for the static `FlutterForegroundTask` API used by
+/// the main-isolate consumers. Tests override this with a recording fake;
+/// production uses `FlutterForegroundTaskBackend` (forwards to the real
+/// statics). Stateless on the production side — the package owns its
+/// own static state.
+@Riverpod(keepAlive: true)
+IForegroundTaskBackend foregroundTaskBackend(Ref ref) =>
+    const FlutterForegroundTaskBackend();
+
+/// Audit H13: port for the static `Geolocator` calls the controller
+/// makes during permission resolution and the settings deep-link.
+/// Production uses `GeolocatorBackend`; tests inject a recording fake.
+@Riverpod(keepAlive: true)
+IGeolocatorBackend geolocatorBackend(Ref ref) => const GeolocatorBackend();

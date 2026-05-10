@@ -229,4 +229,127 @@ final class ForegroundLocationLifecycleProvider
 }
 
 String _$foregroundLocationLifecycleHash() =>
-    r'201d6230d62d0910020b19572dd454de95a01d6e';
+    r'076b6a8d2a1cafa21dc4f41b86401056a2f2de9e';
+
+/// Audit H13: port for the static `FlutterForegroundTask` API used by
+/// the main-isolate consumers. Tests override this with a recording fake;
+/// production uses `FlutterForegroundTaskBackend` (forwards to the real
+/// statics). Stateless on the production side — the package owns its
+/// own static state.
+
+@ProviderFor(foregroundTaskBackend)
+final foregroundTaskBackendProvider = ForegroundTaskBackendProvider._();
+
+/// Audit H13: port for the static `FlutterForegroundTask` API used by
+/// the main-isolate consumers. Tests override this with a recording fake;
+/// production uses `FlutterForegroundTaskBackend` (forwards to the real
+/// statics). Stateless on the production side — the package owns its
+/// own static state.
+
+final class ForegroundTaskBackendProvider
+    extends
+        $FunctionalProvider<
+          IForegroundTaskBackend,
+          IForegroundTaskBackend,
+          IForegroundTaskBackend
+        >
+    with $Provider<IForegroundTaskBackend> {
+  /// Audit H13: port for the static `FlutterForegroundTask` API used by
+  /// the main-isolate consumers. Tests override this with a recording fake;
+  /// production uses `FlutterForegroundTaskBackend` (forwards to the real
+  /// statics). Stateless on the production side — the package owns its
+  /// own static state.
+  ForegroundTaskBackendProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'foregroundTaskBackendProvider',
+        isAutoDispose: false,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$foregroundTaskBackendHash();
+
+  @$internal
+  @override
+  $ProviderElement<IForegroundTaskBackend> $createElement(
+    $ProviderPointer pointer,
+  ) => $ProviderElement(pointer);
+
+  @override
+  IForegroundTaskBackend create(Ref ref) {
+    return foregroundTaskBackend(ref);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(IForegroundTaskBackend value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<IForegroundTaskBackend>(value),
+    );
+  }
+}
+
+String _$foregroundTaskBackendHash() =>
+    r'cfe38a4d01c147cd85643f383cd47a8cbe04e57e';
+
+/// Audit H13: port for the static `Geolocator` calls the controller
+/// makes during permission resolution and the settings deep-link.
+/// Production uses `GeolocatorBackend`; tests inject a recording fake.
+
+@ProviderFor(geolocatorBackend)
+final geolocatorBackendProvider = GeolocatorBackendProvider._();
+
+/// Audit H13: port for the static `Geolocator` calls the controller
+/// makes during permission resolution and the settings deep-link.
+/// Production uses `GeolocatorBackend`; tests inject a recording fake.
+
+final class GeolocatorBackendProvider
+    extends
+        $FunctionalProvider<
+          IGeolocatorBackend,
+          IGeolocatorBackend,
+          IGeolocatorBackend
+        >
+    with $Provider<IGeolocatorBackend> {
+  /// Audit H13: port for the static `Geolocator` calls the controller
+  /// makes during permission resolution and the settings deep-link.
+  /// Production uses `GeolocatorBackend`; tests inject a recording fake.
+  GeolocatorBackendProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'geolocatorBackendProvider',
+        isAutoDispose: false,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$geolocatorBackendHash();
+
+  @$internal
+  @override
+  $ProviderElement<IGeolocatorBackend> $createElement(
+    $ProviderPointer pointer,
+  ) => $ProviderElement(pointer);
+
+  @override
+  IGeolocatorBackend create(Ref ref) {
+    return geolocatorBackend(ref);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(IGeolocatorBackend value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<IGeolocatorBackend>(value),
+    );
+  }
+}
+
+String _$geolocatorBackendHash() => r'da1a963673e9a44cc5d4ff5c1501a8108acf7271';
