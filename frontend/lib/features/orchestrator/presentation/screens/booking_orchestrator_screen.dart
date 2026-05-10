@@ -71,8 +71,15 @@ class BookingOrchestratorScreen extends ConsumerWidget {
     // ForegroundLocationServiceController is similarly watched here on
     // the tech-side path so the foreground service starts/stops in
     // lockstep with the booking status. (Lands in commit 3.)
-    ref.watch(trackingSubscriptionControllerProvider(jobId));
+    // OSCREEN-1 (Batch I): order load-bearing — register the
+    // `tech_gps` handler with the dispatcher BEFORE the subscribe
+    // envelope goes upstream. The previous order had the comment
+    // describing the right invariant but the code doing the
+    // opposite, so a frame arriving in the narrow window between
+    // upstream subscribe and synchronous handler register would
+    // be logged as "no handler registered" and dropped.
     ref.watch(technicianLocationStreamProvider(jobId));
+    ref.watch(trackingSubscriptionControllerProvider(jobId));
     ref.watch(foregroundLocationServiceControllerProvider(jobId));
 
     final detailAsync = ref.watch(bookingDetailProvider(jobId));

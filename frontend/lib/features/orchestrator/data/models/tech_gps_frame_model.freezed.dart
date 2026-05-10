@@ -15,7 +15,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$TechGpsFrameModel {
 
-@JsonKey(name: 'booking_id') int get bookingId; double get lat; double get lng;@JsonKey(name: 'accuracy_meters') double? get accuracyMeters; double? get heading;
+@JsonKey(name: 'booking_id') int get bookingId;@JsonKey(fromJson: _doubleFromJson) double get lat;@JsonKey(fromJson: _doubleFromJson) double get lng;@JsonKey(name: 'accuracy_meters', fromJson: _nullableDoubleFromJson) double? get accuracyMeters;@JsonKey(fromJson: _nullableDoubleFromJson) double? get heading;
 /// Create a copy of TechGpsFrameModel
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -48,7 +48,7 @@ abstract mixin class $TechGpsFrameModelCopyWith<$Res>  {
   factory $TechGpsFrameModelCopyWith(TechGpsFrameModel value, $Res Function(TechGpsFrameModel) _then) = _$TechGpsFrameModelCopyWithImpl;
 @useResult
 $Res call({
-@JsonKey(name: 'booking_id') int bookingId, double lat, double lng,@JsonKey(name: 'accuracy_meters') double? accuracyMeters, double? heading
+@JsonKey(name: 'booking_id') int bookingId,@JsonKey(fromJson: _doubleFromJson) double lat,@JsonKey(fromJson: _doubleFromJson) double lng,@JsonKey(name: 'accuracy_meters', fromJson: _nullableDoubleFromJson) double? accuracyMeters,@JsonKey(fromJson: _nullableDoubleFromJson) double? heading
 });
 
 
@@ -157,7 +157,7 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(name: 'booking_id')  int bookingId,  double lat,  double lng, @JsonKey(name: 'accuracy_meters')  double? accuracyMeters,  double? heading)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(name: 'booking_id')  int bookingId, @JsonKey(fromJson: _doubleFromJson)  double lat, @JsonKey(fromJson: _doubleFromJson)  double lng, @JsonKey(name: 'accuracy_meters', fromJson: _nullableDoubleFromJson)  double? accuracyMeters, @JsonKey(fromJson: _nullableDoubleFromJson)  double? heading)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _TechGpsFrameModel() when $default != null:
 return $default(_that.bookingId,_that.lat,_that.lng,_that.accuracyMeters,_that.heading);case _:
@@ -178,7 +178,7 @@ return $default(_that.bookingId,_that.lat,_that.lng,_that.accuracyMeters,_that.h
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(name: 'booking_id')  int bookingId,  double lat,  double lng, @JsonKey(name: 'accuracy_meters')  double? accuracyMeters,  double? heading)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(name: 'booking_id')  int bookingId, @JsonKey(fromJson: _doubleFromJson)  double lat, @JsonKey(fromJson: _doubleFromJson)  double lng, @JsonKey(name: 'accuracy_meters', fromJson: _nullableDoubleFromJson)  double? accuracyMeters, @JsonKey(fromJson: _nullableDoubleFromJson)  double? heading)  $default,) {final _that = this;
 switch (_that) {
 case _TechGpsFrameModel():
 return $default(_that.bookingId,_that.lat,_that.lng,_that.accuracyMeters,_that.heading);case _:
@@ -198,7 +198,7 @@ return $default(_that.bookingId,_that.lat,_that.lng,_that.accuracyMeters,_that.h
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(name: 'booking_id')  int bookingId,  double lat,  double lng, @JsonKey(name: 'accuracy_meters')  double? accuracyMeters,  double? heading)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(name: 'booking_id')  int bookingId, @JsonKey(fromJson: _doubleFromJson)  double lat, @JsonKey(fromJson: _doubleFromJson)  double lng, @JsonKey(name: 'accuracy_meters', fromJson: _nullableDoubleFromJson)  double? accuracyMeters, @JsonKey(fromJson: _nullableDoubleFromJson)  double? heading)?  $default,) {final _that = this;
 switch (_that) {
 case _TechGpsFrameModel() when $default != null:
 return $default(_that.bookingId,_that.lat,_that.lng,_that.accuracyMeters,_that.heading);case _:
@@ -213,14 +213,14 @@ return $default(_that.bookingId,_that.lat,_that.lng,_that.accuracyMeters,_that.h
 @JsonSerializable()
 
 class _TechGpsFrameModel implements TechGpsFrameModel {
-  const _TechGpsFrameModel({@JsonKey(name: 'booking_id') required this.bookingId, required this.lat, required this.lng, @JsonKey(name: 'accuracy_meters') this.accuracyMeters, this.heading});
+  const _TechGpsFrameModel({@JsonKey(name: 'booking_id') required this.bookingId, @JsonKey(fromJson: _doubleFromJson) required this.lat, @JsonKey(fromJson: _doubleFromJson) required this.lng, @JsonKey(name: 'accuracy_meters', fromJson: _nullableDoubleFromJson) this.accuracyMeters, @JsonKey(fromJson: _nullableDoubleFromJson) this.heading});
   factory _TechGpsFrameModel.fromJson(Map<String, dynamic> json) => _$TechGpsFrameModelFromJson(json);
 
 @override@JsonKey(name: 'booking_id') final  int bookingId;
-@override final  double lat;
-@override final  double lng;
-@override@JsonKey(name: 'accuracy_meters') final  double? accuracyMeters;
-@override final  double? heading;
+@override@JsonKey(fromJson: _doubleFromJson) final  double lat;
+@override@JsonKey(fromJson: _doubleFromJson) final  double lng;
+@override@JsonKey(name: 'accuracy_meters', fromJson: _nullableDoubleFromJson) final  double? accuracyMeters;
+@override@JsonKey(fromJson: _nullableDoubleFromJson) final  double? heading;
 
 /// Create a copy of TechGpsFrameModel
 /// with the given fields replaced by the non-null parameter values.
@@ -255,7 +255,7 @@ abstract mixin class _$TechGpsFrameModelCopyWith<$Res> implements $TechGpsFrameM
   factory _$TechGpsFrameModelCopyWith(_TechGpsFrameModel value, $Res Function(_TechGpsFrameModel) _then) = __$TechGpsFrameModelCopyWithImpl;
 @override @useResult
 $Res call({
-@JsonKey(name: 'booking_id') int bookingId, double lat, double lng,@JsonKey(name: 'accuracy_meters') double? accuracyMeters, double? heading
+@JsonKey(name: 'booking_id') int bookingId,@JsonKey(fromJson: _doubleFromJson) double lat,@JsonKey(fromJson: _doubleFromJson) double lng,@JsonKey(name: 'accuracy_meters', fromJson: _nullableDoubleFromJson) double? accuracyMeters,@JsonKey(fromJson: _nullableDoubleFromJson) double? heading
 });
 
 

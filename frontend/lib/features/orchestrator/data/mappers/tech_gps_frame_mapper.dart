@@ -30,26 +30,45 @@ class TechGpsFrameMapper {
     if (!_isValidLat(model.lat) || !_isValidLng(model.lng)) return null;
     if (!_isValidHeading(model.heading)) return null;
 
+    // MAP-2 (Batch I): Geolocator on Android occasionally emits 360.0
+    // for due-north (instead of normalising to 0.0). Pre-fix the
+    // strict-less validator dropped these frames entirely, causing a
+    // momentary marker freeze when the tech faced north. Accept the
+    // closed interval [0, 360] in the validator and normalise 360 → 0
+    // here so widget-side rotation is unambiguous.
+    final heading = model.heading;
+    final normalisedHeading = heading == null
+        ? null
+        : (heading == 360.0 ? 0.0 : heading);
+
     final stamp = (now ?? DateTime.now)();
     return TechGpsFrame(
       bookingId: model.bookingId,
       latitude: model.lat,
       longitude: model.lng,
       accuracyMeters: model.accuracyMeters,
-      heading: model.heading,
+      heading: normalisedHeading,
       frameArrivedAt: stamp,
     );
   }
 
+  // MAP-1 (Batch I): use `isFinite` (rejects NaN AND ±infinity)
+  // rather than `isNaN` alone. Pre-fix `+infinity > 90.0` was true
+  // (so rejected) but `-infinity < -90.0` was true and rejected by
+  // accident; the intent-vs-code coupling was load-bearing. Make the
+  // intent explicit so a future bounds-relax doesn't silently let
+  // infinity through.
   static bool _isValidLat(double lat) =>
-      !lat.isNaN && lat >= -90.0 && lat <= 90.0;
+      lat.isFinite && lat >= -90.0 && lat <= 90.0;
   static bool _isValidLng(double lng) =>
-      !lng.isNaN && lng >= -180.0 && lng <= 180.0;
+      lng.isFinite && lng >= -180.0 && lng <= 180.0;
   // Heading is optional. When present, geolocator/backend convention is
-  // [0, 360) degrees. Allow null; reject NaN and out-of-range.
+  // [0, 360] degrees. Allow null; reject NaN/infinity and out-of-range.
+  // MAP-2 (Batch I): closed interval — 360.0 is normalised to 0.0 in
+  // toDomain so it should pass the validator here.
   static bool _isValidHeading(double? heading) {
     if (heading == null) return true;
-    if (heading.isNaN) return false;
-    return heading >= 0.0 && heading < 360.0;
+    if (!heading.isFinite) return false;
+    return heading >= 0.0 && heading <= 360.0;
   }
 }

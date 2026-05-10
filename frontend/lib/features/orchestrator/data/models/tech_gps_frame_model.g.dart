@@ -9,10 +9,10 @@ part of 'tech_gps_frame_model.dart';
 _TechGpsFrameModel _$TechGpsFrameModelFromJson(Map<String, dynamic> json) =>
     _TechGpsFrameModel(
       bookingId: (json['booking_id'] as num).toInt(),
-      lat: (json['lat'] as num).toDouble(),
-      lng: (json['lng'] as num).toDouble(),
-      accuracyMeters: (json['accuracy_meters'] as num?)?.toDouble(),
-      heading: (json['heading'] as num?)?.toDouble(),
+      lat: _doubleFromJson(json['lat']),
+      lng: _doubleFromJson(json['lng']),
+      accuracyMeters: _nullableDoubleFromJson(json['accuracy_meters']),
+      heading: _nullableDoubleFromJson(json['heading']),
     );
 
 Map<String, dynamic> _$TechGpsFrameModelToJson(_TechGpsFrameModel instance) =>

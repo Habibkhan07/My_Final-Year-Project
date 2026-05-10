@@ -94,12 +94,49 @@ void main() {
       expect(TechGpsFrameMapper.toDomain(model, now: injectedNow), isNull);
     });
 
-    test('rejects out-of-range heading (>= 360)', () {
+    test('rejects out-of-range heading (> 360)', () {
+      // MAP-2 (Batch I): the strict-less validator dropped exactly
+      // 360.0 — Geolocator on Android occasionally emits this for
+      // due-north — causing a momentary marker freeze. Now the
+      // validator accepts the closed [0, 360] interval and toDomain
+      // normalises 360.0 → 0.0. The actually-out-of-range case
+      // remains rejected.
+      const model = TechGpsFrameModel(
+        bookingId: 42,
+        lat: 31.5,
+        lng: 74.3,
+        heading: 361.0,
+      );
+      expect(TechGpsFrameMapper.toDomain(model, now: injectedNow), isNull);
+    });
+
+    test('normalises heading 360.0 → 0.0 (MAP-2)', () {
       const model = TechGpsFrameModel(
         bookingId: 42,
         lat: 31.5,
         lng: 74.3,
         heading: 360.0,
+      );
+      final entity = TechGpsFrameMapper.toDomain(model, now: injectedNow);
+      expect(entity, isNotNull);
+      expect(entity!.heading, 0.0);
+    });
+
+    test('rejects infinity heading (MAP-1)', () {
+      final model = TechGpsFrameModel(
+        bookingId: 42,
+        lat: 31.5,
+        lng: 74.3,
+        heading: double.infinity,
+      );
+      expect(TechGpsFrameMapper.toDomain(model, now: injectedNow), isNull);
+    });
+
+    test('rejects infinity latitude (MAP-1)', () {
+      final model = TechGpsFrameModel(
+        bookingId: 42,
+        lat: double.infinity,
+        lng: 0.0,
       );
       expect(TechGpsFrameMapper.toDomain(model, now: injectedNow), isNull);
     });
@@ -189,6 +226,29 @@ void main() {
 
       expect(model.accuracyMeters, isNull);
       expect(model.heading, isNull);
+    });
+
+    test('coerces integer wire values to double (MODEL-1)', () {
+      // MODEL-1 (Batch I): a hand-crafted payload, debugging tool, or
+      // misconfigured client may send `lat: 31` (JSON integer) instead
+      // of `lat: 31.0`. Pre-fix the generated `as double` cast threw
+      // TypeError, the notifier swallowed it, and the customer
+      // silently never saw frames. The custom fromJson converter now
+      // accepts any `num` and coerces to double.
+      final json = <String, dynamic>{
+        'lat': 31, // integer
+        'lng': 74, // integer
+        'accuracy_meters': 9, // integer
+        'heading': 145, // integer
+        'booking_id': 42,
+      };
+
+      final model = TechGpsFrameModel.fromJson(json);
+
+      expect(model.lat, 31.0);
+      expect(model.lng, 74.0);
+      expect(model.accuracyMeters, 9.0);
+      expect(model.heading, 145.0);
     });
   });
 }
