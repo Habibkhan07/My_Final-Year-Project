@@ -120,9 +120,53 @@ balance an event?" — no: per-frame, the live balance is a stream, the
 
 The dispatcher imports nothing feature-specific. Concrete `streamType`
 handlers register themselves from each feature's DI file via
-`dispatcher.register(streamType, handler)`. No concrete stream types ship
-in this patch — the registry is the contract that future stream wirings
-hang off.
+`dispatcher.register(streamType, handler)`. The first concrete consumer
+shipped in session 4 of the Booking Orchestrator sprint:
+[`tech_gps`](../../features/orchestrator/presentation/providers/technician_location_stream_notifier.dart)
+in the orchestrator feature. Future stream wirings (live wallet balance
+display, AI chatbot tokens, typing indicators) follow the same pattern —
+documented in `features/orchestrator/ORCHESTRATOR_FEATURE.md` §"Realtime
+Stream Consumer Pattern".
+
+**Identity-checked unregister (audit C5).** `dispatcher.unregister`
+takes both the streamType AND the handler reference:
+
+```dart
+void unregister(
+  String streamType,
+  void Function(Map<String, dynamic> payload) handler,
+);
+```
+
+The dispatcher only removes the registration if the currently-stored
+handler is `identical` to the passed-in one. This guards a race where
+two notifiers for the same streamType overlap in lifetime — notifier A
+registers, notifier B replaces (last-writer-wins), then A's late
+`ref.onDispose` fires `unregister`. With identity-checked unregister,
+A's late call sees that B's handler is registered (not A's) and becomes
+a safe no-op; B stays live. Without it, B's screen would freeze with no
+GPS frames forever.
+
+The multi-handler refactor of the dispatcher (deferred via flag #34)
+will key its list-remove on the same identity comparison.
+
+### 2.2 WsConnectionNotifier lifecycle events
+
+The notifier exposes a broadcast `Stream<WsConnectionEvent> connectionEvents` (`WsConnected` / `WsDisconnected`) so reconnect-aware consumers — primarily `TrackingSubscriptionController` — can replay upstream subscriptions on every `WsConnected`. Late subscribers see only events fired after they listen (no replay); deliberate so consumers don't filter by recency.
+
+Emission contract (audit H2 hardening):
+
+- **`_announcedConnected` flag.** A boolean that flips true after `_connectionEvents.add(WsConnected(...))` and false after `_emitDisconnect()` actually emits. The flag is the gate inside `_emitDisconnect` — without it, `disconnect()` on a never-connected notifier would emit a spurious `WsDisconnected` (R-6).
+- **Prior-socket close emits a `WsDisconnected`.** Calling `connect()` twice (token refresh) closes the prior socket; before the close, `_emitDisconnect()` fires for the prior cycle. Without this, reconnect-aware consumers saw `Connected → Connected` and never re-issued upstream messages for the new socket (R-5). The handshake-throw path emits the same way.
+- **`onError` honours `_manualDisconnect`.** The stream's error handler mirrors the manual-disconnect guard from `onDone` — a late stream error fired during a logout-driven socket teardown does NOT schedule a reconnect (R-21). Without this, a stray error after `disconnect()` would open a socket on a logged-out user.
+
+### 2.3 `SystemEventNotifier.serverNow()` — server-anchored clock
+
+The notifier maintains a server-time anchor seeded by `source: ws` events. The public `serverNow()` method returns the best-estimate server-side wall clock (anchor + elapsed local time since observation), or local UTC when no WS event has been observed yet.
+
+Audit H8 surfaced this for non-realtime consumers — primarily `LiveTrackingMap`'s staleness banner and `TechnicianLocationStreamNotifier`'s frame-arrival stamping. Both halves of the staleness math (`now - lastFrameAt`) must read from the same clock; using `DateTime.now()` on a device with a skewed wall clock would falsely flip a fresh frame to "offline." The expiry filter inside `SystemEventNotifier` itself uses the same anchor for the same reason.
+
+Stream consumers stamping arrival time should pass `() => ref.read(systemEventProvider.notifier).serverNow()` as the `now` callback to their mapper.
 
 ### Directory Structure
 

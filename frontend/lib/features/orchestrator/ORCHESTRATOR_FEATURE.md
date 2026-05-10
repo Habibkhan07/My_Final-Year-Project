@@ -34,25 +34,46 @@ The audience-shared full-screen surface that drives a single booking through its
 Session 4 lit up the codebase's first `kind: "stream"` consumer
 (`tech_gps`). The pattern below documents it for future stream features
 (live wallet balance display, AI chatbot tokens, typing indicators).
+The audit hardening pass (C1, C5, H5, H8) cemented several rules — they
+are flagged in the touch-points below.
 
 **Touch-points** — analogous to the per-event pattern in CLAUDE.md:
 
 1. **Payload model + mapper in the consumer feature** (NOT in `core/realtime`).
    - Wire DTO with `fromJson` (the dispatcher passes `frame['payload']`,
      not the envelope).
-   - Mapper to domain entity. If the payload omits a field the domain
-     needs (e.g. `tech_gps` has no payload-level timestamp), the mapper
-     stamps it from the client clock at conversion time.
+   - Mapper to domain entity. **The mapper must validate payload bounds
+     and may return `null` to drop a malformed frame** (audit H5). Stream
+     frames bypass the envelope-layer recipient/expiry filters in
+     `SystemEventNotifier`, so the mapper is the only place a
+     server-bug / wire-corruption / MITM payload gets stopped.
+   - If the payload omits a field the domain needs (e.g. `tech_gps`
+     has no payload-level timestamp), the mapper stamps it via an
+     injectable `now` callback. **Production callers should pass
+     `() => ref.read(systemEventProvider.notifier).serverNow()`** so
+     downstream staleness checks (also using `serverNow()`) compute on
+     a single coherent clock immune to device clock skew (audit H8).
 2. **A `@Riverpod(keepAlive: false)` family notifier whose `build()`
      registers the handler with `WsFrameDispatcher`.**
    - Audit P1-05: `state` mutations inside the handler MUST defer past
      `build()` via `Future.microtask` + `ref.mounted` guard.
-   - Audit P0-07: `dispatcher.unregister(streamType)` is single-arg —
-     the dispatcher is single-handler-per-type (flag #34 deferred).
+   - Audit C5: `dispatcher.unregister(streamType, handler)` is
+     **two-arg with an identity check** — pass the same handler
+     reference you registered. The dispatcher only removes if the
+     currently-registered handler is identical, so a late
+     `ref.onDispose` against a successor notifier's registration
+     becomes a safe no-op. (Single-handler-per-type still applies —
+     flag #34 deferred for the multi-handler refactor.)
 3. **A `TrackingSubscriptionController`-style upstream gate (only if
      the stream requires `subscribe_<topic>` upstream messages).**
    - Listens to whatever provider gates the subscription (booking
      status × role, current screen, etc.).
+   - **Use `ref.listen(..., fireImmediately: true)`** (audit C1) — a
+     plain `ref.listen` only fires on future *transitions*, so if the
+     gating provider was already resolved when the controller's
+     `build` ran (cached data, later widget mounting the controller
+     after the gate resolved) the gate would silently never evaluate
+     and the upstream subscribe would never fire.
    - Listens to `wsConnectionProvider.connectionEvents` and replays the
      subscribe message on every `WsConnected` (audit P1-06).
 4. **The screen `ref.watch`-es the notifier in `build()` (NOT
