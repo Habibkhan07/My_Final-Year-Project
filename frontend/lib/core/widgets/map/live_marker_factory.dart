@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -82,7 +83,7 @@ class LiveMarkerFactory {
       // tests use `find.byKey(headingRotationKey)` to assert the rotation
       // wrapper is (or is not) present, since `find.byType(Transform)`
       // would also match material's internal `Transform`s.
-      final radians = marker.rotationDegrees * 3.141592653589793 / 180.0;
+      final radians = marker.rotationDegrees * math.pi / 180.0;
       bubble = Transform.rotate(
         key: headingRotationKey,
         angle: radians,

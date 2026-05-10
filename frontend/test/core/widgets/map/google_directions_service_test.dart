@@ -162,13 +162,36 @@ void main() {
       );
     });
 
-    test('raises DirectionsNetworkFailure on 4xx', () async {
+    // Audit P1-1: HTTP-level 4xx now branches on semantics.
+    test('raises DirectionsRateLimited on HTTP 429', () async {
+      final client = MockClient(
+        (_) async => http.Response('rate limited', 429),
+      );
+      final svc = GoogleDirectionsService(client, apiKey: 'TEST_KEY');
+
+      await expectLater(
+        svc.getRoute(origin: _origin, destination: _destination),
+        throwsA(isA<DirectionsRateLimited>()),
+      );
+    });
+
+    test('raises DirectionsNoRoute on HTTP 404', () async {
+      final client = MockClient((_) async => http.Response('not found', 404));
+      final svc = GoogleDirectionsService(client, apiKey: 'TEST_KEY');
+
+      await expectLater(
+        svc.getRoute(origin: _origin, destination: _destination),
+        throwsA(isA<DirectionsNoRoute>()),
+      );
+    });
+
+    test('raises UnknownDirectionsFailure on other 4xx (e.g. 403)', () async {
       final client = MockClient((_) async => http.Response('forbidden', 403));
       final svc = GoogleDirectionsService(client, apiKey: 'TEST_KEY');
 
       await expectLater(
         svc.getRoute(origin: _origin, destination: _destination),
-        throwsA(isA<DirectionsNetworkFailure>()),
+        throwsA(isA<UnknownDirectionsFailure>()),
       );
     });
 

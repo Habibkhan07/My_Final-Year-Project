@@ -77,9 +77,13 @@ class TechLocationTaskKeys {
   /// ASCII Unit Separator (0x1F). Picked because it cannot legally
   /// appear inside an auth token or numeric booking id, so a simple
   /// `split` round-trips losslessly without JSON serialization. The
-  /// `` escape is preferred over a literal byte because some
-  /// editors / file writers strip the unprintable char silently.
-  static const String _delimiter = '';
+  /// `\u001F` escape sequence is used here (NOT a literal 0x1F byte)
+  /// because some editors / file writers strip the unprintable char
+  /// silently. If that happened, `encodeConfig` would collapse to
+  /// `'$authToken$bookingId'` and every isolate spin-up would fail
+  /// silently when `decodeConfig` rejects parts.length != 2. Audit
+  /// P1-3 caught a regression where this had become a literal byte.
+  static const String _delimiter = '\u001F';
 
   /// Encode `(authToken, bookingId)` to a single string the
   /// foreground task handler can split back. Used by the controller's
@@ -172,6 +176,13 @@ class TechLocationTaskHandler extends TaskHandler {
   Future<void> _onFix(Position position) async {
     final remote = _remote;
     if (remote == null) return;
+    // Audit P2-4: defend against geolocator emitting NaN / infinite
+    // values on cold-start or hardware glitch. `jsonEncode` writes
+    // these as `null`, the backend serializer 400s, and the isolate
+    // logs+drops — wasting one POST per glitched fix. Drop early.
+    if (!position.latitude.isFinite || !position.longitude.isFinite) {
+      return;
+    }
     try {
       await remote.postLocation(
         bookingId: _bookingId,

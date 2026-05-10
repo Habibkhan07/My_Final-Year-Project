@@ -80,12 +80,9 @@ switch (frame['kind']) {
 
 ## Currently-supported `streamType` values
 
-None yet — this patch ships the dispatch primitive without any concrete
-stream callers. As stream types are added, document them here:
-
 | `streamType` | Source | Frontend handler | Notes |
 |--------------|--------|------------------|-------|
-| _(none yet)_ |        |                  |       |
+| `tech_gps`   | `bookings.api.tech_location_api.TechLocationIngressView` → `publish_stream(group=tracking_job_<id>)` | `frontend/lib/features/orchestrator/presentation/providers/technician_location_stream_notifier.dart` | Technician live GPS telemetry for an in-flight booking (statuses `EN_ROUTE` / `ARRIVED`). Payload `{lat, lng, accuracy_meters?, heading?, booking_id}`. Customers + the assigned tech join the `tracking_job_<id>` subgroup via the consumer's `subscribe_tracking` upstream message; backend per-booking 4s throttle returns 429 to clients. Mapper validates lat/lng/heading bounds (audit H5) and uses client arrival time as the staleness anchor (envelope timestamp is dropped before the handler — see §"Stream Envelope" caveat). Heading is `null` when `headingAccuracy <= 0` (audit H1). |
 
 When adding a new stream type, also update the frontend dispatcher's
 switch and the relevant feature notifier so it can consume the payload.

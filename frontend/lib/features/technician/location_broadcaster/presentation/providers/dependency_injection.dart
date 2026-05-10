@@ -1,20 +1,27 @@
 // Dependency injection for the location-broadcaster feature.
 //
-// The data source / http client live in this DI file rather than
-// reusing the realtime singletons because the tech-location POST runs
-// (a) from the main isolate when the controller starts the service
-// (we do not POST from main directly today, but the data source is
-// also useful for future tech-side admin actions), and (b) from
-// inside the foreground task isolate, which constructs its own
-// `http.Client()` because Riverpod providers don't cross isolate
-// boundaries (see `presentation/services/foreground_task_handler.dart`).
+// The foreground task isolate constructs its OWN `http.Client()`
+// because Riverpod providers don't cross isolate boundaries (see
+// `presentation/services/foreground_task_handler.dart`). The main
+// isolate does not POST to `tech-location` itself, so this DI file
+// only carries: secure-storage (for the controller's token read),
+// the foreground-task lifecycle service, and the H13 ports for the
+// static FlutterForegroundTask + Geolocator surfaces.
+//
+// Audit F-26 (Batch A): the previously-shipped
+// `locationBroadcasterHttpClientProvider` and
+// `techLocationRemoteDataSourceProvider` were dead code in
+// production — kept "for tests + future tech-side admin actions"
+// that never materialised, and the data-source test constructs
+// `TechLocationRemoteDataSource(client)` directly with `MockClient`.
+// Removed per CLAUDE.md "don't design for hypothetical future
+// requirements." If a future feature needs main-isolate POSTs they
+// can be reintroduced in one commit.
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:http/http.dart' as http;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../data/adapters/flutter_foreground_task_backend.dart';
 import '../../data/adapters/geolocator_backend.dart';
-import '../../data/datasources/tech_location_remote_data_source.dart';
 import '../../domain/ports/foreground_task_backend.dart';
 import '../../domain/ports/geolocator_backend.dart';
 import '../services/foreground_location_lifecycle.dart';
@@ -28,23 +35,6 @@ part 'dependency_injection.g.dart';
 @Riverpod(keepAlive: true)
 FlutterSecureStorage locationBroadcasterSecureStorage(Ref ref) =>
     const FlutterSecureStorage();
-
-/// Per-feature http.Client. The controller does not POST itself —
-/// only the foreground task isolate posts — but the data source is
-/// constructible from main-isolate too for tests + future use.
-@Riverpod(keepAlive: true)
-http.Client locationBroadcasterHttpClient(Ref ref) {
-  final client = http.Client();
-  ref.onDispose(client.close);
-  return client;
-}
-
-@Riverpod(keepAlive: true)
-TechLocationRemoteDataSource techLocationRemoteDataSource(Ref ref) {
-  return TechLocationRemoteDataSource(
-    ref.watch(locationBroadcasterHttpClientProvider),
-  );
-}
 
 /// Owned by `AppLifecycleOrchestrator.performTeardown`. Stateless —
 /// kept as a provider so tests can override with a recording fake.

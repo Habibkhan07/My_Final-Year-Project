@@ -30,6 +30,9 @@ sealed class WsConnectionEvent {
   const WsConnectionEvent();
 }
 
+/// Audit R-15 (Batch A): `at` is always UTC. Construction sites use
+/// `DateTime.now().toUtc()` so cross-frame correlation (server logs,
+/// other UTC-anchored clocks) works without TZ guessing.
 class WsConnected extends WsConnectionEvent {
   final DateTime at;
   const WsConnected(this.at);
@@ -164,7 +167,7 @@ class WsConnectionNotifier extends _$WsConnectionNotifier {
     // can replay subscribe_tracking. Add() is a no-op if the controller
     // has been closed during shutdown.
     if (!_connectionEvents.isClosed) {
-      _connectionEvents.add(WsConnected(DateTime.now()));
+      _connectionEvents.add(WsConnected(DateTime.now().toUtc()));
       _announcedConnected = true;
     }
     _retryCount = 0;
@@ -263,7 +266,7 @@ class WsConnectionNotifier extends _$WsConnectionNotifier {
     // (they'd think a prior cycle existed when none did).
     if (!_announcedConnected) return;
     if (!_connectionEvents.isClosed) {
-      _connectionEvents.add(WsDisconnected(DateTime.now()));
+      _connectionEvents.add(WsDisconnected(DateTime.now().toUtc()));
     }
     _announcedConnected = false;
   }

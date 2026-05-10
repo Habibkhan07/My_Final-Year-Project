@@ -261,7 +261,17 @@ class ForegroundLocationServiceController
       );
       if (!ref.mounted) return;
 
-      final firstName = booking.customer.fullName.split(' ').first;
+      // Audit F-10 (Batch A): `customer.fullName.split(' ').first`
+      // crashes nothing but produces ugly notification text on
+      // pathological inputs — leading whitespace ("` Ali`") yields an
+      // empty first token; multiple spaces ("`Ali  Khan`") still work
+      // but stray unicode whitespace (NBSP from copy-paste) doesn't
+      // split. Trim + RegExp split + isEmpty fallback hardens the
+      // user-visible string.
+      final trimmedName = booking.customer.fullName.trim();
+      final firstName = trimmedName.isEmpty
+          ? 'customer'
+          : trimmedName.split(RegExp(r'\s+')).first;
       final result = await _foregroundTask.startService(
         serviceTypes: const [ForegroundServiceTypes.location],
         notificationTitle: 'Tracking job',

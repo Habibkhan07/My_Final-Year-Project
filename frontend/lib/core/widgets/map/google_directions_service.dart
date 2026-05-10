@@ -70,6 +70,23 @@ class GoogleDirectionsService implements IDirectionsService {
     if (response.statusCode >= 500) {
       throw DirectionsServerFailure(response.statusCode);
     }
+    // Audit P1-1: branch HTTP-level 4xx codes on semantics. 429 must
+    // back off (NOT retry as transient), 404 is genuinely "no route /
+    // bad URL" (treat as DirectionsNoRoute UX-wise), other 4xx are
+    // setup bugs (bad key path, bad request shape) that belong in
+    // UnknownDirectionsFailure for log triage. Pre-fix everything
+    // collapsed to DirectionsNetworkFailure → tight retry cascades.
+    if (response.statusCode == 429) {
+      throw const DirectionsRateLimited();
+    }
+    if (response.statusCode == 404) {
+      throw const DirectionsNoRoute();
+    }
+    if (response.statusCode >= 400) {
+      throw UnknownDirectionsFailure(
+        'Google Directions HTTP ${response.statusCode}',
+      );
+    }
     if (response.statusCode != 200) {
       throw const DirectionsNetworkFailure();
     }

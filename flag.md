@@ -1232,3 +1232,38 @@ P3 (was P2 — narrowed by H14 closing the LiveTrackingMap portion). Adapter-sid
 Test commit: f9dc93d. 15 widget tests cover all 13 T-2 branches + 2 happy/error variants for the call FAB. Recording stub `IAppMap` captures camera/marker/polyline/gesture props per build; sequence-driven `_FakeDirectionsService` + `_FakeUrlLauncher` round out the test seam.
 
 The remaining adapter-side scope (Google/OSM controller-coupled branches) keeps this flag open but at reduced severity.
+
+---
+
+## 37. OSRM public-instance for production directions
+
+**Where**
+- `frontend/lib/core/widgets/map/osrm_directions_service.dart:25-28` — default `baseUrl: 'https://router.project-osrm.org'`.
+- `frontend/lib/core/widgets/map/map_provider.dart` — `directionsServiceProvider` falls back to `OsrmDirectionsService` when `MAP_PROVIDER=osm` (no API key required).
+
+**What's wrong**
+The default OSM map provider builds against the public OSRM demo instance (`router.project-osrm.org`). That host is explicitly **demo-only** — the OSRM project asks not to be used at production scale. Symptoms in real traffic:
+- Soft rate-limits during regional bursts → 429s (now mapped to `DirectionsRateLimited` per audit P1-1, but the user-visible UX is still "ETA missing").
+- Periodic 5xx during peak load → `DirectionsServerFailure(503)`.
+- 8-30 second tail latency on cold paths even when the timeout (8s, audit H3) catches the worst.
+
+The source comment at `osrm_directions_service.dart:14-16` literally says *"flag.md will note this; production must self-host OSRM or fall back to Google."* The flag was never opened in session 4. Audit M6-contract caught the gap.
+
+**Why we shipped it**
+- Self-hosting OSRM is not booking-flow work — it's infra spinup (a Docker image + tile data + a small instance). Out of scope for the live-tracking sprint.
+- Google Directions is keyed (`GOOGLE_MAPS_API_KEY`); without provisioned billing the OSM/OSRM path is the only one that boots from a fresh dev clone. The dual-provider abstraction explicitly aims for "OSM works without keys, Google works with them."
+- The directions layer is **soft-fail** UX (audit comment in `live_tracking_map.dart:_maybeFetchDirections`'s catch) — when OSRM blows up the live marker still renders, only the polyline + ETA pill go missing. Acceptable for v1 demo; not acceptable for production.
+
+**The proper fix**
+Production deployments must point `OsrmDirectionsService.baseUrl` at one of:
+1. A self-hosted OSRM container (`osrm-backend` Docker image + Pakistan OSM extract from Geofabrik). Roughly: a 2 vCPU / 4 GB instance per region, ~3 GB tile data, 30 min spinup. Wire the URL through `--dart-define=OSRM_BASE_URL=...` at build time so it ships per-environment.
+2. Mapbox Directions (paid, ~$5 / 1000 requests, has Pakistan coverage, returns the same GeoJSON shape OSRM does — minimal code change).
+3. Google Directions on the OSM provider too (drop OSRM entirely). Requires `GOOGLE_MAPS_API_KEY` provisioning and rewires `directionsServiceProvider` to always pick `GoogleDirectionsService` regardless of `MAP_PROVIDER`.
+
+Action items when the proper fix lands:
+- Add `OSRM_BASE_URL` to `AppConstants` (mirror `GOOGLE_MAPS_API_KEY` pattern).
+- Update `MAP_WIDGETS.md` directions section.
+- Strike through this flag with `✅ Resolved (date)` and a brief "what changed" line.
+
+**Severity**
+P3 in dev / demo (rate-limit lands on 429 path that's already handled gracefully). P1 the day this app onboards real customers — the public OSRM instance will start refusing traffic once the QPS climbs.

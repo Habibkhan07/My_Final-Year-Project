@@ -185,10 +185,18 @@ shaped to span an isolate boundary.
 | Provider | Lifetime | Purpose |
 |---|---|---|
 | `locationBroadcasterSecureStorageProvider` | keepAlive: true | `FlutterSecureStorage` instance for reading the auth token before saveData. |
-| `locationBroadcasterHttpClientProvider` | keepAlive: true | Main-isolate `http.Client`. Used by tests + future tech-side admin actions; the foreground task isolate constructs its OWN client because Riverpod doesn't cross isolates. |
-| `techLocationRemoteDataSourceProvider` | keepAlive: true | Wraps the http client. Same caveat: the FG isolate makes its own. |
 | `foregroundLocationServiceControllerProvider(int jobId)` | keepAlive: false (family) | The notifier. Watched by `BookingOrchestratorScreen.build`. |
 | `foregroundLocationLifecycleProvider` | keepAlive: true | Stateless helper consumed by `AppLifecycleOrchestrator.performTeardown` on logout (audit C3 — see §"Logout teardown" below). |
+| `foregroundTaskBackendProvider` | keepAlive: true | Audit H13: port for the static `FlutterForegroundTask` API. Production = `FlutterForegroundTaskBackend`; tests inject a recording fake. |
+| `geolocatorBackendProvider` | keepAlive: true | Audit H13: port for the static `Geolocator` API used by the controller's permission flow. Production = `GeolocatorBackend`; tests inject a recording fake. |
+
+> Audit F-26 (Batch A): `locationBroadcasterHttpClientProvider` and
+> `techLocationRemoteDataSourceProvider` were removed — they had no
+> production caller (the FG isolate constructs its own client), no
+> test caller (data-source tests construct the data source directly
+> with `MockClient`), and existed only as "future use" scaffolding
+> that violated CLAUDE.md's "no hypothetical future requirements"
+> rule.
 
 ### Top-level isolate entry-point
 
@@ -309,7 +317,17 @@ Lifecycle:
   start. If the backend rotates tokens mid-session (flag #8), the
   next service stop/start cycle picks up the new one. (The H4 fatal-
   auth channel covers the case where rotation invalidates the
-  in-flight token.)
+  in-flight token.) **Latch × rotation caveat (audit P1-4):** when the
+  H4 fatal-auth latch fires it stays set until `shouldRun` flips false
+  (booking leaves `EN_ROUTE` / `ARRIVED`). So if a token rotation
+  happens mid-drive AND the user re-authenticates with a fresh token
+  during the same booking, the broadcaster stays dead for the rest of
+  this booking — the customer keeps seeing "tech offline" until the
+  status hops. Acceptable for v1 (rare scenario, manual re-login is
+  itself a rare event mid-drive); proper fix is to expose `retry()`
+  on the controller wired to `BroadcastStateBanner`, OR to subscribe
+  the controller to a token-changed event and clear the latch when
+  the secure-storage token actually differs from the cached one.
 - Distributed throttle — the backend's process-local 4s throttle is
   per-Daphne-worker (flag #33). Multi-worker production deployments
   may surface a 4N s effective floor.

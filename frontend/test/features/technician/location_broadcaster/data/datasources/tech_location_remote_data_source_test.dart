@@ -50,30 +50,34 @@ void main() {
       },
     );
 
-    test('omits null optional fields (heading/accuracy)', () async {
-      late final String capturedBody;
-      final client = MockClient((request) async {
-        capturedBody = request.body;
-        return http.Response('{}', 200);
-      });
-      final svc = TechLocationRemoteDataSource(client);
+    // Audit F-18 (Batch A): renamed from the misleading "omits null
+    // optional fields (heading/accuracy)". The test pins the OPPOSITE
+    // — that Freezed's default `toJson` emits explicit nulls for
+    // missing optional fields, and the backend serializer accepts
+    // them. Keeping the assertions verbatim; only the name changed.
+    test(
+      'emits accuracy_meters / heading keys with null when caller omits them',
+      () async {
+        late final String capturedBody;
+        final client = MockClient((request) async {
+          capturedBody = request.body;
+          return http.Response('{}', 200);
+        });
+        final svc = TechLocationRemoteDataSource(client);
 
-      await svc.postLocation(
-        bookingId: 42,
-        authToken: 'tok',
-        lat: 31.5,
-        lng: 74.3,
-      );
+        await svc.postLocation(
+          bookingId: 42,
+          authToken: 'tok',
+          lat: 31.5,
+          lng: 74.3,
+        );
 
-      final body = jsonDecode(capturedBody) as Map<String, dynamic>;
-      // freezed_annotation's default toJson omits explicit nulls when
-      // includeIfNull is false at codegen level — accuracy / heading
-      // are emitted as null. The backend serializer accepts either,
-      // but assert presence with null to pin the wire shape.
-      expect(body.containsKey('accuracy_meters'), isTrue);
-      expect(body['accuracy_meters'], isNull);
-      expect(body['heading'], isNull);
-    });
+        final body = jsonDecode(capturedBody) as Map<String, dynamic>;
+        expect(body.containsKey('accuracy_meters'), isTrue);
+        expect(body['accuracy_meters'], isNull);
+        expect(body['heading'], isNull);
+      },
+    );
 
     test('429 throttle → returns false (drop frame, no exception)', () async {
       final client = MockClient(

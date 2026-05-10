@@ -351,10 +351,16 @@ class _LiveTrackingMapState extends ConsumerState<LiveTrackingMap>
         // Audit H9 (W-3): when countdown hits zero, cancel the ticker
         // — the previous version kept calling setState forever with
         // a clamped-zero value, churning rebuilds for no visual change.
-        final next = (_etaCountdownSeconds - 1).clamp(0, 1 << 30);
-        if (next == 0) {
+        // Audit P2-2: cancel BEFORE the value would render as 0.
+        // The pill formatter is "X min" — letting it tick to 0 paints
+        // "0 min" for one frame before the next state change clears
+        // it. Floor the displayed value at 1 min instead; the next
+        // directions refresh resets it cleanly.
+        final next = _etaCountdownSeconds - 1;
+        if (next <= 0) {
           _etaTicker?.cancel();
           _etaTicker = null;
+          return;
         }
         setState(() => _etaCountdownSeconds = next);
       });
@@ -506,7 +512,13 @@ class _LiveTrackingMapState extends ConsumerState<LiveTrackingMap>
   Future<void> _onCallPressed() async {
     final raw = widget.callPhoneNumber;
     if (raw == null) return;
-    final uri = Uri(scheme: 'tel', path: raw);
+    // Audit W-9 (Batch A): use `Uri.parse('tel:$raw')` rather than
+    // `Uri(scheme: 'tel', path: raw)`. The named-constructor form
+    // percent-encodes `+` to `%2B`, which Samsung / Vivo dialers
+    // (common in Pakistan) reject. `Uri.parse` keeps the leading
+    // `+` intact, which is the dial-ready form every Android dialer
+    // accepts.
+    final uri = Uri.parse('tel:$raw');
     final launched = await ref.read(urlLauncherProvider).launch(uri);
     if (!launched && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(

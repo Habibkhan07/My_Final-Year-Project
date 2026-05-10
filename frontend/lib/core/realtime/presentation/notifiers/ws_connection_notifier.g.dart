@@ -102,7 +102,7 @@ final class WsConnectionNotifierProvider
 }
 
 String _$wsConnectionNotifierHash() =>
-    r'e3027bf2b04f4add2a13d6d3476d3ad6bd993f1d';
+    r'5267b82e6348d86c02b8f28d9ebc646cdd4da32f';
 
 /// Owns the entire WebSocket lifecycle for the realtime event stream:
 ///   - Connect with the user's auth token in the query string.

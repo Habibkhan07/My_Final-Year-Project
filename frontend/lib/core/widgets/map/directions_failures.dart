@@ -20,6 +20,16 @@ class DirectionsApiQuotaExceeded extends DirectionsFailure {
   const DirectionsApiQuotaExceeded();
 }
 
+/// HTTP-level 429 from the upstream provider. Distinct from
+/// [DirectionsApiQuotaExceeded] (which is the in-band Google `status`
+/// signal) so retry policy can back off harder on transport-level rate
+/// limiting — public OSRM in particular issues 429s before recovering.
+/// Caller must NOT treat this as transient network — retrying inside
+/// the cooldown window only deepens the rate limit.
+class DirectionsRateLimited extends DirectionsFailure {
+  const DirectionsRateLimited();
+}
+
 /// SocketException, timeout, or unreachable host.
 class DirectionsNetworkFailure extends DirectionsFailure {
   const DirectionsNetworkFailure();

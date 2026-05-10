@@ -13,8 +13,9 @@ import 'i_directions_service.dart';
 ///
 /// Default base URL is the public OSRM demo instance — fine for dev
 /// + demo, NOT fine for production (soft-rate-limited and the project
-/// asks not to be used at scale). flag.md will note this; production
-/// must self-host OSRM or fall back to Google.
+/// asks not to be used at scale). See flag #37 (Batch A audit M6) for
+/// the proper-fix options: self-hosted OSRM, Mapbox Directions, or
+/// promoting Google as the universal directions backend.
 class OsrmDirectionsService implements IDirectionsService {
   // SECURITY: read-only directions API. No PII flows; the only inputs
   // are the user's current location and the booking's destination
@@ -60,6 +61,19 @@ class OsrmDirectionsService implements IDirectionsService {
 
     if (response.statusCode >= 500) {
       throw DirectionsServerFailure(response.statusCode);
+    }
+    // Audit P1-1: see google_directions_service.dart for the
+    // rationale. Public OSRM in particular issues 429s when the demo
+    // instance is under load; collapsing those into a transient
+    // network failure caused tight retry cascades.
+    if (response.statusCode == 429) {
+      throw const DirectionsRateLimited();
+    }
+    if (response.statusCode == 404) {
+      throw const DirectionsNoRoute();
+    }
+    if (response.statusCode >= 400) {
+      throw UnknownDirectionsFailure('OSRM HTTP ${response.statusCode}');
     }
     if (response.statusCode != 200) {
       throw const DirectionsNetworkFailure();
