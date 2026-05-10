@@ -69,36 +69,22 @@ class _GoogleAppMapState extends State<GoogleAppMap> {
   @override
   void didUpdateWidget(covariant GoogleAppMap oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (!_markersEqual(oldWidget.markers, widget.markers)) {
+    if (!GoogleAppMapInternals.markersEqual(
+      oldWidget.markers,
+      widget.markers,
+    )) {
       unawaited(_resolveMarkers(widget.markers));
     }
     _maybeApplyCamera(oldWidget);
   }
 
   Future<void> _resolveMarkers(List<MapMarker> incoming) async {
-    final futures = incoming.map((m) async {
-      final icon = await LiveMarkerFactory.buildGoogleMarker(m.kind);
-      return gmaps.Marker(
-        markerId: gmaps.MarkerId(m.id),
-        position: gmaps.LatLng(m.position.latitude, m.position.longitude),
-        rotation: m.rotationDegrees,
-        anchor: const Offset(0.5, 0.5),
-        icon: icon,
-        flat: true,
-      );
-    }).toList();
-    final resolved = await Future.wait(futures);
+    final resolved = await GoogleAppMapInternals.resolveAllMarkers(
+      incoming,
+      resolveIcon: LiveMarkerFactory.buildGoogleMarker,
+    );
     if (!mounted) return;
-    setState(() => _renderedMarkers = resolved.toSet());
-  }
-
-  static bool _markersEqual(List<MapMarker> a, List<MapMarker> b) {
-    if (identical(a, b)) return true;
-    if (a.length != b.length) return false;
-    for (var i = 0; i < a.length; i++) {
-      if (a[i] != b[i]) return false;
-    }
-    return true;
+    setState(() => _renderedMarkers = resolved);
   }
 
   Future<void> _maybeApplyCamera(GoogleAppMap oldWidget) async {
@@ -130,44 +116,15 @@ class _GoogleAppMapState extends State<GoogleAppMap> {
     final boundsChanged =
         newBounds != null &&
         newBounds.isNotEmpty &&
-        !_listsAreSame(oldWidget.cameraBounds, newBounds);
+        !GoogleAppMapInternals.listsAreSame(oldWidget.cameraBounds, newBounds);
     if (boundsChanged && newTarget == null) {
-      final fit = _computeBounds(newBounds);
+      final fit = GoogleAppMapInternals.computeBounds(newBounds);
       _programmaticMoveInFlight = true;
       await controller.animateCamera(
         gmaps.CameraUpdate.newLatLngBounds(fit, 64),
       );
       _programmaticMoveInFlight = false;
     }
-  }
-
-  static gmaps.LatLngBounds _computeBounds(List<LatLng> points) {
-    var minLat = points.first.latitude;
-    var maxLat = points.first.latitude;
-    var minLng = points.first.longitude;
-    var maxLng = points.first.longitude;
-    for (final p in points) {
-      if (p.latitude < minLat) minLat = p.latitude;
-      if (p.latitude > maxLat) maxLat = p.latitude;
-      if (p.longitude < minLng) minLng = p.longitude;
-      if (p.longitude > maxLng) maxLng = p.longitude;
-    }
-    return gmaps.LatLngBounds(
-      southwest: gmaps.LatLng(minLat, minLng),
-      northeast: gmaps.LatLng(maxLat, maxLng),
-    );
-  }
-
-  static bool _listsAreSame(List<LatLng>? a, List<LatLng>? b) {
-    if (identical(a, b)) return true;
-    if (a == null || b == null) return false;
-    if (a.length != b.length) return false;
-    for (var i = 0; i < a.length; i++) {
-      if (a[i].latitude != b[i].latitude || a[i].longitude != b[i].longitude) {
-        return false;
-      }
-    }
-    return true;
   }
 
   @override
@@ -210,5 +167,98 @@ class _GoogleAppMapState extends State<GoogleAppMap> {
         }
       },
     );
+  }
+}
+
+/// Test-visible internals for `GoogleAppMap`.
+///
+/// `_GoogleAppMapState` is library-private so its helpers cannot be
+/// reached from a test file. Hoisting them onto a public companion
+/// class — annotated `@visibleForTesting` — keeps the helpers available
+/// to unit tests without pretending the API is public.
+///
+/// The marker-resolution future-merge accepts an injectable
+/// `resolveIcon` so tests do not need to spin up the
+/// `LiveMarkerFactory` canvas pipeline (which requires a Flutter
+/// binding plus the gmaps platform side). Production callers always
+/// pass `LiveMarkerFactory.buildGoogleMarker`.
+@visibleForTesting
+class GoogleAppMapInternals {
+  GoogleAppMapInternals._();
+
+  /// Returns true when the two marker lists are field-equal in order.
+  /// `MapMarker` defines value equality on (id, position, kind,
+  /// rotationDegrees), so reference inequality with field equality
+  /// must register as "equal" here — otherwise every parent rebuild
+  /// would trigger a costly marker re-resolve.
+  static bool markersEqual(List<MapMarker> a, List<MapMarker> b) {
+    if (identical(a, b)) return true;
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
+
+  /// Returns true when both LatLng lists have the same length and
+  /// component-equal positions in order. Both null → true. One null →
+  /// false.
+  static bool listsAreSame(List<LatLng>? a, List<LatLng>? b) {
+    if (identical(a, b)) return true;
+    if (a == null || b == null) return false;
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i].latitude != b[i].latitude || a[i].longitude != b[i].longitude) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /// Smallest axis-aligned bounding box covering every point.
+  /// Caller must gate on `points.isNotEmpty` — accessing `points.first`
+  /// on an empty list throws `StateError` (intentional; an empty input
+  /// has no defined bounds).
+  static gmaps.LatLngBounds computeBounds(List<LatLng> points) {
+    var minLat = points.first.latitude;
+    var maxLat = points.first.latitude;
+    var minLng = points.first.longitude;
+    var maxLng = points.first.longitude;
+    for (final p in points) {
+      if (p.latitude < minLat) minLat = p.latitude;
+      if (p.latitude > maxLat) maxLat = p.latitude;
+      if (p.longitude < minLng) minLng = p.longitude;
+      if (p.longitude > maxLng) maxLng = p.longitude;
+    }
+    return gmaps.LatLngBounds(
+      southwest: gmaps.LatLng(minLat, minLng),
+      northeast: gmaps.LatLng(maxLat, maxLng),
+    );
+  }
+
+  /// Resolves every incoming marker's icon in parallel and returns the
+  /// gmaps marker set ONLY when every descriptor is ready. The
+  /// `Future.wait` is load-bearing — emitting markers as they resolve
+  /// would visually pop in (audit T-1).
+  ///
+  /// `resolveIcon` is the test seam. Production callers pass
+  /// `LiveMarkerFactory.buildGoogleMarker`.
+  static Future<Set<gmaps.Marker>> resolveAllMarkers(
+    List<MapMarker> incoming, {
+    required Future<gmaps.BitmapDescriptor> Function(MarkerKind) resolveIcon,
+  }) async {
+    final futures = incoming.map((m) async {
+      final icon = await resolveIcon(m.kind);
+      return gmaps.Marker(
+        markerId: gmaps.MarkerId(m.id),
+        position: gmaps.LatLng(m.position.latitude, m.position.longitude),
+        rotation: m.rotationDegrees,
+        anchor: const Offset(0.5, 0.5),
+        icon: icon,
+        flat: true,
+      );
+    }).toList();
+    final resolved = await Future.wait(futures);
+    return resolved.toSet();
   }
 }
