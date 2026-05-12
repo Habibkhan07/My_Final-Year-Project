@@ -57,15 +57,6 @@ def _tech_cancel_action(booking: JobBooking) -> UiAction:
     }
 
 
-def _no_show_action(booking: JobBooking, label: str) -> UiAction:
-    return {
-        "label": label,
-        "endpoint": f"/bookings/{booking.id}/no-show/",
-        "method": "POST",
-        "style": "neutral",
-    }
-
-
 def _reschedule_action(booking: JobBooking) -> UiAction:
     return {
         "label": "Reschedule",
@@ -97,6 +88,21 @@ def _start_inspection_action(booking: JobBooking) -> UiAction:
     return {
         "label": "Start inspection",
         "endpoint": f"/bookings/{booking.id}/start-inspection/",
+        "method": "POST",
+        "style": "primary",
+    }
+
+
+def _customer_arriving_action(booking: JobBooking) -> UiAction:
+    """InDrive-style ACK on the customer's ARRIVED screen.
+
+    Surfaces only while ``customer_acknowledged_arrival_at`` is null;
+    once stamped, ``_customer_arrived`` swaps the primary slot to None
+    and the UI shows the "✓ Notified" confirmation state instead.
+    """
+    return {
+        "label": "I'm coming out",
+        "endpoint": f"/bookings/{booking.id}/customer-arriving/",
         "method": "POST",
         "style": "primary",
     }
@@ -204,10 +210,12 @@ def _customer_en_route(booking, viewer):
         "status_label": "On the way",
         "body_text": f"{_technician_display_name(booking)} is heading to your address.",
         "primary_action": None,
-        "secondary_actions": [
-            _customer_cancel_action(booking, "Cancel"),
-            _no_show_action(booking, "Tech didn't show"),
-        ],
+        # Customer's self-serve cancel disappears at EN_ROUTE — the tech
+        # has burned fuel and committed time, so one-tap cancel becomes
+        # unfair. Customer's only exit from here is Contact Support
+        # (`feedback_customer_cancel_window.md`). Tech keeps their
+        # self-serve cancel — they need an emergency exit.
+        "secondary_actions": [],
         "show_tracking": True,
         "show_quote_card": False,
         "show_dispute_button": False,
@@ -229,14 +237,32 @@ def _tech_en_route(booking, viewer):
 
 
 def _customer_arrived(booking, viewer):
+    """Customer ARRIVED view.
+
+    InDrive-style meeting flow: the tech does NOT knock the door in
+    Pakistani urban context — they stop at the address pin and the
+    customer walks out to find them. We surface a primary "I'm coming
+    out" CTA until the customer ACKs, then collapse the slot so the
+    body copy alone communicates the post-ACK state.
+    """
+    has_acked = booking.customer_acknowledged_arrival_at is not None
+    tech_name = _technician_display_name(booking)
+    if has_acked:
+        body_text = f'You let {tech_name} know you are on your way out.'
+        primary_action = None
+    else:
+        body_text = (
+            f'{tech_name} is parked at your address. '
+            f'Please walk out to meet them.'
+        )
+        primary_action = _customer_arriving_action(booking)
     return {
-        "status_label": "Technician at door",
-        "body_text": f"{_technician_display_name(booking)} has arrived.",
-        "primary_action": None,
-        "secondary_actions": [
-            _customer_cancel_action(booking, "Cancel"),
-            _no_show_action(booking, "Tech didn't show"),
-        ],
+        "status_label": "Technician at the address",
+        "body_text": body_text,
+        "primary_action": primary_action,
+        # No customer cancel from EN_ROUTE onward
+        # (`feedback_customer_cancel_window.md`).
+        "secondary_actions": [],
         "show_tracking": True,
         "show_quote_card": False,
         "show_dispute_button": False,
@@ -245,12 +271,31 @@ def _customer_arrived(booking, viewer):
 
 
 def _tech_arrived(booking, viewer):
+    """Tech ARRIVED view.
+
+    The body copy reflects whether the customer has acknowledged via the
+    "I'm coming out" CTA. Before ACK: amber-waiting framing. After ACK:
+    green "customer is coming" framing. The tech keeps "Start inspection"
+    as the primary slot regardless — they shouldn't be blocked from
+    starting if the customer is slow.
+    """
+    has_acked = booking.customer_acknowledged_arrival_at is not None
+    customer_name = _customer_display_name(booking)
+    if has_acked:
+        body_text = f'{customer_name} is coming out to meet you.'
+    else:
+        body_text = (
+            f'You are at the address. Waiting for {customer_name} '
+            f'to walk out and meet you.'
+        )
     return {
         "status_label": "On site",
-        "body_text": "Open the quote builder when you've assessed the job.",
+        "body_text": body_text,
         "primary_action": _start_inspection_action(booking),
+        # Tech-cancel + customer-no-show both moved under Help on the
+        # frontend; the latter is now a reason in the cancel-reason
+        # picker (`feedback_cancel_vs_no_show.md`).
         "secondary_actions": [
-            _no_show_action(booking, "Customer no-show"),
             _tech_cancel_action(booking),
         ],
         "show_tracking": False,
@@ -263,11 +308,11 @@ def _tech_arrived(booking, viewer):
 def _customer_inspecting(booking, viewer):
     return {
         "status_label": "Inspection in progress",
-        "body_text": f"{_technician_display_name(booking)} is preparing your quote.",
+        "body_text": f"{_technician_display_name(booking)} is inspecting the issue.",
         "primary_action": None,
-        "secondary_actions": [
-            _customer_cancel_action(booking, "Cancel"),
-        ],
+        # No customer cancel from EN_ROUTE onward
+        # (`feedback_customer_cancel_window.md`).
+        "secondary_actions": [],
         "show_tracking": False,
         "show_quote_card": False,
         "show_dispute_button": False,
@@ -280,8 +325,9 @@ def _tech_inspecting(booking, viewer):
         "status_label": "Build the quote",
         "body_text": "Add line items for the parts and labor you'll perform.",
         "primary_action": _submit_quote_action(booking),
+        # Cancel-only secondary; customer-no-show moved into the
+        # cancel-reason picker (`feedback_cancel_vs_no_show.md`).
         "secondary_actions": [
-            _no_show_action(booking, "Customer no-show"),
             _tech_cancel_action(booking),
         ],
         "show_tracking": False,
@@ -302,12 +348,54 @@ def _customer_quoted(booking, viewer):
             "status_label": "Quote ready",
             "body_text": "Quote details are unavailable. Refresh in a moment.",
             "primary_action": None,
-            "secondary_actions": [_customer_cancel_action(booking, "Cancel")],
+            # No customer cancel from EN_ROUTE onward
+            # (`feedback_customer_cancel_window.md`).
+            "secondary_actions": [],
             "show_tracking": False,
             "show_quote_card": True,
             "show_dispute_button": False,
             "tone": "warning",
         }
+    # `request-revision` only makes sense when the quote contains
+    # labor-priced line items — those are the items the technician
+    # set within `[base, max]` and can lower in person. If every
+    # line item references a fixed-price (catalog) sub-service, there
+    # is literally no negotiable surface, so we omit the action.
+    #
+    # Post-arrival the customer + technician are face-to-face; the
+    # action is the signal that flips the quote back so the tech can
+    # rebuild it on their own device while the customer watches. The
+    # button itself is the wire trigger — the verbal bargain happens
+    # around it. Surfacing it on a catalog-only quote would be a UX
+    # lie (nothing to lower).
+    #
+    # `get_active_quote` prefetches `line_items__sub_service` so this
+    # iteration adds no queries.
+    has_labor_charges = any(
+        not item.sub_service.is_fixed_price
+        for item in active_quote.line_items.all()
+    )
+
+    secondary_actions = [
+        {
+            "label": "Decline (Rs. 500 inspection fee)",
+            "endpoint": f"/bookings/{booking.id}/quotes/{active_quote.id}/decline/",
+            "method": "POST",
+            "style": "destructive",
+        },
+    ]
+    if has_labor_charges:
+        secondary_actions.append({
+            "label": "Ask for a revision",
+            "endpoint": f"/bookings/{booking.id}/quotes/{active_quote.id}/request-revision/",
+            "method": "POST",
+            "style": "neutral",
+        })
+    # No customer cancel from EN_ROUTE onward — decline-quote
+    # exists for "I don't want this work" (Rs. 500 inspection
+    # fee only); request-revision exists for "fix the quote".
+    # No need for a third escape (`feedback_customer_cancel_window.md`).
+
     return {
         "status_label": "Quote ready",
         "body_text": "Review the quote and approve, decline, or ask for a revision.",
@@ -317,21 +405,7 @@ def _customer_quoted(booking, viewer):
             "method": "POST",
             "style": "primary",
         },
-        "secondary_actions": [
-            {
-                "label": "Decline (Rs. 500 inspection fee)",
-                "endpoint": f"/bookings/{booking.id}/quotes/{active_quote.id}/decline/",
-                "method": "POST",
-                "style": "destructive",
-            },
-            {
-                "label": "Ask for a revision",
-                "endpoint": f"/bookings/{booking.id}/quotes/{active_quote.id}/request-revision/",
-                "method": "POST",
-                "style": "neutral",
-            },
-            _customer_cancel_action(booking, "Cancel"),
-        ],
+        "secondary_actions": secondary_actions,
         "show_tracking": False,
         "show_quote_card": True,
         "show_dispute_button": False,
@@ -344,8 +418,9 @@ def _tech_quoted(booking, viewer):
         "status_label": "Awaiting customer decision",
         "body_text": "The customer is reviewing your quote.",
         "primary_action": None,
+        # Cancel-only secondary; customer-no-show moved into the
+        # cancel-reason picker (`feedback_cancel_vs_no_show.md`).
         "secondary_actions": [
-            _no_show_action(booking, "Customer no-show"),
             _tech_cancel_action(booking),
         ],
         "show_tracking": False,
@@ -363,7 +438,11 @@ def _customer_in_progress(booking, viewer):
         "secondary_actions": [],
         "show_tracking": False,
         "show_quote_card": True,
-        "show_dispute_button": True,
+        # Dispute is a post-transaction surface — disputes are about a
+        # *completed exchange* the customer is unhappy with. Hiding it
+        # pre-cash prevents premature escalations while the tech is
+        # mid-job (see feedback_dispute_visibility memory).
+        "show_dispute_button": False,
         "tone": "info",
     }
 
@@ -378,7 +457,11 @@ def _tech_in_progress(booking, viewer):
         ],
         "show_tracking": False,
         "show_quote_card": True,
-        "show_dispute_button": True,
+        # Dispute is a post-transaction surface — disputes are about a
+        # *completed exchange* the customer is unhappy with. Hiding it
+        # pre-cash prevents premature escalations while the tech is
+        # mid-job (see feedback_dispute_visibility memory).
+        "show_dispute_button": False,
         "tone": "info",
     }
 

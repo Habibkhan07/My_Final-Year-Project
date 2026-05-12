@@ -1,7 +1,9 @@
+import 'dart:async' show unawaited;
 import 'dart:developer' as developer;
 import 'dart:io' show SocketException;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/common/errors/http_failure.dart';
@@ -9,7 +11,10 @@ import '../../domain/entities/booking_detail.dart';
 import '../../domain/entities/booking_ui_block.dart';
 import '../providers/booking_action_executor.dart';
 import '../providers/booking_detail_provider.dart';
+import '_palette/orchestrator_palette.dart';
+import 'feedback/orchestrator_snack.dart';
 import 'sheets/booking_action_pending_sheet.dart';
+import 'sheets/quote_builder_sheet.dart';
 
 /// The button widget that renders a single [BookingUiAction] from the
 /// server's `ui` block.
@@ -22,13 +27,20 @@ import 'sheets/booking_action_pending_sheet.dart';
 ///   * **Direct POST (auto body)** — confirm-cash-received: tap →
 ///     POST `{cash_amount: booking.pricing.finalCashToCollect}`.
 ///   * **Pending sheet** — cancel, tech-cancel, reschedule, no-show,
-///     submit-quote, request-revision, dispute-open: open the shared
-///     pending sheet. Cancel + tech-cancel still POST a default reason
-///     so the demo walks; the others show a "ships in session 5/6"
-///     explainer.
+///     submit-quote, dispute-open: open the shared pending sheet.
+///     Cancel + tech-cancel still POST a default reason so the demo
+///     walks; the others show a "ships in session 5/6" explainer.
 ///
 /// Sessions 5/6 will replace the pending-sheet branch with rich flows
 /// (rich cancel form, reschedule date picker, quote builder, etc.).
+///
+/// **`/request-revision/` is intentionally a direct POST.** In this
+/// market customer + tech are face-to-face on QUOTED — the customer
+/// taps "Negotiate price" as a signal to the tech standing right
+/// there, who then rebuilds the quote on their own device. There is no
+/// remote ticket reviewer to read a "reason" string, so we don't
+/// collect one. Backend's serializer accepts `reason` optional / blank
+/// and the service stores empty string on `quote.decision_reason`.
 class BookingOrchestratorActionButton extends ConsumerStatefulWidget {
   const BookingOrchestratorActionButton({
     super.key,
@@ -58,44 +70,97 @@ class _BookingOrchestratorActionButtonState
 
     final isDestructive = action.style == BookingUiActionStyle.destructive;
 
+    // Brand-blue language. Pressed state darkens via a Material state
+    // resolver so users get visual feedback in addition to the ripple.
+    final bgColor = isDestructive
+        ? theme.colorScheme.error
+        : OrchestratorPalette.brandPrimary;
+    final fgColor = isDestructive ? theme.colorScheme.onError : Colors.white;
+
     if (widget.isPrimary) {
       return SizedBox(
         width: double.infinity,
-        child: FilledButton(
-          style: isDestructive
-              ? FilledButton.styleFrom(
-                  backgroundColor: theme.colorScheme.error,
-                  foregroundColor: theme.colorScheme.onError,
-                )
-              : null,
+        child: ElevatedButton(
+          style: ButtonStyle(
+            backgroundColor: WidgetStateProperty.resolveWith((states) {
+              if (states.contains(WidgetState.pressed)) {
+                return isDestructive
+                    ? theme.colorScheme.error.withValues(alpha: 0.86)
+                    : OrchestratorPalette.brandPrimaryDeep;
+              }
+              if (states.contains(WidgetState.disabled)) {
+                return bgColor.withValues(alpha: 0.55);
+              }
+              return bgColor;
+            }),
+            foregroundColor: WidgetStateProperty.all(fgColor),
+            padding: WidgetStateProperty.all(
+              const EdgeInsets.symmetric(vertical: 16),
+            ),
+            shape: WidgetStateProperty.all(
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            ),
+            elevation: WidgetStateProperty.resolveWith((states) {
+              if (states.contains(WidgetState.pressed)) return 2;
+              return 8;
+            }),
+            shadowColor: WidgetStateProperty.all(
+              bgColor.withValues(alpha: 0.42),
+            ),
+            overlayColor: WidgetStateProperty.all(
+              Colors.white.withValues(alpha: 0.10),
+            ),
+          ),
           onPressed: _busy ? null : () => _onTap(classification),
           child: _busy
-              ? const SizedBox(
+              ? SizedBox(
                   height: 18,
                   width: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: fgColor,
+                  ),
                 )
-              : Text(action.label),
+              : Text(
+                  action.label,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.1,
+                  ),
+                ),
         ),
       );
     }
 
     return TextButton(
       onPressed: _busy ? null : () => _onTap(classification),
-      style: isDestructive
-          ? TextButton.styleFrom(foregroundColor: theme.colorScheme.error)
-          : null,
+      style: TextButton.styleFrom(
+        foregroundColor: isDestructive
+            ? theme.colorScheme.error
+            : OrchestratorPalette.brandPrimary,
+      ),
       child: _busy
           ? const SizedBox(
               height: 14,
               width: 14,
               child: CircularProgressIndicator(strokeWidth: 1.5),
             )
-          : Text(action.label),
+          : Text(
+              action.label,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
     );
   }
 
   Future<void> _onTap(_ActionClassification classification) async {
+    // Light haptic on every primary/secondary action tap — confirms the
+    // touch hit without the cheap-feel of `mediumImpact`. No-op under
+    // flutter_test and on web platforms where the channel isn't wired,
+    // so safe to call unconditionally.
+    if (widget.isPrimary) {
+      unawaited(HapticFeedback.lightImpact());
+    }
     switch (classification) {
       case _ActionClassification.directPostNoBody:
         await _runDirect(body: null);
@@ -118,17 +183,7 @@ class _BookingOrchestratorActionButtonState
               'A single-tap confirmation ships in session 6. For now please use the in-app dispute path if the counterparty did not show.',
         );
       case _ActionClassification.pendingSheetQuote:
-        await _runPendingSheetExplainer(
-          title: 'Quote builder coming soon',
-          body:
-              'The line-item quote builder ships in session 5. The button is shown so you can verify the surface; submission is disabled.',
-        );
-      case _ActionClassification.pendingSheetRevision:
-        await _runPendingSheetExplainer(
-          title: 'Bargain flow coming soon',
-          body:
-              'Asking for a revision opens a free-text reason field in session 5.',
-        );
+        await _runQuoteBuilder();
       case _ActionClassification.pendingSheetDispute:
         await _runPendingSheetExplainer(
           title: 'Dispute form coming soon',
@@ -223,6 +278,24 @@ class _BookingOrchestratorActionButtonState
     await BookingActionPendingSheet.show(context, title: title, body: body);
   }
 
+  /// Real quote builder — session 5 deliverable. Opens
+  /// [QuoteBuilderSheet] with the booking's sub-service pre-filled, then
+  /// POSTs the line-item body through the existing executor.
+  Future<void> _runQuoteBuilder() async {
+    if (!mounted) return;
+    final result = await QuoteBuilderSheet.show(
+      context,
+      booking: widget.booking,
+      action: widget.action,
+      onConfirm: (body) => ref
+          .read(bookingActionExecutorProvider)
+          .execute(widget.action, body: body),
+    );
+    if (result == true && mounted) {
+      ref.invalidate(bookingDetailProvider(widget.booking.id));
+    }
+  }
+
   Map<String, dynamic>? _autoBody() {
     // Currently only confirm-cash-received needs an auto body.
     if (widget.action.endpoint.endsWith('/confirm-cash-received/')) {
@@ -235,7 +308,7 @@ class _BookingOrchestratorActionButtonState
 
   void _showSnack(String text) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+    OrchestratorSnack.error(context, text);
   }
 
   /// Classify by endpoint suffix. Wire spec from
@@ -261,9 +334,6 @@ class _BookingOrchestratorActionButtonState
     if (endpoint.endsWith('/disputes/')) {
       return _ActionClassification.pendingSheetDispute;
     }
-    if (endpoint.endsWith('/request-revision/')) {
-      return _ActionClassification.pendingSheetRevision;
-    }
     if (endpoint.endsWith('/quotes/')) {
       // submit_quote root POST — the quote BUILDER lives in session 5.
       return _ActionClassification.pendingSheetQuote;
@@ -282,6 +352,5 @@ enum _ActionClassification {
   pendingSheetReschedule,
   pendingSheetNoShow,
   pendingSheetQuote,
-  pendingSheetRevision,
   pendingSheetDispute,
 }

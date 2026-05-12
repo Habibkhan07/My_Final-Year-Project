@@ -71,8 +71,24 @@ SystemEventEntity _event({required SystemEventType type, int jobId = 42}) =>
       isCritical: false,
     );
 
+/// Sets the test surface to a realistic portrait phone size (412 × 920),
+/// matching a Pixel 7 in dp. The orchestrator screen is designed for
+/// portrait phones; the flutter_test default of 800 × 600 is landscape-
+/// shaped and squeezes the hero header + summary card + action bar past
+/// the body, so layout assertions in landscape produce false overflow
+/// noise. Set on the harness, restored on tearDown.
+void _useRealisticPhoneSurface(WidgetTester tester) {
+  tester.view.physicalSize = const Size(412, 920);
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(() {
+    tester.view.resetPhysicalSize();
+    tester.view.resetDevicePixelRatio();
+  });
+}
+
 void main() {
   testWidgets('mounts and renders the orchestrator chrome', (tester) async {
+    _useRealisticPhoneSurface(tester);
     final repo = _CountingRepo();
     await tester.pumpWidget(
       ProviderScope(
@@ -94,6 +110,7 @@ void main() {
   testWidgets(
     'screen ref.watch keeps event notifier alive — refresh fires (#B-30/#B-40)',
     (tester) async {
+      _useRealisticPhoneSurface(tester);
       final repo = _CountingRepo();
       late ProviderContainer container;
       await tester.pumpWidget(
@@ -134,6 +151,7 @@ void main() {
   );
 
   testWidgets('unrelated event types do not refresh', (tester) async {
+    _useRealisticPhoneSurface(tester);
     final repo = _CountingRepo();
     late ProviderContainer container;
     await tester.pumpWidget(

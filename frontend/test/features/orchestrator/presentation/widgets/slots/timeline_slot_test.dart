@@ -10,8 +10,11 @@
 //     phase label in the row.
 //
 // We assert via the bolded-label heuristic — `_PhaseState.current`
-// is the only state that produces `FontWeight.w600` on its label.
-// That's a single, observable rendering signal.
+// is the only state that produces `FontWeight.w700` on its label.
+// That's a single, observable rendering signal. Terminal states do
+// not render the phase row at all (they show a "Booking ended" pill
+// whose own text weight is intentionally lower), so the helper
+// returns null for them.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:frontend/features/customer/bookings/domain/entities/booking_status.dart';
@@ -52,7 +55,7 @@ BookingDetail _booking(BookingStatus s) {
 String? _currentPhaseLabel(WidgetTester tester) {
   final texts = tester.widgetList<Text>(find.byType(Text));
   for (final t in texts) {
-    if (t.style?.fontWeight == FontWeight.w600 && t.data != null) {
+    if (t.style?.fontWeight == FontWeight.w700 && t.data != null) {
       return t.data;
     }
   }

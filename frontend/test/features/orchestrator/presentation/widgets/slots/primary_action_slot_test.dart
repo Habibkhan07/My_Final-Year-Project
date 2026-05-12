@@ -4,8 +4,10 @@
 //   * `ui.primaryAction == null` → SizedBox.shrink (no chrome, no
 //     padding eating space). The slot is hidden when the role/status
 //     has no actionable verb.
-//   * `ui.primaryAction != null` → renders a FilledButton with the
+//   * `ui.primaryAction != null` → renders an ElevatedButton with the
 //     server-provided label (dumb-UI: copy comes from the server).
+//     The ElevatedButton recipe matches the booking-flow brand style
+//     (see `feedback_ui_target_foodpanda.md` memory).
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -68,17 +70,17 @@ void main() {
     tester,
   ) async {
     await _pump(tester, _bookingNoAction());
-    // No FilledButton in the tree.
-    expect(find.byType(FilledButton), findsNothing);
+    // No primary button in the tree.
+    expect(find.byType(ElevatedButton), findsNothing);
     // The slot still mounts; its child is the shrink.
     expect(find.byType(PrimaryActionSlot), findsOneWidget);
   });
 
-  testWidgets('renders FilledButton with server-provided label', (
+  testWidgets('renders ElevatedButton with server-provided label', (
     tester,
   ) async {
     await _pump(tester, _bookingWithAction(label: "I'm on the way"));
-    expect(find.byType(FilledButton), findsOneWidget);
+    expect(find.byType(ElevatedButton), findsOneWidget);
     expect(find.text("I'm on the way"), findsOneWidget);
   });
 

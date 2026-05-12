@@ -71,6 +71,15 @@ class _TechnicianMiniSerializer(serializers.Serializer):
     id = serializers.IntegerField()
     display_name = serializers.CharField()
     profile_picture_url = serializers.CharField(allow_null=True)
+    # Mirrors customer.phone_no — sourced from the tech's UserProfile so
+    # the customer-side summary card can offer a tel: deep link. Empty
+    # string when the tech's UserProfile is missing the phone (legacy /
+    # system accounts).
+    phone_no = serializers.CharField(allow_blank=True)
+    # Bayesian-averaged rating shown in the summary card. Decimal on the
+    # model; we surface the raw string so the frontend can parse to int
+    # rupees-style or render as-is.
+    rating_average = serializers.DecimalField(max_digits=3, decimal_places=2)
 
 
 class _CustomerMiniSerializer(serializers.Serializer):
@@ -83,6 +92,9 @@ class _PhaseTimestampsSerializer(serializers.Serializer):
     accepted_at = serializers.DateTimeField(allow_null=True)
     en_route_started_at = serializers.DateTimeField(allow_null=True)
     arrived_at = serializers.DateTimeField(allow_null=True)
+    # InDrive-style "I'm coming out" ACK from the customer; null until the
+    # customer taps the CTA on the ARRIVED screen.
+    customer_acknowledged_arrival_at = serializers.DateTimeField(allow_null=True)
     inspection_started_at = serializers.DateTimeField(allow_null=True)
     quote_first_submitted_at = serializers.DateTimeField(allow_null=True)
     work_started_at = serializers.DateTimeField(allow_null=True)
@@ -167,6 +179,12 @@ class BookingDetailResponseSerializer(serializers.Serializer):
             customer_phone = booking.customer.userprofile.phone or ""
         except AttributeError:
             customer_phone = ""
+        # Same lookup for the technician's underlying User. Same
+        # missing-profile fallback applies.
+        try:
+            technician_phone = booking.technician.user.userprofile.phone or ""
+        except AttributeError:
+            technician_phone = ""
 
         return {
             "id": booking.id,
@@ -194,6 +212,8 @@ class BookingDetailResponseSerializer(serializers.Serializer):
                     or booking.technician.user.username
                 ),
                 "profile_picture_url": tech_profile_url,
+                "phone_no": technician_phone,
+                "rating_average": booking.technician.rating_average,
             }).data,
             "customer": _CustomerMiniSerializer({
                 "id": booking.customer.id,
@@ -220,6 +240,7 @@ class BookingDetailResponseSerializer(serializers.Serializer):
                 "accepted_at": booking.accepted_at,
                 "en_route_started_at": booking.en_route_started_at,
                 "arrived_at": booking.arrived_at,
+                "customer_acknowledged_arrival_at": booking.customer_acknowledged_arrival_at,
                 "inspection_started_at": booking.inspection_started_at,
                 "quote_first_submitted_at": booking.quote_first_submitted_at,
                 "work_started_at": booking.work_started_at,

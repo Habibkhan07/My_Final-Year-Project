@@ -330,6 +330,95 @@ void main() {
     });
   });
 
+  group('banner suppressed when viewing the same entity', () {
+    // Locks the rule: if the user is already on `/booking/<id>` and a
+    // low-urgency event arrives for that same booking, the banner is
+    // SUPPRESSED — the screen's own event notifier refreshes the data
+    // silently. Banners about a *different* booking still fire.
+    Future<void> seed(WidgetTester tester, _RouterTestHarness harness) async {
+      await tester.pumpWidget(harness.build());
+      await tester.pumpAndSettle();
+      // Navigate to /booking/42 — simulates the user being on that screen.
+      harness.navigatorKey.currentState!.context;
+      GoRouter.of(
+        harness.navigatorKey.currentContext!,
+      ).push('/booking/42');
+      await tester.pumpAndSettle();
+      expect(find.text('booking-42'), findsOneWidget);
+    }
+
+    testWidgets(
+      'tech_en_route for the booking the user is on → no banner',
+      (tester) async {
+        final harness = _RouterTestHarness();
+        await seed(tester, harness);
+        final ref = await harness.overlayRef(tester);
+        try {
+          final event = SystemEventEntity.fromComponents(
+            id: 'evt-en-route-42',
+            rawType: 'tech_en_route',
+            targetRoleStr: 'customer',
+            timestamp: DateTime.now().toUtc(),
+            payload: const {'job_id': 42, 'technician_name': 'Ali'},
+          );
+          harness.router.handleEvent(event, TargetRole.customer, ref.ref);
+          await tester.pump();
+          await tester.pump(const Duration(milliseconds: 300));
+          expect(find.text('View'), findsNothing);
+          expect(find.text('Dismiss'), findsNothing);
+        } finally {
+          ref.dispose();
+        }
+      },
+    );
+
+    testWidgets(
+      'tech_en_route for a DIFFERENT booking → banner still shows',
+      (tester) async {
+        // The user is on /booking/42; event is for booking 99.
+        final harness = _RouterTestHarness();
+        await seed(tester, harness);
+        final ref = await harness.overlayRef(tester);
+        try {
+          final event = SystemEventEntity.fromComponents(
+            id: 'evt-en-route-99',
+            rawType: 'tech_en_route',
+            targetRoleStr: 'customer',
+            timestamp: DateTime.now().toUtc(),
+            payload: const {'job_id': 99, 'technician_name': 'Ali'},
+          );
+          harness.router.handleEvent(event, TargetRole.customer, ref.ref);
+          await tester.pump();
+          await tester.pump(const Duration(milliseconds: 300));
+          expect(find.text('View'), findsOneWidget);
+        } finally {
+          await tester.pump(const Duration(seconds: 6));
+          ref.dispose();
+        }
+      },
+    );
+
+    testWidgets(
+      'job_accepted for the booking the user is on → no banner',
+      (tester) async {
+        final harness = _RouterTestHarness();
+        await seed(tester, harness);
+        final ref = await harness.overlayRef(tester);
+        try {
+          final event = _jobAcceptedEvent(
+            payload: const {'job_id': 42, 'technician_display_name': 'Ali'},
+          );
+          harness.router.handleEvent(event, TargetRole.customer, ref.ref);
+          await tester.pump();
+          await tester.pump(const Duration(milliseconds: 300));
+          expect(find.text('View'), findsNothing);
+        } finally {
+          ref.dispose();
+        }
+      },
+    );
+  });
+
   group('regression — existing low-urgency events keep static paths', () {
     testWidgets('payment_received still pushes /shared/wallet unchanged', (
       tester,

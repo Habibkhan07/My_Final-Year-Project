@@ -1097,7 +1097,11 @@ as String?,
 /// @nodoc
 mixin _$BookingDetailTechnicianModel {
 
- int get id;@JsonKey(name: 'display_name') String get displayName;@JsonKey(name: 'profile_picture_url') String? get profilePictureUrl;
+ int get id;@JsonKey(name: 'display_name') String get displayName;@JsonKey(name: 'profile_picture_url') String? get profilePictureUrl;// Both default to backwards-compat-safe values so older test
+// fixtures (and mid-rollout server snapshots) keep parsing. Backend
+// always emits these post-this-PR.
+@JsonKey(name: 'phone_no') String get phoneNo;// Decimal-string from DecimalField (e.g. "4.85").
+@JsonKey(name: 'rating_average') String get ratingAverage;
 /// Create a copy of BookingDetailTechnicianModel
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -1110,16 +1114,16 @@ $BookingDetailTechnicianModelCopyWith<BookingDetailTechnicianModel> get copyWith
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is BookingDetailTechnicianModel&&(identical(other.id, id) || other.id == id)&&(identical(other.displayName, displayName) || other.displayName == displayName)&&(identical(other.profilePictureUrl, profilePictureUrl) || other.profilePictureUrl == profilePictureUrl));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is BookingDetailTechnicianModel&&(identical(other.id, id) || other.id == id)&&(identical(other.displayName, displayName) || other.displayName == displayName)&&(identical(other.profilePictureUrl, profilePictureUrl) || other.profilePictureUrl == profilePictureUrl)&&(identical(other.phoneNo, phoneNo) || other.phoneNo == phoneNo)&&(identical(other.ratingAverage, ratingAverage) || other.ratingAverage == ratingAverage));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,displayName,profilePictureUrl);
+int get hashCode => Object.hash(runtimeType,id,displayName,profilePictureUrl,phoneNo,ratingAverage);
 
 @override
 String toString() {
-  return 'BookingDetailTechnicianModel(id: $id, displayName: $displayName, profilePictureUrl: $profilePictureUrl)';
+  return 'BookingDetailTechnicianModel(id: $id, displayName: $displayName, profilePictureUrl: $profilePictureUrl, phoneNo: $phoneNo, ratingAverage: $ratingAverage)';
 }
 
 
@@ -1130,7 +1134,7 @@ abstract mixin class $BookingDetailTechnicianModelCopyWith<$Res>  {
   factory $BookingDetailTechnicianModelCopyWith(BookingDetailTechnicianModel value, $Res Function(BookingDetailTechnicianModel) _then) = _$BookingDetailTechnicianModelCopyWithImpl;
 @useResult
 $Res call({
- int id,@JsonKey(name: 'display_name') String displayName,@JsonKey(name: 'profile_picture_url') String? profilePictureUrl
+ int id,@JsonKey(name: 'display_name') String displayName,@JsonKey(name: 'profile_picture_url') String? profilePictureUrl,@JsonKey(name: 'phone_no') String phoneNo,@JsonKey(name: 'rating_average') String ratingAverage
 });
 
 
@@ -1147,12 +1151,14 @@ class _$BookingDetailTechnicianModelCopyWithImpl<$Res>
 
 /// Create a copy of BookingDetailTechnicianModel
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? displayName = null,Object? profilePictureUrl = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? displayName = null,Object? profilePictureUrl = freezed,Object? phoneNo = null,Object? ratingAverage = null,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as int,displayName: null == displayName ? _self.displayName : displayName // ignore: cast_nullable_to_non_nullable
 as String,profilePictureUrl: freezed == profilePictureUrl ? _self.profilePictureUrl : profilePictureUrl // ignore: cast_nullable_to_non_nullable
-as String?,
+as String?,phoneNo: null == phoneNo ? _self.phoneNo : phoneNo // ignore: cast_nullable_to_non_nullable
+as String,ratingAverage: null == ratingAverage ? _self.ratingAverage : ratingAverage // ignore: cast_nullable_to_non_nullable
+as String,
   ));
 }
 
@@ -1237,10 +1243,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int id, @JsonKey(name: 'display_name')  String displayName, @JsonKey(name: 'profile_picture_url')  String? profilePictureUrl)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int id, @JsonKey(name: 'display_name')  String displayName, @JsonKey(name: 'profile_picture_url')  String? profilePictureUrl, @JsonKey(name: 'phone_no')  String phoneNo, @JsonKey(name: 'rating_average')  String ratingAverage)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _BookingDetailTechnicianModel() when $default != null:
-return $default(_that.id,_that.displayName,_that.profilePictureUrl);case _:
+return $default(_that.id,_that.displayName,_that.profilePictureUrl,_that.phoneNo,_that.ratingAverage);case _:
   return orElse();
 
 }
@@ -1258,10 +1264,10 @@ return $default(_that.id,_that.displayName,_that.profilePictureUrl);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int id, @JsonKey(name: 'display_name')  String displayName, @JsonKey(name: 'profile_picture_url')  String? profilePictureUrl)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int id, @JsonKey(name: 'display_name')  String displayName, @JsonKey(name: 'profile_picture_url')  String? profilePictureUrl, @JsonKey(name: 'phone_no')  String phoneNo, @JsonKey(name: 'rating_average')  String ratingAverage)  $default,) {final _that = this;
 switch (_that) {
 case _BookingDetailTechnicianModel():
-return $default(_that.id,_that.displayName,_that.profilePictureUrl);case _:
+return $default(_that.id,_that.displayName,_that.profilePictureUrl,_that.phoneNo,_that.ratingAverage);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -1278,10 +1284,10 @@ return $default(_that.id,_that.displayName,_that.profilePictureUrl);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int id, @JsonKey(name: 'display_name')  String displayName, @JsonKey(name: 'profile_picture_url')  String? profilePictureUrl)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int id, @JsonKey(name: 'display_name')  String displayName, @JsonKey(name: 'profile_picture_url')  String? profilePictureUrl, @JsonKey(name: 'phone_no')  String phoneNo, @JsonKey(name: 'rating_average')  String ratingAverage)?  $default,) {final _that = this;
 switch (_that) {
 case _BookingDetailTechnicianModel() when $default != null:
-return $default(_that.id,_that.displayName,_that.profilePictureUrl);case _:
+return $default(_that.id,_that.displayName,_that.profilePictureUrl,_that.phoneNo,_that.ratingAverage);case _:
   return null;
 
 }
@@ -1293,12 +1299,18 @@ return $default(_that.id,_that.displayName,_that.profilePictureUrl);case _:
 @JsonSerializable()
 
 class _BookingDetailTechnicianModel implements BookingDetailTechnicianModel {
-  const _BookingDetailTechnicianModel({required this.id, @JsonKey(name: 'display_name') required this.displayName, @JsonKey(name: 'profile_picture_url') this.profilePictureUrl});
+  const _BookingDetailTechnicianModel({required this.id, @JsonKey(name: 'display_name') required this.displayName, @JsonKey(name: 'profile_picture_url') this.profilePictureUrl, @JsonKey(name: 'phone_no') this.phoneNo = '', @JsonKey(name: 'rating_average') this.ratingAverage = '0.00'});
   factory _BookingDetailTechnicianModel.fromJson(Map<String, dynamic> json) => _$BookingDetailTechnicianModelFromJson(json);
 
 @override final  int id;
 @override@JsonKey(name: 'display_name') final  String displayName;
 @override@JsonKey(name: 'profile_picture_url') final  String? profilePictureUrl;
+// Both default to backwards-compat-safe values so older test
+// fixtures (and mid-rollout server snapshots) keep parsing. Backend
+// always emits these post-this-PR.
+@override@JsonKey(name: 'phone_no') final  String phoneNo;
+// Decimal-string from DecimalField (e.g. "4.85").
+@override@JsonKey(name: 'rating_average') final  String ratingAverage;
 
 /// Create a copy of BookingDetailTechnicianModel
 /// with the given fields replaced by the non-null parameter values.
@@ -1313,16 +1325,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _BookingDetailTechnicianModel&&(identical(other.id, id) || other.id == id)&&(identical(other.displayName, displayName) || other.displayName == displayName)&&(identical(other.profilePictureUrl, profilePictureUrl) || other.profilePictureUrl == profilePictureUrl));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _BookingDetailTechnicianModel&&(identical(other.id, id) || other.id == id)&&(identical(other.displayName, displayName) || other.displayName == displayName)&&(identical(other.profilePictureUrl, profilePictureUrl) || other.profilePictureUrl == profilePictureUrl)&&(identical(other.phoneNo, phoneNo) || other.phoneNo == phoneNo)&&(identical(other.ratingAverage, ratingAverage) || other.ratingAverage == ratingAverage));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,displayName,profilePictureUrl);
+int get hashCode => Object.hash(runtimeType,id,displayName,profilePictureUrl,phoneNo,ratingAverage);
 
 @override
 String toString() {
-  return 'BookingDetailTechnicianModel(id: $id, displayName: $displayName, profilePictureUrl: $profilePictureUrl)';
+  return 'BookingDetailTechnicianModel(id: $id, displayName: $displayName, profilePictureUrl: $profilePictureUrl, phoneNo: $phoneNo, ratingAverage: $ratingAverage)';
 }
 
 
@@ -1333,7 +1345,7 @@ abstract mixin class _$BookingDetailTechnicianModelCopyWith<$Res> implements $Bo
   factory _$BookingDetailTechnicianModelCopyWith(_BookingDetailTechnicianModel value, $Res Function(_BookingDetailTechnicianModel) _then) = __$BookingDetailTechnicianModelCopyWithImpl;
 @override @useResult
 $Res call({
- int id,@JsonKey(name: 'display_name') String displayName,@JsonKey(name: 'profile_picture_url') String? profilePictureUrl
+ int id,@JsonKey(name: 'display_name') String displayName,@JsonKey(name: 'profile_picture_url') String? profilePictureUrl,@JsonKey(name: 'phone_no') String phoneNo,@JsonKey(name: 'rating_average') String ratingAverage
 });
 
 
@@ -1350,12 +1362,14 @@ class __$BookingDetailTechnicianModelCopyWithImpl<$Res>
 
 /// Create a copy of BookingDetailTechnicianModel
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? displayName = null,Object? profilePictureUrl = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? displayName = null,Object? profilePictureUrl = freezed,Object? phoneNo = null,Object? ratingAverage = null,}) {
   return _then(_BookingDetailTechnicianModel(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as int,displayName: null == displayName ? _self.displayName : displayName // ignore: cast_nullable_to_non_nullable
 as String,profilePictureUrl: freezed == profilePictureUrl ? _self.profilePictureUrl : profilePictureUrl // ignore: cast_nullable_to_non_nullable
-as String?,
+as String?,phoneNo: null == phoneNo ? _self.phoneNo : phoneNo // ignore: cast_nullable_to_non_nullable
+as String,ratingAverage: null == ratingAverage ? _self.ratingAverage : ratingAverage // ignore: cast_nullable_to_non_nullable
+as String,
   ));
 }
 
@@ -1911,7 +1925,7 @@ as String,
 /// @nodoc
 mixin _$BookingDetailPhaseTimestampsModel {
 
-@JsonKey(name: 'accepted_at') String? get acceptedAt;@JsonKey(name: 'en_route_started_at') String? get enRouteStartedAt;@JsonKey(name: 'arrived_at') String? get arrivedAt;@JsonKey(name: 'inspection_started_at') String? get inspectionStartedAt;@JsonKey(name: 'quote_first_submitted_at') String? get quoteFirstSubmittedAt;@JsonKey(name: 'work_started_at') String? get workStartedAt;@JsonKey(name: 'completed_at') String? get completedAt;
+@JsonKey(name: 'accepted_at') String? get acceptedAt;@JsonKey(name: 'en_route_started_at') String? get enRouteStartedAt;@JsonKey(name: 'arrived_at') String? get arrivedAt;@JsonKey(name: 'customer_acknowledged_arrival_at') String? get customerAcknowledgedArrivalAt;@JsonKey(name: 'inspection_started_at') String? get inspectionStartedAt;@JsonKey(name: 'quote_first_submitted_at') String? get quoteFirstSubmittedAt;@JsonKey(name: 'work_started_at') String? get workStartedAt;@JsonKey(name: 'completed_at') String? get completedAt;
 /// Create a copy of BookingDetailPhaseTimestampsModel
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -1924,16 +1938,16 @@ $BookingDetailPhaseTimestampsModelCopyWith<BookingDetailPhaseTimestampsModel> ge
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is BookingDetailPhaseTimestampsModel&&(identical(other.acceptedAt, acceptedAt) || other.acceptedAt == acceptedAt)&&(identical(other.enRouteStartedAt, enRouteStartedAt) || other.enRouteStartedAt == enRouteStartedAt)&&(identical(other.arrivedAt, arrivedAt) || other.arrivedAt == arrivedAt)&&(identical(other.inspectionStartedAt, inspectionStartedAt) || other.inspectionStartedAt == inspectionStartedAt)&&(identical(other.quoteFirstSubmittedAt, quoteFirstSubmittedAt) || other.quoteFirstSubmittedAt == quoteFirstSubmittedAt)&&(identical(other.workStartedAt, workStartedAt) || other.workStartedAt == workStartedAt)&&(identical(other.completedAt, completedAt) || other.completedAt == completedAt));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is BookingDetailPhaseTimestampsModel&&(identical(other.acceptedAt, acceptedAt) || other.acceptedAt == acceptedAt)&&(identical(other.enRouteStartedAt, enRouteStartedAt) || other.enRouteStartedAt == enRouteStartedAt)&&(identical(other.arrivedAt, arrivedAt) || other.arrivedAt == arrivedAt)&&(identical(other.customerAcknowledgedArrivalAt, customerAcknowledgedArrivalAt) || other.customerAcknowledgedArrivalAt == customerAcknowledgedArrivalAt)&&(identical(other.inspectionStartedAt, inspectionStartedAt) || other.inspectionStartedAt == inspectionStartedAt)&&(identical(other.quoteFirstSubmittedAt, quoteFirstSubmittedAt) || other.quoteFirstSubmittedAt == quoteFirstSubmittedAt)&&(identical(other.workStartedAt, workStartedAt) || other.workStartedAt == workStartedAt)&&(identical(other.completedAt, completedAt) || other.completedAt == completedAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,acceptedAt,enRouteStartedAt,arrivedAt,inspectionStartedAt,quoteFirstSubmittedAt,workStartedAt,completedAt);
+int get hashCode => Object.hash(runtimeType,acceptedAt,enRouteStartedAt,arrivedAt,customerAcknowledgedArrivalAt,inspectionStartedAt,quoteFirstSubmittedAt,workStartedAt,completedAt);
 
 @override
 String toString() {
-  return 'BookingDetailPhaseTimestampsModel(acceptedAt: $acceptedAt, enRouteStartedAt: $enRouteStartedAt, arrivedAt: $arrivedAt, inspectionStartedAt: $inspectionStartedAt, quoteFirstSubmittedAt: $quoteFirstSubmittedAt, workStartedAt: $workStartedAt, completedAt: $completedAt)';
+  return 'BookingDetailPhaseTimestampsModel(acceptedAt: $acceptedAt, enRouteStartedAt: $enRouteStartedAt, arrivedAt: $arrivedAt, customerAcknowledgedArrivalAt: $customerAcknowledgedArrivalAt, inspectionStartedAt: $inspectionStartedAt, quoteFirstSubmittedAt: $quoteFirstSubmittedAt, workStartedAt: $workStartedAt, completedAt: $completedAt)';
 }
 
 
@@ -1944,7 +1958,7 @@ abstract mixin class $BookingDetailPhaseTimestampsModelCopyWith<$Res>  {
   factory $BookingDetailPhaseTimestampsModelCopyWith(BookingDetailPhaseTimestampsModel value, $Res Function(BookingDetailPhaseTimestampsModel) _then) = _$BookingDetailPhaseTimestampsModelCopyWithImpl;
 @useResult
 $Res call({
-@JsonKey(name: 'accepted_at') String? acceptedAt,@JsonKey(name: 'en_route_started_at') String? enRouteStartedAt,@JsonKey(name: 'arrived_at') String? arrivedAt,@JsonKey(name: 'inspection_started_at') String? inspectionStartedAt,@JsonKey(name: 'quote_first_submitted_at') String? quoteFirstSubmittedAt,@JsonKey(name: 'work_started_at') String? workStartedAt,@JsonKey(name: 'completed_at') String? completedAt
+@JsonKey(name: 'accepted_at') String? acceptedAt,@JsonKey(name: 'en_route_started_at') String? enRouteStartedAt,@JsonKey(name: 'arrived_at') String? arrivedAt,@JsonKey(name: 'customer_acknowledged_arrival_at') String? customerAcknowledgedArrivalAt,@JsonKey(name: 'inspection_started_at') String? inspectionStartedAt,@JsonKey(name: 'quote_first_submitted_at') String? quoteFirstSubmittedAt,@JsonKey(name: 'work_started_at') String? workStartedAt,@JsonKey(name: 'completed_at') String? completedAt
 });
 
 
@@ -1961,11 +1975,12 @@ class _$BookingDetailPhaseTimestampsModelCopyWithImpl<$Res>
 
 /// Create a copy of BookingDetailPhaseTimestampsModel
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? acceptedAt = freezed,Object? enRouteStartedAt = freezed,Object? arrivedAt = freezed,Object? inspectionStartedAt = freezed,Object? quoteFirstSubmittedAt = freezed,Object? workStartedAt = freezed,Object? completedAt = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? acceptedAt = freezed,Object? enRouteStartedAt = freezed,Object? arrivedAt = freezed,Object? customerAcknowledgedArrivalAt = freezed,Object? inspectionStartedAt = freezed,Object? quoteFirstSubmittedAt = freezed,Object? workStartedAt = freezed,Object? completedAt = freezed,}) {
   return _then(_self.copyWith(
 acceptedAt: freezed == acceptedAt ? _self.acceptedAt : acceptedAt // ignore: cast_nullable_to_non_nullable
 as String?,enRouteStartedAt: freezed == enRouteStartedAt ? _self.enRouteStartedAt : enRouteStartedAt // ignore: cast_nullable_to_non_nullable
 as String?,arrivedAt: freezed == arrivedAt ? _self.arrivedAt : arrivedAt // ignore: cast_nullable_to_non_nullable
+as String?,customerAcknowledgedArrivalAt: freezed == customerAcknowledgedArrivalAt ? _self.customerAcknowledgedArrivalAt : customerAcknowledgedArrivalAt // ignore: cast_nullable_to_non_nullable
 as String?,inspectionStartedAt: freezed == inspectionStartedAt ? _self.inspectionStartedAt : inspectionStartedAt // ignore: cast_nullable_to_non_nullable
 as String?,quoteFirstSubmittedAt: freezed == quoteFirstSubmittedAt ? _self.quoteFirstSubmittedAt : quoteFirstSubmittedAt // ignore: cast_nullable_to_non_nullable
 as String?,workStartedAt: freezed == workStartedAt ? _self.workStartedAt : workStartedAt // ignore: cast_nullable_to_non_nullable
@@ -2055,10 +2070,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(name: 'accepted_at')  String? acceptedAt, @JsonKey(name: 'en_route_started_at')  String? enRouteStartedAt, @JsonKey(name: 'arrived_at')  String? arrivedAt, @JsonKey(name: 'inspection_started_at')  String? inspectionStartedAt, @JsonKey(name: 'quote_first_submitted_at')  String? quoteFirstSubmittedAt, @JsonKey(name: 'work_started_at')  String? workStartedAt, @JsonKey(name: 'completed_at')  String? completedAt)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(name: 'accepted_at')  String? acceptedAt, @JsonKey(name: 'en_route_started_at')  String? enRouteStartedAt, @JsonKey(name: 'arrived_at')  String? arrivedAt, @JsonKey(name: 'customer_acknowledged_arrival_at')  String? customerAcknowledgedArrivalAt, @JsonKey(name: 'inspection_started_at')  String? inspectionStartedAt, @JsonKey(name: 'quote_first_submitted_at')  String? quoteFirstSubmittedAt, @JsonKey(name: 'work_started_at')  String? workStartedAt, @JsonKey(name: 'completed_at')  String? completedAt)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _BookingDetailPhaseTimestampsModel() when $default != null:
-return $default(_that.acceptedAt,_that.enRouteStartedAt,_that.arrivedAt,_that.inspectionStartedAt,_that.quoteFirstSubmittedAt,_that.workStartedAt,_that.completedAt);case _:
+return $default(_that.acceptedAt,_that.enRouteStartedAt,_that.arrivedAt,_that.customerAcknowledgedArrivalAt,_that.inspectionStartedAt,_that.quoteFirstSubmittedAt,_that.workStartedAt,_that.completedAt);case _:
   return orElse();
 
 }
@@ -2076,10 +2091,10 @@ return $default(_that.acceptedAt,_that.enRouteStartedAt,_that.arrivedAt,_that.in
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(name: 'accepted_at')  String? acceptedAt, @JsonKey(name: 'en_route_started_at')  String? enRouteStartedAt, @JsonKey(name: 'arrived_at')  String? arrivedAt, @JsonKey(name: 'inspection_started_at')  String? inspectionStartedAt, @JsonKey(name: 'quote_first_submitted_at')  String? quoteFirstSubmittedAt, @JsonKey(name: 'work_started_at')  String? workStartedAt, @JsonKey(name: 'completed_at')  String? completedAt)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(name: 'accepted_at')  String? acceptedAt, @JsonKey(name: 'en_route_started_at')  String? enRouteStartedAt, @JsonKey(name: 'arrived_at')  String? arrivedAt, @JsonKey(name: 'customer_acknowledged_arrival_at')  String? customerAcknowledgedArrivalAt, @JsonKey(name: 'inspection_started_at')  String? inspectionStartedAt, @JsonKey(name: 'quote_first_submitted_at')  String? quoteFirstSubmittedAt, @JsonKey(name: 'work_started_at')  String? workStartedAt, @JsonKey(name: 'completed_at')  String? completedAt)  $default,) {final _that = this;
 switch (_that) {
 case _BookingDetailPhaseTimestampsModel():
-return $default(_that.acceptedAt,_that.enRouteStartedAt,_that.arrivedAt,_that.inspectionStartedAt,_that.quoteFirstSubmittedAt,_that.workStartedAt,_that.completedAt);case _:
+return $default(_that.acceptedAt,_that.enRouteStartedAt,_that.arrivedAt,_that.customerAcknowledgedArrivalAt,_that.inspectionStartedAt,_that.quoteFirstSubmittedAt,_that.workStartedAt,_that.completedAt);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -2096,10 +2111,10 @@ return $default(_that.acceptedAt,_that.enRouteStartedAt,_that.arrivedAt,_that.in
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(name: 'accepted_at')  String? acceptedAt, @JsonKey(name: 'en_route_started_at')  String? enRouteStartedAt, @JsonKey(name: 'arrived_at')  String? arrivedAt, @JsonKey(name: 'inspection_started_at')  String? inspectionStartedAt, @JsonKey(name: 'quote_first_submitted_at')  String? quoteFirstSubmittedAt, @JsonKey(name: 'work_started_at')  String? workStartedAt, @JsonKey(name: 'completed_at')  String? completedAt)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(name: 'accepted_at')  String? acceptedAt, @JsonKey(name: 'en_route_started_at')  String? enRouteStartedAt, @JsonKey(name: 'arrived_at')  String? arrivedAt, @JsonKey(name: 'customer_acknowledged_arrival_at')  String? customerAcknowledgedArrivalAt, @JsonKey(name: 'inspection_started_at')  String? inspectionStartedAt, @JsonKey(name: 'quote_first_submitted_at')  String? quoteFirstSubmittedAt, @JsonKey(name: 'work_started_at')  String? workStartedAt, @JsonKey(name: 'completed_at')  String? completedAt)?  $default,) {final _that = this;
 switch (_that) {
 case _BookingDetailPhaseTimestampsModel() when $default != null:
-return $default(_that.acceptedAt,_that.enRouteStartedAt,_that.arrivedAt,_that.inspectionStartedAt,_that.quoteFirstSubmittedAt,_that.workStartedAt,_that.completedAt);case _:
+return $default(_that.acceptedAt,_that.enRouteStartedAt,_that.arrivedAt,_that.customerAcknowledgedArrivalAt,_that.inspectionStartedAt,_that.quoteFirstSubmittedAt,_that.workStartedAt,_that.completedAt);case _:
   return null;
 
 }
@@ -2111,12 +2126,13 @@ return $default(_that.acceptedAt,_that.enRouteStartedAt,_that.arrivedAt,_that.in
 @JsonSerializable()
 
 class _BookingDetailPhaseTimestampsModel implements BookingDetailPhaseTimestampsModel {
-  const _BookingDetailPhaseTimestampsModel({@JsonKey(name: 'accepted_at') this.acceptedAt, @JsonKey(name: 'en_route_started_at') this.enRouteStartedAt, @JsonKey(name: 'arrived_at') this.arrivedAt, @JsonKey(name: 'inspection_started_at') this.inspectionStartedAt, @JsonKey(name: 'quote_first_submitted_at') this.quoteFirstSubmittedAt, @JsonKey(name: 'work_started_at') this.workStartedAt, @JsonKey(name: 'completed_at') this.completedAt});
+  const _BookingDetailPhaseTimestampsModel({@JsonKey(name: 'accepted_at') this.acceptedAt, @JsonKey(name: 'en_route_started_at') this.enRouteStartedAt, @JsonKey(name: 'arrived_at') this.arrivedAt, @JsonKey(name: 'customer_acknowledged_arrival_at') this.customerAcknowledgedArrivalAt, @JsonKey(name: 'inspection_started_at') this.inspectionStartedAt, @JsonKey(name: 'quote_first_submitted_at') this.quoteFirstSubmittedAt, @JsonKey(name: 'work_started_at') this.workStartedAt, @JsonKey(name: 'completed_at') this.completedAt});
   factory _BookingDetailPhaseTimestampsModel.fromJson(Map<String, dynamic> json) => _$BookingDetailPhaseTimestampsModelFromJson(json);
 
 @override@JsonKey(name: 'accepted_at') final  String? acceptedAt;
 @override@JsonKey(name: 'en_route_started_at') final  String? enRouteStartedAt;
 @override@JsonKey(name: 'arrived_at') final  String? arrivedAt;
+@override@JsonKey(name: 'customer_acknowledged_arrival_at') final  String? customerAcknowledgedArrivalAt;
 @override@JsonKey(name: 'inspection_started_at') final  String? inspectionStartedAt;
 @override@JsonKey(name: 'quote_first_submitted_at') final  String? quoteFirstSubmittedAt;
 @override@JsonKey(name: 'work_started_at') final  String? workStartedAt;
@@ -2135,16 +2151,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _BookingDetailPhaseTimestampsModel&&(identical(other.acceptedAt, acceptedAt) || other.acceptedAt == acceptedAt)&&(identical(other.enRouteStartedAt, enRouteStartedAt) || other.enRouteStartedAt == enRouteStartedAt)&&(identical(other.arrivedAt, arrivedAt) || other.arrivedAt == arrivedAt)&&(identical(other.inspectionStartedAt, inspectionStartedAt) || other.inspectionStartedAt == inspectionStartedAt)&&(identical(other.quoteFirstSubmittedAt, quoteFirstSubmittedAt) || other.quoteFirstSubmittedAt == quoteFirstSubmittedAt)&&(identical(other.workStartedAt, workStartedAt) || other.workStartedAt == workStartedAt)&&(identical(other.completedAt, completedAt) || other.completedAt == completedAt));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _BookingDetailPhaseTimestampsModel&&(identical(other.acceptedAt, acceptedAt) || other.acceptedAt == acceptedAt)&&(identical(other.enRouteStartedAt, enRouteStartedAt) || other.enRouteStartedAt == enRouteStartedAt)&&(identical(other.arrivedAt, arrivedAt) || other.arrivedAt == arrivedAt)&&(identical(other.customerAcknowledgedArrivalAt, customerAcknowledgedArrivalAt) || other.customerAcknowledgedArrivalAt == customerAcknowledgedArrivalAt)&&(identical(other.inspectionStartedAt, inspectionStartedAt) || other.inspectionStartedAt == inspectionStartedAt)&&(identical(other.quoteFirstSubmittedAt, quoteFirstSubmittedAt) || other.quoteFirstSubmittedAt == quoteFirstSubmittedAt)&&(identical(other.workStartedAt, workStartedAt) || other.workStartedAt == workStartedAt)&&(identical(other.completedAt, completedAt) || other.completedAt == completedAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,acceptedAt,enRouteStartedAt,arrivedAt,inspectionStartedAt,quoteFirstSubmittedAt,workStartedAt,completedAt);
+int get hashCode => Object.hash(runtimeType,acceptedAt,enRouteStartedAt,arrivedAt,customerAcknowledgedArrivalAt,inspectionStartedAt,quoteFirstSubmittedAt,workStartedAt,completedAt);
 
 @override
 String toString() {
-  return 'BookingDetailPhaseTimestampsModel(acceptedAt: $acceptedAt, enRouteStartedAt: $enRouteStartedAt, arrivedAt: $arrivedAt, inspectionStartedAt: $inspectionStartedAt, quoteFirstSubmittedAt: $quoteFirstSubmittedAt, workStartedAt: $workStartedAt, completedAt: $completedAt)';
+  return 'BookingDetailPhaseTimestampsModel(acceptedAt: $acceptedAt, enRouteStartedAt: $enRouteStartedAt, arrivedAt: $arrivedAt, customerAcknowledgedArrivalAt: $customerAcknowledgedArrivalAt, inspectionStartedAt: $inspectionStartedAt, quoteFirstSubmittedAt: $quoteFirstSubmittedAt, workStartedAt: $workStartedAt, completedAt: $completedAt)';
 }
 
 
@@ -2155,7 +2171,7 @@ abstract mixin class _$BookingDetailPhaseTimestampsModelCopyWith<$Res> implement
   factory _$BookingDetailPhaseTimestampsModelCopyWith(_BookingDetailPhaseTimestampsModel value, $Res Function(_BookingDetailPhaseTimestampsModel) _then) = __$BookingDetailPhaseTimestampsModelCopyWithImpl;
 @override @useResult
 $Res call({
-@JsonKey(name: 'accepted_at') String? acceptedAt,@JsonKey(name: 'en_route_started_at') String? enRouteStartedAt,@JsonKey(name: 'arrived_at') String? arrivedAt,@JsonKey(name: 'inspection_started_at') String? inspectionStartedAt,@JsonKey(name: 'quote_first_submitted_at') String? quoteFirstSubmittedAt,@JsonKey(name: 'work_started_at') String? workStartedAt,@JsonKey(name: 'completed_at') String? completedAt
+@JsonKey(name: 'accepted_at') String? acceptedAt,@JsonKey(name: 'en_route_started_at') String? enRouteStartedAt,@JsonKey(name: 'arrived_at') String? arrivedAt,@JsonKey(name: 'customer_acknowledged_arrival_at') String? customerAcknowledgedArrivalAt,@JsonKey(name: 'inspection_started_at') String? inspectionStartedAt,@JsonKey(name: 'quote_first_submitted_at') String? quoteFirstSubmittedAt,@JsonKey(name: 'work_started_at') String? workStartedAt,@JsonKey(name: 'completed_at') String? completedAt
 });
 
 
@@ -2172,11 +2188,12 @@ class __$BookingDetailPhaseTimestampsModelCopyWithImpl<$Res>
 
 /// Create a copy of BookingDetailPhaseTimestampsModel
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? acceptedAt = freezed,Object? enRouteStartedAt = freezed,Object? arrivedAt = freezed,Object? inspectionStartedAt = freezed,Object? quoteFirstSubmittedAt = freezed,Object? workStartedAt = freezed,Object? completedAt = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? acceptedAt = freezed,Object? enRouteStartedAt = freezed,Object? arrivedAt = freezed,Object? customerAcknowledgedArrivalAt = freezed,Object? inspectionStartedAt = freezed,Object? quoteFirstSubmittedAt = freezed,Object? workStartedAt = freezed,Object? completedAt = freezed,}) {
   return _then(_BookingDetailPhaseTimestampsModel(
 acceptedAt: freezed == acceptedAt ? _self.acceptedAt : acceptedAt // ignore: cast_nullable_to_non_nullable
 as String?,enRouteStartedAt: freezed == enRouteStartedAt ? _self.enRouteStartedAt : enRouteStartedAt // ignore: cast_nullable_to_non_nullable
 as String?,arrivedAt: freezed == arrivedAt ? _self.arrivedAt : arrivedAt // ignore: cast_nullable_to_non_nullable
+as String?,customerAcknowledgedArrivalAt: freezed == customerAcknowledgedArrivalAt ? _self.customerAcknowledgedArrivalAt : customerAcknowledgedArrivalAt // ignore: cast_nullable_to_non_nullable
 as String?,inspectionStartedAt: freezed == inspectionStartedAt ? _self.inspectionStartedAt : inspectionStartedAt // ignore: cast_nullable_to_non_nullable
 as String?,quoteFirstSubmittedAt: freezed == quoteFirstSubmittedAt ? _self.quoteFirstSubmittedAt : quoteFirstSubmittedAt // ignore: cast_nullable_to_non_nullable
 as String?,workStartedAt: freezed == workStartedAt ? _self.workStartedAt : workStartedAt // ignore: cast_nullable_to_non_nullable

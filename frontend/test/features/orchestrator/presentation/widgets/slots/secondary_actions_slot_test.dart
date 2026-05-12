@@ -1,13 +1,16 @@
 // Widget tests for `SecondaryActionsSlot`.
 //
-// Regression vectors:
-//   * Wrap.runSpacing must be POSITIVE (#B-56). It used to be -4 which
-//     visually overlapped rows when the wrap reflowed (e.g. QUOTED has
-//     3+ secondary actions on narrow phones).
-//   * `showDisputeButton: true` must surface the "Open dispute" button
-//     (#B-55).
-//   * When neither secondary actions nor dispute exist, the slot must
-//     render nothing (no padding eating space).
+// Contract (post item #4 — `feedback_cancel_vs_no_show.md`):
+//   * Renders only *forward* secondary actions inline (style != destructive).
+//   * Destructive actions (cancel / tech-cancel) are filtered out — they
+//     live behind the orchestrator app-bar Help icon now (`HelpSheet`).
+//   * `showDisputeButton` is no longer this slot's concern — `HelpSheet`
+//     reads it directly from the booking and surfaces dispute there.
+//   * When no forward actions exist the slot renders nothing (no padding
+//     eating vertical space above the primary action).
+//
+// Regression vectors retained:
+//   * Wrap.runSpacing must remain positive (#B-56).
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -50,10 +53,10 @@ void main() {
       final booking = _booking(
         secondary: [
           {
-            'label': 'A',
-            'endpoint': '/bookings/1/cancel/',
+            'label': 'Add upsell',
+            'endpoint': '/bookings/1/quotes/',
             'method': 'POST',
-            'style': 'neutral',
+            'style': 'primary',
           },
         ],
       );
@@ -70,10 +73,21 @@ void main() {
       expect(wrap.spacing, greaterThan(0));
     });
 
-    testWidgets('renders the dispute button when showDisputeButton is true', (
+    testWidgets('destructive actions are filtered out (move to Help)', (
       tester,
     ) async {
-      final booking = _booking(showDispute: true);
+      // Cancel lives behind the Help icon now. Even when the server
+      // emits it in secondary_actions, the slot must not render it.
+      final booking = _booking(
+        secondary: [
+          {
+            'label': 'Cancel',
+            'endpoint': '/bookings/1/cancel/',
+            'method': 'POST',
+            'style': 'destructive',
+          },
+        ],
+      );
       await tester.pumpWidget(
         ProviderScope(
           child: MaterialApp(
@@ -81,13 +95,77 @@ void main() {
           ),
         ),
       );
-      expect(find.text('Open dispute'), findsOneWidget);
+      // No Cancel button, no Wrap at all — slot short-circuits to shrink
+      // because the only action was filtered out.
+      expect(find.text('Cancel'), findsNothing);
+      expect(find.byType(Wrap), findsNothing);
     });
 
-    testWidgets('omits the dispute button when showDisputeButton is false', (
+    testWidgets(
+      'forward (non-destructive) actions render inline',
+      (tester) async {
+        final booking = _booking(
+          secondary: [
+            {
+              'label': 'Add upsell',
+              'endpoint': '/bookings/1/quotes/',
+              'method': 'POST',
+              'style': 'primary',
+            },
+            {
+              'label': 'Cancel',
+              'endpoint': '/bookings/1/cancel/',
+              'method': 'POST',
+              'style': 'destructive',
+            },
+          ],
+        );
+        await tester.pumpWidget(
+          ProviderScope(
+            child: MaterialApp(
+              home: Scaffold(body: SecondaryActionsSlot(booking: booking)),
+            ),
+          ),
+        );
+        // The forward action renders; the destructive one is filtered.
+        expect(find.text('Add upsell'), findsOneWidget);
+        expect(find.text('Cancel'), findsNothing);
+      },
+    );
+
+    testWidgets('reschedule is filtered out (Help owns it now)', (
       tester,
     ) async {
-      final booking = _booking(showDispute: false);
+      // Per the same exit-vs-forward rule as Cancel: `/reschedule/` is
+      // a time-change verb, not a forward step. SecondaryActionsSlot
+      // filters it out; HelpSheet surfaces it.
+      final booking = _booking(
+        secondary: [
+          {
+            'label': 'Reschedule',
+            'endpoint': '/bookings/1/reschedule/',
+            'method': 'POST',
+            'style': 'neutral',
+          },
+        ],
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            home: Scaffold(body: SecondaryActionsSlot(booking: booking)),
+          ),
+        ),
+      );
+      expect(find.text('Reschedule'), findsNothing);
+      expect(find.byType(Wrap), findsNothing);
+    });
+
+    testWidgets('dispute is NOT rendered inline (Help owns it now)', (
+      tester,
+    ) async {
+      // `showDisputeButton: true` used to surface an "Open dispute"
+      // button here. Post item #4 it lives in HelpSheet only.
+      final booking = _booking(showDispute: true);
       await tester.pumpWidget(
         ProviderScope(
           child: MaterialApp(
@@ -114,5 +192,42 @@ void main() {
       // No Wrap should be in the tree under this slot.
       expect(find.byType(Wrap), findsNothing);
     });
+
+    testWidgets(
+      'request-revision action is relabelled to "Negotiate price"',
+      (tester) async {
+        // Post-arrival the customer + technician are face-to-face; the
+        // wire's "Ask for a revision" framing is a remote-ticket
+        // misnomer for this market. The slot rewrites the label to
+        // "Negotiate price" — a hint that the bargain happens in
+        // person with the tech standing right there. The endpoint
+        // (and therefore the actual server-side action) is unchanged.
+        //
+        // The visibility of `/request-revision/` is now server-driven
+        // (Dumb UI): the backend omits the action when every line
+        // item is a fixed-price sub-service. This test pins only the
+        // label rewrite; the omission is covered by the backend's
+        // selector tests.
+        final booking = _booking(
+          secondary: [
+            {
+              'label': 'Ask for a revision',
+              'endpoint': '/bookings/1/quotes/9/request-revision/',
+              'method': 'POST',
+              'style': 'neutral',
+            },
+          ],
+        );
+        await tester.pumpWidget(
+          ProviderScope(
+            child: MaterialApp(
+              home: Scaffold(body: SecondaryActionsSlot(booking: booking)),
+            ),
+          ),
+        );
+        expect(find.text('Negotiate price'), findsOneWidget);
+        expect(find.text('Ask for a revision'), findsNothing);
+      },
+    );
   });
 }

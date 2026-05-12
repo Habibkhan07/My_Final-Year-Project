@@ -86,6 +86,12 @@ abstract class BookingDetailTechnicianModel
     required int id,
     @JsonKey(name: 'display_name') required String displayName,
     @JsonKey(name: 'profile_picture_url') String? profilePictureUrl,
+    // Both default to backwards-compat-safe values so older test
+    // fixtures (and mid-rollout server snapshots) keep parsing. Backend
+    // always emits these post-this-PR.
+    @JsonKey(name: 'phone_no') @Default('') String phoneNo,
+    // Decimal-string from DecimalField (e.g. "4.85").
+    @JsonKey(name: 'rating_average') @Default('0.00') String ratingAverage,
   }) = _BookingDetailTechnicianModel;
 
   factory BookingDetailTechnicianModel.fromJson(Map<String, dynamic> json) =>
@@ -126,6 +132,8 @@ abstract class BookingDetailPhaseTimestampsModel
     @JsonKey(name: 'accepted_at') String? acceptedAt,
     @JsonKey(name: 'en_route_started_at') String? enRouteStartedAt,
     @JsonKey(name: 'arrived_at') String? arrivedAt,
+    @JsonKey(name: 'customer_acknowledged_arrival_at')
+    String? customerAcknowledgedArrivalAt,
     @JsonKey(name: 'inspection_started_at') String? inspectionStartedAt,
     @JsonKey(name: 'quote_first_submitted_at') String? quoteFirstSubmittedAt,
     @JsonKey(name: 'work_started_at') String? workStartedAt,

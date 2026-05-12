@@ -57,6 +57,7 @@ class EventUrgencyRouter {
   static const _lowUrgencyTapRoutes = <SystemEventType, String>{
     SystemEventType.techEnRoute: '/booking/:job_id',
     SystemEventType.techArrived: '/booking/:job_id',
+    SystemEventType.customerArriving: '/booking/:job_id',
     SystemEventType.chatMessage: '/shared/chat',
     SystemEventType.paymentReceived: '/shared/wallet',
     SystemEventType.walletLowBalance: '/shared/wallet',
@@ -83,6 +84,7 @@ class EventUrgencyRouter {
     SystemEventType.chatMessage: Icons.chat_bubble,
     SystemEventType.techEnRoute: Icons.location_on,
     SystemEventType.techArrived: Icons.location_on,
+    SystemEventType.customerArriving: Icons.directions_walk,
     SystemEventType.paymentReceived: Icons.account_balance_wallet,
     SystemEventType.walletLowBalance: Icons.account_balance_wallet_outlined,
     SystemEventType.jobAccepted: Icons.event_available,
@@ -98,6 +100,7 @@ class EventUrgencyRouter {
     SystemEventType.chatMessage: 'New Message',
     SystemEventType.techEnRoute: 'Technician On The Way',
     SystemEventType.techArrived: 'Technician Arrived',
+    SystemEventType.customerArriving: 'Customer is coming out',
     SystemEventType.paymentReceived: 'Payment Received',
     SystemEventType.walletLowBalance: 'Low Wallet Balance',
     SystemEventType.jobAccepted: 'Booking confirmed',
@@ -110,10 +113,21 @@ class EventUrgencyRouter {
   };
 
   /// Per-event-type payload key used to detect "already viewing this exact
-  /// entity" for the nav guard. Types not in the map skip the guard and
-  /// always push — the guard is an optimization, not a correctness gate.
+  /// entity". Used by both:
   ///
-  /// Every entry below uses `'job_id'` because the orchestrator screen URL
+  ///   * **High-urgency push guard** — when an event would push a route the
+  ///     user is already on, skip the duplicate push.
+  ///   * **Low-urgency banner suppression** — when a banner is about a
+  ///     booking the user is currently viewing, skip the banner; the
+  ///     booking-detail screen's own `BookingOrchestratorEventsNotifier`
+  ///     invalidates the detail provider silently, so the screen refreshes
+  ///     without an interruptive banner about the booking the user is
+  ///     literally looking at.
+  ///
+  /// Types not in the map skip the guard and always push / always banner —
+  /// the guard is an optimization, not a correctness gate.
+  ///
+  /// Most entries use `'job_id'` because the orchestrator screen URL
   /// template is `/booking/:job_id`. Quote / dispute ids are not in the URL,
   /// so guarding by quote_id / dispute_id would always misfire and double-push.
   ///
@@ -121,6 +135,10 @@ class EventUrgencyRouter {
   /// the user is on the child screen (auto-redirected by the in-app
   /// `bookingRescheduledNotifier` OR routed there by an earlier tap), a
   /// stale banner tap shouldn't push a duplicate of the same screen.
+  ///
+  /// `chatMessage`, `paymentReceived`, `walletLowBalance` are deliberately
+  /// absent — those banners are valid even when on the booking-detail
+  /// screen because they target a different screen entirely.
   static const _navGuardPayloadKeys = <SystemEventType, String>{
     SystemEventType.quoteGenerated: 'job_id',
     SystemEventType.quoteApproved: 'job_id',
@@ -131,6 +149,13 @@ class EventUrgencyRouter {
     SystemEventType.quoteDeclined: 'job_id',
     SystemEventType.bookingCancelled: 'job_id',
     SystemEventType.bookingNoShow: 'job_id',
+    // Low-urgency booking events — these all surface as banners that
+    // would otherwise interrupt a user already on the booking screen.
+    SystemEventType.techEnRoute: 'job_id',
+    SystemEventType.techArrived: 'job_id',
+    SystemEventType.customerArriving: 'job_id',
+    SystemEventType.jobAccepted: 'job_id',
+    SystemEventType.bookingRejected: 'job_id',
     SystemEventType.bookingRescheduled: 'child_booking_id',
   };
 
@@ -207,12 +232,20 @@ class EventUrgencyRouter {
     String targetRoute,
     SystemEventEntity event,
   ) {
-    // The orchestrator hands us `navigatorKey.currentContext` — that BuildContext
-    // sits *above* the route-builder subtree, so `GoRouterState.of(ctx)` throws
-    // ("There is no GoRouterState above the current context"). Read the current
-    // URI from the GoRouter instance instead, which is available at any context
-    // at or below the GoRouter widget.
-    final currentUri = GoRouter.of(ctx).routerDelegate.currentConfiguration.uri;
+    // The orchestrator hands us `navigatorKey.currentContext` — that
+    // BuildContext sits *above* the route-builder subtree, so
+    // `GoRouterState.of(ctx)` throws ("There is no GoRouterState above the
+    // current context"). Read the current URI from the GoRouter instance
+    // instead, which is available at any context at or below the
+    // GoRouter widget.
+    //
+    // We use `.state.uri` (the topmost route's URI) rather than
+    // `.routerDelegate.currentConfiguration.uri` because the latter
+    // returns the *initial* URI of the route match list — for a
+    // `push('/booking/42')` on top of `/start`, `currentConfiguration.uri`
+    // still reports `/start`, while `.state.uri` correctly reports
+    // `/booking/42`. (Verified against go_router 17.1.0 source.)
+    final currentUri = GoRouter.of(ctx).state.uri;
     final currentLocation = currentUri.path;
 
     // For templated routes (`/booking/:job_id`), match against the static
@@ -251,6 +284,23 @@ class EventUrgencyRouter {
   void _handleLow(SystemEventEntity event) {
     final messenger = scaffoldMessengerKey.currentState;
     if (messenger == null) return;
+
+    // Suppress the banner when the user is already viewing the entity
+    // the event is about. The booking-detail screen's
+    // `BookingOrchestratorEventsNotifier` invalidates the detail
+    // provider for the same event, so the user sees the new state
+    // appear in-place (with the thin top progress bar) instead of a
+    // banner saying "your tech is on the way" *about the booking they're
+    // staring at*. Banners for events targeting other screens
+    // (chatMessage / paymentReceived / walletLowBalance) still fire —
+    // those entries are absent from `_navGuardPayloadKeys`.
+    final tapRoute = _lowUrgencyTapRoutes[event.eventType];
+    final ctx = navigatorKey.currentContext;
+    if (tapRoute != null &&
+        ctx != null &&
+        _isAlreadyOnEntity(ctx, tapRoute, event)) {
+      return;
+    }
 
     final icon = _bannerIcons[event.eventType] ?? Icons.notifications;
     final title = _bannerTitles[event.eventType] ?? 'Notification';
@@ -299,6 +349,8 @@ class EventUrgencyRouter {
       case SystemEventType.techEnRoute:
       case SystemEventType.techArrived:
         return p['technician_name']?.toString();
+      case SystemEventType.customerArriving:
+        return 'They\'re walking out to meet you.';
       case SystemEventType.paymentReceived:
         final amount = p['amount']?.toString();
         return amount != null ? 'PKR $amount' : null;

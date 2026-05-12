@@ -60,6 +60,38 @@ enum BookingStatus {
     return _wireLookup[raw.toUpperCase()] ?? BookingStatus.unknown;
   }
 
+  /// `true` once the booking has reached a terminal state — no further
+  /// transitions, the working relationship within this booking is over.
+  ///
+  /// Used to gate live-relationship affordances like the counterparty
+  /// call button: there's no reason to surface a "Call your technician"
+  /// link on a cancelled / rejected / no-show / disputed / completed
+  /// booking, and leaving the phone number permanently dial-able from
+  /// a stale snapshot is a low-grade privacy regression. If the
+  /// customer wants to reach the tech for a follow-up, that flows
+  /// through a new booking, not a dead orchestrator screen.
+  bool get isTerminal {
+    switch (this) {
+      case BookingStatus.completed:
+      case BookingStatus.completedInspectionOnly:
+      case BookingStatus.cancelled:
+      case BookingStatus.rejected:
+      case BookingStatus.noShow:
+      case BookingStatus.disputed:
+        return true;
+      case BookingStatus.awaiting:
+      case BookingStatus.confirmed:
+      case BookingStatus.enRoute:
+      case BookingStatus.arrived:
+      case BookingStatus.inspecting:
+      case BookingStatus.quoted:
+      case BookingStatus.inProgress:
+      case BookingStatus.pending:
+      case BookingStatus.unknown:
+        return false;
+    }
+  }
+
   /// Wire string for outbound use (e.g. status csv filter on requests).
   String get wireValue {
     switch (this) {

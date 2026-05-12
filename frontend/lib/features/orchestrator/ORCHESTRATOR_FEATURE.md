@@ -219,10 +219,15 @@ Each backend endpoint suffix falls into one of three buckets:
 
 | Endpoint suffix | Behavior | Body |
 |---|---|---|
-| `/en-route/`, `/arrived/`, `/start-inspection/`, `/quotes/<id>/approve/`, `/quotes/<id>/decline/` | Direct POST | none |
+| `/en-route/`, `/arrived/`, `/start-inspection/`, `/quotes/<id>/approve/`, `/quotes/<id>/decline/`, `/quotes/<id>/request-revision/` | Direct POST | none |
 | `/confirm-cash-received/` | Direct POST | `{cash_amount: pricing.finalCashToCollect}` (auto) |
 | `/cancel/`, `/tech-cancel/` | Pending sheet → POST default reason | `{cancel_reason: 'customer_cancelled'}` (or tech equivalent) |
-| `/reschedule/`, `/no-show/`, `/disputes/`, `/quotes/`, `/quotes/<id>/request-revision/` | Pending sheet (explainer only — no POST) | — |
+| `/reschedule/`, `/no-show/`, `/disputes/`, `/quotes/` | Pending sheet (explainer only — no POST) | — |
+
+> `/request-revision/` is a direct POST (no reason captured) because
+> customer + tech are face-to-face on QUOTED — the verbal bargain
+> happens around the tap, not through a reason form. Backend's
+> serializer accepts blank `reason` and stores empty string.
 
 Sessions 5/6 will replace the pending-sheet branch with rich flows.
 

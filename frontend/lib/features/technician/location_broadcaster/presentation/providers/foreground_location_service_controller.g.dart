@@ -85,7 +85,7 @@ final class ForegroundLocationServiceControllerProvider
 }
 
 String _$foregroundLocationServiceControllerHash() =>
-    r'261b60093462d574fa61c4ab057c7907aacfe03e';
+    r'284917950fe192457537e477810020179a75435a';
 
 /// Manages the foreground GPS service for a single in-flight booking.
 ///

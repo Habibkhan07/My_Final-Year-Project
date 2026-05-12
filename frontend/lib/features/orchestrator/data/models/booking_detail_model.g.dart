@@ -132,6 +132,8 @@ _BookingDetailTechnicianModel _$BookingDetailTechnicianModelFromJson(
   id: (json['id'] as num).toInt(),
   displayName: json['display_name'] as String,
   profilePictureUrl: json['profile_picture_url'] as String?,
+  phoneNo: json['phone_no'] as String? ?? '',
+  ratingAverage: json['rating_average'] as String? ?? '0.00',
 );
 
 Map<String, dynamic> _$BookingDetailTechnicianModelToJson(
@@ -140,6 +142,8 @@ Map<String, dynamic> _$BookingDetailTechnicianModelToJson(
   'id': instance.id,
   'display_name': instance.displayName,
   'profile_picture_url': instance.profilePictureUrl,
+  'phone_no': instance.phoneNo,
+  'rating_average': instance.ratingAverage,
 };
 
 _BookingDetailCustomerModel _$BookingDetailCustomerModelFromJson(
@@ -182,6 +186,8 @@ _BookingDetailPhaseTimestampsModel _$BookingDetailPhaseTimestampsModelFromJson(
   acceptedAt: json['accepted_at'] as String?,
   enRouteStartedAt: json['en_route_started_at'] as String?,
   arrivedAt: json['arrived_at'] as String?,
+  customerAcknowledgedArrivalAt:
+      json['customer_acknowledged_arrival_at'] as String?,
   inspectionStartedAt: json['inspection_started_at'] as String?,
   quoteFirstSubmittedAt: json['quote_first_submitted_at'] as String?,
   workStartedAt: json['work_started_at'] as String?,
@@ -194,6 +200,7 @@ Map<String, dynamic> _$BookingDetailPhaseTimestampsModelToJson(
   'accepted_at': instance.acceptedAt,
   'en_route_started_at': instance.enRouteStartedAt,
   'arrived_at': instance.arrivedAt,
+  'customer_acknowledged_arrival_at': instance.customerAcknowledgedArrivalAt,
   'inspection_started_at': instance.inspectionStartedAt,
   'quote_first_submitted_at': instance.quoteFirstSubmittedAt,
   'work_started_at': instance.workStartedAt,

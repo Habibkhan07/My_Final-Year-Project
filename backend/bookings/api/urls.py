@@ -30,6 +30,7 @@ from bookings.api.job_actions.views import (
 # Sprint v1 (session 2) — orchestrator HTTP surface
 from bookings.api.booking_detail.views import BookingDetailView
 from bookings.api.completion.views import ConfirmCashReceivedView
+from bookings.api.customer_arriving.views import CustomerArrivingView
 from bookings.api.quotes.views import (
     ApproveQuoteView,
     DeclineQuoteView,
@@ -78,6 +79,12 @@ urlpatterns = [
     path('<int:booking_id>/start-inspection/', StartInspectionView.as_view(), name='start-inspection'),
     path('<int:booking_id>/en-route/', EnRouteView.as_view(), name='en-route'),
     path('<int:booking_id>/arrived/', ArrivedView.as_view(), name='arrived'),
+    # InDrive-style customer ACK on the ARRIVED screen.
+    path(
+        '<int:booking_id>/customer-arriving/',
+        CustomerArrivingView.as_view(),
+        name='customer-arriving',
+    ),
 
     # 5. Sprint v1 — quotes
     path('<int:booking_id>/quotes/', SubmitQuoteView.as_view(), name='submit-quote'),

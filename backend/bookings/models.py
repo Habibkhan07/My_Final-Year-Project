@@ -132,6 +132,12 @@ class JobBooking(models.Model):
     accepted_at = models.DateTimeField(null=True, blank=True)
     en_route_started_at = models.DateTimeField(null=True, blank=True)
     arrived_at = models.DateTimeField(null=True, blank=True)
+    # InDrive-style ARRIVED meeting flow: customer taps "I'm coming out" on
+    # the arrival screen so the tech sees a confirmation strip and is not
+    # left guessing whether the customer noticed. Set once at first ACK;
+    # idempotent re-ACKs are no-ops. See feature plan in
+    # `project_arrived_meeting_ux` memory.
+    customer_acknowledged_arrival_at = models.DateTimeField(null=True, blank=True)
     inspection_started_at = models.DateTimeField(null=True, blank=True)
     quote_first_submitted_at = models.DateTimeField(null=True, blank=True)
     work_started_at = models.DateTimeField(null=True, blank=True)

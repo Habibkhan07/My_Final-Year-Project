@@ -86,6 +86,13 @@ abstract class BookingTechnician with _$BookingTechnician {
     required int id,
     required String displayName,
     String? profilePictureUrl,
+    // tel: deep link target. Empty when the tech's UserProfile has no
+    // phone (legacy / system accounts) — the summary card hides the call
+    // FAB in that case.
+    @Default('') String phoneNo,
+    // Bayesian-averaged rating (0.00–5.00). 0.0 means "no reviews yet";
+    // the UI hides the rating chip in that case.
+    @Default(0.0) double ratingAverage,
   }) = _BookingTechnician;
 }
 

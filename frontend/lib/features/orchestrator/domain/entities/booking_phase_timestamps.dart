@@ -18,6 +18,7 @@ abstract class BookingPhaseTimestamps with _$BookingPhaseTimestamps {
     DateTime? acceptedAt,
     DateTime? enRouteStartedAt,
     DateTime? arrivedAt,
+    DateTime? customerAcknowledgedArrivalAt,
     DateTime? inspectionStartedAt,
     DateTime? quoteFirstSubmittedAt,
     DateTime? workStartedAt,

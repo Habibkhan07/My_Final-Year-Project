@@ -62,6 +62,11 @@ class BookingDetailMapper {
         id: model.technician.id,
         displayName: model.technician.displayName,
         profilePictureUrl: model.technician.profilePictureUrl,
+        phoneNo: model.technician.phoneNo,
+        // Decimal-string from the wire ("4.85") → double. Empty / "0.00"
+        // means "no reviews yet"; downstream UI hides the chip then.
+        ratingAverage:
+            double.tryParse(model.technician.ratingAverage) ?? 0.0,
       ),
       customer: BookingCustomer(
         id: model.customer.id,
@@ -116,6 +121,8 @@ class BookingDetailMapper {
     acceptedAt: _parseDateTime(m.acceptedAt),
     enRouteStartedAt: _parseDateTime(m.enRouteStartedAt),
     arrivedAt: _parseDateTime(m.arrivedAt),
+    customerAcknowledgedArrivalAt:
+        _parseDateTime(m.customerAcknowledgedArrivalAt),
     inspectionStartedAt: _parseDateTime(m.inspectionStartedAt),
     quoteFirstSubmittedAt: _parseDateTime(m.quoteFirstSubmittedAt),
     workStartedAt: _parseDateTime(m.workStartedAt),

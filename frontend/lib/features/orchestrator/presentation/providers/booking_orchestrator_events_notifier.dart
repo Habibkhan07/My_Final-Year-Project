@@ -35,8 +35,25 @@ class BookingOrchestratorEventsNotifier
   /// `bookingRescheduled` is intentionally absent — `bookingRescheduledNotifier`
   /// handles it (the side effect is nav, not refresh).
   static const _refreshTriggerEvents = <SystemEventType>{
+    // Tech-accepted (AWAITING → CONFIRMED) and tech-rejected
+    // (AWAITING → REJECTED). The customer is sitting on their
+    // AWAITING orchestrator screen waiting for a decision; without
+    // these the screen stays "Looking for a technician…" until the
+    // user manually pulls to refresh.
+    SystemEventType.jobAccepted,
+    SystemEventType.bookingRejected,
     SystemEventType.techEnRoute,
     SystemEventType.techArrived,
+    // InDrive-style customer ACK. Fired tech-side when the customer taps
+    // "I'm coming out" on ARRIVED so the tech's meeting strip flips
+    // from amber to green without a manual refresh.
+    SystemEventType.customerArriving,
+    // Tech-side fallback start_inspection: customer never tapped
+    // "I'm coming out", tech advances ARRIVED → INSPECTING themselves.
+    // Customer's screen needs to flip to the INSPECTING body. The event
+    // is silent at the router level (no banner) but routed here so the
+    // detail provider refetches.
+    SystemEventType.inspectionStarted,
     SystemEventType.quoteGenerated,
     SystemEventType.quoteRevisionRequested,
     SystemEventType.quoteApproved,

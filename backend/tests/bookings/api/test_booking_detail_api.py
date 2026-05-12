@@ -256,7 +256,10 @@ class TestBookingDetailEndpoint:
             (JobBooking.STATUS_ARRIVED, False),
             (JobBooking.STATUS_INSPECTING, False),
             (JobBooking.STATUS_QUOTED, False),
-            (JobBooking.STATUS_IN_PROGRESS, True),
+            # Dispute is post-transaction: hidden while work is in flight
+            # (feedback_dispute_visibility). Only terminal money-exchanged
+            # states keep the affordance.
+            (JobBooking.STATUS_IN_PROGRESS, False),
             (JobBooking.STATUS_COMPLETED, True),
             (JobBooking.STATUS_COMPLETED_INSPECTION_ONLY, True),
             (JobBooking.STATUS_CANCELLED, False),

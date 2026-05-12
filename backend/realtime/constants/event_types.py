@@ -32,6 +32,21 @@ class EventType(str, Enum):
     QUOTE_APPROVED = "quote_approved"
     TECH_EN_ROUTE = "tech_en_route"
     TECH_ARRIVED = "tech_arrived"
+    # InDrive-style ARRIVED meeting flow: customer-side "I'm coming out"
+    # acknowledgement. Lets the tech see that the customer noticed and is
+    # walking out, so they aren't left guessing whether to cancel as no-show.
+    CUSTOMER_ARRIVING = "customer_arriving"
+    # ARRIVED → INSPECTING. Two callers in the orchestrator service emit
+    # this: (1) `customer_arriving` auto-advances to INSPECTING and fires
+    # this to the customer-side surface (no-op in practice — the customer
+    # just refreshed locally — but recorded for audit completeness); (2)
+    # the tech's fallback `start_inspection` call (used when the
+    # customer never tapped "I'm coming out") fires it to the customer
+    # so their screen flips from the ARRIVED map to the INSPECTING body
+    # without a manual pull-to-refresh. Silent on the frontend — no
+    # banner, no push — because the customer is physically next to the
+    # tech when this fires; a notification would be redundant.
+    INSPECTION_STARTED = "inspection_started"
     JOB_COMPLETED = "job_completed"
     PAYMENT_RECEIVED = "payment_received"
     CHAT_MESSAGE = "chat_message"
@@ -79,6 +94,8 @@ EVENT_REGISTRY: dict[EventType, EventMeta] = {
     EventType.QUOTE_APPROVED:     {"is_critical": True,  "display_name": "Quote Approved"},
     EventType.TECH_EN_ROUTE:      {"is_critical": False, "display_name": "Technician On The Way"},
     EventType.TECH_ARRIVED:       {"is_critical": False, "display_name": "Technician Has Arrived"},
+    EventType.CUSTOMER_ARRIVING:  {"is_critical": False, "display_name": "Customer is coming out"},
+    EventType.INSPECTION_STARTED: {"is_critical": False, "display_name": "Inspection started"},
     EventType.JOB_COMPLETED:      {"is_critical": True,  "display_name": "Job Completed"},
     EventType.PAYMENT_RECEIVED:   {"is_critical": False, "display_name": "Payment Received"},
     EventType.CHAT_MESSAGE:       {"is_critical": False, "display_name": "New Message"},

@@ -87,11 +87,22 @@ ProviderContainer _container({required _CountingRepo repo}) {
 
 void main() {
   test(
-    'each of the 12 trigger event types invalidates bookingDetailProvider',
+    'each of the 16 trigger event types invalidates bookingDetailProvider',
     () async {
       final triggers = <SystemEventType>[
+        // jobAccepted + bookingRejected were added so the customer's
+        // AWAITING orchestrator screen actually flips when the tech
+        // accepts (CONFIRMED) or rejects (REJECTED) — previously it
+        // sat on "Looking for a technician…" until manual refresh.
+        SystemEventType.jobAccepted,
+        SystemEventType.bookingRejected,
         SystemEventType.techEnRoute,
         SystemEventType.techArrived,
+        SystemEventType.customerArriving,
+        // Tech-side fallback start_inspection — customer never tapped
+        // "I'm coming out", tech advances themselves. Customer's
+        // screen needs to refresh from ARRIVED → INSPECTING.
+        SystemEventType.inspectionStarted,
         SystemEventType.quoteGenerated,
         SystemEventType.quoteRevisionRequested,
         SystemEventType.quoteApproved,

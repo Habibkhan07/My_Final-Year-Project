@@ -21,6 +21,17 @@ enum EventUrgency {
     SystemEventType.disputeResolved: EventUrgency.highUrgency,
     SystemEventType.techEnRoute: EventUrgency.lowUrgency,
     SystemEventType.techArrived: EventUrgency.lowUrgency,
+    // Customer ACK on tech's ARRIVED screen. Tech is most likely already
+    // looking at the meeting strip, but a low-urgency banner confirms the
+    // tap visibly if they stepped away for a moment.
+    SystemEventType.customerArriving: EventUrgency.lowUrgency,
+    // Tech-side fallback start_inspection broadcast (cold customer
+    // path). Customer is physically next to the tech when this fires
+    // — a banner would just be visual noise. Silent: the event still
+    // reaches `BookingOrchestratorEventsNotifier` which invalidates
+    // the booking detail so the customer's ARRIVED screen flips to
+    // INSPECTING, but no banner / no push.
+    SystemEventType.inspectionStarted: EventUrgency.silent,
     SystemEventType.chatMessage: EventUrgency.lowUrgency,
     SystemEventType.paymentReceived: EventUrgency.lowUrgency,
     SystemEventType.walletLowBalance: EventUrgency.lowUrgency,

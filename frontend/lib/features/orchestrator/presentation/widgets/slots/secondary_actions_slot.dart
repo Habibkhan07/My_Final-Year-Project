@@ -1,20 +1,43 @@
 import 'package:flutter/material.dart';
 
 import '../../../domain/entities/booking_detail.dart';
+import '../../../domain/entities/booking_ui_block.dart';
 import '../booking_orchestrator_action_button.dart';
-import '../sheets/booking_action_pending_sheet.dart';
 
 /// Renders [BookingDetail.ui.secondaryActions] as text buttons stacked
 /// above the primary action.
 ///
-/// Also surfaces the `show_dispute_button` UI flag — the server emits
-/// this for IN_PROGRESS / COMPLETED / COMPLETED_INSPECTION_ONLY / NO_SHOW.
-/// Today the button opens a "Dispute form coming soon" pending sheet
-/// (the full intake form ships in session 6); this keeps the surface
-/// reachable for QA without a concrete endpoint to POST to. When the
-/// backend adds a `disputes/` action to `secondary_actions`, the action
-/// button widget's classifier will pick that path up automatically and
-/// this inline button becomes redundant — at which point we drop it.
+/// **Filtered out (moved to [HelpSheet]):**
+///   * **Destructive actions** — Cancel / Tech-cancel. Per
+///     `feedback_cancel_vs_no_show.md`, exits live behind Help so the
+///     happy-path row only contains forward verbs.
+///   * **`/reschedule/`** — same rationale; reschedule is a time-change
+///     verb, not a forward step of the booking. It's a Help affordance.
+///   * **Dispute** — was previously inline via `show_dispute_button`;
+///     also moved to Help (`feedback_dispute_visibility.md`).
+///
+/// **Face-to-face quote negotiation (post-arrival model):**
+///
+/// In this market customer + tech are physically together from ARRIVED
+/// onward. On QUOTED the customer reviews the line items with the tech
+/// standing right there — there is no remote "Ask for a revision"
+/// workflow; the customer verbally bargains ("yaar, isko kuch kam
+/// karo") and the tap below is just the signal that flips the quote
+/// back so the tech can rebuild it on their own device.
+///
+/// The wire's "Ask for a revision" carries ticket-style framing of a
+/// remote workflow, so when the endpoint is `/request-revision/` we
+/// override the label to "Negotiate price" — a hint that this is an
+/// in-person ask, not a support ticket. Wire contract is otherwise
+/// unchanged; the endpoint still POSTs `/request-revision/`.
+///
+/// **Visibility is server-driven** (Dumb UI). The backend's
+/// `_customer_quoted()` selector iterates the active quote's line
+/// items and omits the request-revision action entirely when every
+/// line item references a fixed-price (catalog) sub-service —
+/// because in that case there's no labor band the tech can lower
+/// within, so there is nothing to negotiate. We don't reproduce that
+/// check here; we trust the wire.
 class SecondaryActionsSlot extends StatelessWidget {
   const SecondaryActionsSlot({super.key, required this.booking});
 
@@ -22,9 +45,17 @@ class SecondaryActionsSlot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final actions = booking.ui.secondaryActions;
-    final showDispute = booking.ui.showDisputeButton;
-    if (actions.isEmpty && !showDispute) return const SizedBox.shrink();
+    final forwardActions = <BookingUiAction>[];
+    for (final action in booking.ui.secondaryActions) {
+      if (action.style == BookingUiActionStyle.destructive) continue;
+      if (action.endpoint.endsWith('/reschedule/')) continue;
+      if (action.endpoint.endsWith('/request-revision/')) {
+        forwardActions.add(action.copyWith(label: 'Negotiate price'));
+        continue;
+      }
+      forwardActions.add(action);
+    }
+    if (forwardActions.isEmpty) return const SizedBox.shrink();
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -32,41 +63,21 @@ class SecondaryActionsSlot extends StatelessWidget {
         alignment: WrapAlignment.center,
         spacing: 8,
         // Positive runSpacing — negative values cause adjacent rows to
-        // overlap visually when the wrap reflows (e.g., QUOTED has 3+
-        // secondary actions on narrow phones). 4 keeps rows visually
-        // separated without taking too much vertical real estate above
-        // the primary action.
+        // overlap visually when the wrap reflows (e.g., the tech's
+        // IN_PROGRESS view shows "Add upsell" alongside any future
+        // upsell-counterpart action). 4 keeps rows visually separated
+        // without taking too much vertical real estate above the
+        // primary action.
         runSpacing: 4,
         children: [
-          for (final action in actions)
+          for (final action in forwardActions)
             BookingOrchestratorActionButton(
               action: action,
               booking: booking,
               isPrimary: false,
             ),
-          if (showDispute) _OpenDisputeButton(),
         ],
       ),
-    );
-  }
-}
-
-class _OpenDisputeButton extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return TextButton.icon(
-      onPressed: () {
-        BookingActionPendingSheet.show(
-          context,
-          title: 'Dispute form coming soon',
-          body:
-              'The full dispute form (intake reason + optional photo upload) ships in session 6. The button is shown so you can verify the surface; submission is disabled.',
-        );
-      },
-      style: TextButton.styleFrom(foregroundColor: theme.colorScheme.error),
-      icon: const Icon(Icons.flag_outlined, size: 18),
-      label: const Text('Open dispute'),
     );
   }
 }

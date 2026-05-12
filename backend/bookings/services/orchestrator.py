@@ -281,12 +281,102 @@ def arrived(
     return booking
 
 
-def start_inspection(*, booking_id: int, technician_user, finance=None) -> JobBooking:
-    """ARRIVED → INSPECTING.
+def customer_arriving(*, booking_id: int, customer_user) -> JobBooking:
+    """Customer taps "I'm coming out" — ACKs the tech's arrival AND
+    auto-advances ARRIVED → INSPECTING.
 
-    Triggered when the tech opens the quote builder (sprint meta §14
-    rule 1 — UI navigation IS the trigger). No event broadcast: this is
-    a UI-flip-only transition.
+    InDrive-style meeting flow plus a state-progression shortcut. The
+    customer's tap signals two things at once: (1) they've seen the
+    tech arrived and are walking out to find them; (2) the in-person
+    meeting is starting, so the booking enters INSPECTING.
+
+    Cutting the redundant tech tap matters: by the time the tech would
+    otherwise press "Start inspection" themselves, they're standing at
+    the door / opening the gate / shaking hands. We shouldn't make
+    them stop to press a button for something that's physically
+    happening on its own.
+
+    Tech-side fallback: if the customer never opens the app, the tech
+    can still drive ARRIVED → INSPECTING explicitly via the
+    ``start_inspection`` service / endpoint. Both paths are idempotent
+    and either can fire first.
+
+    Idempotent: re-tapping after the booking already moved to INSPECTING
+    (whether via this auto-advance or via the tech's explicit call) is
+    a no-op return.
+    """
+    # SECURITY: customer-only IDOR guard via _require_customer below.
+    # The status guard accepts ARRIVED (first tap → ack + advance) or
+    # INSPECTING (re-tap → idempotent return). Any other state is
+    # rejected, so a stray tap on a stale UI push cannot pollute later
+    # phases or resurrect a completed booking.
+    with transaction.atomic():
+        booking = _lock_booking(booking_id)
+        _require_customer(booking, customer_user)
+
+        # Idempotent re-tap path. Booking is already INSPECTING — either
+        # this customer already tapped (and we auto-advanced) or the
+        # tech beat them to it via start_inspection. Either way the
+        # transition has happened; nothing to do.
+        if booking.status == JobBooking.STATUS_INSPECTING:
+            return booking
+
+        if booking.status != JobBooking.STATUS_ARRIVED:
+            _reject_invalid_from_state(booking, 'Booking is not in ARRIVED state.')
+
+        # First tap on ARRIVED. Stamp the ack, flip to INSPECTING, and
+        # broadcast for the tech's UI. We inline the status flip rather
+        # than calling start_inspection() because we already hold the
+        # row lock and validated state==ARRIVED; calling the sibling
+        # service would also require a technician_user we don't have
+        # here, and would re-lock/re-validate redundantly.
+        now = timezone.now()
+        booking.customer_acknowledged_arrival_at = now
+        booking.status = JobBooking.STATUS_INSPECTING
+        booking.inspection_started_at = now
+        booking.save(update_fields=[
+            'customer_acknowledged_arrival_at',
+            'status',
+            'inspection_started_at',
+        ])
+
+        tech_user = booking.technician.user
+        ack_ts = now
+        transaction.on_commit(lambda: _broadcast(
+            user=tech_user,
+            target_role='technician',
+            event_type=EventType.CUSTOMER_ARRIVING,
+            payload={
+                **_payload_basics(booking),
+                'acknowledged_at': ack_ts.isoformat(),
+            },
+        ))
+
+    return booking
+
+
+def start_inspection(*, booking_id: int, technician_user, finance=None) -> JobBooking:
+    """ARRIVED → INSPECTING (tech-side fallback path).
+
+    Two routes lead a booking to INSPECTING. The happy path is the
+    customer tapping "I'm coming out" — ``customer_arriving`` flips the
+    status inline and the customer's screen invalidates locally on its
+    own POST response, so no event is required for that path.
+
+    This function is the COLD-CUSTOMER FALLBACK: the customer never
+    opened the app / didn't tap, and the tech advances the status from
+    their own ARRIVED screen. The customer might still be on the
+    orchestrator screen (just hadn't ACK'd yet); without an event their
+    screen would sit on ARRIVED until manual refresh.
+
+    Emits ``INSPECTION_STARTED`` to the customer. Silent on the frontend
+    — no banner, no push — because the customer is physically next to
+    the tech when this fires; a notification would be redundant. The
+    event's only job is to trigger ``ref.invalidate(bookingDetailProvider)``
+    on the customer's screen via ``BookingOrchestratorEventsNotifier``.
+
+    Idempotent: re-call with status already INSPECTING returns the
+    booking with no event re-broadcast.
     """
     finance = _resolve_finance(finance)
 
@@ -303,6 +393,14 @@ def start_inspection(*, booking_id: int, technician_user, finance=None) -> JobBo
         booking.status = JobBooking.STATUS_INSPECTING
         booking.inspection_started_at = timezone.now()
         booking.save(update_fields=['status', 'inspection_started_at'])
+
+        customer_user = booking.customer
+        transaction.on_commit(lambda: _broadcast(
+            user=customer_user,
+            target_role='customer',
+            event_type=EventType.INSPECTION_STARTED,
+            payload=_payload_basics(booking),
+        ))
 
     return booking
 

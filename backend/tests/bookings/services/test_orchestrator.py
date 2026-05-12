@@ -223,13 +223,125 @@ class TestArrived:
 
 
 # ---------------------------------------------------------------------------
+# customer_arriving — InDrive-style ACK that ALSO auto-advances to INSPECTING.
+# ---------------------------------------------------------------------------
+
+
+class TestCustomerArriving:
+    def test_first_tap_acks_and_auto_advances_to_inspecting(
+        self, captured_broadcasts,
+    ):
+        # The customer tapping "I'm coming out" used to only stamp the ack.
+        # Post 2026-05-12 it also flips ARRIVED → INSPECTING so the tech
+        # doesn't have to press a redundant "Start inspection" button
+        # while standing at the customer's gate.
+        booking = JobBookingArrivedFactory()
+        result = orchestrator.customer_arriving(
+            booking_id=booking.id,
+            customer_user=booking.customer,
+        )
+        assert result.status == JobBooking.STATUS_INSPECTING
+        assert result.customer_acknowledged_arrival_at is not None
+        assert result.inspection_started_at is not None
+        # Ack timestamp and inspection-start timestamp are stamped in the
+        # same atomic call, so they should be equal (now() captured once).
+        assert (
+            result.customer_acknowledged_arrival_at
+            == result.inspection_started_at
+        )
+        booking.refresh_from_db()
+        assert booking.status == JobBooking.STATUS_INSPECTING
+
+        # Tech-side gets the CUSTOMER_ARRIVING broadcast so their UI
+        # flips amber → green. The inline status flip is a UI-flip-only
+        # transition (no separate INSPECTION_STARTED event needed —
+        # tech-side reacts to the booking-detail refetch).
+        events = [
+            c for c in captured_broadcasts
+            if c['event_type'] == EventType.CUSTOMER_ARRIVING
+        ]
+        assert len(events) == 1
+        assert events[0]['payload']['acknowledged_at'] is not None
+
+    def test_re_tap_on_inspecting_is_idempotent_no_broadcast(
+        self, captured_broadcasts,
+    ):
+        # Customer double-taps the "I'm coming out" button, or a stale
+        # FCM payload fires the action again after the booking already
+        # auto-advanced. We must return cleanly without re-broadcasting
+        # or re-stamping anything (which would reset relative-time
+        # displays on the tech's screen).
+        booking = JobBookingArrivedFactory()
+        first = orchestrator.customer_arriving(
+            booking_id=booking.id,
+            customer_user=booking.customer,
+        )
+        original_ack = first.customer_acknowledged_arrival_at
+        original_inspection_start = first.inspection_started_at
+        captured_broadcasts.clear()
+
+        second = orchestrator.customer_arriving(
+            booking_id=booking.id,
+            customer_user=booking.customer,
+        )
+        assert second.status == JobBooking.STATUS_INSPECTING
+        assert second.customer_acknowledged_arrival_at == original_ack
+        assert second.inspection_started_at == original_inspection_start
+        assert captured_broadcasts == []
+
+    def test_re_tap_after_tech_started_inspection_is_idempotent(
+        self, fake_finance, captured_broadcasts,
+    ):
+        # Tech-side fallback: customer never opened the app and the tech
+        # advanced via start_inspection. The customer eventually taps
+        # "I'm coming out" — the booking is already INSPECTING. We must
+        # return cleanly (no re-broadcast, no stamp on a now-stale ack)
+        # and not flap the tech's screen back to the green strip after
+        # they've already moved on to building the quote.
+        booking = JobBookingArrivedFactory()
+        orchestrator.start_inspection(
+            booking_id=booking.id,
+            technician_user=booking.technician.user,
+            finance=fake_finance,
+        )
+        captured_broadcasts.clear()
+
+        result = orchestrator.customer_arriving(
+            booking_id=booking.id,
+            customer_user=booking.customer,
+        )
+        assert result.status == JobBooking.STATUS_INSPECTING
+        # Tech advanced first → customer_acknowledged_arrival_at stays
+        # None. The late tap is a no-op, not a belated ack.
+        assert result.customer_acknowledged_arrival_at is None
+        assert captured_broadcasts == []
+
+    def test_rejects_when_not_arrived_or_inspecting(self, fake_finance):
+        # Stray taps from stale push payloads on other phases must be
+        # rejected with the standard invalid-transition envelope, so the
+        # customer's UI can degrade gracefully (and so a malicious tap
+        # cannot pollute a confirmed-but-not-yet-en-route booking).
+        booking = JobBookingEnRouteFactory()
+        with pytest.raises(BookingValidationError):
+            orchestrator.customer_arriving(
+                booking_id=booking.id,
+                customer_user=booking.customer,
+            )
+
+
+# ---------------------------------------------------------------------------
 # start_inspection
 # ---------------------------------------------------------------------------
 
 
 class TestStartInspection:
-    def test_happy_path_no_event(self, fake_finance, captured_broadcasts):
-        # UI-flip-only transition — no event, no finance port call.
+    def test_happy_path_emits_inspection_started_to_customer(
+        self, fake_finance, captured_broadcasts,
+    ):
+        # Tech-side fallback path (customer never tapped "I'm coming
+        # out"). Flips status and emits INSPECTION_STARTED to the
+        # customer so their ARRIVED screen refreshes to INSPECTING
+        # without a manual pull. No finance port call.
         booking = JobBookingArrivedFactory()
         result = orchestrator.start_inspection(
             booking_id=booking.id,
@@ -238,8 +350,16 @@ class TestStartInspection:
         )
         assert result.status == JobBooking.STATUS_INSPECTING
         assert result.inspection_started_at is not None
-        assert captured_broadcasts == []
         fake_finance.assert_not_called()
+
+        events = [
+            c for c in captured_broadcasts
+            if c['event_type'] == EventType.INSPECTION_STARTED
+        ]
+        assert len(events) == 1
+        assert events[0]['target_role'] == 'customer'
+        assert events[0]['user'] == booking.customer
+        assert events[0]['payload']['job_id'] == booking.id
 
     def test_wrong_from_state(self, fake_finance):
         booking = JobBookingConfirmedFactory()
@@ -250,7 +370,12 @@ class TestStartInspection:
                 finance=fake_finance,
             )
 
-    def test_idempotent(self, fake_finance):
+    def test_idempotent_no_re_broadcast(self, fake_finance, captured_broadcasts):
+        # Tech double-taps "Start inspection", or a retry lands on a
+        # booking that already moved (e.g. customer auto-advanced via
+        # customer_arriving). We must NOT re-broadcast INSPECTION_STARTED
+        # — the customer's screen has already moved on, a second event
+        # would just cost an unnecessary detail refetch.
         booking = JobBookingInspectingFactory()
         original_ts = booking.inspection_started_at
         result = orchestrator.start_inspection(
@@ -259,6 +384,7 @@ class TestStartInspection:
             finance=fake_finance,
         )
         assert result.inspection_started_at == original_ts
+        assert captured_broadcasts == []
 
 
 # ---------------------------------------------------------------------------

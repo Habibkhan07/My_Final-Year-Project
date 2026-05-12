@@ -1079,7 +1079,12 @@ as int?,
 /// @nodoc
 mixin _$BookingTechnician {
 
- int get id; String get displayName; String? get profilePictureUrl;
+ int get id; String get displayName; String? get profilePictureUrl;// tel: deep link target. Empty when the tech's UserProfile has no
+// phone (legacy / system accounts) — the summary card hides the call
+// FAB in that case.
+ String get phoneNo;// Bayesian-averaged rating (0.00–5.00). 0.0 means "no reviews yet";
+// the UI hides the rating chip in that case.
+ double get ratingAverage;
 /// Create a copy of BookingTechnician
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -1090,16 +1095,16 @@ $BookingTechnicianCopyWith<BookingTechnician> get copyWith => _$BookingTechnicia
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is BookingTechnician&&(identical(other.id, id) || other.id == id)&&(identical(other.displayName, displayName) || other.displayName == displayName)&&(identical(other.profilePictureUrl, profilePictureUrl) || other.profilePictureUrl == profilePictureUrl));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is BookingTechnician&&(identical(other.id, id) || other.id == id)&&(identical(other.displayName, displayName) || other.displayName == displayName)&&(identical(other.profilePictureUrl, profilePictureUrl) || other.profilePictureUrl == profilePictureUrl)&&(identical(other.phoneNo, phoneNo) || other.phoneNo == phoneNo)&&(identical(other.ratingAverage, ratingAverage) || other.ratingAverage == ratingAverage));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,id,displayName,profilePictureUrl);
+int get hashCode => Object.hash(runtimeType,id,displayName,profilePictureUrl,phoneNo,ratingAverage);
 
 @override
 String toString() {
-  return 'BookingTechnician(id: $id, displayName: $displayName, profilePictureUrl: $profilePictureUrl)';
+  return 'BookingTechnician(id: $id, displayName: $displayName, profilePictureUrl: $profilePictureUrl, phoneNo: $phoneNo, ratingAverage: $ratingAverage)';
 }
 
 
@@ -1110,7 +1115,7 @@ abstract mixin class $BookingTechnicianCopyWith<$Res>  {
   factory $BookingTechnicianCopyWith(BookingTechnician value, $Res Function(BookingTechnician) _then) = _$BookingTechnicianCopyWithImpl;
 @useResult
 $Res call({
- int id, String displayName, String? profilePictureUrl
+ int id, String displayName, String? profilePictureUrl, String phoneNo, double ratingAverage
 });
 
 
@@ -1127,12 +1132,14 @@ class _$BookingTechnicianCopyWithImpl<$Res>
 
 /// Create a copy of BookingTechnician
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? displayName = null,Object? profilePictureUrl = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? displayName = null,Object? profilePictureUrl = freezed,Object? phoneNo = null,Object? ratingAverage = null,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as int,displayName: null == displayName ? _self.displayName : displayName // ignore: cast_nullable_to_non_nullable
 as String,profilePictureUrl: freezed == profilePictureUrl ? _self.profilePictureUrl : profilePictureUrl // ignore: cast_nullable_to_non_nullable
-as String?,
+as String?,phoneNo: null == phoneNo ? _self.phoneNo : phoneNo // ignore: cast_nullable_to_non_nullable
+as String,ratingAverage: null == ratingAverage ? _self.ratingAverage : ratingAverage // ignore: cast_nullable_to_non_nullable
+as double,
   ));
 }
 
@@ -1217,10 +1224,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int id,  String displayName,  String? profilePictureUrl)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int id,  String displayName,  String? profilePictureUrl,  String phoneNo,  double ratingAverage)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _BookingTechnician() when $default != null:
-return $default(_that.id,_that.displayName,_that.profilePictureUrl);case _:
+return $default(_that.id,_that.displayName,_that.profilePictureUrl,_that.phoneNo,_that.ratingAverage);case _:
   return orElse();
 
 }
@@ -1238,10 +1245,10 @@ return $default(_that.id,_that.displayName,_that.profilePictureUrl);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int id,  String displayName,  String? profilePictureUrl)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int id,  String displayName,  String? profilePictureUrl,  String phoneNo,  double ratingAverage)  $default,) {final _that = this;
 switch (_that) {
 case _BookingTechnician():
-return $default(_that.id,_that.displayName,_that.profilePictureUrl);case _:
+return $default(_that.id,_that.displayName,_that.profilePictureUrl,_that.phoneNo,_that.ratingAverage);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -1258,10 +1265,10 @@ return $default(_that.id,_that.displayName,_that.profilePictureUrl);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int id,  String displayName,  String? profilePictureUrl)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int id,  String displayName,  String? profilePictureUrl,  String phoneNo,  double ratingAverage)?  $default,) {final _that = this;
 switch (_that) {
 case _BookingTechnician() when $default != null:
-return $default(_that.id,_that.displayName,_that.profilePictureUrl);case _:
+return $default(_that.id,_that.displayName,_that.profilePictureUrl,_that.phoneNo,_that.ratingAverage);case _:
   return null;
 
 }
@@ -1273,12 +1280,19 @@ return $default(_that.id,_that.displayName,_that.profilePictureUrl);case _:
 
 
 class _BookingTechnician implements BookingTechnician {
-  const _BookingTechnician({required this.id, required this.displayName, this.profilePictureUrl});
+  const _BookingTechnician({required this.id, required this.displayName, this.profilePictureUrl, this.phoneNo = '', this.ratingAverage = 0.0});
   
 
 @override final  int id;
 @override final  String displayName;
 @override final  String? profilePictureUrl;
+// tel: deep link target. Empty when the tech's UserProfile has no
+// phone (legacy / system accounts) — the summary card hides the call
+// FAB in that case.
+@override@JsonKey() final  String phoneNo;
+// Bayesian-averaged rating (0.00–5.00). 0.0 means "no reviews yet";
+// the UI hides the rating chip in that case.
+@override@JsonKey() final  double ratingAverage;
 
 /// Create a copy of BookingTechnician
 /// with the given fields replaced by the non-null parameter values.
@@ -1290,16 +1304,16 @@ _$BookingTechnicianCopyWith<_BookingTechnician> get copyWith => __$BookingTechni
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _BookingTechnician&&(identical(other.id, id) || other.id == id)&&(identical(other.displayName, displayName) || other.displayName == displayName)&&(identical(other.profilePictureUrl, profilePictureUrl) || other.profilePictureUrl == profilePictureUrl));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _BookingTechnician&&(identical(other.id, id) || other.id == id)&&(identical(other.displayName, displayName) || other.displayName == displayName)&&(identical(other.profilePictureUrl, profilePictureUrl) || other.profilePictureUrl == profilePictureUrl)&&(identical(other.phoneNo, phoneNo) || other.phoneNo == phoneNo)&&(identical(other.ratingAverage, ratingAverage) || other.ratingAverage == ratingAverage));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,id,displayName,profilePictureUrl);
+int get hashCode => Object.hash(runtimeType,id,displayName,profilePictureUrl,phoneNo,ratingAverage);
 
 @override
 String toString() {
-  return 'BookingTechnician(id: $id, displayName: $displayName, profilePictureUrl: $profilePictureUrl)';
+  return 'BookingTechnician(id: $id, displayName: $displayName, profilePictureUrl: $profilePictureUrl, phoneNo: $phoneNo, ratingAverage: $ratingAverage)';
 }
 
 
@@ -1310,7 +1324,7 @@ abstract mixin class _$BookingTechnicianCopyWith<$Res> implements $BookingTechni
   factory _$BookingTechnicianCopyWith(_BookingTechnician value, $Res Function(_BookingTechnician) _then) = __$BookingTechnicianCopyWithImpl;
 @override @useResult
 $Res call({
- int id, String displayName, String? profilePictureUrl
+ int id, String displayName, String? profilePictureUrl, String phoneNo, double ratingAverage
 });
 
 
@@ -1327,12 +1341,14 @@ class __$BookingTechnicianCopyWithImpl<$Res>
 
 /// Create a copy of BookingTechnician
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? displayName = null,Object? profilePictureUrl = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? displayName = null,Object? profilePictureUrl = freezed,Object? phoneNo = null,Object? ratingAverage = null,}) {
   return _then(_BookingTechnician(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as int,displayName: null == displayName ? _self.displayName : displayName // ignore: cast_nullable_to_non_nullable
 as String,profilePictureUrl: freezed == profilePictureUrl ? _self.profilePictureUrl : profilePictureUrl // ignore: cast_nullable_to_non_nullable
-as String?,
+as String?,phoneNo: null == phoneNo ? _self.phoneNo : phoneNo // ignore: cast_nullable_to_non_nullable
+as String,ratingAverage: null == ratingAverage ? _self.ratingAverage : ratingAverage // ignore: cast_nullable_to_non_nullable
+as double,
   ));
 }
 

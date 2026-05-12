@@ -14,7 +14,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$BookingPhaseTimestamps {
 
- DateTime? get acceptedAt; DateTime? get enRouteStartedAt; DateTime? get arrivedAt; DateTime? get inspectionStartedAt; DateTime? get quoteFirstSubmittedAt; DateTime? get workStartedAt; DateTime? get completedAt;
+ DateTime? get acceptedAt; DateTime? get enRouteStartedAt; DateTime? get arrivedAt; DateTime? get customerAcknowledgedArrivalAt; DateTime? get inspectionStartedAt; DateTime? get quoteFirstSubmittedAt; DateTime? get workStartedAt; DateTime? get completedAt;
 /// Create a copy of BookingPhaseTimestamps
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -25,16 +25,16 @@ $BookingPhaseTimestampsCopyWith<BookingPhaseTimestamps> get copyWith => _$Bookin
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is BookingPhaseTimestamps&&(identical(other.acceptedAt, acceptedAt) || other.acceptedAt == acceptedAt)&&(identical(other.enRouteStartedAt, enRouteStartedAt) || other.enRouteStartedAt == enRouteStartedAt)&&(identical(other.arrivedAt, arrivedAt) || other.arrivedAt == arrivedAt)&&(identical(other.inspectionStartedAt, inspectionStartedAt) || other.inspectionStartedAt == inspectionStartedAt)&&(identical(other.quoteFirstSubmittedAt, quoteFirstSubmittedAt) || other.quoteFirstSubmittedAt == quoteFirstSubmittedAt)&&(identical(other.workStartedAt, workStartedAt) || other.workStartedAt == workStartedAt)&&(identical(other.completedAt, completedAt) || other.completedAt == completedAt));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is BookingPhaseTimestamps&&(identical(other.acceptedAt, acceptedAt) || other.acceptedAt == acceptedAt)&&(identical(other.enRouteStartedAt, enRouteStartedAt) || other.enRouteStartedAt == enRouteStartedAt)&&(identical(other.arrivedAt, arrivedAt) || other.arrivedAt == arrivedAt)&&(identical(other.customerAcknowledgedArrivalAt, customerAcknowledgedArrivalAt) || other.customerAcknowledgedArrivalAt == customerAcknowledgedArrivalAt)&&(identical(other.inspectionStartedAt, inspectionStartedAt) || other.inspectionStartedAt == inspectionStartedAt)&&(identical(other.quoteFirstSubmittedAt, quoteFirstSubmittedAt) || other.quoteFirstSubmittedAt == quoteFirstSubmittedAt)&&(identical(other.workStartedAt, workStartedAt) || other.workStartedAt == workStartedAt)&&(identical(other.completedAt, completedAt) || other.completedAt == completedAt));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,acceptedAt,enRouteStartedAt,arrivedAt,inspectionStartedAt,quoteFirstSubmittedAt,workStartedAt,completedAt);
+int get hashCode => Object.hash(runtimeType,acceptedAt,enRouteStartedAt,arrivedAt,customerAcknowledgedArrivalAt,inspectionStartedAt,quoteFirstSubmittedAt,workStartedAt,completedAt);
 
 @override
 String toString() {
-  return 'BookingPhaseTimestamps(acceptedAt: $acceptedAt, enRouteStartedAt: $enRouteStartedAt, arrivedAt: $arrivedAt, inspectionStartedAt: $inspectionStartedAt, quoteFirstSubmittedAt: $quoteFirstSubmittedAt, workStartedAt: $workStartedAt, completedAt: $completedAt)';
+  return 'BookingPhaseTimestamps(acceptedAt: $acceptedAt, enRouteStartedAt: $enRouteStartedAt, arrivedAt: $arrivedAt, customerAcknowledgedArrivalAt: $customerAcknowledgedArrivalAt, inspectionStartedAt: $inspectionStartedAt, quoteFirstSubmittedAt: $quoteFirstSubmittedAt, workStartedAt: $workStartedAt, completedAt: $completedAt)';
 }
 
 
@@ -45,7 +45,7 @@ abstract mixin class $BookingPhaseTimestampsCopyWith<$Res>  {
   factory $BookingPhaseTimestampsCopyWith(BookingPhaseTimestamps value, $Res Function(BookingPhaseTimestamps) _then) = _$BookingPhaseTimestampsCopyWithImpl;
 @useResult
 $Res call({
- DateTime? acceptedAt, DateTime? enRouteStartedAt, DateTime? arrivedAt, DateTime? inspectionStartedAt, DateTime? quoteFirstSubmittedAt, DateTime? workStartedAt, DateTime? completedAt
+ DateTime? acceptedAt, DateTime? enRouteStartedAt, DateTime? arrivedAt, DateTime? customerAcknowledgedArrivalAt, DateTime? inspectionStartedAt, DateTime? quoteFirstSubmittedAt, DateTime? workStartedAt, DateTime? completedAt
 });
 
 
@@ -62,11 +62,12 @@ class _$BookingPhaseTimestampsCopyWithImpl<$Res>
 
 /// Create a copy of BookingPhaseTimestamps
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? acceptedAt = freezed,Object? enRouteStartedAt = freezed,Object? arrivedAt = freezed,Object? inspectionStartedAt = freezed,Object? quoteFirstSubmittedAt = freezed,Object? workStartedAt = freezed,Object? completedAt = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? acceptedAt = freezed,Object? enRouteStartedAt = freezed,Object? arrivedAt = freezed,Object? customerAcknowledgedArrivalAt = freezed,Object? inspectionStartedAt = freezed,Object? quoteFirstSubmittedAt = freezed,Object? workStartedAt = freezed,Object? completedAt = freezed,}) {
   return _then(_self.copyWith(
 acceptedAt: freezed == acceptedAt ? _self.acceptedAt : acceptedAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,enRouteStartedAt: freezed == enRouteStartedAt ? _self.enRouteStartedAt : enRouteStartedAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,arrivedAt: freezed == arrivedAt ? _self.arrivedAt : arrivedAt // ignore: cast_nullable_to_non_nullable
+as DateTime?,customerAcknowledgedArrivalAt: freezed == customerAcknowledgedArrivalAt ? _self.customerAcknowledgedArrivalAt : customerAcknowledgedArrivalAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,inspectionStartedAt: freezed == inspectionStartedAt ? _self.inspectionStartedAt : inspectionStartedAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,quoteFirstSubmittedAt: freezed == quoteFirstSubmittedAt ? _self.quoteFirstSubmittedAt : quoteFirstSubmittedAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,workStartedAt: freezed == workStartedAt ? _self.workStartedAt : workStartedAt // ignore: cast_nullable_to_non_nullable
@@ -156,10 +157,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( DateTime? acceptedAt,  DateTime? enRouteStartedAt,  DateTime? arrivedAt,  DateTime? inspectionStartedAt,  DateTime? quoteFirstSubmittedAt,  DateTime? workStartedAt,  DateTime? completedAt)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( DateTime? acceptedAt,  DateTime? enRouteStartedAt,  DateTime? arrivedAt,  DateTime? customerAcknowledgedArrivalAt,  DateTime? inspectionStartedAt,  DateTime? quoteFirstSubmittedAt,  DateTime? workStartedAt,  DateTime? completedAt)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _BookingPhaseTimestamps() when $default != null:
-return $default(_that.acceptedAt,_that.enRouteStartedAt,_that.arrivedAt,_that.inspectionStartedAt,_that.quoteFirstSubmittedAt,_that.workStartedAt,_that.completedAt);case _:
+return $default(_that.acceptedAt,_that.enRouteStartedAt,_that.arrivedAt,_that.customerAcknowledgedArrivalAt,_that.inspectionStartedAt,_that.quoteFirstSubmittedAt,_that.workStartedAt,_that.completedAt);case _:
   return orElse();
 
 }
@@ -177,10 +178,10 @@ return $default(_that.acceptedAt,_that.enRouteStartedAt,_that.arrivedAt,_that.in
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( DateTime? acceptedAt,  DateTime? enRouteStartedAt,  DateTime? arrivedAt,  DateTime? inspectionStartedAt,  DateTime? quoteFirstSubmittedAt,  DateTime? workStartedAt,  DateTime? completedAt)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( DateTime? acceptedAt,  DateTime? enRouteStartedAt,  DateTime? arrivedAt,  DateTime? customerAcknowledgedArrivalAt,  DateTime? inspectionStartedAt,  DateTime? quoteFirstSubmittedAt,  DateTime? workStartedAt,  DateTime? completedAt)  $default,) {final _that = this;
 switch (_that) {
 case _BookingPhaseTimestamps():
-return $default(_that.acceptedAt,_that.enRouteStartedAt,_that.arrivedAt,_that.inspectionStartedAt,_that.quoteFirstSubmittedAt,_that.workStartedAt,_that.completedAt);case _:
+return $default(_that.acceptedAt,_that.enRouteStartedAt,_that.arrivedAt,_that.customerAcknowledgedArrivalAt,_that.inspectionStartedAt,_that.quoteFirstSubmittedAt,_that.workStartedAt,_that.completedAt);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -197,10 +198,10 @@ return $default(_that.acceptedAt,_that.enRouteStartedAt,_that.arrivedAt,_that.in
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( DateTime? acceptedAt,  DateTime? enRouteStartedAt,  DateTime? arrivedAt,  DateTime? inspectionStartedAt,  DateTime? quoteFirstSubmittedAt,  DateTime? workStartedAt,  DateTime? completedAt)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( DateTime? acceptedAt,  DateTime? enRouteStartedAt,  DateTime? arrivedAt,  DateTime? customerAcknowledgedArrivalAt,  DateTime? inspectionStartedAt,  DateTime? quoteFirstSubmittedAt,  DateTime? workStartedAt,  DateTime? completedAt)?  $default,) {final _that = this;
 switch (_that) {
 case _BookingPhaseTimestamps() when $default != null:
-return $default(_that.acceptedAt,_that.enRouteStartedAt,_that.arrivedAt,_that.inspectionStartedAt,_that.quoteFirstSubmittedAt,_that.workStartedAt,_that.completedAt);case _:
+return $default(_that.acceptedAt,_that.enRouteStartedAt,_that.arrivedAt,_that.customerAcknowledgedArrivalAt,_that.inspectionStartedAt,_that.quoteFirstSubmittedAt,_that.workStartedAt,_that.completedAt);case _:
   return null;
 
 }
@@ -212,12 +213,13 @@ return $default(_that.acceptedAt,_that.enRouteStartedAt,_that.arrivedAt,_that.in
 
 
 class _BookingPhaseTimestamps implements BookingPhaseTimestamps {
-  const _BookingPhaseTimestamps({this.acceptedAt, this.enRouteStartedAt, this.arrivedAt, this.inspectionStartedAt, this.quoteFirstSubmittedAt, this.workStartedAt, this.completedAt});
+  const _BookingPhaseTimestamps({this.acceptedAt, this.enRouteStartedAt, this.arrivedAt, this.customerAcknowledgedArrivalAt, this.inspectionStartedAt, this.quoteFirstSubmittedAt, this.workStartedAt, this.completedAt});
   
 
 @override final  DateTime? acceptedAt;
 @override final  DateTime? enRouteStartedAt;
 @override final  DateTime? arrivedAt;
+@override final  DateTime? customerAcknowledgedArrivalAt;
 @override final  DateTime? inspectionStartedAt;
 @override final  DateTime? quoteFirstSubmittedAt;
 @override final  DateTime? workStartedAt;
@@ -233,16 +235,16 @@ _$BookingPhaseTimestampsCopyWith<_BookingPhaseTimestamps> get copyWith => __$Boo
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _BookingPhaseTimestamps&&(identical(other.acceptedAt, acceptedAt) || other.acceptedAt == acceptedAt)&&(identical(other.enRouteStartedAt, enRouteStartedAt) || other.enRouteStartedAt == enRouteStartedAt)&&(identical(other.arrivedAt, arrivedAt) || other.arrivedAt == arrivedAt)&&(identical(other.inspectionStartedAt, inspectionStartedAt) || other.inspectionStartedAt == inspectionStartedAt)&&(identical(other.quoteFirstSubmittedAt, quoteFirstSubmittedAt) || other.quoteFirstSubmittedAt == quoteFirstSubmittedAt)&&(identical(other.workStartedAt, workStartedAt) || other.workStartedAt == workStartedAt)&&(identical(other.completedAt, completedAt) || other.completedAt == completedAt));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _BookingPhaseTimestamps&&(identical(other.acceptedAt, acceptedAt) || other.acceptedAt == acceptedAt)&&(identical(other.enRouteStartedAt, enRouteStartedAt) || other.enRouteStartedAt == enRouteStartedAt)&&(identical(other.arrivedAt, arrivedAt) || other.arrivedAt == arrivedAt)&&(identical(other.customerAcknowledgedArrivalAt, customerAcknowledgedArrivalAt) || other.customerAcknowledgedArrivalAt == customerAcknowledgedArrivalAt)&&(identical(other.inspectionStartedAt, inspectionStartedAt) || other.inspectionStartedAt == inspectionStartedAt)&&(identical(other.quoteFirstSubmittedAt, quoteFirstSubmittedAt) || other.quoteFirstSubmittedAt == quoteFirstSubmittedAt)&&(identical(other.workStartedAt, workStartedAt) || other.workStartedAt == workStartedAt)&&(identical(other.completedAt, completedAt) || other.completedAt == completedAt));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,acceptedAt,enRouteStartedAt,arrivedAt,inspectionStartedAt,quoteFirstSubmittedAt,workStartedAt,completedAt);
+int get hashCode => Object.hash(runtimeType,acceptedAt,enRouteStartedAt,arrivedAt,customerAcknowledgedArrivalAt,inspectionStartedAt,quoteFirstSubmittedAt,workStartedAt,completedAt);
 
 @override
 String toString() {
-  return 'BookingPhaseTimestamps(acceptedAt: $acceptedAt, enRouteStartedAt: $enRouteStartedAt, arrivedAt: $arrivedAt, inspectionStartedAt: $inspectionStartedAt, quoteFirstSubmittedAt: $quoteFirstSubmittedAt, workStartedAt: $workStartedAt, completedAt: $completedAt)';
+  return 'BookingPhaseTimestamps(acceptedAt: $acceptedAt, enRouteStartedAt: $enRouteStartedAt, arrivedAt: $arrivedAt, customerAcknowledgedArrivalAt: $customerAcknowledgedArrivalAt, inspectionStartedAt: $inspectionStartedAt, quoteFirstSubmittedAt: $quoteFirstSubmittedAt, workStartedAt: $workStartedAt, completedAt: $completedAt)';
 }
 
 
@@ -253,7 +255,7 @@ abstract mixin class _$BookingPhaseTimestampsCopyWith<$Res> implements $BookingP
   factory _$BookingPhaseTimestampsCopyWith(_BookingPhaseTimestamps value, $Res Function(_BookingPhaseTimestamps) _then) = __$BookingPhaseTimestampsCopyWithImpl;
 @override @useResult
 $Res call({
- DateTime? acceptedAt, DateTime? enRouteStartedAt, DateTime? arrivedAt, DateTime? inspectionStartedAt, DateTime? quoteFirstSubmittedAt, DateTime? workStartedAt, DateTime? completedAt
+ DateTime? acceptedAt, DateTime? enRouteStartedAt, DateTime? arrivedAt, DateTime? customerAcknowledgedArrivalAt, DateTime? inspectionStartedAt, DateTime? quoteFirstSubmittedAt, DateTime? workStartedAt, DateTime? completedAt
 });
 
 
@@ -270,11 +272,12 @@ class __$BookingPhaseTimestampsCopyWithImpl<$Res>
 
 /// Create a copy of BookingPhaseTimestamps
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? acceptedAt = freezed,Object? enRouteStartedAt = freezed,Object? arrivedAt = freezed,Object? inspectionStartedAt = freezed,Object? quoteFirstSubmittedAt = freezed,Object? workStartedAt = freezed,Object? completedAt = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? acceptedAt = freezed,Object? enRouteStartedAt = freezed,Object? arrivedAt = freezed,Object? customerAcknowledgedArrivalAt = freezed,Object? inspectionStartedAt = freezed,Object? quoteFirstSubmittedAt = freezed,Object? workStartedAt = freezed,Object? completedAt = freezed,}) {
   return _then(_BookingPhaseTimestamps(
 acceptedAt: freezed == acceptedAt ? _self.acceptedAt : acceptedAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,enRouteStartedAt: freezed == enRouteStartedAt ? _self.enRouteStartedAt : enRouteStartedAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,arrivedAt: freezed == arrivedAt ? _self.arrivedAt : arrivedAt // ignore: cast_nullable_to_non_nullable
+as DateTime?,customerAcknowledgedArrivalAt: freezed == customerAcknowledgedArrivalAt ? _self.customerAcknowledgedArrivalAt : customerAcknowledgedArrivalAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,inspectionStartedAt: freezed == inspectionStartedAt ? _self.inspectionStartedAt : inspectionStartedAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,quoteFirstSubmittedAt: freezed == quoteFirstSubmittedAt ? _self.quoteFirstSubmittedAt : quoteFirstSubmittedAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,workStartedAt: freezed == workStartedAt ? _self.workStartedAt : workStartedAt // ignore: cast_nullable_to_non_nullable
