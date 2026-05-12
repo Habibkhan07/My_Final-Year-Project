@@ -96,7 +96,7 @@ final class BookingOrchestratorEventsNotifierProvider
 }
 
 String _$bookingOrchestratorEventsNotifierHash() =>
-    r'fd3ccaf9247d093c3e5ee9ceb8f22064f86493b7';
+    r'e90073e4fad31fadb17424d045e0ee4dcd2c99c9';
 
 /// keepAlive: false — this notifier is scoped to the orchestrator
 /// screen lifetime. The screen `ref.read`s it in `initState` to wake

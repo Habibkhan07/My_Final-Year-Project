@@ -17,6 +17,7 @@ import '../../features/technician/onboarding/domain/entities/technician_entity.d
 import '../../features/booking/presentation/screens/technician_profile_screen.dart';
 import '../../features/customer/addresses/presentation/screens/map_picker_screen.dart';
 import '../../features/technician/dashboard/presentation/screens/technician_dashboard_screen.dart';
+import '../../features/technician/wallet/presentation/screens/wallet_screen.dart';
 import '../realtime/presentation/providers/dependency_injection.dart';
 
 // DEBUG — remove in end-of-UI cleanup pass. Controls where the post-auth
@@ -165,6 +166,14 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/shared/wallet',
         builder: (context, state) =>
             const _ComingSoonScreen(title: 'Wallet', tag: 'wallet'),
+      ),
+      // Real tech-only Wallet screen. The dashboard pill pushes here.
+      // /shared/wallet (above) is kept as a no-link deadlink for any
+      // legacy banner taps; the wallet event banner View button is
+      // already suppressed by the urgency router (Bug 2 fix).
+      GoRoute(
+        path: '/wallet',
+        builder: (context, state) => const WalletScreen(),
       ),
       GoRoute(
         path: '/technician-profile/:id',

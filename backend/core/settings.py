@@ -86,6 +86,23 @@ CELERY_TASK_PUBLISH_RETRY = False
 BOOKING_GEOFENCE_STRICT = env.bool('BOOKING_GEOFENCE_STRICT', default=False)
 
 
+# --- Wallet / payment finance --------------------------------------------
+# Which FinancePort adapter the booking orchestrator gets via
+# ``bookings.adapters.get_default_finance_service``. 'wallet' = real
+# ledger writes (WalletFinanceAdapter). 'null' = no-op (NullFinanceAdapter,
+# for tests that exercise the orchestrator without finance side-effects).
+FINANCE_BACKEND = env('FINANCE_BACKEND', default='wallet')
+
+# Registry of PaymentGatewayPort adapters. Add EasyPaisa / real JazzCash
+# entries here; ``wallet.services.gateway_factory.get_gateway`` does the
+# lazy import. The mock adapter is the dev default — Thursday adds the
+# real 'jazzcash' entry when the JazzCash SDK lands.
+PAYMENT_GATEWAYS = {
+    'mock': 'wallet.adapters.mock_jazzcash_gateway.MockJazzCashGateway',
+}
+DEFAULT_PAYMENT_GATEWAY = env('DEFAULT_PAYMENT_GATEWAY', default='mock')
+
+
 # Application definition
 
 INSTALLED_APPS = [
@@ -115,6 +132,7 @@ INSTALLED_APPS = [
     'marketing',
     'customers',
     'bookings',
+    'wallet',
     'django_extensions',
     # Central Event Dispatch Hub
     'core.apps.CoreConfig',

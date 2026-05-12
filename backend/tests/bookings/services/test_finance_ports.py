@@ -47,7 +47,24 @@ class TestProtocolConformance:
 
 
 class TestDefaultFactory:
-    def test_returns_null_adapter_instance(self):
+    def test_returns_wallet_adapter_by_default(self, settings):
+        """As of the finance sprint, ``FINANCE_BACKEND='wallet'`` is the
+        production default. Tests that need the no-op adapter must opt-in
+        via ``settings.FINANCE_BACKEND = 'null'``."""
+        from wallet.adapters.wallet_finance_adapter import WalletFinanceAdapter
+
+        settings.FINANCE_BACKEND = 'wallet'
+        instance = get_default_finance_service()
+        assert isinstance(instance, WalletFinanceAdapter)
+
+    def test_returns_null_adapter_when_backend_is_null(self, settings):
+        settings.FINANCE_BACKEND = 'null'
+        instance = get_default_finance_service()
+        assert isinstance(instance, NullFinanceAdapter)
+
+    def test_unknown_backend_falls_back_to_null(self, settings):
+        """Defensive: an empty / typo'd env var must not break dev."""
+        settings.FINANCE_BACKEND = 'totally-not-real'
         instance = get_default_finance_service()
         assert isinstance(instance, NullFinanceAdapter)
 

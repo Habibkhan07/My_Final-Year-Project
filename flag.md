@@ -986,7 +986,26 @@ Medium. Ranking quality degrades over time without real data, but the platform t
 
 ---
 
-## 30. Bank accounts / wallet payouts — cash collection only this sprint
+## ~~30. Bank accounts / wallet payouts — cash collection only this sprint~~ ✅ Resolved (2026-05-13)
+
+Resolved by the finance sprint: real `WalletFinanceAdapter` writes commission rows on every IN_PROGRESS → COMPLETED transition, the `wallet/` app ships the full ledger + payout-account + withdrawal-lifecycle schema (8 models, 0001_initial), and the dashboard pill now pushes a real tech-only Wallet screen.
+
+**What changed**
+- New app `wallet/` with `WalletTransaction` (ledger + `balance_after` audit invariant), `WalletTopup` (relaxed 1:0..1 with WalletTransaction to allow in-flight gateway state), `JobCommission`, `RefundDeduction`, `TechnicianBankAccount`, `TechnicianJazzCashAccount`, `WithdrawalRequest`, `WithdrawalFulfilment`. All shipped in a single `0001_initial` migration so Thursday's top-up/withdraw plumbing adds zero schema risk.
+- `wallet/services/ledger.py::record_transaction` — single ACID-guaranteed ledger-write site. `transaction.atomic` + `select_for_update` on TechnicianProfile + balance_after snapshot + `transaction.on_commit` broadcast of `WALLET_BALANCE_UPDATED`. Idempotency via `transaction_reference_number` partial-unique constraint.
+- `wallet/adapters/wallet_finance_adapter.py::WalletFinanceAdapter` — implements `FinancePort`. `record_commission` debits 20% commission and creates a `JobCommission` row keyed `booking:{id}:commission` for idempotency. Other hooks intentionally no-op (customer↔tech is cash-only; the wallet tracks tech↔platform money flow only — see `feedback_wallet_vs_metrics_separation` memory).
+- `wallet/services/gateway_ports.py::PaymentGatewayPort` — Protocol with `initiate_topup`/`verify_topup`/`initiate_payout`. `wallet/adapters/mock_jazzcash_gateway.py::MockJazzCashGateway` ships tonight so the Port surface is exercised; Thursday's real JazzCash adapter is a one-file drop-in.
+- `bookings/adapters/__init__.py::get_default_finance_service` switches on `settings.FINANCE_BACKEND` (default `'wallet'`, tests can opt-in to `'null'`).
+- `wallet/admin.py` — read-only admin pages for all 8 tables (supervisor-grade audit view).
+- `GET /api/technicians/wallet/` — thin balance read endpoint, IDOR-safe.
+- Frontend: `lib/features/technician/wallet/` — full domain/data/presentation feature; `WalletScreen` with balance card + Top up + Withdraw CTAs (latter two snackbar "Available Thursday"). Dashboard wallet pill pushes `/wallet`. `WALLET_BALANCE_UPDATED` event wired through `SystemEventType.walletBalanceUpdated` for in-place balance patches on both the dashboard pill and the wallet screen.
+- Tests: backend +39 (`tests/wallet/`), frontend +18 (`test/features/technician/wallet/`). Zero regressions.
+
+**Follow-ups** — see flags 34–37 below for top-up, withdraw form, lockout enforcement, and payout-account auto-capture (all locked-in for Thursday 05-14).
+
+(Original entry preserved below for forensic context.)
+
+---
 
 **Where**
 - `backend/bookings/services/finance_ports.py::FinancePort` — Protocol with 5 methods, all routed to `NullFinanceAdapter` no-ops
@@ -1267,3 +1286,123 @@ Action items when the proper fix lands:
 
 **Severity**
 P3 in dev / demo (rate-limit lands on 429 path that's already handled gracefully). P1 the day this app onboards real customers — the public OSRM instance will start refusing traffic once the QPS climbs.
+
+---
+
+## 34. JazzCash top-up flow — backend + frontend deferred to Thursday 05-14
+
+**Where**
+- `backend/wallet/models.py::WalletTopup` — schema shipped 2026-05-13 (1:0..1 with `WalletTransaction`, holds `gateway_session_id` / `gateway_redirect_url` / `gateway_callback_payload` for in-flight state).
+- `backend/wallet/services/gateway_ports.py::PaymentGatewayPort` — `initiate_topup` / `verify_topup` declared but only `MockJazzCashGateway` implements them.
+- `backend/wallet/adapters/mock_jazzcash_gateway.py` — fake gateway exercising the Port surface.
+- `backend/wallet/api/urls.py` — only `GET /` (balance) wired tonight. No `POST /topups/`, no `/gateways/jazzcash/callback/`.
+- `frontend/lib/features/technician/wallet/presentation/widgets/top_up_button.dart` — onTap shows `"JazzCash top-up is launching Thursday."` snackbar.
+
+**What's wrong**
+The wallet schema + ledger ship tonight, but the only way money actually enters a tech's wallet today is via Django Admin `WalletTransaction` row creation (which `_ReadOnlyAdmin` actually disallows — admin can only view). For the viva demo this means commission *deductions* are observable (they fire on every COMPLETED booking) but a tech can't replenish their wallet from inside the app yet.
+
+**Why we shipped it that way**
+The thesis flow is: tech taps Top up → enters amount → redirected to JazzCash auth → on callback success the wallet credits. That spans (a) a `POST /api/wallet/topups/` endpoint that calls `gateway.initiate_topup`, (b) a redirect surface on the FE, (c) a `POST /api/wallet/gateways/jazzcash/callback/` webhook with signature verification, (d) a real `JazzCashGateway` adapter that the user is chasing sandbox credentials for. Bundling that into tonight's sprint would have blown past morning and risked breaking the ACID ledger sprint by interleaving HTTP integration work with model design work.
+
+**The proper fix (Thu 05-14)**
+1. Real `wallet/adapters/jazzcash_gateway.py::JazzCashGateway` implementing `PaymentGatewayPort` — HMAC sign / verify, real REST calls.
+2. Register `'jazzcash'` in `settings.PAYMENT_GATEWAYS`; flip `DEFAULT_PAYMENT_GATEWAY='jazzcash'` for prod.
+3. `POST /api/wallet/topups/` — creates `WalletTopup(PENDING)`, calls `gateway.initiate_topup`, persists `gateway_session_id` + redirect URL, returns redirect URL to FE.
+4. `POST /api/wallet/gateways/jazzcash/callback/` — verifies signature, calls `gateway.verify_topup`, on success calls `ledger.record_transaction(TOPUP_CREDIT)` and links the resulting `WalletTransaction` to the `WalletTopup`. Auto-creates `TechnicianJazzCashAccount(is_default=True)` if the tech has no default payout account yet (covers flag 37).
+5. Frontend top-up screen with amount input, redirect/webview handling, and post-callback refresh of `WalletNotifier`.
+
+**Severity**
+P1 for viva — supervisor's thesis check expects the top-up flow to demo. Mock gateway ships tonight to keep the Protocol surface honest; the real path lands on Thursday.
+
+---
+
+## 35. Tech withdrawal request — UI form + admin action deferred to Thursday 05-14
+
+**Where**
+- `backend/wallet/models.py::WithdrawalRequest` + `WithdrawalFulfilment` — schemas ship tonight (status enum, payout account XOR constraint, admin_external_ref + admin_notes fields).
+- `backend/wallet/admin.py::WithdrawalRequestAdmin` — registered tonight but read-only. No `approve_and_process` admin action yet.
+- `backend/wallet/api/urls.py` — no `POST /withdrawals/` endpoint.
+- `frontend/lib/features/technician/wallet/presentation/widgets/withdraw_button.dart` — onTap snackbar `"Withdrawal requests open Thursday."`.
+
+**What's wrong**
+The thesis flow specifies: tech submits a withdraw request (entering a bank account OR using their saved JazzCash account from top-up), admin processes manually via Django Admin, ledger records the `WITHDRAWAL_DEBIT`. Tonight the schema is in place but the UX is a snackbar; admin can see the empty `WithdrawalRequest` table but can't process anything.
+
+**Why we shipped it that way**
+Withdraw is downstream of top-up (the saved payout account is captured during the first top-up — see flag 37). With top-up itself deferred to Thursday, building withdraw tonight would either require a separate "manually add payout account" entry flow (scope creep) or land a UI that's immediately broken because no payout accounts exist yet.
+
+**The proper fix (Thu 05-14)**
+1. `POST /api/wallet/withdrawals/` — accepts `amount` + `payout_account_id` (one of bank/jazzcash). Creates `WithdrawalRequest(PENDING_REVIEW)`. NO ledger write yet — the debit happens on admin approval.
+2. Frontend withdraw screen with amount input + payout-account picker (default-preselected). Lists existing `TechnicianBankAccount` + `TechnicianJazzCashAccount` rows. "Add new bank account" form for techs who don't yet have one (covers the "tech who hasn't topped up yet wants to withdraw" edge case — unlikely but possible).
+3. `WithdrawalRequestAdmin.actions = ['approve_and_process']` — admin clicks, enters `admin_external_ref` (real JazzCash merchant txn id from out-of-band payout), service writes `WalletTransaction(WITHDRAWAL_DEBIT)` + `WithdrawalFulfilment` row, broadcasts `WALLET_BALANCE_UPDATED`.
+
+**Severity**
+P1 for viva — thesis demonstrates the full withdraw flow including admin approval. The schema-first approach tonight means Thursday is pure plumbing.
+
+---
+
+## 36. Wallet lockout enforcement — `can_accept_job` always permits
+
+**Where**
+- `backend/wallet/adapters/wallet_finance_adapter.py::WalletFinanceAdapter.can_accept_job` — returns `(True, None)` unconditionally.
+- `backend/bookings/services/job_request_dispatch.py::PLATFORM_COMMISSION_RATE = Decimal("0.20")` — commission rate is known.
+- No `MIN_WALLET_BALANCE` / threshold constant defined yet.
+- `CLAUDE.md` business rule: *"Wallet Lockout: Technician blocked from accepting jobs if wallet balance < commission threshold, until JazzCash top-up"* — currently unenforced.
+
+**What's wrong**
+A tech with a deeply-negative wallet balance can still accept new jobs tonight; `can_accept_job` never refuses. The hook is in place (Port surface ships), but the policy decision is unimplemented.
+
+**Why we shipped it that way**
+Without top-up shipping tonight, enforcing the lockout would brick every seeded tech on first commission deduction. The lockout becomes safe to enable on Thursday alongside the top-up path — tech can hit the threshold, get blocked, top up, get unblocked.
+
+**The proper fix (Thu 05-14)**
+1. Define `WALLET_LOCKOUT_THRESHOLD: Decimal` in `wallet/services/` (or settings). Likely `Decimal('0.00')` for v1 — go below zero, you're blocked.
+2. `can_accept_job` checks `technician.current_wallet_balance + commission_for_pending_job >= threshold`. Returns `(False, 'wallet_below_threshold')` otherwise.
+3. The orchestrator's `accept_job_booking` already wraps the call in the FinancePort hook; this becomes the natural gate.
+4. Frontend surfaces the rejection with a "Top up to accept this job" CTA inside the incoming-job-request sheet.
+
+**Severity**
+P1 for prod (platform's revenue floor). P2 for viva — thesis says lockout exists; demoing it requires Thursday's top-up flow to also exist (so the tech can unblock themselves).
+
+---
+
+## 37. Payout account auto-capture on first top-up — deferred
+
+**Where**
+- `backend/wallet/models.py::TechnicianJazzCashAccount` — schema shipped tonight, no writers.
+- `backend/wallet/adapters/jazzcash_gateway.py` — does not exist yet; the auto-capture happens inside its `verify_topup` success path.
+
+**What's wrong**
+The thesis flow says: when a tech tops up via JazzCash for the first time, the JazzCash mobile number they paid from is auto-saved as a default `TechnicianJazzCashAccount` for future withdrawals. Tonight the table exists but no code writes to it.
+
+**Why we shipped it that way**
+Tied to flag 34 — the auto-capture happens inside the gateway callback handler, which doesn't ship until Thursday.
+
+**The proper fix (Thu 05-14)**
+Inside the `/gateways/jazzcash/callback/` handler, after `ledger.record_transaction(TOPUP_CREDIT)`: check whether the tech has any `is_active=True` payout account (bank or JazzCash). If none, create a `TechnicianJazzCashAccount(is_default=True, source='auto_topup')` from the MSISDN in `gateway_callback_payload`. If the tech already has a default, leave it alone (they explicitly configured something else).
+
+**Severity**
+P2 — feature works without auto-capture (tech can manually add a withdraw destination in the withdraw form), but the thesis flow is cleaner with auto-capture and that's the demo path.
+
+---
+
+## 38. Customer-side dispute / refund models — schemas land with chatbot/dispute day
+
+**Where**
+- `backend/wallet/models.py` — only the *tech-side* financial models ship tonight. The thesis schema (Figure 3.15) also includes `SupportTicket`, `TicketEvidence`, `RefundRequest`, `CustomerBankAccount` — none shipped tonight.
+- `backend/wallet/models.py::RefundDeduction` — *did* ship tonight (it's a 1:1 subtype of `WalletTransaction`, written when admin issues a refund and debits the tech), but no UI or admin action creates one yet.
+
+**What's wrong**
+The chatbot's dispute-intake flow (`project_chatbot_scope.md`: narrative + 3 photos + bank mini-form, post-completion entry only) is going to write `SupportTicket` + `TicketEvidence` + `RefundRequest` + `CustomerBankAccount` rows. None of those tables exist in the database tonight. When chatbot day runs, it will need to ship its own migration `0002_dispute_models.py` adding those four tables.
+
+**Why we shipped it that way**
+Scoping discipline. Tonight is the wallet sprint, not the dispute sprint. Conflating them would have ballooned the change set and made review harder. The thesis schema cleanly separates "tech-side money" from "customer-side dispute/refund" — tonight ships the first, chatbot day ships the second.
+
+**The proper fix (Wed 05-13 evening / chatbot day)**
+1. Add `wallet/models.py` entries for `SupportTicket` (with `text` / `description` fields — note the thesis schema has both, may be redundant; pick one or disambiguate as title/body), `TicketEvidence` (FK to ticket + `photo_url`), `RefundRequest` (amount, status, admin_note, processed_at), `CustomerBankAccount` (mirror of `TechnicianBankAccount`).
+2. New migration `wallet/migrations/0002_dispute_models.py`.
+3. Wire admin pages for all four.
+4. Refund flow: admin reviews `RefundRequest`, approves → service writes a `WalletTransaction(REFUND_DEBIT)` for the tech (using the existing `RefundDeduction` subtype that ships tonight) + records the refund payout to the customer's bank account.
+
+**Severity**
+P1 for chatbot day (thesis demonstrates the full dispute → refund flow). P3 for tonight (deferred deliberately; no code references the missing tables).
+

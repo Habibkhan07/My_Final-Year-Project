@@ -25,6 +25,15 @@ part of 'technician_dashboard_notifier.dart';
 /// and only mutate one field. A whole-screen refetch would burn data and
 /// flash the AsyncLoading state across UI that doesn't depend on the changed
 /// field.
+///
+/// **keepAlive: true** so that:
+///   * The notifier wakes at boot (via `realtimeBootHooksProvider`) and
+///     subscribes to `systemEventProvider` BEFORE the first WS frame, so
+///     events that arrive while the dashboard tab isn't open still
+///     refresh the cached state when the user navigates to it.
+///   * The notifier survives bottom-nav tab switches — switching to
+///     Jobs / Wallet / Profile and back returns to a still-fresh
+///     dashboard rather than re-fetching on every tap.
 
 @ProviderFor(TechnicianDashboardNotifier)
 final technicianDashboardProvider = TechnicianDashboardNotifierProvider._();
@@ -46,6 +55,15 @@ final technicianDashboardProvider = TechnicianDashboardNotifierProvider._();
 /// and only mutate one field. A whole-screen refetch would burn data and
 /// flash the AsyncLoading state across UI that doesn't depend on the changed
 /// field.
+///
+/// **keepAlive: true** so that:
+///   * The notifier wakes at boot (via `realtimeBootHooksProvider`) and
+///     subscribes to `systemEventProvider` BEFORE the first WS frame, so
+///     events that arrive while the dashboard tab isn't open still
+///     refresh the cached state when the user navigates to it.
+///   * The notifier survives bottom-nav tab switches — switching to
+///     Jobs / Wallet / Profile and back returns to a still-fresh
+///     dashboard rather than re-fetching on every tap.
 final class TechnicianDashboardNotifierProvider
     extends
         $AsyncNotifierProvider<
@@ -69,13 +87,22 @@ final class TechnicianDashboardNotifierProvider
   /// and only mutate one field. A whole-screen refetch would burn data and
   /// flash the AsyncLoading state across UI that doesn't depend on the changed
   /// field.
+  ///
+  /// **keepAlive: true** so that:
+  ///   * The notifier wakes at boot (via `realtimeBootHooksProvider`) and
+  ///     subscribes to `systemEventProvider` BEFORE the first WS frame, so
+  ///     events that arrive while the dashboard tab isn't open still
+  ///     refresh the cached state when the user navigates to it.
+  ///   * The notifier survives bottom-nav tab switches — switching to
+  ///     Jobs / Wallet / Profile and back returns to a still-fresh
+  ///     dashboard rather than re-fetching on every tap.
   TechnicianDashboardNotifierProvider._()
     : super(
         from: null,
         argument: null,
         retry: null,
         name: r'technicianDashboardProvider',
-        isAutoDispose: true,
+        isAutoDispose: false,
         dependencies: null,
         $allTransitiveDependencies: null,
       );
@@ -89,7 +116,7 @@ final class TechnicianDashboardNotifierProvider
 }
 
 String _$technicianDashboardNotifierHash() =>
-    r'969602ea6c0cf215e0abb4d7dea248084612339f';
+    r'1c0e7e33235ae01d4e9d3d153574d211eed05239';
 
 /// State holder for the technician dashboard screen.
 ///
@@ -108,6 +135,15 @@ String _$technicianDashboardNotifierHash() =>
 /// and only mutate one field. A whole-screen refetch would burn data and
 /// flash the AsyncLoading state across UI that doesn't depend on the changed
 /// field.
+///
+/// **keepAlive: true** so that:
+///   * The notifier wakes at boot (via `realtimeBootHooksProvider`) and
+///     subscribes to `systemEventProvider` BEFORE the first WS frame, so
+///     events that arrive while the dashboard tab isn't open still
+///     refresh the cached state when the user navigates to it.
+///   * The notifier survives bottom-nav tab switches — switching to
+///     Jobs / Wallet / Profile and back returns to a still-fresh
+///     dashboard rather than re-fetching on every tap.
 
 abstract class _$TechnicianDashboardNotifier
     extends $AsyncNotifier<TechnicianDashboardState> {

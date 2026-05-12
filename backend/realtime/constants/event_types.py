@@ -53,6 +53,13 @@ class EventType(str, Enum):
     DISPUTE_OPENED = "dispute_opened"
     DISPUTE_RESOLVED = "dispute_resolved"
     WALLET_LOW_BALANCE = "wallet_low_balance"
+    # Tech-facing single-field balance patch. Fired by the wallet ledger
+    # service after every WalletTransaction commit. The frontend dashboard
+    # notifier consumes this via ``onWalletBalanceEvent`` to patch the
+    # pill in place — no full reload. The new tech-only Wallet screen
+    # also subscribes. Non-critical: no ACK needed; sync replay covers
+    # offline reopens.
+    WALLET_BALANCE_UPDATED = "wallet_balance_updated"
 
     # Booking orchestrator v1 (sprint 0008). All five are non-critical: none
     # of them gate money or service delivery on the recipient's ACK. Cash
@@ -102,6 +109,7 @@ EVENT_REGISTRY: dict[EventType, EventMeta] = {
     EventType.DISPUTE_OPENED:     {"is_critical": True,  "display_name": "Dispute Opened"},
     EventType.DISPUTE_RESOLVED:   {"is_critical": True,  "display_name": "Dispute Resolved"},
     EventType.WALLET_LOW_BALANCE: {"is_critical": False, "display_name": "Low Wallet Balance"},
+    EventType.WALLET_BALANCE_UPDATED: {"is_critical": False, "display_name": "Wallet Updated"},
     EventType.QUOTE_REVISION_REQUESTED: {"is_critical": False, "display_name": "Customer wants to bargain"},
     EventType.QUOTE_DECLINED:           {"is_critical": False, "display_name": "Quote declined"},
     EventType.BOOKING_CANCELLED:        {"is_critical": False, "display_name": "Booking cancelled"},

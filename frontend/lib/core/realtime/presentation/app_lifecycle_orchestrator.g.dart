@@ -105,4 +105,4 @@ final class RealtimeBootHooksProvider
   }
 }
 
-String _$realtimeBootHooksHash() => r'f12425a899a077d6f74ee2f98c2d3e9b500c6a10';
+String _$realtimeBootHooksHash() => r'dc85c9530387dad492cc8ae2eb6abfaee1d13e3f';

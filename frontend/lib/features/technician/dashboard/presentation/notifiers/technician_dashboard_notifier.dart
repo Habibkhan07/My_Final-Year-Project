@@ -71,6 +71,16 @@ class TechnicianDashboardNotifier extends _$TechnicianDashboardNotifier {
         case SystemEventType.walletLowBalance:
           _scheduleRefresh();
           break;
+        case SystemEventType.walletBalanceUpdated:
+          // Single-field patch — wallet ledger writes broadcast the new
+          // balance after every commit. Patch the pill in place so the
+          // dashboard doesn't flash a skeleton on every commission row.
+          final raw = event.payload['balance'];
+          final parsed = raw is String ? double.tryParse(raw) : null;
+          if (parsed != null) {
+            onWalletBalanceEvent(parsed);
+          }
+          break;
         // ignore: no_default_cases
         default:
           break;

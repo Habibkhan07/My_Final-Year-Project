@@ -32,12 +32,27 @@ def get_default_finance_service():
     """
     Return the production ``FinancePort`` adapter.
 
-    Lazy-imports ``NullFinanceAdapter`` for the booking orchestrator sprint;
-    the finance sprint swaps the body to return a wallet-backed adapter
-    without touching any service-layer caller. The lazy import preserves
-    the same boundary as ``get_default_scheduler``: importing
-    ``bookings.services.*`` must never transitively pull in finance code.
-    """
-    from bookings.adapters.null_finance import NullFinanceAdapter
+    Selection is driven by ``settings.FINANCE_BACKEND``:
 
+    * ``'wallet'`` (default in dev/prod) → ``WalletFinanceAdapter`` from the
+      wallet app. Real commission ledger writes.
+    * ``'null'``  (tests opt-in) → ``NullFinanceAdapter``. No-ops.
+
+    Lazy imports preserve the boundary: importing ``bookings.services.*``
+    must never transitively pull in finance machinery. The chosen adapter
+    is constructed fresh per call so tests can patch the env between
+    invocations without singleton caching getting in the way.
+
+    Unknown values fall back to ``NullFinanceAdapter`` so an
+    accidentally-empty env var doesn't break dev. Production should set
+    FINANCE_BACKEND=wallet explicitly.
+    """
+    from django.conf import settings
+
+    backend = getattr(settings, 'FINANCE_BACKEND', 'wallet')
+    if backend == 'wallet':
+        from wallet.adapters.wallet_finance_adapter import WalletFinanceAdapter
+        return WalletFinanceAdapter()
+
+    from bookings.adapters.null_finance import NullFinanceAdapter
     return NullFinanceAdapter()

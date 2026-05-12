@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/theme/app_shapes.dart';
@@ -238,10 +239,11 @@ class _OnlineToggleState extends State<_OnlineToggle>
 
 /// Wallet pill — "Wallet: Rs. 1,500" matching Stitch.
 ///
-/// Tappable: opens a placeholder snackbar today, will route to the JazzCash
-/// top-up flow once that feature lands. Tapping is the affordance that
-/// answers "what is this Rs?" — the Stitch label inline already hints, the
-/// tap will open a sheet explaining the platform commission.
+/// Tappable: pushes the tech-only Wallet screen (`/wallet`) where the tech
+/// sees their current balance plus Top up / Withdraw CTAs. The pill itself
+/// stays current in real time via `WALLET_BALANCE_UPDATED` events patched
+/// onto `TechnicianDashboardState.walletBalance` — see
+/// `TechnicianDashboardNotifier.onWalletBalanceEvent`.
 class _WalletPill extends StatelessWidget {
   const _WalletPill({required this.balance});
   final double balance;
@@ -249,15 +251,7 @@ class _WalletPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () {
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(
-            const SnackBar(
-              content: Text('Wallet & top-up details coming soon.'),
-            ),
-          );
-      },
+      onTap: () => GoRouter.of(context).push('/wallet'),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
