@@ -139,6 +139,16 @@ class BroadcastStateBanner extends StatelessWidget {
           foreground: Color(0xFFE65100), // orange 900
           isPermissionDenied: false,
         );
+      case BroadcastState.unsupportedPlatform:
+        return const _BannerSpec(
+          icon: Icons.devices_other,
+          message:
+              'GPS tracking only runs on the Android app. In dev: use '
+              "dev_panel option [4] to simulate the tech's location.",
+          background: Color(0xFFE3F2FD), // blue 50 — informational
+          foreground: Color(0xFF0D47A1), // blue 900
+          isPermissionDenied: false,
+        );
     }
   }
 }

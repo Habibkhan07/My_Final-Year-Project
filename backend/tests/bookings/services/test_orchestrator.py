@@ -135,11 +135,12 @@ class TestEnRoute:
         )
         assert result.status == JobBooking.STATUS_EN_ROUTE
         assert result.en_route_started_at is not None
-        # One TECH_EN_ROUTE event broadcast to the customer.
+        # TECH_EN_ROUTE broadcast to BOTH audiences (B1 fix): the actor's
+        # local invalidate-on-tap is a happy-path optimisation; the mirror
+        # covers auto-transitions, cross-device sessions, and dev tools.
         events = [c for c in captured_broadcasts if c['event_type'] == EventType.TECH_EN_ROUTE]
-        assert len(events) == 1
-        assert events[0]['user'] == booking.customer
-        assert events[0]['target_role'] == 'customer'
+        assert len(events) == 2
+        assert {e['target_role'] for e in events} == {'customer', 'technician'}
         assert events[0]['payload']['source'] == 'manual'
 
     def test_wrong_from_state(self, fake_finance):
@@ -256,11 +257,15 @@ class TestCustomerArriving:
         # flips amber → green. The inline status flip is a UI-flip-only
         # transition (no separate INSPECTION_STARTED event needed —
         # tech-side reacts to the booking-detail refetch).
+        # B1 mirror: customer_arriving broadcasts to both sides so the
+        # customer's screen also refreshes (their action-button invalidate
+        # is a no-op when this fires from an upstream signal).
         events = [
             c for c in captured_broadcasts
             if c['event_type'] == EventType.CUSTOMER_ARRIVING
         ]
-        assert len(events) == 1
+        assert len(events) == 2
+        assert {e['target_role'] for e in events} == {'customer', 'technician'}
         assert events[0]['payload']['acknowledged_at'] is not None
 
     def test_re_tap_on_inspecting_is_idempotent_no_broadcast(
@@ -352,13 +357,16 @@ class TestStartInspection:
         assert result.inspection_started_at is not None
         fake_finance.assert_not_called()
 
+        # B1 mirror: INSPECTION_STARTED reaches both audiences. Customer
+        # is the historical primary (their screen needs to leave ARRIVED);
+        # tech mirror covers the cold-customer fallback when the tech is
+        # the actor and a separate device might also be watching.
         events = [
             c for c in captured_broadcasts
             if c['event_type'] == EventType.INSPECTION_STARTED
         ]
-        assert len(events) == 1
-        assert events[0]['target_role'] == 'customer'
-        assert events[0]['user'] == booking.customer
+        assert len(events) == 2
+        assert {e['target_role'] for e in events} == {'customer', 'technician'}
         assert events[0]['payload']['job_id'] == booking.id
 
     def test_wrong_from_state(self, fake_finance):
@@ -410,8 +418,10 @@ class TestSubmitQuote:
         booking.refresh_from_db()
         assert booking.status == JobBooking.STATUS_QUOTED
         assert booking.quote_first_submitted_at is not None
+        # B1 mirror: QUOTE_GENERATED reaches both audiences.
         events = [c for c in captured_broadcasts if c['event_type'] == EventType.QUOTE_GENERATED]
-        assert len(events) == 1
+        assert len(events) == 2
+        assert {e['target_role'] for e in events} == {'customer', 'technician'}
         assert events[0]['payload']['is_upsell'] is False
 
     def test_empty_line_items_rejected(self, fake_finance):
@@ -621,8 +631,10 @@ class TestApproveQuote:
         # final_cash_to_collect so the tech's cash button updates without
         # a follow-up fetch (matters most on upsell approvals where
         # ``total_amount`` is the upsell delta only, not the cumulative).
+        # B2 mirror: QUOTE_APPROVED reaches both audiences.
         approved_events = [c for c in captured_broadcasts if c['event_type'] == EventType.QUOTE_APPROVED]
-        assert len(approved_events) == 1
+        assert len(approved_events) == 2
+        assert {e['target_role'] for e in approved_events} == {'customer', 'technician'}
         assert approved_events[0]['payload']['final_cash_to_collect'] == '500.00'
         # Finance port hooked.
         fake_finance.apply_inspection_fee_decision.assert_called_once()
@@ -1012,10 +1024,11 @@ class TestCancelByTech:
         assert inc.incident_type == TechReliabilityIncident.INCIDENT_TECH_CANCEL
         assert inc.phase == 'pre_arrival'
         assert inc.technician == booking.technician
-        # Customer broadcast.
+        # Broadcast fans out to BOTH audiences via `_broadcast_both`
+        # (post B1+B2 migration, cross-device + dev_panel sessions).
         events = [c for c in captured_broadcasts if c['event_type'] == EventType.BOOKING_CANCELLED]
-        assert len(events) == 1
-        assert events[0]['target_role'] == 'customer'
+        assert len(events) == 2
+        assert {e['target_role'] for e in events} == {'customer', 'technician'}
 
     def test_terminal_state_rejected(self, fake_finance):
         booking = JobBookingFactory(status=JobBooking.STATUS_COMPLETED)
@@ -1070,9 +1083,11 @@ class TestMarkNoShow:
         assert booking.no_show_actor == 'tech'
         # No reliability incident on tech-reports-customer.
         assert TechReliabilityIncident.objects.filter(booking=booking).count() == 0
-        # Customer is the broadcast recipient.
+        # No-show broadcasts to BOTH audiences so cross-device sessions
+        # + dev_panel see the terminal flip.
         events = [c for c in captured_broadcasts if c['event_type'] == EventType.BOOKING_NO_SHOW]
-        assert events[0]['target_role'] == 'customer'
+        assert len(events) == 2
+        assert {e['target_role'] for e in events} == {'customer', 'technician'}
 
     def test_customer_path_writes_reliability_incident(self, fake_finance, captured_broadcasts):
         booking = JobBookingConfirmedFactory()
@@ -1089,9 +1104,10 @@ class TestMarkNoShow:
         incidents = TechReliabilityIncident.objects.filter(booking=booking)
         assert incidents.count() == 1
         assert incidents.get().incident_type == TechReliabilityIncident.INCIDENT_TECH_NO_SHOW
-        # Tech is the broadcast recipient.
+        # No-show fans out to both audiences.
         events = [c for c in captured_broadcasts if c['event_type'] == EventType.BOOKING_NO_SHOW]
-        assert events[0]['target_role'] == 'technician'
+        assert len(events) == 2
+        assert {e['target_role'] for e in events} == {'customer', 'technician'}
 
     def test_invalid_actor_role(self, fake_finance):
         booking = JobBookingArrivedFactory()
@@ -1195,7 +1211,8 @@ class TestOpenDispute:
         assert booking.status == JobBooking.STATUS_DISPUTED
         assert booking.dispute_opened_at is not None
         events = [c for c in captured_broadcasts if c['event_type'] == EventType.DISPUTE_OPENED]
-        assert events[0]['target_role'] == 'technician'
+        assert len(events) == 2
+        assert {e['target_role'] for e in events} == {'customer', 'technician'}
 
     def test_tech_opens_dispute(self, fake_finance, captured_broadcasts):
         booking = JobBookingInProgressFactory()
@@ -1207,7 +1224,8 @@ class TestOpenDispute:
         )
         assert ticket.opened_by == booking.technician.user
         events = [c for c in captured_broadcasts if c['event_type'] == EventType.DISPUTE_OPENED]
-        assert events[0]['target_role'] == 'customer'
+        assert len(events) == 2
+        assert {e['target_role'] for e in events} == {'customer', 'technician'}
 
     def test_multiple_open_tickets_allowed_status_flip_one_shot(self, fake_finance, captured_broadcasts):
         booking = JobBookingInProgressFactory()
@@ -1498,9 +1516,10 @@ class TestReschedule:
         booking.refresh_from_db()
         assert booking.status == JobBooking.STATUS_CANCELLED
         assert booking.cancel_reason == 'customer_rescheduled'
-        # BOOKING_RESCHEDULED broadcast to tech.
+        # BOOKING_RESCHEDULED fans out to both audiences.
         events = [c for c in captured_broadcasts if c['event_type'] == EventType.BOOKING_RESCHEDULED]
-        assert events[0]['target_role'] == 'technician'
+        assert len(events) == 2
+        assert {e['target_role'] for e in events} == {'customer', 'technician'}
         assert events[0]['payload']['new_booking_id'] == child.id
         # Child dispatched.
         mock_dispatch.assert_called_once()
@@ -1787,8 +1806,14 @@ class TestSubmitQuoteMalformedInput:
 
 
 class TestMarkCompleteCashAmountValidation:
-    def test_zero_cash_rejected(self, fake_finance):
-        booking = JobBookingInProgressFactory()
+    def test_zero_cash_rejected_when_expected_nonzero(self, fake_finance):
+        # Zero is no longer a blanket-reject — it's only invalid when the
+        # server-computed ``final_cash_to_collect`` disagrees. With a
+        # non-zero expected, the strict-equality guard fires and returns
+        # the precise mismatch envelope.
+        booking = JobBookingInProgressFactory(
+            final_cash_to_collect=Decimal('500'),
+        )
         with pytest.raises(BookingValidationError) as exc_info:
             orchestrator.mark_complete_with_cash(
                 booking_id=booking.id,
@@ -1798,6 +1823,24 @@ class TestMarkCompleteCashAmountValidation:
             )
         assert exc_info.value.code == 'invalid_input'
         assert 'cash_amount' in exc_info.value.errors
+
+    def test_zero_cash_accepted_when_expected_zero(self, fake_finance):
+        # Edge case: quote total equals the inspection-fee deduction
+        # exactly → ``final_cash_to_collect`` floors to 0 and the tech
+        # must be able to complete the booking by collecting nothing.
+        # Previously the ``<= 0`` floor rejected this with an unhelpful
+        # "must be > 0" error and the tech got stuck.
+        booking = JobBookingInProgressFactory(
+            final_cash_to_collect=Decimal('0'),
+        )
+        result = orchestrator.mark_complete_with_cash(
+            booking_id=booking.id,
+            technician_user=booking.technician.user,
+            cash_amount=Decimal('0'),
+            finance=fake_finance,
+        )
+        assert result.status == JobBooking.STATUS_COMPLETED
+        assert result.cash_collected_amount == Decimal('0')
 
     def test_invalid_method_rejected(self, fake_finance):
         # CLAUDE.md "CASH ONLY". Anything other than 'cash' is rejected

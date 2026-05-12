@@ -159,6 +159,71 @@ final class BookingDetailLocalDataSourceProvider
 String _$bookingDetailLocalDataSourceHash() =>
     r'04c19717ea3a0e35f3463d59bae6c1377013e5f8';
 
+/// Tech-side quote builder catalog — fetches the sub-services the
+/// authenticated tech is qualified for (via TechnicianSkill bridge),
+/// scoped to a given parent service. Reused HTTP client + secure
+/// storage; no separate auth surface.
+
+@ProviderFor(quotableSubServicesRemoteDataSource)
+final quotableSubServicesRemoteDataSourceProvider =
+    QuotableSubServicesRemoteDataSourceProvider._();
+
+/// Tech-side quote builder catalog — fetches the sub-services the
+/// authenticated tech is qualified for (via TechnicianSkill bridge),
+/// scoped to a given parent service. Reused HTTP client + secure
+/// storage; no separate auth surface.
+
+final class QuotableSubServicesRemoteDataSourceProvider
+    extends
+        $FunctionalProvider<
+          IQuotableSubServicesRemoteDataSource,
+          IQuotableSubServicesRemoteDataSource,
+          IQuotableSubServicesRemoteDataSource
+        >
+    with $Provider<IQuotableSubServicesRemoteDataSource> {
+  /// Tech-side quote builder catalog — fetches the sub-services the
+  /// authenticated tech is qualified for (via TechnicianSkill bridge),
+  /// scoped to a given parent service. Reused HTTP client + secure
+  /// storage; no separate auth surface.
+  QuotableSubServicesRemoteDataSourceProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'quotableSubServicesRemoteDataSourceProvider',
+        isAutoDispose: false,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() =>
+      _$quotableSubServicesRemoteDataSourceHash();
+
+  @$internal
+  @override
+  $ProviderElement<IQuotableSubServicesRemoteDataSource> $createElement(
+    $ProviderPointer pointer,
+  ) => $ProviderElement(pointer);
+
+  @override
+  IQuotableSubServicesRemoteDataSource create(Ref ref) {
+    return quotableSubServicesRemoteDataSource(ref);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(IQuotableSubServicesRemoteDataSource value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride:
+          $SyncValueProvider<IQuotableSubServicesRemoteDataSource>(value),
+    );
+  }
+}
+
+String _$quotableSubServicesRemoteDataSourceHash() =>
+    r'1d00a063d6ad9baa37a2014f80d07543a8530ac9';
+
 @ProviderFor(bookingDetailRepository)
 final bookingDetailRepositoryProvider = BookingDetailRepositoryProvider._();
 

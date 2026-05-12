@@ -36,11 +36,10 @@ String formatBookingDate({
 String _renderBase(DateTime start, DateTime now, int diffMinutes) {
   final timePart = DateFormat.jm().format(start);
 
-  // 0–60 minutes either side gets the relative-minute treatment.
-  if (diffMinutes >= 0 && diffMinutes <= 60) {
-    if (diffMinutes == 0) return 'Now';
-    return 'In $diffMinutes min';
-  }
+  if (diffMinutes == 0) return 'Now';
+
+  // Recent past (≤60 min ago): keep minute granularity. Beyond that,
+  // we fall through to the day-bucketed branches below.
   if (diffMinutes < 0 && diffMinutes >= -60) {
     return '${diffMinutes.abs()} min ago';
   }
@@ -49,7 +48,18 @@ String _renderBase(DateTime start, DateTime now, int diffMinutes) {
   final today = DateTime(now.year, now.month, now.day);
   final dayDelta = startDay.difference(today).inDays;
 
-  if (dayDelta == 0) return 'Today, $timePart';
+  // Same-day future: progressive countdown. Mirrors the technician
+  // dashboard `up_next_job_card.dart:62-69` ladder so the customer
+  // sees "In 30 min" → "In 1h 30m" → "In 5h" through the day rather
+  // than jumping from "In 60 min" straight to a wall-clock time.
+  if (dayDelta == 0 && diffMinutes > 0) {
+    if (diffMinutes < 60) return 'In $diffMinutes min';
+    final h = diffMinutes ~/ 60;
+    final m = diffMinutes % 60;
+    return m == 0 ? 'In ${h}h' : 'In ${h}h ${m}m';
+  }
+
+  if (dayDelta == 0) return 'Today, $timePart'; // same-day past
   if (dayDelta == 1) return 'Tomorrow, $timePart';
   if (dayDelta == -1) return 'Yesterday, $timePart';
 

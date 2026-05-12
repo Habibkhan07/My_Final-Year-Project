@@ -5,6 +5,7 @@ import '../../../customer/bookings/domain/entities/booking_status.dart';
 import '../../../customer/bookings/domain/entities/booking_ui_tone.dart';
 import '../../../technician/location_broadcaster/presentation/providers/foreground_location_service_controller.dart';
 import '../../domain/entities/booking_detail.dart';
+import '../../domain/entities/tech_gps_frame.dart';
 import '../../domain/entities/booking_orchestrator_role.dart';
 import '../providers/booking_detail_provider.dart';
 import '../providers/booking_orchestrator_events_notifier.dart';
@@ -132,7 +133,15 @@ class _BookingOrchestratorScreenState
     // tech_gps handler BEFORE subscribe_tracking goes upstream.
     ref.watch(bookingOrchestratorEventsProvider(widget.jobId));
     ref.watch(bookingRescheduledProvider(widget.jobId));
-    ref.watch(technicianLocationStreamProvider(widget.jobId));
+    // `ref.listen` (not `ref.watch`) on the GPS frame stream so its
+    // ~5s-cadence mutations don't rebuild the entire screen subtree.
+    // Consumer widgets (EnRouteBodyStub, _CustomerArrivedBody) `watch`
+    // it themselves to receive the marker position; the screen only
+    // needs the keepAlive side-effect that comes from being listened.
+    ref.listen<TechGpsFrame?>(
+      technicianLocationStreamProvider(widget.jobId),
+      (_, _) {},
+    );
     ref.watch(trackingSubscriptionControllerProvider(widget.jobId));
     ref.watch(foregroundLocationServiceControllerProvider(widget.jobId));
 

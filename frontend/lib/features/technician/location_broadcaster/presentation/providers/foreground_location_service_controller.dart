@@ -60,6 +60,7 @@
 import 'dart:async';
 import 'dart:developer' as developer;
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -181,6 +182,18 @@ class ForegroundLocationServiceController
     final shouldRun =
         booking.viewerRole == BookingOrchestratorRole.technician &&
         _kSubscribableStatuses.contains(booking.status);
+
+    // Web (and desktop, currently) has no flutter_foreground_task
+    // implementation. Calling _startService on those platforms either
+    // throws MissingPluginException or silently no-ops, producing the
+    // user-facing symptom "customer side waits forever for the first
+    // GPS frame" with no signal to the dev. Surface a dedicated state
+    // so the banner can render a helpful message + the customer's
+    // dev_panel [4] workaround.
+    if (kIsWeb && shouldRun) {
+      state = BroadcastState.unsupportedPlatform;
+      return;
+    }
 
     // Audit H4: clearing the latch on shouldRun=false is the only
     // automatic recovery path — the booking moving out of EN_ROUTE

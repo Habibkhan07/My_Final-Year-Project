@@ -236,11 +236,30 @@ class CustomerBookingsList extends _$CustomerBookingsList {
         // ignore: discarded_futures
         refresh();
         break;
+      // In-Upcoming patch: quote approved (initial or upsell) — card
+      // badge flips from "Quote ready" to "Work in progress". Stays on
+      // Upcoming segment.
+      case SystemEventType.quoteApproved:
+        _patch(event, BookingEventPatchMapper.applyQuoteApproved);
+        break;
+      // Terminal patch: cash collected → COMPLETED. Crosses
+      // Upcoming → Past, so refresh the Past tab if that's the current
+      // segment so the row appears there without manual refresh.
+      case SystemEventType.paymentReceived:
+        _patch(event, BookingEventPatchMapper.applyPaymentReceived);
+        _refreshIfOnPast();
+        break;
+      // Terminal patch: dispute opened → DISPUTED. Crosses Upcoming →
+      // Past, same refresh semantics as the other terminals.
+      case SystemEventType.disputeOpened:
+        _patch(event, BookingEventPatchMapper.applyDisputeOpened);
+        _refreshIfOnPast();
+        break;
       // Slot reserved for events without list-side semantics
-      // (`customer_arriving`, `quote_approved`, `quote_revision_requested`,
-      // `payment_received`, `dispute_opened`, `dispute_resolved`). Most
-      // are broadcast to the counterparty only; the customer's local
-      // actions on the orchestrator refresh booking detail directly.
+      // (`customer_arriving`, `quote_revision_requested`,
+      // `dispute_resolved`). The customer's local actions on the
+      // orchestrator refresh booking detail directly; the list-row
+      // badge isn't affected by these intermediate transitions.
       // ignore: no_default_cases
       default:
         break;

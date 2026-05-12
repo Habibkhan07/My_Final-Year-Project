@@ -7,17 +7,17 @@
 //   * Non-2xx responses must throw [HttpFailure] with the standard
 //     error envelope so the UI can render server-provided messages.
 //   * Auth header (`Token <jwt>`) must be injected from secure storage.
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:frontend/core/common/errors/http_failure.dart';
 import 'package:frontend/features/orchestrator/domain/entities/booking_ui_block.dart';
+import 'package:frontend/features/orchestrator/domain/ports/auth_token_reader.dart';
 import 'package:frontend/features/orchestrator/presentation/providers/booking_action_executor.dart';
 import 'package:http/http.dart' as http;
 import 'package:mocktail/mocktail.dart';
 
 class _MockClient extends Mock implements http.Client {}
 
-class _MockSecureStorage extends Mock implements FlutterSecureStorage {}
+class _MockAuthTokenReader extends Mock implements IAuthTokenReader {}
 
 class _FakeUri extends Fake implements Uri {}
 
@@ -27,16 +27,14 @@ void main() {
   });
 
   late _MockClient client;
-  late _MockSecureStorage storage;
+  late _MockAuthTokenReader authTokenReader;
   late BookingActionExecutor executor;
 
   setUp(() {
     client = _MockClient();
-    storage = _MockSecureStorage();
-    when(
-      () => storage.read(key: any(named: 'key')),
-    ).thenAnswer((_) async => 'TOKEN_X');
-    executor = BookingActionExecutor(client, storage);
+    authTokenReader = _MockAuthTokenReader();
+    when(() => authTokenReader.read()).thenAnswer((_) async => 'TOKEN_X');
+    executor = BookingActionExecutor(client, authTokenReader);
   });
 
   BookingUiAction action({

@@ -28,7 +28,6 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../../../core/realtime/presentation/notifiers/ws_connection_notifier.dart';
 import '../../../customer/bookings/domain/entities/booking_status.dart';
 import '../../domain/entities/booking_detail.dart';
-import '../../domain/entities/booking_orchestrator_role.dart';
 import 'booking_detail_provider.dart';
 
 part 'tracking_subscription_controller.g.dart';
@@ -131,10 +130,17 @@ class TrackingSubscriptionController extends _$TrackingSubscriptionController {
   /// and emits the matching subscribe / unsubscribe upstream message.
   /// Idempotent against `_subscribed` — calling on the same data twice
   /// is a no-op for the second call.
+  ///
+  /// Both viewer roles subscribe. The customer needs the stream to render
+  /// the tech's live marker; the tech also needs it so their own
+  /// `LiveTrackingMap` populates (the foreground broadcaster pushes
+  /// frames out — they don't loop back locally, so the only way for the
+  /// tech's UI to see the marker is to receive it back through the
+  /// shared `tracking_job_<id>` group). The backend consumer authorises
+  /// on booking-participant + non-terminal status, so allowing the tech
+  /// here doesn't widen the security surface — that gate is server-side.
   void _evaluate(BookingDetail booking, WsConnectionNotifier ws, int jobId) {
-    final shouldSubscribe =
-        booking.viewerRole == BookingOrchestratorRole.customer &&
-        _kSubscribableStatuses.contains(booking.status);
+    final shouldSubscribe = _kSubscribableStatuses.contains(booking.status);
 
     if (shouldSubscribe && !_subscribed) {
       _send(ws, 'subscribe_tracking', jobId);

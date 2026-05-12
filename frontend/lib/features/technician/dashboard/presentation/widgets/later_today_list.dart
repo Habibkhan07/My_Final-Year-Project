@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../../core/theme/app_colors.dart';
@@ -68,7 +69,7 @@ class _JobRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: () {}, // TODO(jobs): navigate to job detail screen
+      onTap: () => GoRouter.of(context).push('/booking/${job.jobId}'),
       borderRadius: BorderRadius.vertical(
         bottom: isLast
             ? const Radius.circular(AppShapes.radiusMD)

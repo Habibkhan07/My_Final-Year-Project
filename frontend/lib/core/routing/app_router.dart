@@ -19,6 +19,20 @@ import '../../features/customer/addresses/presentation/screens/map_picker_screen
 import '../../features/technician/dashboard/presentation/screens/technician_dashboard_screen.dart';
 import '../realtime/presentation/providers/dependency_injection.dart';
 
+// DEBUG — remove in end-of-UI cleanup pass. Controls where the post-auth
+// redirect lands so two `flutter run -d chrome` tabs can sit on opposite
+// sides of the same booking from a single dev_panel session:
+//
+//   flutter run -d chrome                                      → /home
+//   flutter run -d chrome --dart-define=START_AS=technician    → /technician/dashboard
+//
+// String.fromEnvironment makes the value a compile-time const so unused
+// branches tree-shake out of release builds.
+const String _kStartAs = String.fromEnvironment('START_AS');
+const String _kPostAuthLanding = _kStartAs == 'technician'
+    ? '/technician/dashboard'
+    : '/home';
+
 final routerProvider = Provider<GoRouter>((ref) {
   // Accessing the user through the AsyncValue wrapper
   final user = ref.watch(authProvider.select((async) => async.value?.user));
@@ -134,6 +148,24 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) =>
             const CustomerBookingsListScreen(showBackButton: true),
       ),
+      // Placeholder destinations for low-urgency banner taps. The
+      // realtime urgency router maps `chatMessage`/`paymentReceived`/
+      // `walletLowBalance` to `/shared/chat` and `/shared/wallet`,
+      // but the chat + wallet features ship in a future sprint. A
+      // tap onto an unregistered route would throw GoRouter's "no
+      // routes for location" error and either crash or surface a
+      // navigator 404. Until the feature ships, render a "coming
+      // soon" placeholder so the banner is harmless and informative.
+      GoRoute(
+        path: '/shared/chat',
+        builder: (context, state) =>
+            const _ComingSoonScreen(title: 'Chat', tag: 'chat'),
+      ),
+      GoRoute(
+        path: '/shared/wallet',
+        builder: (context, state) =>
+            const _ComingSoonScreen(title: 'Wallet', tag: 'wallet'),
+      ),
       GoRoute(
         path: '/technician-profile/:id',
         builder: (context, state) {
@@ -179,7 +211,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       }
 
       if (isLoggingIn || isVerifyingOtp || isSettingUpProfile) {
-        return '/home';
+        return _kPostAuthLanding;
       }
 
       return null;
@@ -214,6 +246,58 @@ class _InvalidBookingLinkScreen extends StatelessWidget {
               const SizedBox(height: 8),
               Text(
                 'The booking id is missing or malformed. Try opening the booking from your bookings list instead.',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 16),
+              FilledButton(
+                onPressed: () => GoRouter.of(context).go('/home'),
+                child: const Text('Go home'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Placeholder destination for low-urgency event banners whose feature
+/// (chat, wallet) hasn't shipped yet. The realtime banner is otherwise
+/// dead-end and tapping it would crash `GoRouter` with
+/// "no routes for location". This makes the tap a no-op + soft notice.
+class _ComingSoonScreen extends StatelessWidget {
+  const _ComingSoonScreen({required this.title, required this.tag});
+
+  final String title;
+  final String tag;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Scaffold(
+      appBar: AppBar(title: Text(title)),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                tag == 'wallet' ? Icons.account_balance_wallet_outlined : Icons.chat_bubble_outline,
+                size: 56,
+                color: theme.colorScheme.primary,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                '$title is coming soon.',
+                style: theme.textTheme.titleMedium,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                "We're rolling this out in a future update.",
                 textAlign: TextAlign.center,
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,

@@ -178,19 +178,22 @@ class _IdentityRow extends StatelessWidget {
     final theme = Theme.of(context);
     final initial =
         (name.isNotEmpty ? name.characters.first : '?').toUpperCase();
+    final ImageProvider? avatarImage =
+        (photoUrl != null && photoUrl!.isNotEmpty)
+            ? NetworkImage(photoUrl!)
+            : null;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         CircleAvatar(
           radius: 26,
           backgroundColor: const Color(0xFF0051AE),
-          foregroundImage: (photoUrl != null && photoUrl!.isNotEmpty)
-              ? NetworkImage(photoUrl!)
-              : null,
-          // No-op so a 404 / offline / test-isolate failure cleanly
-          // falls back to the letter child instead of bubbling as an
-          // unhandled framework exception.
-          onForegroundImageError: (_, _) {},
+          foregroundImage: avatarImage,
+          // Flutter asserts onForegroundImageError demands a non-null
+          // foregroundImage. Only attach the no-op handler when the URL
+          // was actually present — otherwise the framework throws the
+          // moment this widget builds.
+          onForegroundImageError: avatarImage == null ? null : (_, _) {},
           child: Text(
             initial,
             style: const TextStyle(

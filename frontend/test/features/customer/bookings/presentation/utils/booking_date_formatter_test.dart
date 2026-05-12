@@ -37,8 +37,20 @@ void main() {
       expect(fmt(serverNow.add(const Duration(minutes: 30))), 'In 30 min');
     });
 
-    test('60 min ahead → "In 60 min" (boundary)', () {
-      expect(fmt(serverNow.add(const Duration(minutes: 60))), 'In 60 min');
+    test('60 min ahead → "In 1h" (hours bucket starts at 60)', () {
+      expect(fmt(serverNow.add(const Duration(minutes: 60))), 'In 1h');
+    });
+
+    test('90 min ahead → "In 1h 30m"', () {
+      expect(fmt(serverNow.add(const Duration(minutes: 90))), 'In 1h 30m');
+    });
+
+    test('3h ahead same-day → "In 3h"', () {
+      expect(fmt(DateTime(2026, 5, 5, 15, 0)), 'In 3h');
+    });
+
+    test('5h 15m ahead same-day → "In 5h 15m"', () {
+      expect(fmt(DateTime(2026, 5, 5, 17, 15)), 'In 5h 15m');
     });
 
     test('30 min ago → "30 min ago"', () {
@@ -54,8 +66,10 @@ void main() {
   });
 
   group('today / tomorrow', () {
-    test('Today, > 60 min ahead → "Today, 3:00 PM"', () {
-      expect(fmt(DateTime(2026, 5, 5, 15, 0)), 'Today, 3:00 PM');
+    // Same-day future is now 'In Xh' (relative future group above);
+    // same-day past >60 min ago is the remaining case the day-bucket owns.
+    test('same-day past > 60 min ago → "Today, X AM"', () {
+      expect(fmt(DateTime(2026, 5, 5, 9, 0)), 'Today, 9:00 AM');
     });
 
     test('Tomorrow → "Tomorrow, 3:00 PM"', () {
@@ -126,7 +140,7 @@ void main() {
         serverNow: fakePastNow,
         status: BookingStatus.confirmed,
       );
-      expect(result, 'Today, 5:00 PM');
+      expect(result, 'In 5h');
     });
   });
 }

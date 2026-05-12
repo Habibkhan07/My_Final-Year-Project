@@ -59,6 +59,13 @@ class BookingValidationError(APIException):
 # so do not rename without coordinating a frontend change.
 ERROR_INVALID_TRANSITION = "invalid_transition"
 ERROR_INVALID_INPUT = "invalid_input"
+# Customer tapped Approve / Decline / Request-Revision on a quote that
+# became SUPERSEDED (or terminal) between the GET that hydrated the
+# button and the POST. Distinct from invalid_transition so the FE can
+# auto-recover (refresh detail + re-render new actions on the active
+# quote) instead of surfacing a confusing generic "invalid transition"
+# snack to the user.
+ERROR_QUOTE_SUPERSEDED = "quote_superseded"
 ERROR_INVALID_QUOTE_EMPTY = "invalid_quote_empty"
 ERROR_QUOTE_BAND_VIOLATION = "quote_band_violation"
 ERROR_CANCELLATION_NOT_ALLOWED = "cancellation_not_allowed"

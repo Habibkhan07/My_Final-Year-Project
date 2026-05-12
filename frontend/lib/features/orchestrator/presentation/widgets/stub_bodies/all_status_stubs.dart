@@ -17,6 +17,8 @@ import 'package:latlong2/latlong.dart';
 import '../../../../../core/constants.dart';
 import '../../../../../core/widgets/map/live_tracking_map.dart';
 import '../../../../customer/bookings/domain/entities/booking_status.dart';
+import '../../../../technician/dashboard/presentation/notifiers/technician_dashboard_notifier.dart';
+import '../../../../technician/dashboard/presentation/widgets/tech_navigation_panel.dart';
 import '../../../../technician/location_broadcaster/domain/entities/broadcast_state.dart';
 import '../../../../technician/location_broadcaster/presentation/providers/foreground_location_service_controller.dart';
 import '../../../../technician/location_broadcaster/presentation/widgets/broadcast_state_banner.dart';
@@ -83,41 +85,26 @@ class _AnimatedBody extends StatelessWidget {
         children: [
           Center(child: AnimatedStatusIcon(status: status, size: 180)),
           const SizedBox(height: 22),
-          Text(
-            message.isEmpty ? _fallbackMessage(status) : message,
-            textAlign: TextAlign.center,
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w700,
-              color: OrchestratorPalette.inkPrimary,
-              height: 1.35,
+          // Dumb-UI principle: prose is server-driven (booking.ui.bodyText).
+          // An empty bodyText is a deliberate server decision (some
+          // terminal states communicate via the timeline pill alone) —
+          // we render nothing in that case rather than reintroducing
+          // status→copy logic on the frontend.
+          if (message.isNotEmpty)
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: OrchestratorPalette.inkPrimary,
+                height: 1.35,
+              ),
             ),
-          ),
           if (child != null) ...[const SizedBox(height: 20), child!],
         ],
       ),
     );
   }
-
-  /// Fallback message when the backend's bodyText is empty (some
-  /// terminal states omit prose because the timeline pill already
-  /// communicates the outcome).
-  String _fallbackMessage(BookingStatus status) => switch (status) {
-    BookingStatus.awaiting => 'Waiting for technician to accept…',
-    BookingStatus.confirmed => 'Technician confirmed your booking.',
-    BookingStatus.enRoute => 'Technician is on the way.',
-    BookingStatus.arrived => 'Technician has arrived.',
-    BookingStatus.inspecting => 'Technician is inspecting the issue.',
-    BookingStatus.quoted => 'Quote ready for your review.',
-    BookingStatus.inProgress => 'Work in progress.',
-    BookingStatus.completed => 'Job complete — thank you!',
-    BookingStatus.completedInspectionOnly => 'Inspection complete.',
-    BookingStatus.cancelled => 'This booking was cancelled.',
-    BookingStatus.rejected => 'This booking was rejected.',
-    BookingStatus.noShow => 'Marked as no-show.',
-    BookingStatus.disputed => 'A dispute has been opened on this booking.',
-    BookingStatus.pending ||
-    BookingStatus.unknown => 'Status not recognised.',
-  };
 }
 
 // ─── Per-status stubs ─────────────────────────────────────────────────────
@@ -133,15 +120,60 @@ class AwaitingBodyStub extends StatelessWidget {
   );
 }
 
-class ConfirmedBodyStub extends StatelessWidget {
+/// CONFIRMED body, role-aware + up-next-aware.
+///
+/// **Tech viewer + this booking is the dashboard's up-next** — render the
+/// shared [TechNavigationPanel] (static map + Start Navigation + Call).
+/// The orchestrator's existing PrimaryActionSlot still surfaces the
+/// "I'm on my way" button below; Start Navigation is the external Maps
+/// launcher (different verb).
+///
+/// **All other cases** — customer viewing CONFIRMED, OR tech viewing a
+/// later-today job that isn't the imminent one — render the plain
+/// "Technician confirmed your booking" hero. The tech doesn't get a
+/// shortcut to navigate to a job they have a closer visit before.
+class ConfirmedBodyStub extends ConsumerWidget {
   const ConfirmedBodyStub({super.key, required this.booking});
   final BookingDetail booking;
 
   @override
-  Widget build(BuildContext context) => _AnimatedBody(
-    status: BookingStatus.confirmed,
-    message: booking.ui.bodyText,
-  );
+  Widget build(BuildContext context, WidgetRef ref) {
+    final addr = booking.address;
+    final isTech = booking.viewerRole == BookingOrchestratorRole.technician;
+
+    bool isUpNext = false;
+    if (isTech && addr != null) {
+      // Dashboard provider auto-fetches at login per realtimeBootHooks;
+      // by the time the tech opens the orchestrator it's cached. If for
+      // any reason it isn't resolved, fall back to the plain body —
+      // worst case the tech misses the shortcut on this one screen.
+      final dash = ref.watch(technicianDashboardProvider);
+      isUpNext = dash.value?.dashboard.upNextJob?.jobId == booking.id;
+    }
+
+    if (isTech && isUpNext && addr != null) {
+      return BodyShell(
+        child: TechNavigationPanel(
+          destLat: addr.latitude,
+          destLng: addr.longitude,
+          customerPhone: booking.customer.phoneNo,
+          bookingId: booking.id,
+          // Pass the server-emitted action (PrimaryActionSlot suppresses
+          // it for this case, but the server is still the source of
+          // truth for the endpoint + method + label). On the tech
+          // CONFIRMED screen the primary action is "I'm on my way" →
+          // /en-route/; we route it through the panel.
+          flipAction: booking.ui.primaryAction,
+          mapHeight: 200,
+        ),
+      );
+    }
+
+    return _AnimatedBody(
+      status: BookingStatus.confirmed,
+      message: booking.ui.bodyText,
+    );
+  }
 }
 
 /// Customer / tech viewing a booking that is EN_ROUTE.
@@ -396,17 +428,16 @@ class _TechArrivedBody extends ConsumerWidget {
         child: AnimatedStatusIcon(status: BookingStatus.arrived, size: 140),
       ),
       const SizedBox(height: 16),
-      Text(
-        booking.ui.bodyText.isEmpty
-            ? "You are at the customer's address."
-            : booking.ui.bodyText,
-        textAlign: TextAlign.center,
-        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w700,
-              color: OrchestratorPalette.inkPrimary,
-              height: 1.35,
-            ),
-      ),
+      if (booking.ui.bodyText.isNotEmpty)
+        Text(
+          booking.ui.bodyText,
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: OrchestratorPalette.inkPrimary,
+                height: 1.35,
+              ),
+        ),
     ];
 
     if (ackedAt != null) {

@@ -24,4 +24,12 @@ enum BroadcastState {
   /// result, etc.). Logged for ops; surfaced as "Tracking unavailable"
   /// in the UI.
   error,
+
+  /// Running on a platform where the native foreground service is not
+  /// available (web, desktop). The controller will not attempt to start
+  /// the service; the banner surfaces a "GPS broadcasting requires the
+  /// Android app — use dev_panel [4] in development" hint so the dev
+  /// user knows to fan in frames via the simulator instead of
+  /// expecting in-browser GPS.
+  unsupportedPlatform,
 }

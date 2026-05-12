@@ -159,9 +159,16 @@ class OrchestratorHeroHeader extends StatelessWidget {
                                       MaterialTapTargetSize.shrinkWrap,
                                   foregroundColor: palette.foreground,
                                 ),
-                                onPressed: () => GoRouter.of(
-                                  context,
-                                ).push('/booking/${booking.childBookingId}'),
+                                // pushReplacement so the back arrow on
+                                // the child screen doesn't return to a
+                                // dead CANCELLED original — the reschedule
+                                // logically replaces the original.
+                                // Matches `BookingRescheduledNotifier`'s
+                                // auto-nav behaviour for symmetry.
+                                onPressed: () => GoRouter.of(context)
+                                    .pushReplacement(
+                                      '/booking/${booking.childBookingId}',
+                                    ),
                                 icon: const Icon(
                                   Icons.arrow_forward,
                                   size: 16,
@@ -208,8 +215,12 @@ class OrchestratorHeroHeader extends StatelessWidget {
     }
 
     return switch (booking.status) {
-      BookingStatus.awaiting =>
-        'Sent ${ago(ts.acceptedAt ?? booking.scheduledStart)}',
+      // AWAITING has no `createdAt` on the wire today and `scheduledStart`
+      // is in the future — `ago(scheduledStart)` resolves to "just now"
+      // forever, which lies after a few minutes. A static, accurate
+      // subtitle sidesteps the staleness problem without plumbing
+      // `created_at` through the orchestrator detail wire.
+      BookingStatus.awaiting => 'Looking for a technician',
       BookingStatus.confirmed => 'Starts at ${hhmm(booking.scheduledStart)}',
       BookingStatus.enRoute => 'Tracking live',
       BookingStatus.arrived => ts.arrivedAt != null

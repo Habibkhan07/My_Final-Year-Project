@@ -196,16 +196,58 @@ class TestResolveUiBlock:
             "headline": "Completed by Ali Khan",
         }
 
-    def test_cancelled(self):
+    def test_cancelled_by_customer(self):
         ui = _resolve_ui_block(
             status=JobBooking.STATUS_CANCELLED,
             technician_display_name="Ali Khan",
             rejection_reason=None,
+            cancel_reason='customer_cancelled_pre_accept',
         )
         assert ui == {
             "badge_text": "Cancelled",
             "badge_tone": TONE_NEUTRAL,
             "headline": "You cancelled this booking",
+        }
+
+    def test_cancelled_by_technician(self):
+        ui = _resolve_ui_block(
+            status=JobBooking.STATUS_CANCELLED,
+            technician_display_name="Ali Khan",
+            rejection_reason=None,
+            cancel_reason='technician_cancelled',
+        )
+        assert ui == {
+            "badge_text": "Cancelled",
+            "badge_tone": TONE_NEUTRAL,
+            "headline": "Ali Khan cancelled this booking",
+        }
+
+    def test_cancelled_by_reschedule(self):
+        ui = _resolve_ui_block(
+            status=JobBooking.STATUS_CANCELLED,
+            technician_display_name="Ali Khan",
+            rejection_reason=None,
+            cancel_reason='customer_rescheduled',
+        )
+        assert ui == {
+            "badge_text": "Cancelled",
+            "badge_tone": TONE_NEUTRAL,
+            "headline": "Rescheduled to a new booking",
+        }
+
+    def test_cancelled_unknown_reason(self):
+        # Legacy rows / events that pre-date the cancel_reason field don't
+        # falsely blame the customer — neutral copy instead.
+        ui = _resolve_ui_block(
+            status=JobBooking.STATUS_CANCELLED,
+            technician_display_name="Ali Khan",
+            rejection_reason=None,
+            cancel_reason=None,
+        )
+        assert ui == {
+            "badge_text": "Cancelled",
+            "badge_tone": TONE_NEUTRAL,
+            "headline": "Booking was cancelled",
         }
 
     def test_rejected_technician_declined(self):

@@ -3,14 +3,14 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/theme/app_shapes.dart';
-import '../../../../../core/widgets/map/job_location_map.dart';
 import '../../domain/entities/technician_dashboard_entity.dart';
 import '../providers/current_position_provider.dart';
+import 'tech_navigation_panel.dart';
 
 /// Purely presentational. Shows the next scheduled job or an all-clear
 /// empty state when [job] is null.
@@ -68,68 +68,60 @@ class _JobCardState extends State<_JobCard> {
     return m == 0 ? 'In ${h}h' : 'In ${h}h ${m}m';
   }
 
-  Future<void> _startNavigation() async {
-    final uri = Uri.parse(
-      'https://www.google.com/maps/dir/?api=1'
-      '&destination=${widget.job.lat},${widget.job.lng}'
-      '&travelmode=driving',
-    );
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    }
-  }
-
-  Future<void> _callCustomer() async {
-    final phone = widget.job.customerPhone;
-    if (phone == null || phone.isEmpty) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          const SnackBar(content: Text('Customer phone unavailable.')),
-        );
-      return;
-    }
-    final uri = Uri(scheme: 'tel', path: phone);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri);
-    }
+  void _openBooking() {
+    // Pushes the audience-shared BookingOrchestratorScreen. `viewerRole`
+    // is derived server-side by comparing the auth user to the booking's
+    // customer — so the same route hands the tech the technician view.
+    //
+    // `push`, not `go`: the dashboard remains on the back-stack so the
+    // AppBar back arrow inside the orchestrator can pop back here. `go`
+    // replaces history and would leave the back arrow with nothing to do.
+    GoRouter.of(context).push('/booking/${widget.job.jobId}');
   }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(AppShapes.radiusMD),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.onSurface.withValues(alpha: 0.06),
-            blurRadius: 16,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _CardHeader(formattedTime: _formattedTime, timeUntil: _timeUntil),
-          _ServiceTitle(title: widget.job.serviceTitle),
-          _JobMeta(
-            customerName: widget.job.customerName,
-            addressText: widget.job.addressText,
-            destLat: widget.job.lat,
-            destLng: widget.job.lng,
-          ),
-          _LockedMap(lat: widget.job.lat, lng: widget.job.lng),
-          _ActionStack(
-            onNavigate: _startNavigation,
-            onCall: _callCustomer,
-            phoneAvailable:
-                widget.job.customerPhone != null &&
-                widget.job.customerPhone!.isNotEmpty,
-          ),
-        ],
+    return GestureDetector(
+      // Opaque hit-test means a tap anywhere on the card opens the
+      // booking detail, except where an inner widget (Navigate / Call
+      // buttons inside `_ActionStack`) wins the gesture arena first.
+      behavior: HitTestBehavior.opaque,
+      onTap: _openBooking,
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppColors.surfaceContainerLowest,
+          borderRadius: BorderRadius.circular(AppShapes.radiusMD),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.onSurface.withValues(alpha: 0.06),
+              blurRadius: 16,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _CardHeader(formattedTime: _formattedTime, timeUntil: _timeUntil),
+            _ServiceTitle(title: widget.job.serviceTitle),
+            _JobMeta(
+              customerName: widget.job.customerName,
+              addressText: widget.job.addressText,
+              destLat: widget.job.lat,
+              destLng: widget.job.lng,
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: TechNavigationPanel(
+                destLat: widget.job.lat,
+                destLng: widget.job.lng,
+                customerPhone: widget.job.customerPhone,
+                bookingId: widget.job.jobId,
+                mapHeight: 140,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -364,135 +356,6 @@ double _haversineKm(double lat1, double lng1, double lat2, double lng2) {
 }
 
 double _deg2rad(double deg) => deg * (math.pi / 180.0);
-
-class _LockedMap extends StatelessWidget {
-  const _LockedMap({required this.lat, required this.lng});
-  final double lat;
-  final double lng;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-      child: JobLocationMap(
-        lat: lat,
-        lng: lng,
-        height: 140,
-        borderRadius: BorderRadius.circular(AppShapes.radiusSM),
-      ),
-    );
-  }
-}
-
-/// Vertical CTA stack (Stitch layout):
-///   [ Start Navigation ]    gradient, h=56, full-width   (primary)
-///   [ Contact Customer ]    surface-container-low, h=48  (secondary)
-///
-/// Contact Customer is disabled-styled when no phone number is present.
-class _ActionStack extends StatelessWidget {
-  const _ActionStack({
-    required this.onNavigate,
-    required this.onCall,
-    required this.phoneAvailable,
-  });
-
-  final VoidCallback onNavigate;
-  final VoidCallback onCall;
-  final bool phoneAvailable;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-      child: Column(
-        children: [
-          _NavButton(onTap: onNavigate),
-          const SizedBox(height: 8),
-          _CallButton(onTap: onCall, enabled: phoneAvailable),
-        ],
-      ),
-    );
-  }
-}
-
-class _NavButton extends StatelessWidget {
-  const _NavButton({required this.onTap});
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        height: 56,
-        width: double.infinity,
-        decoration: BoxDecoration(
-          gradient: AppColors.ctaGradient,
-          borderRadius: BorderRadius.circular(AppShapes.radiusXL),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.primaryContainer.withValues(alpha: 0.2),
-              blurRadius: 16,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: const Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.navigation, color: Colors.white, size: 18),
-            SizedBox(width: 8),
-            Text(
-              'Start Navigation',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: Colors.white,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _CallButton extends StatelessWidget {
-  const _CallButton({required this.onTap, required this.enabled});
-  final VoidCallback onTap;
-  final bool enabled;
-
-  @override
-  Widget build(BuildContext context) {
-    final fg = enabled ? AppColors.onSurface : AppColors.outline;
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        height: 48,
-        width: double.infinity,
-        decoration: BoxDecoration(
-          color: AppColors.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(AppShapes.radiusXL),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.call_outlined, color: fg, size: 18),
-            const SizedBox(width: 8),
-            Text(
-              'Contact Customer',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: fg,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 // ---------------------------------------------------------------------------
 // Empty state

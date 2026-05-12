@@ -5,13 +5,23 @@ from .onboarding.views import (
     OnboardingMetadataView
 )
 from .dashboard.views import TechnicianDashboardView
+from .quote_catalog.views import QuotableSubServicesView
 
 urlpatterns = [
     # Dashboard
     path('dashboard/', TechnicianDashboardView.as_view(), name='tech-dashboard'),
 
+    # Tech-side quote builder catalog. The path uses `me/` (not a
+    # technician_id param) so the endpoint is structurally incapable of
+    # leaking another tech's skills.
+    path(
+        'me/quotable-sub-services/',
+        QuotableSubServicesView.as_view(),
+        name='quotable-sub-services',
+    ),
+
     # Metadata: Matches Flutter!
-    path('onboarding/metadata/', OnboardingMetadataView.as_view(), name='onboarding-metadata'),    
+    path('onboarding/metadata/', OnboardingMetadataView.as_view(), name='onboarding-metadata'),
     
     # Change 'register' to 'onboarding' to match Flutter RemoteDataSource
     path('onboarding/upload-media/', MediaUploadView.as_view(), name='media-upload'),

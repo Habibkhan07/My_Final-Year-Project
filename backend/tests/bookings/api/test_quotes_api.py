@@ -169,6 +169,7 @@ class TestSubmitQuoteEndpoint:
         assert "errors" in body
 
     def test_broadcast_quote_generated(self, fake_finance, captured_broadcasts):
+        # B1 mirror: quote_generated fans out to both audiences.
         booking = JobBookingInspectingFactory()
         sub = LaborSubServiceFactory(service=booking.service)
         self.client.force_authenticate(user=booking.technician.user)
@@ -182,8 +183,8 @@ class TestSubmitQuoteEndpoint:
             format="json",
         )
         events = [c for c in captured_broadcasts if c["event_type"] == EventType.QUOTE_GENERATED]
-        assert len(events) == 1
-        assert events[0]["target_role"] == "customer"
+        assert len(events) == 2
+        assert {e["target_role"] for e in events} == {"customer", "technician"}
 
 
 # ---------------------------------------------------------------------
@@ -300,6 +301,9 @@ class TestDeclineQuoteEndpoint:
         assert Decimal(body["final_cash_to_collect"]) == Decimal("500.00")
 
     def test_broadcast_quote_declined(self, fake_finance, captured_broadcasts):
+        # B2 mirror: customer-initiated quote_declined fans out to both
+        # audiences (customer's own screen needs to refresh too — no longer
+        # relying on the action button's local invalidate alone).
         booking = JobBookingQuotedFactory(inspection_fee=Decimal("500.00"))
         quote = QuoteFactory(booking=booking)
         self.client.force_authenticate(user=booking.customer)
@@ -309,8 +313,8 @@ class TestDeclineQuoteEndpoint:
             format="json",
         )
         events = [c for c in captured_broadcasts if c["event_type"] == EventType.QUOTE_DECLINED]
-        assert len(events) == 1
-        assert events[0]["target_role"] == "technician"
+        assert len(events) == 2
+        assert {e["target_role"] for e in events} == {"customer", "technician"}
 
 
 # ---------------------------------------------------------------------

@@ -135,14 +135,15 @@ class TestEnRouteEndpoint:
         booking.refresh_from_db()
         assert booking.status == JobBooking.STATUS_EN_ROUTE
 
-    def test_broadcast_to_customer(self, fake_finance, captured_broadcasts):
+    def test_broadcast_to_both_roles(self, fake_finance, captured_broadcasts):
+        # B1 mirror: en-route fans out to both audiences so auto-transitions
+        # and dev tooling don't leave the actor's tab on a stale screen.
         booking = JobBookingConfirmedFactory()
         self.client.force_authenticate(user=booking.technician.user)
         self.client.post(_en_route_url(booking.id))
         events = [c for c in captured_broadcasts if c["event_type"] == EventType.TECH_EN_ROUTE]
-        assert len(events) == 1
-        assert events[0]["target_role"] == "customer"
-        assert events[0]["user"].id == booking.customer_id
+        assert len(events) == 2
+        assert {e["target_role"] for e in events} == {"customer", "technician"}
 
     def test_400_when_not_confirmed(self, captured_broadcasts):
         booking = JobBookingArrivedFactory()

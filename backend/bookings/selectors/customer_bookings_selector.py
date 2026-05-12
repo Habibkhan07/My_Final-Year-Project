@@ -177,6 +177,7 @@ def _resolve_ui_block(
     status: str,
     technician_display_name: str,
     rejection_reason: Optional[str],
+    cancel_reason: Optional[str] = None,
 ) -> dict[str, str]:
     """
     Compute the dumb-UI block for a single booking row.
@@ -189,6 +190,15 @@ def _resolve_ui_block(
     Unknown / missing reason falls back to the technician-declined copy
     (the more common path) — this is also the safest default for legacy
     rows whose ``EventLog`` entry pre-dates the reason discriminator.
+
+    ``cancel_reason`` is consulted only when ``status == CANCELLED`` and
+    drives the headline attribution. The wire enum is documented on
+    ``JobBooking.cancel_reason``:
+      * ``customer_cancelled_*`` / ``customer_rescheduled`` → customer
+      * ``technician_cancelled`` → technician
+      * unknown / missing → "Booking was cancelled" (neutral fallback;
+        avoids falsely blaming the customer when the row has no audit
+        trail).
     """
     if status == JobBooking.STATUS_AWAITING_TECH_ACCEPT:
         return {
@@ -257,10 +267,23 @@ def _resolve_ui_block(
         }
 
     if status == JobBooking.STATUS_CANCELLED:
+        if cancel_reason == 'technician_cancelled':
+            headline = f"{technician_display_name} cancelled this booking"
+        elif cancel_reason == 'customer_rescheduled':
+            # The cancelled row is the "stub" parent of a reschedule chain;
+            # the new booking is the child. Surface the action neutrally —
+            # the customer-bookings list separately shows the child as the
+            # active booking.
+            headline = "Rescheduled to a new booking"
+        elif cancel_reason and cancel_reason.startswith('customer_'):
+            headline = "You cancelled this booking"
+        else:
+            # Unknown / missing audit — don't falsely blame the customer.
+            headline = "Booking was cancelled"
         return {
             "badge_text": "Cancelled",
             "badge_tone": TONE_NEUTRAL,
-            "headline": "You cancelled this booking",
+            "headline": headline,
         }
 
     if status == JobBooking.STATUS_REJECTED:
@@ -509,6 +532,7 @@ def _serialize_booking(
         status=booking.status,
         technician_display_name=tech_name,
         rejection_reason=rejection_reason,
+        cancel_reason=booking.cancel_reason,
     )
     return {
         "id": booking.id,

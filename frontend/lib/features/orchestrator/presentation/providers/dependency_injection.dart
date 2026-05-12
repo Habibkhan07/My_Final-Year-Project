@@ -13,6 +13,7 @@ import '../../../../core/realtime/presentation/providers/dependency_injection.da
 import '../../../technician/onboarding/presentation/providers/dependency_injection.dart';
 import '../../data/datasources/booking_detail_local_data_source.dart';
 import '../../data/datasources/booking_detail_remote_data_source.dart';
+import '../../data/datasources/quotable_sub_services_remote_data_source.dart';
 import '../../data/repositories/booking_detail_repository_impl.dart';
 import '../../domain/repositories/booking_detail_repository.dart';
 import '../../domain/use_cases/get_booking_detail_use_case.dart';
@@ -37,6 +38,18 @@ IBookingDetailRemoteDataSource bookingDetailRemoteDataSource(Ref ref) =>
 @Riverpod(keepAlive: true)
 IBookingDetailLocalDataSource bookingDetailLocalDataSource(Ref ref) =>
     BookingDetailLocalDataSource(ref.watch(sharedPreferencesProvider));
+
+/// Tech-side quote builder catalog — fetches the sub-services the
+/// authenticated tech is qualified for (via TechnicianSkill bridge),
+/// scoped to a given parent service. Reused HTTP client + secure
+/// storage; no separate auth surface.
+@Riverpod(keepAlive: true)
+IQuotableSubServicesRemoteDataSource quotableSubServicesRemoteDataSource(
+  Ref ref,
+) => QuotableSubServicesRemoteDataSource(
+  ref.watch(eventHttpClientProvider),
+  ref.watch(orchestratorSecureStorageProvider),
+);
 
 // ─── Repository ──────────────────────────────────────────────────────────
 

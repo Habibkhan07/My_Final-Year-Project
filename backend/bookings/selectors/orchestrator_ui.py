@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from typing import Callable, Literal, Optional
 
-from bookings.models import JobBooking
+from bookings.models import JobBooking, Quote
 from bookings.selectors.quote_selector import get_active_quote
 
 # Public type alias documenting what the view treats as opaque copy.
@@ -431,6 +431,63 @@ def _tech_quoted(booking, viewer):
 
 
 def _customer_in_progress(booking, viewer):
+    # When the tech submits an upsell mid-job, an `is_upsell=True`,
+    # SUBMITTED quote appears on the booking while the booking itself
+    # stays IN_PROGRESS. The customer needs UI affordances to act on it
+    # (approve / decline / ask for a revision) — without these the
+    # backend supports the action but the customer has no way to fire
+    # it. `get_active_quote` returns the most recent SUBMITTED quote
+    # (preferring SUBMITTED over older terminal-status ones).
+    active_quote = get_active_quote(booking)
+    has_pending_upsell = (
+        active_quote is not None
+        and active_quote.is_upsell
+        and active_quote.status == Quote.STATUS_SUBMITTED
+    )
+
+    if has_pending_upsell:
+        # Mirror the regular-quote action set from `_customer_quoted`
+        # but scoped to the upsell. Same labels — the customer reads
+        # them in the same place as the initial quote review and the
+        # cognitive model carries.
+        has_labor_charges = any(
+            not item.sub_service.is_fixed_price
+            for item in active_quote.line_items.all()
+        )
+        secondary_actions = [
+            {
+                "label": "Decline upsell",
+                "endpoint": f"/bookings/{booking.id}/quotes/{active_quote.id}/decline/",
+                "method": "POST",
+                "style": "destructive",
+            },
+        ]
+        if has_labor_charges:
+            secondary_actions.append({
+                "label": "Ask for a revision",
+                "endpoint": f"/bookings/{booking.id}/quotes/{active_quote.id}/request-revision/",
+                "method": "POST",
+                "style": "neutral",
+            })
+        return {
+            "status_label": "Extra work proposed",
+            "body_text": (
+                f"{_technician_display_name(booking)} added extra work. "
+                "Approve to include it in the final bill."
+            ),
+            "primary_action": {
+                "label": "Approve upsell",
+                "endpoint": f"/bookings/{booking.id}/quotes/{active_quote.id}/approve/",
+                "method": "POST",
+                "style": "primary",
+            },
+            "secondary_actions": secondary_actions,
+            "show_tracking": False,
+            "show_quote_card": True,
+            "show_dispute_button": False,
+            "tone": "info",
+        }
+
     return {
         "status_label": "Work in progress",
         "body_text": f"{_technician_display_name(booking)} is performing the agreed work.",

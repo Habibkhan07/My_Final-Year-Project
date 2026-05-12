@@ -1,5 +1,7 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../../../../core/realtime/domain/entities/system_event_type.dart';
+import '../../../../../core/realtime/presentation/notifiers/system_event_notifier.dart';
 import '../providers/dependency_injection.dart';
 import '../state/technician_dashboard_state.dart';
 
@@ -22,10 +24,59 @@ part 'technician_dashboard_notifier.g.dart';
 /// and only mutate one field. A whole-screen refetch would burn data and
 /// flash the AsyncLoading state across UI that doesn't depend on the changed
 /// field.
-@riverpod
+///
+/// **keepAlive: true** so that:
+///   * The notifier wakes at boot (via `realtimeBootHooksProvider`) and
+///     subscribes to `systemEventProvider` BEFORE the first WS frame, so
+///     events that arrive while the dashboard tab isn't open still
+///     refresh the cached state when the user navigates to it.
+///   * The notifier survives bottom-nav tab switches — switching to
+///     Jobs / Wallet / Profile and back returns to a still-fresh
+///     dashboard rather than re-fetching on every tap.
+@Riverpod(keepAlive: true)
 class TechnicianDashboardNotifier extends _$TechnicianDashboardNotifier {
   @override
   Future<TechnicianDashboardState> build() async {
+    // Subscribe to the realtime event firehose. Any event that can shift
+    // the dashboard's denormalised aggregates (up-next, counts, wallet,
+    // online-eligibility) triggers a re-fetch. The notifier is
+    // keepAlive: true + registered with realtimeBootHooksProvider, so
+    // events arriving while the tech is on a different tab still hit
+    // the listener.
+    //
+    // Reasoning per event:
+    //   * jobAccepted → up-next card materialises (tech just accepted).
+    //   * jobCompleted → completedToday + payout aggregates change;
+    //     up-next may now point at the next job.
+    //   * bookingRejected / bookingCancelled / bookingNoShow / quoteDeclined
+    //     → up-next may need to scroll forward; counts change.
+    //   * paymentReceived → cashCollectedToday + payout change.
+    //   * bookingRescheduled → up-next may now be a different booking.
+    //   * walletLowBalance → balance + isOnline both must reflect
+    //     lockout; safer to refetch than to patch in case the backend
+    //     also dropped a job assignment in the same transaction.
+    ref.listen(systemEventProvider, (previous, next) {
+      final event = next.latestEvent;
+      if (event == null) return;
+      if (previous?.latestEvent?.id == event.id) return;
+      switch (event.eventType) {
+        case SystemEventType.jobAccepted:
+        case SystemEventType.jobCompleted:
+        case SystemEventType.bookingRejected:
+        case SystemEventType.bookingCancelled:
+        case SystemEventType.bookingNoShow:
+        case SystemEventType.quoteDeclined:
+        case SystemEventType.paymentReceived:
+        case SystemEventType.bookingRescheduled:
+        case SystemEventType.walletLowBalance:
+          _scheduleRefresh();
+          break;
+        // ignore: no_default_cases
+        default:
+          break;
+      }
+    });
+
     final dashboard = await ref
         .read(technicianDashboardRepositoryProvider)
         .getDashboard();
@@ -35,14 +86,24 @@ class TechnicianDashboardNotifier extends _$TechnicianDashboardNotifier {
   /// Re-fetches the dashboard from the backend. Used by pull-to-refresh and
   /// by the realtime router for high-urgency events that may have invalidated
   /// multiple fields at once (e.g. a job moving from upcoming → in-progress).
+  ///
+  /// Uses `.copyWithPrevious(state)` (CLAUDE.md `AsyncValue.guard` pattern)
+  /// so the cached value stays visible during the round trip — pull-to-
+  /// refresh shows the spinner without flashing a skeleton.
   Future<void> refresh() async {
-    state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
       final dashboard = await ref
           .read(technicianDashboardRepositoryProvider)
           .getDashboard();
       return TechnicianDashboardState(dashboard: dashboard);
     });
+  }
+
+  /// Fire-and-forget refresh from inside the event listener. Mirrors the
+  /// customer_bookings_counts_notifier pattern: the listener is sync; the
+  /// awaited state flows through `state =` like any other async mutation.
+  void _scheduleRefresh() {
+    refresh();
   }
 
   /// User-initiated online/offline toggle.
@@ -62,8 +123,8 @@ class TechnicianDashboardNotifier extends _$TechnicianDashboardNotifier {
   /// No-op when the dashboard hasn't loaded yet — the toggle widget is
   /// disabled in that state, but the guard makes the contract explicit.
   Future<void> setOnline(bool desired) async {
-    final current = state.value;
-    if (current == null) return;
+    if (state is! AsyncData<TechnicianDashboardState>) return;
+    final current = state.requireValue;
 
     final previousIsOnline = current.dashboard.isOnline;
     if (previousIsOnline == desired) return;
@@ -81,8 +142,8 @@ class TechnicianDashboardNotifier extends _$TechnicianDashboardNotifier {
       // flip above is the only effect.
     });
 
-    final after = state.value;
-    if (after == null) return;
+    if (state is! AsyncData<TechnicianDashboardState>) return;
+    final after = state.requireValue;
 
     if (result is AsyncError) {
       state = AsyncData(
@@ -106,8 +167,8 @@ class TechnicianDashboardNotifier extends _$TechnicianDashboardNotifier {
   /// arrive before first paint will be reconciled by the upcoming
   /// [build]/refresh call.
   void onWalletBalanceEvent(double newBalance) {
-    final current = state.value;
-    if (current == null) return;
+    if (state is! AsyncData<TechnicianDashboardState>) return;
+    final current = state.requireValue;
     state = AsyncData(
       current.copyWith(
         dashboard: current.dashboard.copyWith(walletBalance: newBalance),
@@ -125,8 +186,8 @@ class TechnicianDashboardNotifier extends _$TechnicianDashboardNotifier {
   ///
   /// Silently ignored if the dashboard hasn't loaded yet.
   void onForcedOfflineEvent() {
-    final current = state.value;
-    if (current == null) return;
+    if (state is! AsyncData<TechnicianDashboardState>) return;
+    final current = state.requireValue;
     if (!current.dashboard.isOnline) return;
     state = AsyncData(
       current.copyWith(dashboard: current.dashboard.copyWith(isOnline: false)),

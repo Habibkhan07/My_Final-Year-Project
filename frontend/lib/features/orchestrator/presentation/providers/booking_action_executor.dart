@@ -1,13 +1,14 @@
 import 'dart:convert';
 
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../../core/common/errors/http_failure.dart';
 import '../../../../core/constants.dart';
 import '../../../../core/realtime/presentation/providers/dependency_injection.dart';
+import '../../data/datasources/secure_storage_auth_token_reader.dart';
 import '../../domain/entities/booking_ui_block.dart';
+import '../../domain/ports/auth_token_reader.dart';
 import 'dependency_injection.dart';
 
 part 'booking_action_executor.g.dart';
@@ -25,13 +26,17 @@ part 'booking_action_executor.g.dart';
 /// `booking.pricing.finalCashToCollect`) and the customer-cancel flow
 /// (default reason). Sessions 5/6 will replace those minimal bodies
 /// with rich sheets.
+///
+/// **Storage abstraction (CLAUDE.md):** the executor depends on
+/// [IAuthTokenReader], not on `flutter_secure_storage` directly. The
+/// token-key literal and the storage-package types live behind the
+/// interface so changing the storage backend (e.g. a hardware-backed
+/// keystore on Android) doesn't touch this file.
 class BookingActionExecutor {
   final http.Client _client;
-  final FlutterSecureStorage _secureStorage;
+  final IAuthTokenReader _authTokenReader;
 
-  static const _tokenKey = 'auth_token';
-
-  BookingActionExecutor(this._client, this._secureStorage);
+  BookingActionExecutor(this._client, this._authTokenReader);
 
   /// Throws [HttpFailure] on non-2xx; SocketException bubbles to the
   /// button widget which surfaces a "no connection" snackbar.
@@ -39,7 +44,7 @@ class BookingActionExecutor {
     BookingUiAction action, {
     Map<String, dynamic>? body,
   }) async {
-    final token = await _secureStorage.read(key: _tokenKey);
+    final token = await _authTokenReader.read();
     final uri = Uri.parse('${AppConstants.baseUrl}${action.endpoint}');
     final headers = <String, String>{
       if (token != null) 'Authorization': 'Token $token',
@@ -83,7 +88,11 @@ class BookingActionExecutor {
 }
 
 @Riverpod(keepAlive: true)
+IAuthTokenReader orchestratorAuthTokenReader(Ref ref) =>
+    SecureStorageAuthTokenReader(ref.watch(orchestratorSecureStorageProvider));
+
+@Riverpod(keepAlive: true)
 BookingActionExecutor bookingActionExecutor(Ref ref) => BookingActionExecutor(
   ref.watch(eventHttpClientProvider),
-  ref.watch(orchestratorSecureStorageProvider),
+  ref.watch(orchestratorAuthTokenReaderProvider),
 );

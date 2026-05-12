@@ -215,6 +215,66 @@ class BookingEventPatchMapper {
   // `customer_bookings_selector._resolve_ui_block`; copy drift is the
   // documented cost (CUSTOMER_BOOKINGS_API.md §1.7).
 
+  /// `quote_approved` — customer approved the quote (or an upsell).
+  /// Initial-quote approval flips QUOTED → IN_PROGRESS; upsell-approval
+  /// keeps IN_PROGRESS. Both cases the card badge moves from "Quote
+  /// ready" to "Work in progress" — without this patch the card would
+  /// sit on the stale "Quote ready" copy until manual pull-to-refresh.
+  ///
+  /// The payload carries `is_upsell` (bool); we don't differentiate UI
+  /// because the customer's mental model of "work is happening" is the
+  /// same either way. Upsell-specific copy lives on the orchestrator
+  /// detail screen.
+  static CustomerBooking applyQuoteApproved(
+    CustomerBooking current,
+    SystemEventEntity event,
+  ) {
+    final techName = current.technician.displayName;
+    return current.copyWith(
+      status: BookingStatus.inProgress,
+      ui: BookingUi(
+        badgeText: 'Work in progress',
+        badgeTone: BookingUiTone.info,
+        headline: '$techName is doing the work',
+      ),
+    );
+  }
+
+  /// `payment_received` — cash was collected and the booking flipped
+  /// to COMPLETED. Equivalent to job_completed for list-card purposes;
+  /// kept separate so future per-event analytics can differentiate.
+  static CustomerBooking applyPaymentReceived(
+    CustomerBooking current,
+    SystemEventEntity event,
+  ) {
+    final techName = current.technician.displayName;
+    return current.copyWith(
+      status: BookingStatus.completed,
+      ui: BookingUi(
+        badgeText: 'Completed',
+        badgeTone: BookingUiTone.positive,
+        headline: '$techName finished the job',
+      ),
+    );
+  }
+
+  /// `dispute_opened` — either side opened a dispute. The booking
+  /// becomes DISPUTED (terminal for the lifecycle). Card surfaces the
+  /// dispute prominently so the customer can find it from the list.
+  static CustomerBooking applyDisputeOpened(
+    CustomerBooking current,
+    SystemEventEntity event,
+  ) {
+    return current.copyWith(
+      status: BookingStatus.disputed,
+      ui: const BookingUi(
+        badgeText: 'Disputed',
+        badgeTone: BookingUiTone.warning,
+        headline: 'A dispute is open on this booking',
+      ),
+    );
+  }
+
   /// `tech_en_route` — tech has tapped "Start journey".
   static CustomerBooking applyTechEnRoute(
     CustomerBooking current,

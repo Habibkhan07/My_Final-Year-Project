@@ -29,11 +29,24 @@ class TechnicianDashboardRepositoryImpl
       }
       throw DashboardServerFailure(e.message);
     } on SocketException catch (_) {
-      // Offline-First: Try to return cached data
-      final cachedModel = await localDataSource.getCachedDashboard();
-      if (cachedModel != null) {
-        return cachedModel.toEntity();
-      }
+      // **No cache fallback for the dashboard.** Per CLAUDE.md Tier 3
+      // storage rule: "Local cache is UX only, never source of truth
+      // for wallet balances or payment status." The dashboard entity
+      // carries `walletBalance` + `cashCollectedToday` + `isOnline` —
+      // all three are financial-truth fields and the tech makes
+      // job-acceptance decisions based on them (wallet-lockout
+      // threshold). Showing yesterday's wallet balance with no
+      // staleness indicator would let the tech accept jobs they can
+      // no longer service after an over-the-air commission deduction
+      // settled. Better to surface the offline error explicitly via
+      // the existing `DashboardNetworkFailure` so the screen prompts
+      // reconnect rather than rendering a wrong number.
+      //
+      // The cache write path on the success branch above still runs
+      // — non-financial features (e.g. up-next display name shown on
+      // an offline notification tap, if we ever add that) can read it
+      // safely. The repository read path is the one that must refuse
+      // cache.
       throw const DashboardNetworkFailure();
     } on FormatException catch (_) {
       throw const DashboardParsingFailure();

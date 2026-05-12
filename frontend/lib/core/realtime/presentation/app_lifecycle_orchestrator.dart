@@ -20,6 +20,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../../features/auth/presentation/providers/auth_notifier.dart';
 import '../../../features/customer/bookings/presentation/providers/customer_bookings_counts_notifier.dart';
 import '../../../features/customer/bookings/presentation/providers/customer_bookings_list_notifier.dart';
+import '../../../features/technician/dashboard/presentation/notifiers/technician_dashboard_notifier.dart';
 import '../../../features/technician/incoming_job_requests/presentation/providers/incoming_job_queue_notifier.dart';
 import '../../../features/technician/location_broadcaster/presentation/providers/dependency_injection.dart'
     as location_broadcaster_di;
@@ -369,4 +370,12 @@ List<ProviderListenable<Object?>> realtimeBootHooks(Ref ref) => [
   // events to refresh its aggregate.
   customerBookingsListProvider,
   customerBookingsCountsProvider,
+  // Technician dashboard. keepAlive: true notifier that listens to
+  // `systemEventProvider` for job-completed / cancelled / payment /
+  // wallet events. Without this wake-up, the dashboard's listener
+  // doesn't register until the tech opens the dashboard tab — any
+  // event that fired while the tech was on Jobs / Wallet / Profile
+  // tabs would silently drop and the dashboard would render stale
+  // aggregates until pull-to-refresh.
+  technicianDashboardProvider,
 ];

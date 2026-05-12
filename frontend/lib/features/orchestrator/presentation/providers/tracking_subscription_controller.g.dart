@@ -70,7 +70,7 @@ final class TrackingSubscriptionControllerProvider
 }
 
 String _$trackingSubscriptionControllerHash() =>
-    r'd759ee7e3596fc037d1538d917055ab988d9928b';
+    r'66d44aa1df2b5383e16b063de0b95ead115a2616';
 
 /// keepAlive: false — owned by the orchestrator screen lifecycle.
 /// The screen `ref.watch`-es this provider in `build()`; popping the

@@ -50,6 +50,7 @@ from bookings.exceptions import (
     ERROR_NOT_ASSIGNED_TO_YOU,
     ERROR_QUOTE_BAND_VIOLATION,
     ERROR_QUOTE_NOT_FOUND,
+    ERROR_QUOTE_SUPERSEDED,
     ERROR_RESCHEDULE_NOT_ALLOWED,
     ERROR_TICKET_NOT_FOUND,
 )
@@ -103,6 +104,42 @@ def _broadcast(*, user, target_role: str, event_type: EventType, payload: dict) 
         event_type=event_type.value,
         payload=payload,
         expires_in_seconds=None,
+    )
+
+
+def _broadcast_both(*, booking: JobBooking, event_type: EventType, payload: dict) -> None:
+    """Emit a transition event to BOTH the customer and the technician.
+
+    The original asymmetric pattern (broadcast to counterparty only, actor
+    refreshes locally via the action-button invalidate) is brittle:
+
+      * **Auto-transitions** (``auto_transition.evaluate_on_location`` firing
+        geofence flips) have no human actor on a device, so the "actor
+        refreshes locally" leg never runs and one side's screen lies until
+        the next event.
+      * **Cross-device same-user** sessions (rare for v1, but possible —
+        tech logged into both phone and tablet) only refresh on the device
+        that issued the action.
+      * **Dev tools** (``dev_panel``) play both sides at once; neither tab
+        gets the local invalidate.
+
+    Broadcasting to both roles is harmless on the actor side — the local
+    invalidate has likely already fired by the time the WS frame lands, and
+    a back-to-back ``ref.invalidate`` on Riverpod collapses to a single
+    refetch. The realtime envelope is dedup'd by id at the frontend, so the
+    cost is a redundant invalidate, not a redundant network call.
+    """
+    _broadcast(
+        user=booking.customer,
+        target_role='customer',
+        event_type=event_type,
+        payload=payload,
+    )
+    _broadcast(
+        user=booking.technician.user,
+        target_role='technician',
+        event_type=event_type,
+        payload=payload,
     )
 
 
@@ -162,6 +199,24 @@ def _get_booking_quote_locked(booking: JobBooking, quote_id: int) -> Quote:
             message='Quote not found on this booking.',
             status=drf_status.HTTP_404_NOT_FOUND,
         )
+
+
+def _quote_state_error_code(quote_status: str) -> str:
+    """Pick the right error code when a Quote isn't in SUBMITTED state.
+
+    SUPERSEDED → ``quote_superseded`` (a newer revision is now active,
+    refresh-and-retry is the right response). Anything else (APPROVED,
+    DECLINED, DRAFT) → generic ``invalid_transition``.
+
+    The distinction matters because the FE auto-recovers from
+    ``quote_superseded`` by invalidating the booking detail (which
+    re-hydrates with the new quote_id) and surfacing a soft snack —
+    instead of showing the user a hard "invalid transition" error
+    on a perfectly legitimate concurrent edit by the technician.
+    """
+    if quote_status == Quote.STATUS_SUPERSEDED:
+        return ERROR_QUOTE_SUPERSEDED
+    return ERROR_INVALID_TRANSITION
 
 
 def _require_assigned_tech(booking: JobBooking, technician_user) -> None:
@@ -233,9 +288,8 @@ def en_route(
         booking.en_route_started_at = timezone.now()
         booking.save(update_fields=['status', 'en_route_started_at'])
 
-        transaction.on_commit(lambda: _broadcast(
-            user=booking.customer,
-            target_role='customer',
+        transaction.on_commit(lambda: _broadcast_both(
+            booking=booking,
             event_type=EventType.TECH_EN_ROUTE,
             payload={**_payload_basics(booking), 'source': source},
         ))
@@ -271,9 +325,8 @@ def arrived(
         booking.arrived_at = timezone.now()
         booking.save(update_fields=['status', 'arrived_at'])
 
-        transaction.on_commit(lambda: _broadcast(
-            user=booking.customer,
-            target_role='customer',
+        transaction.on_commit(lambda: _broadcast_both(
+            booking=booking,
             event_type=EventType.TECH_ARRIVED,
             payload={**_payload_basics(booking), 'source': source},
         ))
@@ -340,11 +393,9 @@ def customer_arriving(*, booking_id: int, customer_user) -> JobBooking:
             'inspection_started_at',
         ])
 
-        tech_user = booking.technician.user
         ack_ts = now
-        transaction.on_commit(lambda: _broadcast(
-            user=tech_user,
-            target_role='technician',
+        transaction.on_commit(lambda: _broadcast_both(
+            booking=booking,
             event_type=EventType.CUSTOMER_ARRIVING,
             payload={
                 **_payload_basics(booking),
@@ -394,10 +445,8 @@ def start_inspection(*, booking_id: int, technician_user, finance=None) -> JobBo
         booking.inspection_started_at = timezone.now()
         booking.save(update_fields=['status', 'inspection_started_at'])
 
-        customer_user = booking.customer
-        transaction.on_commit(lambda: _broadcast(
-            user=customer_user,
-            target_role='customer',
+        transaction.on_commit(lambda: _broadcast_both(
+            booking=booking,
             event_type=EventType.INSPECTION_STARTED,
             payload=_payload_basics(booking),
         ))
@@ -633,9 +682,8 @@ def submit_quote(
         if update_fields:
             booking.save(update_fields=update_fields)
 
-        transaction.on_commit(lambda: _broadcast(
-            user=booking.customer,
-            target_role='customer',
+        transaction.on_commit(lambda: _broadcast_both(
+            booking=booking,
             event_type=EventType.QUOTE_GENERATED,
             payload={
                 **_payload_basics(booking),
@@ -669,19 +717,31 @@ def request_revision(
         booking = _lock_booking(booking_id)
         _require_customer(booking, customer_user)
 
-        if booking.status != JobBooking.STATUS_QUOTED:
-            _reject_invalid_from_state(
-                booking, 'Revision can only be requested on a QUOTED booking.',
-            )
-
         quote = _get_booking_quote_locked(booking, quote_id)
 
         if quote.status != Quote.STATUS_SUBMITTED:
             raise BookingValidationError(
-                code=ERROR_INVALID_TRANSITION,
+                code=_quote_state_error_code(quote.status),
                 message='Only a SUBMITTED quote can be revised.',
                 errors={'quote_status': [quote.status]},
             )
+
+        # Two valid from-states map to two outcomes:
+        #   - QUOTED + non-upsell → flip booking back to INSPECTING so the
+        #     tech can rebuild the initial quote.
+        #   - IN_PROGRESS + upsell → keep booking IN_PROGRESS; the upsell
+        #     quote becomes SUPERSEDED so the tech can submit a new upsell
+        #     revision via submit_quote(is_upsell=True).
+        if quote.is_upsell:
+            if booking.status != JobBooking.STATUS_IN_PROGRESS:
+                _reject_invalid_from_state(
+                    booking, 'Upsell revision requires booking in IN_PROGRESS state.',
+                )
+        else:
+            if booking.status != JobBooking.STATUS_QUOTED:
+                _reject_invalid_from_state(
+                    booking, 'Revision can only be requested on a QUOTED booking.',
+                )
 
         now = timezone.now()
         quote.status = Quote.STATUS_SUPERSEDED
@@ -689,12 +749,12 @@ def request_revision(
         quote.decided_at = now
         quote.save(update_fields=['status', 'decision_reason', 'decided_at'])
 
-        booking.status = JobBooking.STATUS_INSPECTING
-        booking.save(update_fields=['status'])
+        if not quote.is_upsell:
+            booking.status = JobBooking.STATUS_INSPECTING
+            booking.save(update_fields=['status'])
 
-        transaction.on_commit(lambda: _broadcast(
-            user=booking.technician.user,
-            target_role='technician',
+        transaction.on_commit(lambda: _broadcast_both(
+            booking=booking,
             event_type=EventType.QUOTE_REVISION_REQUESTED,
             payload={
                 **_payload_basics(booking),
@@ -728,15 +788,27 @@ def approve_quote(
         _require_customer(booking, customer_user)
 
         # ``_get_booking_quote_locked`` raises the canonical 404 envelope
-        # on miss / cross-booking id. We then prefetch line_items via a
-        # second query — splitting the lock+prefetch is fine because the
-        # lock only needs to cover the Quote row's status flip.
+        # on miss / cross-booking id. We then re-fetch with
+        # prefetch_related — and re-assert ``select_for_update()`` on
+        # the second query so the FOR UPDATE lock on the Quote row is
+        # preserved across the prefetch. Without the second
+        # ``select_for_update()``, Postgres on READ COMMITTED would
+        # drop the row-lock between the two SELECTs; the outer
+        # booking-row lock from ``_lock_booking`` still serializes
+        # concurrent approve calls in practice (every Quote mutation
+        # passes through the same booking lock), but defending the
+        # explicit invariant here is cheap.
         quote = _get_booking_quote_locked(booking, quote_id)
-        quote = booking.quotes.prefetch_related('line_items').get(id=quote.id)
+        quote = (
+            booking.quotes
+            .select_for_update()
+            .prefetch_related('line_items')
+            .get(id=quote.id)
+        )
 
         if quote.status != Quote.STATUS_SUBMITTED:
             raise BookingValidationError(
-                code=ERROR_INVALID_TRANSITION,
+                code=_quote_state_error_code(quote.status),
                 message='Only a SUBMITTED quote can be approved.',
                 errors={'quote_status': [quote.status]},
             )
@@ -804,11 +876,16 @@ def approve_quote(
                 update_fields.append('work_started_at')
         booking.save(update_fields=update_fields)
 
-        finance.apply_inspection_fee_decision(booking=booking, decision='accepted')
+        # Single-shot inspection-fee finance hook — fires on the INITIAL
+        # quote approval only. Upsell approvals append work to the bill
+        # but the inspection-fee accounting was already settled by the
+        # initial accept; firing again would double-bookkeep the credit
+        # once the finance sprint replaces NullFinanceAdapter.
+        if not quote.is_upsell:
+            finance.apply_inspection_fee_decision(booking=booking, decision='accepted')
 
-        transaction.on_commit(lambda: _broadcast(
-            user=booking.technician.user,
-            target_role='technician',
+        transaction.on_commit(lambda: _broadcast_both(
+            booking=booking,
             event_type=EventType.QUOTE_APPROVED,
             payload={
                 **_payload_basics(booking),
@@ -834,12 +911,20 @@ def decline_quote(
     reason: str,
     finance=None,
 ) -> JobBooking:
-    """QUOTED → COMPLETED_INSPECTION_ONLY (terminal).
+    """QUOTED → COMPLETED_INSPECTION_ONLY (terminal) for initial quotes,
+    OR IN_PROGRESS → IN_PROGRESS (non-terminal) for upsell quotes.
 
-    Customer rejects the quote outright. Booking enters a terminal
-    inspection-only state; ``final_cash_to_collect`` is set to the
-    inspection fee (Rs.500 for INSPECTION-flow bookings; 0 for FIXED_GIG /
-    LABOR_GIG since their flow doesn't carry an upfront inspection fee).
+    Initial quote decline: booking enters a terminal inspection-only
+    state; ``final_cash_to_collect`` is set to the inspection fee
+    (Rs.500 for INSPECTION-flow bookings; 0 for FIXED_GIG / LABOR_GIG
+    since their flow doesn't carry an upfront inspection fee).
+
+    Upsell decline: customer rejects the additional work the tech tried
+    to add mid-job. The original work continues — booking stays
+    IN_PROGRESS, the upsell quote is marked DECLINED but ``BookingItem``
+    rows are unchanged (the upsell was never approved, so no items were
+    appended), and the inspection-fee finance hook is NOT re-fired (it
+    settled on the initial-approve path).
     """
     finance = _resolve_finance(finance)
 
@@ -847,19 +932,29 @@ def decline_quote(
         booking = _lock_booking(booking_id)
         _require_customer(booking, customer_user)
 
-        if booking.status != JobBooking.STATUS_QUOTED:
-            _reject_invalid_from_state(
-                booking, 'Decline only valid from QUOTED state.',
-            )
-
         quote = _get_booking_quote_locked(booking, quote_id)
 
         if quote.status != Quote.STATUS_SUBMITTED:
             raise BookingValidationError(
-                code=ERROR_INVALID_TRANSITION,
+                code=_quote_state_error_code(quote.status),
                 message='Only a SUBMITTED quote can be declined.',
                 errors={'quote_status': [quote.status]},
             )
+
+        # Two valid from-states map to two outcomes:
+        #   - QUOTED + non-upsell → flip booking to COMPLETED_INSPECTION_ONLY
+        #     (terminal), settle inspection-fee credit as declined.
+        #   - IN_PROGRESS + upsell → keep status, mark Quote DECLINED only.
+        if quote.is_upsell:
+            if booking.status != JobBooking.STATUS_IN_PROGRESS:
+                _reject_invalid_from_state(
+                    booking, 'Upsell decline requires booking in IN_PROGRESS state.',
+                )
+        else:
+            if booking.status != JobBooking.STATUS_QUOTED:
+                _reject_invalid_from_state(
+                    booking, 'Decline only valid from QUOTED state.',
+                )
 
         now = timezone.now()
         quote.status = Quote.STATUS_DECLINED
@@ -867,19 +962,21 @@ def decline_quote(
         quote.decided_at = now
         quote.save(update_fields=['status', 'decision_reason', 'decided_at'])
 
-        booking.status = JobBooking.STATUS_COMPLETED_INSPECTION_ONLY
-        booking.completed_at = now
-        # Inspection-flow bookings (sub_service is None) carry the Rs.500
-        # fee; pre-paid fixed/labor flows do not. The pre-existing
-        # ``inspection_fee`` column is the source of truth — null implies 0.
-        booking.final_cash_to_collect = booking.inspection_fee or Decimal('0')
-        booking.save(update_fields=['status', 'completed_at', 'final_cash_to_collect'])
+        if not quote.is_upsell:
+            booking.status = JobBooking.STATUS_COMPLETED_INSPECTION_ONLY
+            booking.completed_at = now
+            # Inspection-flow bookings (sub_service is None) carry the Rs.500
+            # fee; pre-paid fixed/labor flows do not. The pre-existing
+            # ``inspection_fee`` column is the source of truth — null implies 0.
+            booking.final_cash_to_collect = booking.inspection_fee or Decimal('0')
+            booking.save(update_fields=['status', 'completed_at', 'final_cash_to_collect'])
 
-        finance.apply_inspection_fee_decision(booking=booking, decision='declined')
+            # Inspection-fee finance settlement is a one-time event on
+            # the initial decision. Upsell declines don't re-fire it.
+            finance.apply_inspection_fee_decision(booking=booking, decision='declined')
 
-        transaction.on_commit(lambda: _broadcast(
-            user=booking.technician.user,
-            target_role='technician',
+        transaction.on_commit(lambda: _broadcast_both(
+            booking=booking,
             event_type=EventType.QUOTE_DECLINED,
             payload={
                 **_payload_basics(booking),
@@ -950,14 +1047,16 @@ def mark_complete_with_cash(
         if booking.status != JobBooking.STATUS_IN_PROGRESS:
             _reject_invalid_from_state(booking, 'Completion only valid from IN_PROGRESS.')
 
-        # Sanity floor: tech taps a single button with the server-derived
-        # final_cash_to_collect; the only way zero / negative reaches the
-        # service is a malformed client. Surface a clean envelope.
-        if cash_amount_d <= Decimal('0'):
+        # Sanity floor: a negative amount can never be legitimate; the
+        # strict equality check below catches positive mismatches. Zero
+        # IS valid when the server-computed ``final_cash_to_collect``
+        # is also zero (e.g. quote total equals the inspection fee
+        # deduction exactly — edge case but reachable on cheap repairs).
+        if cash_amount_d < Decimal('0'):
             raise BookingValidationError(
                 code=ERROR_INVALID_INPUT,
-                message='Cash amount must be positive.',
-                errors={'cash_amount': ['must be > 0']},
+                message='Cash amount must not be negative.',
+                errors={'cash_amount': ['must be >= 0']},
             )
 
         # Audit P2 (Pass 2 / O2): the tech-side button surfaces the
@@ -1007,13 +1106,13 @@ def mark_complete_with_cash(
         finance.record_cash_collected(booking=booking, amount=cash_amount_d, method=method)
         finance.record_commission(booking=booking, amount=cash_amount_d)
 
-        # Two events, single recipient. payment_received first (informational
-        # cash receipt), job_completed second (lifecycle close). Order matters
-        # only insofar as the customer's UI reacts to the lifecycle close last.
+        # Two events for both audiences. payment_received first
+        # (informational cash receipt), job_completed second (lifecycle
+        # close). Order matters only insofar as the customer's UI reacts
+        # to the lifecycle close last.
         def _emit():
-            _broadcast(
-                user=booking.customer,
-                target_role='customer',
+            _broadcast_both(
+                booking=booking,
                 event_type=EventType.PAYMENT_RECEIVED,
                 payload={
                     **_payload_basics(booking),
@@ -1021,9 +1120,8 @@ def mark_complete_with_cash(
                     'cash_collection_method': method,
                 },
             )
-            _broadcast(
-                user=booking.customer,
-                target_role='customer',
+            _broadcast_both(
+                booking=booking,
                 event_type=EventType.JOB_COMPLETED,
                 payload=_payload_basics(booking),
             )
@@ -1107,9 +1205,8 @@ def cancel_by_customer(
 
         finance.apply_cancellation_charge(booking=booking, actor='customer', phase=phase)
 
-        transaction.on_commit(lambda: _broadcast(
-            user=booking.technician.user,
-            target_role='technician',
+        transaction.on_commit(lambda: _broadcast_both(
+            booking=booking,
             event_type=EventType.BOOKING_CANCELLED,
             payload={
                 **_payload_basics(booking),
@@ -1182,9 +1279,8 @@ def cancel_by_tech(
 
         finance.apply_cancellation_charge(booking=booking, actor='tech', phase=phase)
 
-        transaction.on_commit(lambda: _broadcast(
-            user=booking.customer,
-            target_role='customer',
+        transaction.on_commit(lambda: _broadcast_both(
+            booking=booking,
             event_type=EventType.BOOKING_CANCELLED,
             payload={
                 **_payload_basics(booking),
@@ -1305,9 +1401,13 @@ def mark_no_show(
                 incident_type=TechReliabilityIncident.INCIDENT_TECH_NO_SHOW,
             )
 
-        transaction.on_commit(lambda: _broadcast(
-            user=broadcast_user,
-            target_role=broadcast_role,
+        # Broadcast to both audiences (reporter + reported-against) so a
+        # cross-device / dev_panel session sees the terminal flip on
+        # both sides. Previously only the counterparty got the event —
+        # the actor refreshed locally — but that breaks for shared-user
+        # sessions and the dev_panel.
+        transaction.on_commit(lambda: _broadcast_both(
+            booking=booking,
             event_type=EventType.BOOKING_NO_SHOW,
             payload={
                 **_payload_basics(booking),
@@ -1406,13 +1506,14 @@ def open_dispute(
         if update_fields:
             booking.save(update_fields=update_fields)
 
-        # Broadcast to the counterparty (the user who didn't open it).
-        counterparty_user = booking.technician.user if is_customer else booking.customer
-        counterparty_role = 'technician' if is_customer else 'customer'
-
-        transaction.on_commit(lambda: _broadcast(
-            user=counterparty_user,
-            target_role=counterparty_role,
+        # Broadcast to both audiences so a cross-device session or
+        # dev_panel sees the dispute land on the opener's other devices
+        # too. The opener's own active session typically refreshes via
+        # the local POST action button, but other sessions (e.g. tech
+        # with two tabs, dev_panel driving as both roles) need the WS
+        # event to invalidate.
+        transaction.on_commit(lambda: _broadcast_both(
+            booking=booking,
             event_type=EventType.DISPUTE_OPENED,
             payload={
                 **_payload_basics(booking),
@@ -1683,10 +1784,13 @@ def reschedule(
             parent_booking=original,
         )
 
-        # Broadcast to the tech (cancellation of original + new offer arriving).
-        transaction.on_commit(lambda: _broadcast(
-            user=original.technician.user,
-            target_role='technician',
+        # Broadcast to BOTH the customer (who initiated) and the tech
+        # (who lost the assignment). The customer's own session
+        # typically refreshes via the local action POST, but other
+        # devices / dev_panel as actor still need the WS event to
+        # invalidate the original booking and route to the child.
+        transaction.on_commit(lambda: _broadcast_both(
+            booking=original,
             event_type=EventType.BOOKING_RESCHEDULED,
             payload={
                 **_payload_basics(original),

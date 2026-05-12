@@ -21,6 +21,7 @@ from rest_framework.views import APIView
 from bookings.api.customer_arriving.serializers import (
     CustomerArrivingResponseSerializer,
 )
+from bookings.api.quotes.views import _reject_if_not_customer
 from bookings.services import orchestrator
 
 
@@ -35,9 +36,21 @@ class CustomerArrivingView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, booking_id: int):
-        # SECURITY: customer-only — the orchestrator's ``_require_customer``
-        # is the authoritative IDOR guard. No status check needed here;
-        # the service rejects out-of-state acks via the canonical envelope.
+        # SECURITY: customer-only IDOR pre-gate. Without this, a non-
+        # participant authenticated user probing this endpoint would
+        # reach `_require_customer` inside the orchestrator and get
+        # back a 400 `not_assigned_to_you` for an EXISTING booking but
+        # a 404 `booking_not_found` for a missing one — leaking
+        # existence by status-code differential. Other customer-side
+        # endpoints (cancel, approve_quote, decline_quote,
+        # request-revision, reschedule) all collapse both into 404 via
+        # `_reject_if_not_customer`; this view is the last hold-out.
+        gate = _reject_if_not_customer(request, booking_id)
+        if gate is not None:
+            return gate
+        # The orchestrator's `_require_customer` remains the
+        # authoritative guard (defence-in-depth); the pre-gate above
+        # only changes which envelope the leaked-existence probe sees.
         booking = orchestrator.customer_arriving(
             booking_id=booking_id,
             customer_user=request.user,

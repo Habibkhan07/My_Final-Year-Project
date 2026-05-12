@@ -58,9 +58,13 @@ class EventUrgencyRouter {
     SystemEventType.techEnRoute: '/booking/:job_id',
     SystemEventType.techArrived: '/booking/:job_id',
     SystemEventType.customerArriving: '/booking/:job_id',
-    SystemEventType.chatMessage: '/shared/chat',
-    SystemEventType.paymentReceived: '/shared/wallet',
-    SystemEventType.walletLowBalance: '/shared/wallet',
+    // chatMessage / paymentReceived / walletLowBalance are deliberately
+    // ABSENT — the chat + wallet features are unshipped placeholders
+    // (`_ComingSoonScreen` in app_router.dart) and routing a user there
+    // is a dead-end at best, a confusing mis-tap at worst. The banners
+    // still surface (informational), but their View button is hidden
+    // when no route exists. When the chat / wallet features land,
+    // restore the entries here and the View button reappears.
     SystemEventType.jobAccepted: '/booking/:job_id',
     SystemEventType.bookingRejected: '/booking/:job_id',
     // Booking-orchestrator v1 informational events (session 3). Tap surfaces
@@ -306,6 +310,14 @@ class EventUrgencyRouter {
     final title = _bannerTitles[event.eventType] ?? 'Notification';
     final body = _bannerBody(event);
 
+    // Hide the "View" action when the event type has no tap-route — its
+    // feature is unshipped (chat / wallet placeholders) or otherwise has
+    // nowhere meaningful to land. Without this guard, a tap would push a
+    // dead "Coming soon" route the user can't escape via the back button
+    // without losing their place. The Dismiss button is always present so
+    // the banner is never inescapable.
+    final routeToPush = tapRoute; // local non-null capture for closure
+
     final banner = MaterialBanner(
       leading: Icon(icon),
       content: Text(
@@ -314,19 +326,19 @@ class EventUrgencyRouter {
         overflow: TextOverflow.ellipsis,
       ),
       actions: [
-        TextButton(
-          onPressed: () {
-            messenger.hideCurrentMaterialBanner();
-            final tapRoute = _lowUrgencyTapRoutes[event.eventType];
-            final ctx = navigatorKey.currentContext;
-            if (tapRoute != null && ctx != null) {
-              final resolved = _resolveTemplatedPath(tapRoute, event);
-              if (resolved == null) return; // missing payload key — skip.
-              GoRouter.of(ctx).push(resolved, extra: jsonEncode(event.payload));
-            }
-          },
-          child: const Text('View'),
-        ),
+        if (routeToPush != null)
+          TextButton(
+            onPressed: () {
+              messenger.hideCurrentMaterialBanner();
+              final ctx = navigatorKey.currentContext;
+              if (ctx != null) {
+                final resolved = _resolveTemplatedPath(routeToPush, event);
+                if (resolved == null) return; // missing payload key — skip.
+                GoRouter.of(ctx).push(resolved, extra: jsonEncode(event.payload));
+              }
+            },
+            child: const Text('View'),
+          ),
         TextButton(
           onPressed: messenger.hideCurrentMaterialBanner,
           child: const Text('Dismiss'),

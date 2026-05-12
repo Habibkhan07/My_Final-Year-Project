@@ -7,6 +7,7 @@ import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/common/errors/http_failure.dart';
+import '../../../customer/bookings/domain/entities/booking_status.dart';
 import '../../domain/entities/booking_detail.dart';
 import '../../domain/entities/booking_ui_block.dart';
 import '../providers/booking_action_executor.dart';
@@ -190,6 +191,72 @@ class _BookingOrchestratorActionButtonState
           body:
               'The full dispute form (intake reason + optional photo upload) ships in session 6.',
         );
+      case _ActionClassification.pendingSheetCash:
+        await _runPendingSheetCash();
+      case _ActionClassification.pendingSheetDecline:
+        await _runPendingSheetDecline();
+    }
+  }
+
+  /// Cash-collection confirm sheet. The tech taps "Cash collected: Rs. X",
+  /// the sheet renders "Confirm you received Rs. X from <customer>",
+  /// and only on confirm does the actual POST fire. Before this sheet
+  /// existed the cash button was a one-tap terminal POST — a mis-tap
+  /// closed the booking and stamped a cash row.
+  Future<void> _runPendingSheetCash() async {
+    if (!mounted) return;
+    final amount = widget.booking.pricing.finalCashToCollect;
+    if (amount == null) return;
+    final customerName = widget.booking.customer.fullName;
+    final result = await BookingActionPendingSheet.show(
+      context,
+      title: 'Confirm cash received?',
+      body:
+          'You should have received Rs. $amount in cash from $customerName. '
+          'Confirming closes the booking.', // ignore: html_in_doc_comment
+      confirmLabel: 'Yes, received Rs. $amount',
+      confirmIsDestructive: false,
+      onConfirm: () => ref
+          .read(bookingActionExecutorProvider)
+          .execute(
+            widget.action,
+            body: {'amount': amount, 'method': 'cash'},
+          ),
+    );
+    if (result == true && mounted) {
+      ref.invalidate(bookingDetailProvider(widget.booking.id));
+    }
+  }
+
+  /// Decline-quote confirm sheet. For the initial quote this is a
+  /// terminal action (booking moves to COMPLETED_INSPECTION_ONLY +
+  /// Rs.500 inspection fee owed in cash). For an upsell it's
+  /// non-terminal (booking stays IN_PROGRESS, just refuses the
+  /// additional work). Both require explicit confirmation.
+  Future<void> _runPendingSheetDecline() async {
+    if (!mounted) return;
+    final isInProgress =
+        widget.booking.status == BookingStatus.inProgress;
+    final body = isInProgress
+        ? 'The technician will continue the work they already started, '
+            'but the extra work they proposed will not be added to the bill.'
+        : 'You will still owe Rs. 500 inspection fee in cash. '
+            'The technician will leave and the booking will be closed.';
+    final result = await BookingActionPendingSheet.show(
+      context,
+      title: isInProgress ? 'Decline this extra work?' : 'Decline this quote?',
+      body: body,
+      confirmLabel: isInProgress ? 'Decline upsell' : 'Yes, decline',
+      confirmIsDestructive: true,
+      onConfirm: () => ref
+          .read(bookingActionExecutorProvider)
+          .execute(
+            widget.action,
+            body: {'decision_reason': 'customer_declined'},
+          ),
+    );
+    if (result == true && mounted) {
+      ref.invalidate(bookingDetailProvider(widget.booking.id));
     }
   }
 
@@ -203,7 +270,18 @@ class _BookingOrchestratorActionButtonState
     } on SocketException {
       _showSnack('No connection. Try again when online.');
     } on HttpFailure catch (e) {
-      _showSnack(e.message);
+      // Quote-superseded recovery (audit #15). The customer tapped
+      // Approve / Decline / Request-Revision on a quote_id that the
+      // tech meanwhile superseded. Don't surface the raw "invalid
+      // transition" snack — invalidate the detail (the next render
+      // shows the new active quote with fresh action ids) and tell
+      // the user softly what happened.
+      if (e.code == 'quote_superseded') {
+        ref.invalidate(bookingDetailProvider(widget.booking.id));
+        _showSnack('The quote was updated — showing the new one.');
+      } else {
+        _showSnack(e.message);
+      }
     } on StateError catch (e, stack) {
       // Unsupported HTTP method from the executor — server contract drift.
       // Surface the generic error to the user but log loudly so we notice
@@ -216,7 +294,19 @@ class _BookingOrchestratorActionButtonState
         stackTrace: stack,
       );
       _showSnack('Could not complete action.');
-    } catch (_) {
+    } catch (e, stack) {
+      // Anything else (FormatException, unexpected runtime errors, ...).
+      // Show the user a generic snack but log the stackTrace at SEVERE
+      // so QA + on-device debugging can find the root cause instead of
+      // it disappearing into the opaque snack.
+      developer.log(
+        'BookingActionExecutor unexpected error on '
+        '${widget.action.endpoint}',
+        name: 'orchestrator.action',
+        level: 1000,
+        error: e,
+        stackTrace: stack,
+      );
       _showSnack('Could not complete action.');
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -298,10 +388,15 @@ class _BookingOrchestratorActionButtonState
 
   Map<String, dynamic>? _autoBody() {
     // Currently only confirm-cash-received needs an auto body.
+    //
+    // Wire-contract: ``backend/bookings/api/completion/serializers.py``
+    // declares `amount: DecimalField` + `method: ChoiceField(['cash'])`.
+    // Earlier this file sent `cash_amount` which DRF rejected with
+    // `validation_error` — fixed to the canonical field names.
     if (widget.action.endpoint.endsWith('/confirm-cash-received/')) {
       final amount = widget.booking.pricing.finalCashToCollect;
       if (amount == null) return null;
-      return {'cash_amount': amount};
+      return {'amount': amount, 'method': 'cash'};
     }
     return null;
   }
@@ -317,7 +412,8 @@ class _BookingOrchestratorActionButtonState
   /// (the safe default for bodyless ops).
   _ActionClassification _classify(String endpoint) {
     if (endpoint.endsWith('/confirm-cash-received/')) {
-      return _ActionClassification.directPostAutoBody;
+      // Terminal money-mutating action — must be behind a confirm sheet.
+      return _ActionClassification.pendingSheetCash;
     }
     if (endpoint.endsWith('/cancel/')) {
       return _ActionClassification.pendingSheetCancel;
@@ -338,8 +434,17 @@ class _BookingOrchestratorActionButtonState
       // submit_quote root POST — the quote BUILDER lives in session 5.
       return _ActionClassification.pendingSheetQuote;
     }
+    if (endpoint.endsWith('/decline/')) {
+      // Customer decline of initial quote = terminal (Rs.500 inspection
+      // fee charged); decline of an upsell = non-terminal but still a
+      // material decision. Both require explicit confirmation.
+      return _ActionClassification.pendingSheetDecline;
+    }
     // Everything else is a bodyless POST: en-route, arrived,
-    // start-inspection, /quotes/<id>/approve/, /quotes/<id>/decline/.
+    // start-inspection, /quotes/<id>/approve/, /quotes/<id>/request-revision/.
+    // Approve + revision are recoverable / non-destructive — direct POST
+    // is fine. (Revision flips a SUBMITTED quote back to SUPERSEDED so
+    // the tech can rebuild it; the customer can ask again.)
     return _ActionClassification.directPostNoBody;
   }
 }
@@ -353,4 +458,6 @@ enum _ActionClassification {
   pendingSheetNoShow,
   pendingSheetQuote,
   pendingSheetDispute,
+  pendingSheetCash,
+  pendingSheetDecline,
 }

@@ -419,45 +419,43 @@ void main() {
     );
   });
 
-  group('regression — existing low-urgency events keep static paths', () {
-    testWidgets('payment_received still pushes /shared/wallet unchanged', (
-      tester,
-    ) async {
-      // Sanity-check that adding `_lowUrgencyTapPayloadKeys` did not
-      // change behavior for existing low-urgency events that have no
-      // entry in the new map — they should keep pushing the static path.
-      final harness = _RouterTestHarness(
-        extraRoutes: [
-          GoRoute(
-            path: '/shared/wallet',
-            builder: (_, _) => const Scaffold(body: Text('wallet')),
-          ),
-        ],
-      );
-      await tester.pumpWidget(harness.build());
-      await tester.pumpAndSettle();
-
-      final ref = await harness.overlayRef(tester);
-      try {
-        final event = SystemEventEntity.fromComponents(
-          id: 'evt-payment',
-          rawType: 'payment_received',
-          targetRoleStr: 'technician',
-          timestamp: DateTime.now().toUtc(),
-          payload: const {'amount': '500'},
-        );
-        harness.router.handleEvent(event, TargetRole.technician, ref.ref);
-        await tester.pump();
-        await tester.pump(const Duration(milliseconds: 300));
-
-        await tester.tap(find.text('View'));
+  group('dead-route guard — banners for unshipped features render no View', () {
+    testWidgets(
+      'payment_received banner appears WITHOUT a View button (wallet is unshipped)',
+      (tester) async {
+        // The /shared/wallet route is a "Coming Soon" placeholder. Banner
+        // taps to a dead-end route were a UX trap (customer-side, the user
+        // had no wallet feature and got stranded on a placeholder). The
+        // urgency router now omits paymentReceived / walletLowBalance /
+        // chatMessage from `_lowUrgencyTapRoutes` so the View button is
+        // suppressed entirely. The banner still renders for awareness.
+        final harness = _RouterTestHarness();
+        await tester.pumpWidget(harness.build());
         await tester.pumpAndSettle();
 
-        expect(find.text('wallet'), findsOneWidget);
-      } finally {
-        await tester.pump(const Duration(seconds: 6));
-        ref.dispose();
-      }
-    });
+        final ref = await harness.overlayRef(tester);
+        try {
+          final event = SystemEventEntity.fromComponents(
+            id: 'evt-payment',
+            rawType: 'payment_received',
+            targetRoleStr: 'technician',
+            timestamp: DateTime.now().toUtc(),
+            payload: const {'amount': '500'},
+          );
+          harness.router.handleEvent(event, TargetRole.technician, ref.ref);
+          await tester.pump();
+          await tester.pump(const Duration(milliseconds: 300));
+
+          // Banner visible — the title carries the event copy.
+          expect(find.text('Payment Received — PKR 500'), findsOneWidget);
+          // View button suppressed — Dismiss is the only action.
+          expect(find.text('View'), findsNothing);
+          expect(find.text('Dismiss'), findsOneWidget);
+        } finally {
+          await tester.pump(const Duration(seconds: 6));
+          ref.dispose();
+        }
+      },
+    );
   });
 }

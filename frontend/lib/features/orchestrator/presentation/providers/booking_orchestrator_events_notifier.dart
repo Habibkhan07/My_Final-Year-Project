@@ -32,8 +32,17 @@ part 'booking_orchestrator_events_notifier.g.dart';
 class BookingOrchestratorEventsNotifier
     extends _$BookingOrchestratorEventsNotifier {
   /// Events that should trigger a refresh of `bookingDetailProvider(jobId)`.
-  /// `bookingRescheduled` is intentionally absent — `bookingRescheduledNotifier`
-  /// handles it (the side effect is nav, not refresh).
+  ///
+  /// `bookingRescheduled` IS included as a fallback. The primary handler
+  /// is `bookingRescheduledNotifier`, which performs a navigator
+  /// `pushReplacement` to the child booking. But that handler depends
+  /// on `navigatorKey.currentContext` being non-null at event-arrival
+  /// time — during a route transition, app-resume race, or
+  /// FCM-cold-start the context can be null and the nav side-effect
+  /// silently no-ops, leaving the user on a stale CANCELLED original
+  /// booking screen with action buttons that no longer apply.
+  /// Refreshing the detail here is idempotent (the nav, if it succeeds,
+  /// replaces this route anyway) and closes the staleness gap.
   static const _refreshTriggerEvents = <SystemEventType>{
     // Tech-accepted (AWAITING → CONFIRMED) and tech-rejected
     // (AWAITING → REJECTED). The customer is sitting on their
@@ -64,6 +73,7 @@ class BookingOrchestratorEventsNotifier
     SystemEventType.bookingNoShow,
     SystemEventType.disputeOpened,
     SystemEventType.disputeResolved,
+    SystemEventType.bookingRescheduled,
   };
 
   @override

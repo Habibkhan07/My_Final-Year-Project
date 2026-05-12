@@ -69,7 +69,9 @@ void main() {
     );
 
     test(
-      'should return cached data when remote call fails with SocketException',
+      'should throw DashboardNetworkFailure on SocketException EVEN IF cache exists '
+      '(financial-truth fields walletBalance/cashCollectedToday must not be '
+      'served from cache — see repository docstring)',
       () async {
         when(
           () => mockRemoteDataSource.getDashboard(),
@@ -78,11 +80,10 @@ void main() {
           () => mockLocalDataSource.getCachedDashboard(),
         ).thenAnswer((_) async => tDashboardModel);
 
-        final result = await repository.getDashboard();
-
-        verify(() => mockRemoteDataSource.getDashboard());
-        verify(() => mockLocalDataSource.getCachedDashboard());
-        expect(result, equals(tDashboardEntity));
+        expect(
+          () => repository.getDashboard(),
+          throwsA(isA<DashboardNetworkFailure>()),
+        );
       },
     );
 

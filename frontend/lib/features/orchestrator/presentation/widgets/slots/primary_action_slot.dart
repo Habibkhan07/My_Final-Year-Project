@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../../core/common/errors/http_failure.dart';
+import '../../../../customer/bookings/domain/entities/booking_status.dart';
+import '../../../../technician/dashboard/presentation/notifiers/technician_dashboard_notifier.dart';
 import '../../../domain/entities/booking_detail.dart';
 import '../../../domain/entities/booking_orchestrator_role.dart';
 import '../../../domain/entities/booking_ui_block.dart';
@@ -17,21 +19,26 @@ import '../feedback/orchestrator_snack.dart';
 /// Hidden when the action is null (server-side decision: this user/role
 /// has no actionable verb at this status).
 ///
-/// **Special case** — the customer's "I'm coming out" action on ARRIVED
-/// renders as [ArrivalActionCard] instead of the generic
-/// [BookingOrchestratorActionButton]. The card fuses the server-resolved
-/// arrival message AND the countdown CTA into ONE pinned surface, so
-/// the customer's eye lands on the map (above) then drops to ONE place
-/// for message + action — no split attention across the map. Detection
-/// is on endpoint suffix (`/customer-arriving/`) so the wire contract
-/// is unchanged.
-class PrimaryActionSlot extends StatelessWidget {
+/// **Special cases:**
+///
+/// 1. Customer's "I'm coming out" on ARRIVED → [ArrivalActionCard]
+///    (fuses server-resolved arrival message + countdown CTA into one
+///    pinned surface so the customer's eye doesn't split across map and
+///    action bar). Detection on endpoint suffix `/customer-arriving/`.
+///
+/// 2. **Tech viewer on CONFIRMED for the dashboard's up-next job**.
+///    Suppress the "I'm on my way" button here because the body's
+///    `TechNavigationPanel` already owns that verb (its Start Navigation
+///    button POSTs `/en-route/` AND launches Maps in one tap). Showing
+///    both would mean two buttons for the same verb on the same screen.
+///    The body's panel is the single source of truth; this slot bows out.
+class PrimaryActionSlot extends ConsumerWidget {
   const PrimaryActionSlot({super.key, required this.booking});
 
   final BookingDetail booking;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final action = booking.ui.primaryAction;
     if (action == null) return const SizedBox.shrink();
 
@@ -44,6 +51,17 @@ class PrimaryActionSlot extends StatelessWidget {
           action: action,
         ),
       );
+    }
+
+    // Tech + CONFIRMED + this booking IS the dashboard's up-next → the
+    // body renders TechNavigationPanel which owns the en-route verb.
+    // Bow out so the verb isn't duplicated. Non-up-next CONFIRMED jobs
+    // keep this button as the only way to mark themselves en route.
+    if (booking.status == BookingStatus.confirmed &&
+        booking.viewerRole == BookingOrchestratorRole.technician) {
+      final dash = ref.watch(technicianDashboardProvider);
+      final isUpNext = dash.value?.dashboard.upNextJob?.jobId == booking.id;
+      if (isUpNext) return const SizedBox.shrink();
     }
 
     return Padding(

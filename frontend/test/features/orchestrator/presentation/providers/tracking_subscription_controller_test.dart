@@ -150,8 +150,15 @@ void main() {
     );
 
     test(
-      'technician viewer + EN_ROUTE → no subscribe (tech publishes via REST)',
+      'technician viewer + EN_ROUTE → subscribes so their own marker '
+      'echoes back from the shared tracking group',
       () async {
+        // The tech's Android foreground service publishes via REST, but
+        // the resulting WS frames don't loop back locally — the only way
+        // for the tech's LiveTrackingMap to populate is to receive the
+        // same broadcast everyone else does. The backend's
+        // `subscribe_tracking` consumer authorises on participant +
+        // non-terminal status, so allowing the tech here is safe.
         final ws = _FakeWsNotifier();
         addTearDown(() => ws.events.close());
 
@@ -163,7 +170,11 @@ void main() {
         await container.read(bookingDetailProvider(42).future);
         await Future<void>.microtask(() {});
 
-        expect(ws.sentMessages, isEmpty);
+        expect(ws.sentMessages, hasLength(1));
+        expect(ws.sentMessages.first, {
+          'action': 'subscribe_tracking',
+          'booking_id': 42,
+        });
       },
     );
   });
@@ -298,18 +309,17 @@ void main() {
       'T-5 (Batch E) dispose with no active subscription does NOT fire a '
       'spurious unsubscribe',
       () async {
-        // Tech viewer + EN_ROUTE: the gate returns false (subscribe is
-        // customer-only), so `_subscribed` stays false. Disposing must
-        // not fire `unsubscribe_tracking` — that would tell the backend
-        // to remove a membership that was never created.
+        // Any viewer at CONFIRMED: the gate returns false because
+        // CONFIRMED is outside the subscribable status set
+        // {EN_ROUTE, ARRIVED}, so `_subscribed` stays false. Disposing
+        // must not fire `unsubscribe_tracking` — that would tell the
+        // backend to remove a membership that was never created.
         final ws = _FakeWsNotifier();
 
         final container = ProviderContainer(
           overrides: [
             bookingDetailRepositoryProvider.overrideWithValue(
-              // currentUserId=99 == technicianId, so the viewer is the
-              // tech (gate returns false; subscribe never fires).
-              _FixtureRepo(status: 'EN_ROUTE', currentUserId: 99),
+              _FixtureRepo(status: 'CONFIRMED'),
             ),
             wsConnectionProvider.overrideWith(() => ws),
           ],
@@ -321,7 +331,7 @@ void main() {
         );
         await container.read(bookingDetailProvider(42).future);
         await Future<void>.microtask(() {});
-        // Tech viewer never subscribes.
+        // CONFIRMED is outside the subscribable set — nothing fires.
         expect(ws.sentMessages, isEmpty);
 
         sub.close();

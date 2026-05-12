@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -59,6 +61,17 @@ class _BookingCardState extends State<BookingCard>
   late final AnimationController _collapse;
   bool _collapsedDone = false;
 
+  // Server-time anchor: the list-notifier's `serverTime` is frozen at
+  // page-fetch and never re-anchored by realtime patches. Without the
+  // ticker the pill would say "In 60 min" forever on a booking that's
+  // now 5 min away. We add the wall-clock delta since this card mounted
+  // (or since `widget.serverTime` last changed) to compute a fresh
+  // serverNow on every rebuild. 30s cadence keeps the pill within ±30s
+  // of truth without burning battery.
+  Timer? _ticker;
+  late Stopwatch _stopwatch;
+  late DateTime _serverTimeAnchor;
+
   @override
   void initState() {
     super.initState();
@@ -74,6 +87,12 @@ class _BookingCardState extends State<BookingCard>
       if (status == AnimationStatus.completed && mounted) {
         setState(() => _collapsedDone = true);
       }
+    });
+
+    _serverTimeAnchor = widget.serverTime;
+    _stopwatch = Stopwatch()..start();
+    _ticker = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) setState(() {});
     });
 
     // If the card mounts already in a wrong-segment state (rare —
@@ -97,6 +116,15 @@ class _BookingCardState extends State<BookingCard>
       _pulse.forward(from: 0);
     }
 
+    // Re-anchor on every serverTime change so the stopwatch never drifts
+    // away from the latest server clock the notifier saw.
+    if (old.serverTime != widget.serverTime) {
+      _serverTimeAnchor = widget.serverTime;
+      _stopwatch
+        ..reset()
+        ..start();
+    }
+
     if (_belongsToWrongSegment(widget.booking.status, widget.segment) &&
         _collapse.status == AnimationStatus.dismissed) {
       _collapse.forward();
@@ -105,10 +133,17 @@ class _BookingCardState extends State<BookingCard>
 
   @override
   void dispose() {
+    _ticker?.cancel();
+    _stopwatch.stop();
     _pulse.dispose();
     _collapse.dispose();
     super.dispose();
   }
+
+  /// Server-anchored "now" — initial server clock + wall-clock delta
+  /// since we last re-anchored. Immune to device clock skew (the
+  /// stopwatch uses a monotonic clock).
+  DateTime get _serverNow => _serverTimeAnchor.add(_stopwatch.elapsed);
 
   /// Decide whether a card with [s] should animate away from the [seg] tab.
   ///
@@ -252,7 +287,7 @@ class _BookingCardState extends State<BookingCard>
                           const SizedBox(height: AppSpacing.s3),
                           _Meta(
                             booking: widget.booking,
-                            serverTime: widget.serverTime,
+                            serverTime: _serverNow,
                             isCancelled: isCancelled,
                           ),
                           const SizedBox(height: AppSpacing.s2),

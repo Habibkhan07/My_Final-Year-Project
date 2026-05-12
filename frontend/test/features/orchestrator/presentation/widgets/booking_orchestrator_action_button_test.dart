@@ -146,25 +146,21 @@ void main() {
   });
 
   testWidgets(
-    'confirm-cash-received: auto body carries final_cash_to_collect',
+    'confirm-cash-received: opens confirm sheet (terminal money-mutating '
+    'action is no longer a one-tap POST)',
     (tester) async {
-      final exec = await _pump(
+      await _pump(
         tester,
         action: _action(endpoint: '/bookings/42/confirm-cash-received/'),
       );
-      when(
-        () => exec.execute(any(), body: any(named: 'body')),
-      ).thenAnswer((_) async {});
 
       await tester.tap(find.text('Tap me'));
       await tester.pumpAndSettle();
 
-      final captured =
-          verify(
-                () => exec.execute(any(), body: captureAny(named: 'body')),
-              ).captured.single
-              as Map<String, dynamic>;
-      expect(captured['cash_amount'], 1500);
+      // The sheet's title is the user's pause-point.
+      expect(find.text('Confirm cash received?'), findsOneWidget);
+      // CTA carries the Rs.X amount from the booking pricing.
+      expect(find.textContaining('Rs. 1500'), findsWidgets);
     },
   );
 
