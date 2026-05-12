@@ -72,19 +72,50 @@ SEGMENT_UPCOMING = "upcoming"
 SEGMENT_PAST = "past"
 ALLOWED_SEGMENTS = frozenset({SEGMENT_UPCOMING, SEGMENT_PAST})
 
-# Status sets resolved from a segment. PENDING is legacy (never persisted
-# by current code paths after migration 0007) — included in upcoming as
-# a defensive grace bucket so any pre-migration row would not silently
-# disappear from the customer's view.
-_UPCOMING_STATUSES = (
+# Status sets resolved from a segment.
+#
+# The Upcoming tab is split into two sub-buckets:
+#
+#   * **Ageable** — PENDING / AWAITING_TECH_ACCEPT / CONFIRMED. These can
+#     "age out" of Upcoming when ``scheduled_end < now`` (the customer
+#     booked something, the slot passed, and nothing ever happened). They
+#     drop to Past in that case so the customer is not misled into
+#     thinking a stale slot is still alive.
+#
+#   * **Active** — EN_ROUTE / ARRIVED / INSPECTING / QUOTED / IN_PROGRESS.
+#     These represent a job that is actively in progress *right now*.
+#     They MUST NOT age out by ``scheduled_end``: a job running over its
+#     scheduled window is still a live job the customer wants to track.
+#     They always live in Upcoming until they hit a terminal status.
+#
+# PENDING is legacy (never persisted by current code paths after
+# migration 0007) — included in ageable as a defensive grace bucket so
+# any pre-migration row would not silently disappear from the customer's
+# view.
+_AGEABLE_UPCOMING_STATUSES = (
     JobBooking.STATUS_PENDING,
     JobBooking.STATUS_AWAITING_TECH_ACCEPT,
     JobBooking.STATUS_CONFIRMED,
 )
+_ACTIVE_UPCOMING_STATUSES = (
+    JobBooking.STATUS_EN_ROUTE,
+    JobBooking.STATUS_ARRIVED,
+    JobBooking.STATUS_INSPECTING,
+    JobBooking.STATUS_QUOTED,
+    JobBooking.STATUS_IN_PROGRESS,
+)
+_UPCOMING_STATUSES = _AGEABLE_UPCOMING_STATUSES + _ACTIVE_UPCOMING_STATUSES
+
+# All terminal statuses belong in Past. Previously this set omitted
+# COMPLETED_INSPECTION_ONLY, NO_SHOW, and DISPUTED — bookings in those
+# states were invisible to the customer on both tabs.
 _PAST_STATUSES = (
     JobBooking.STATUS_COMPLETED,
+    JobBooking.STATUS_COMPLETED_INSPECTION_ONLY,
     JobBooking.STATUS_CANCELLED,
     JobBooking.STATUS_REJECTED,
+    JobBooking.STATUS_NO_SHOW,
+    JobBooking.STATUS_DISPUTED,
 )
 ALLOWED_STATUSES = frozenset(s for s, _ in JobBooking.STATUS_CHOICES)
 
@@ -173,11 +204,56 @@ def _resolve_ui_block(
             "headline": f"Confirmed with {technician_display_name}",
         }
 
+    # Active mid-job statuses — previously fell through to the generic
+    # "Pending — Booking is being prepared" copy, which is misleading for
+    # a booking the tech is actively servicing.
+    if status == JobBooking.STATUS_EN_ROUTE:
+        return {
+            "badge_text": "On the way",
+            "badge_tone": TONE_INFO,
+            "headline": f"{technician_display_name} is on the way",
+        }
+
+    if status == JobBooking.STATUS_ARRIVED:
+        return {
+            "badge_text": "Arrived",
+            "badge_tone": TONE_INFO,
+            "headline": f"{technician_display_name} is at your address",
+        }
+
+    if status == JobBooking.STATUS_INSPECTING:
+        return {
+            "badge_text": "Inspecting",
+            "badge_tone": TONE_INFO,
+            "headline": f"{technician_display_name} is preparing your quote",
+        }
+
+    if status == JobBooking.STATUS_QUOTED:
+        return {
+            "badge_text": "Quote ready",
+            "badge_tone": TONE_WARNING,
+            "headline": "Review your quote",
+        }
+
+    if status == JobBooking.STATUS_IN_PROGRESS:
+        return {
+            "badge_text": "In progress",
+            "badge_tone": TONE_INFO,
+            "headline": f"{technician_display_name} is doing the work",
+        }
+
     if status == JobBooking.STATUS_COMPLETED:
         return {
             "badge_text": "Completed",
             "badge_tone": TONE_POSITIVE,
             "headline": f"Completed by {technician_display_name}",
+        }
+
+    if status == JobBooking.STATUS_COMPLETED_INSPECTION_ONLY:
+        return {
+            "badge_text": "Inspection only",
+            "badge_tone": TONE_NEUTRAL,
+            "headline": "You declined the quote — inspection fee was due",
         }
 
     if status == JobBooking.STATUS_CANCELLED:
@@ -199,6 +275,20 @@ def _resolve_ui_block(
             "badge_text": "Unavailable",
             "badge_tone": TONE_NEGATIVE,
             "headline": f"{technician_display_name} couldn't take this",
+        }
+
+    if status == JobBooking.STATUS_NO_SHOW:
+        return {
+            "badge_text": "No-show",
+            "badge_tone": TONE_NEGATIVE,
+            "headline": "This booking ended in a no-show",
+        }
+
+    if status == JobBooking.STATUS_DISPUTED:
+        return {
+            "badge_text": "Disputed",
+            "badge_tone": TONE_NEGATIVE,
+            "headline": "A dispute has been opened on this booking",
         }
 
     # PENDING (legacy) and any future status not yet mapped.
@@ -359,22 +449,29 @@ def _apply_segment(
     apply. Segment is the dumb-UI shortcut; explicit ``status`` filters
     bypass this helper entirely.
 
-    Past = terminal statuses OR a still-AWAITING/CONFIRMED row whose
-    scheduled_end is already in the past (a row that effectively aged
-    out without a formal completion event — surfacing it under Upcoming
-    would mislead the customer).
+    **Upcoming** =
+        active-mid-job statuses (always, regardless of scheduled_end)
+        OR ageable statuses whose scheduled_end is still in the future.
+
+    **Past** = terminal statuses OR an ageable row whose scheduled_end
+    has passed (booked something, slot passed, nothing happened). Active
+    mid-job rows never fall into Past via the age-out path — they leave
+    via a real terminal transition.
     """
     if segment == SEGMENT_UPCOMING:
         qs = qs.filter(
-            status__in=_UPCOMING_STATUSES,
-            scheduled_end__gte=now,
+            Q(status__in=_ACTIVE_UPCOMING_STATUSES)
+            | Q(
+                status__in=_AGEABLE_UPCOMING_STATUSES,
+                scheduled_end__gte=now,
+            )
         )
         return qs, "asc"
 
     # SEGMENT_PAST
     qs = qs.filter(
         Q(status__in=_PAST_STATUSES)
-        | Q(status__in=_UPCOMING_STATUSES, scheduled_end__lt=now)
+        | Q(status__in=_AGEABLE_UPCOMING_STATUSES, scheduled_end__lt=now)
     )
     return qs, "desc"
 
@@ -555,16 +652,21 @@ def count_customer_bookings(*, user) -> CustomerBookingsCountsResult:
     now = timezone.now()
     base = JobBooking.objects.filter(customer=user)
 
+    # Mirror `_apply_segment` exactly — the badge counts MUST match the
+    # list filter, or the user sees N in the badge and ≠ N rows on tap.
     upcoming_count = (
         base.filter(
-            status__in=_UPCOMING_STATUSES,
-            scheduled_end__gte=now,
+            Q(status__in=_ACTIVE_UPCOMING_STATUSES)
+            | Q(
+                status__in=_AGEABLE_UPCOMING_STATUSES,
+                scheduled_end__gte=now,
+            )
         ).count()
     )
     past_count = (
         base.filter(
             Q(status__in=_PAST_STATUSES)
-            | Q(status__in=_UPCOMING_STATUSES, scheduled_end__lt=now)
+            | Q(status__in=_AGEABLE_UPCOMING_STATUSES, scheduled_end__lt=now)
         ).count()
     )
     return CustomerBookingsCountsResult(

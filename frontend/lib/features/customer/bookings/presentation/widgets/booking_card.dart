@@ -11,6 +11,7 @@ import '../../domain/entities/booking_segment.dart';
 import '../../domain/entities/booking_status.dart';
 import '../../domain/entities/customer_booking.dart';
 import '../utils/booking_date_formatter.dart';
+import '../utils/bookings_palette.dart';
 import 'booking_status_pill.dart';
 import 'booking_tech_avatar.dart';
 
@@ -142,11 +143,26 @@ class _BookingCardState extends State<BookingCard>
     context.push('/booking/${widget.booking.id}');
   }
 
+  /// Statuses the card surfaces as "actively happening" via a pulsing
+  /// dot next to the status pill. Mirrors the orchestrator hero's
+  /// _isLiveStatus() set so both surfaces communicate liveness with
+  /// the same visual cue.
+  static bool _isLiveStatus(BookingStatus s) => switch (s) {
+        BookingStatus.enRoute ||
+        BookingStatus.arrived ||
+        BookingStatus.inspecting ||
+        BookingStatus.quoted ||
+        BookingStatus.inProgress =>
+          true,
+        _ => false,
+      };
+
   @override
   Widget build(BuildContext context) {
     if (_collapsedDone) return const SizedBox.shrink();
 
     final isCancelled = widget.booking.status == BookingStatus.cancelled;
+    final isTerminal = widget.booking.status.isTerminal;
 
     return AnimatedBuilder(
       animation: Listenable.merge([_pulse, _collapse]),
@@ -164,13 +180,21 @@ class _BookingCardState extends State<BookingCard>
 
         final collapseFactor = 1 - _collapse.value;
 
+        // The bottom-spacing padding lives INSIDE the collapsing region
+        // so a dismissed card leaves zero residual height. If the
+        // padding were applied by the list-item slot outside this
+        // ClipRect, every collapsed terminal row would leave a small
+        // ghost gap in the ListView.
         return ClipRect(
           child: Align(
             alignment: Alignment.topCenter,
             heightFactor: collapseFactor.clamp(0, 1).toDouble(),
             child: Opacity(
               opacity: collapseFactor.clamp(0, 1).toDouble(),
-              child: _buildCardBody(context, cardBg, isCancelled),
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.s3),
+                child: _buildCardBody(context, cardBg, isCancelled, isTerminal),
+              ),
             ),
           ),
         );
@@ -178,7 +202,16 @@ class _BookingCardState extends State<BookingCard>
     );
   }
 
-  Widget _buildCardBody(BuildContext context, Color cardBg, bool isCancelled) {
+  Widget _buildCardBody(
+    BuildContext context,
+    Color cardBg,
+    bool isCancelled,
+    bool isTerminal,
+  ) {
+    final accentColor =
+        BookingsPalette.toneAccent(widget.booking.ui.badgeTone);
+    final isLive = _isLiveStatus(widget.booking.status);
+
     final body = RepaintBoundary(
       child: Material(
         color: cardBg,
@@ -190,55 +223,94 @@ class _BookingCardState extends State<BookingCard>
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(AppShapes.radiusMD),
               border: Border.all(
-                color: AppColors.outlineVariant.withValues(alpha: 0.30),
+                color: BookingsPalette.brandPrimaryTint12,
                 width: 1,
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
-                ),
-              ],
+              boxShadow: BookingsPalette.brandSoftShadow,
             ),
-            padding: const EdgeInsets.all(AppSpacing.s4),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _Header(booking: widget.booking),
-                const SizedBox(height: AppSpacing.s3),
-                _Headline(booking: widget.booking),
-                const SizedBox(height: AppSpacing.s3),
-                const _Divider(),
-                const SizedBox(height: AppSpacing.s3),
-                _Meta(
-                  booking: widget.booking,
-                  serverTime: widget.serverTime,
-                  isCancelled: isCancelled,
-                ),
-                const SizedBox(height: AppSpacing.s2),
-                const _Divider(),
-                const SizedBox(height: AppSpacing.s2),
-                _PriceRow(booking: widget.booking, isCancelled: isCancelled),
-              ],
+            // No outer padding — the IntrinsicHeight Row owns its own
+            // spacing so the 4px leading accent strip can run edge-to-edge.
+            child: IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // 4px tone-coloured strip. Reads status at a glance
+                  // before any text is parsed — important on Past tab
+                  // where many rows scroll by.
+                  Container(width: 4, color: accentColor),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.all(AppSpacing.s4),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _Header(booking: widget.booking, isLive: isLive),
+                          const SizedBox(height: AppSpacing.s3),
+                          _Headline(booking: widget.booking),
+                          const SizedBox(height: AppSpacing.s3),
+                          const _Divider(),
+                          const SizedBox(height: AppSpacing.s3),
+                          _Meta(
+                            booking: widget.booking,
+                            serverTime: widget.serverTime,
+                            isCancelled: isCancelled,
+                          ),
+                          const SizedBox(height: AppSpacing.s2),
+                          const _Divider(),
+                          const SizedBox(height: AppSpacing.s2),
+                          _PriceRow(
+                            booking: widget.booking,
+                            isCancelled: isCancelled,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
       ),
     );
 
-    if (!isCancelled) return body;
-    // Cancelled cards: subtle global opacity decay (§5.6). Keep layout,
-    // copy, and structure identical — never line-through the headline.
-    return Opacity(opacity: 0.85, child: body);
+    // Terminal cards (cancelled, completed, rejected, no-show,
+    // disputed, completed-inspection-only) read as "archived": soft
+    // desaturation + 0.70 global opacity. Cancelled additionally keeps
+    // the line-through on the address (set inside _Meta) — the address
+    // was never visited.
+    if (!isTerminal) return body;
+    return Opacity(
+      opacity: 0.70,
+      child: ColorFiltered(
+        colorFilter: const ColorFilter.matrix(_kGreyscaleMatrix),
+        child: body,
+      ),
+    );
   }
 }
+
+/// Luminosity-preserving greyscale matrix (Rec. 709 coefficients).
+/// Applied to terminal cards so completed / cancelled / rejected /
+/// no-show rows read as "archived" without disturbing the active
+/// cards' colour.
+const List<double> _kGreyscaleMatrix = <double>[
+  0.2126, 0.7152, 0.0722, 0, 0,
+  0.2126, 0.7152, 0.0722, 0, 0,
+  0.2126, 0.7152, 0.0722, 0, 0,
+  0, 0, 0, 1, 0,
+];
 
 // ───────────────────────── Header row ─────────────────────────
 
 class _Header extends StatelessWidget {
-  const _Header({required this.booking});
+  const _Header({required this.booking, required this.isLive});
   final CustomerBooking booking;
+
+  /// True for {enRoute, arrived, inspecting, quoted, inProgress}. The
+  /// header renders a small pulsing dot beside the pill so the user
+  /// sees liveness without reading the badge text.
+  final bool isLive;
 
   @override
   Widget build(BuildContext context) {
@@ -280,18 +352,101 @@ class _Header extends StatelessWidget {
         ),
         const SizedBox(width: AppSpacing.s2),
         // Pill morphs cleanly across realtime status patches: the key
-        // drives AnimatedSwitcher to crossfade old → new.
+        // drives AnimatedSwitcher to crossfade old → new. The live
+        // pulse dot rides next to it (only for the active mid-job set).
         AnimatedSwitcher(
           duration: const Duration(milliseconds: 250),
           transitionBuilder: (child, anim) =>
               FadeTransition(opacity: anim, child: child),
-          child: BookingStatusPill(
-            key: ValueKey('${booking.ui.badgeText}-${booking.ui.badgeTone}'),
-            text: booking.ui.badgeText,
-            tone: booking.ui.badgeTone,
+          child: Row(
+            key: ValueKey('${booking.ui.badgeText}-${booking.ui.badgeTone}-$isLive'),
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (isLive) ...[
+                _LivePulseDot(color: BookingsPalette.toneAccent(booking.ui.badgeTone)),
+                const SizedBox(width: 6),
+              ],
+              BookingStatusPill(
+                text: booking.ui.badgeText,
+                tone: booking.ui.badgeTone,
+              ),
+            ],
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Constant-loop pulsing dot. Halt under `flutter_test` so widget
+/// tests that call `pumpAndSettle` don't stall on the infinite
+/// animation controller. Mirrors `OrchestratorHeroHeader._PulsingDot`'s
+/// shape — same 10px core + 18px halo expanding 0→1 → faded out.
+class _LivePulseDot extends StatefulWidget {
+  const _LivePulseDot({required this.color});
+  final Color color;
+
+  @override
+  State<_LivePulseDot> createState() => _LivePulseDotState();
+}
+
+class _LivePulseDotState extends State<_LivePulseDot>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    );
+    final isTest =
+        WidgetsBinding.instance.runtimeType.toString().contains('Test');
+    if (!isTest) _controller.repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 14,
+      height: 14,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          AnimatedBuilder(
+            animation: _controller,
+            builder: (context, _) {
+              final t = _controller.value;
+              return Opacity(
+                opacity: (1.0 - t) * 0.55,
+                child: Container(
+                  width: 6 + (10 * t),
+                  height: 6 + (10 * t),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: widget.color.withValues(alpha: 0.55),
+                  ),
+                ),
+              );
+            },
+          ),
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: widget.color,
+              shape: BoxShape.circle,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

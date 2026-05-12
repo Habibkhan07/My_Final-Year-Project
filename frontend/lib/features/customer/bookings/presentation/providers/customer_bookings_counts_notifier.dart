@@ -8,9 +8,8 @@
 // **Refresh policy.**
 //
 //   * Initial load — `build()` fetches counts immediately.
-//   * Realtime triggers — `job_accepted` / `booking_rejected` arrive
-//     and the counts could change (an Upcoming row moves to Past), so
-//     a fresh fetch is queued. We refetch rather than locally
+//   * Realtime triggers — every event that can move a row between
+//     segments queues a refresh. We refetch rather than locally
 //     decrement/increment because (a) it's a single cheap aggregate
 //     query, (b) local arithmetic could drift if events are missed
 //     during a network gap. One round-trip per status flip is fine —
@@ -45,12 +44,21 @@ class CustomerBookingsCounts extends _$CustomerBookingsCounts {
       if (event == null) return;
       if (previous?.latestEvent?.id == event.id) return;
       switch (event.eventType) {
+        // Every event that can move a booking between Upcoming and Past
+        // segments. The Upcoming→Past trip is what changes counts; the
+        // intermediate-status events (en-route, arrived, inspecting,
+        // quoted) keep the row in Upcoming so counts don't move — they
+        // are deliberately absent here. The list-side patcher still
+        // updates the card's badge.
         case SystemEventType.jobAccepted:
         case SystemEventType.bookingRejected:
+        case SystemEventType.bookingCancelled:
+        case SystemEventType.bookingNoShow:
+        case SystemEventType.quoteDeclined:
+        case SystemEventType.jobCompleted:
+        case SystemEventType.bookingRescheduled:
           _scheduleRefresh();
           break;
-        // Future status-shifting events (`job_completed`, etc.) get
-        // added here.
         // ignore: no_default_cases
         default:
           break;

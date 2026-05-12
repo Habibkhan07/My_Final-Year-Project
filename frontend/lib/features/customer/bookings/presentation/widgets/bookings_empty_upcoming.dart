@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/theme/app_shapes.dart';
 import '../../../../../core/theme/app_spacing.dart';
+import '../utils/bookings_palette.dart';
 
 /// Empty state for the Upcoming segment — illustration + headline + body
 /// + "Browse services" CTA (§7.2).
@@ -22,14 +23,14 @@ class BookingsEmptyUpcoming extends StatelessWidget {
               width: 144,
               height: 144,
               decoration: BoxDecoration(
-                color: AppColors.surfaceContainerLow,
+                color: BookingsPalette.brandPrimaryTint06,
                 shape: BoxShape.circle,
               ),
               alignment: Alignment.center,
-              child: const Icon(
+              child: Icon(
                 Icons.event_available_outlined,
                 size: 72,
-                color: AppColors.outlineVariant,
+                color: BookingsPalette.brandPrimary.withValues(alpha: 0.40),
               ),
             ),
             const SizedBox(height: AppSpacing.s6),

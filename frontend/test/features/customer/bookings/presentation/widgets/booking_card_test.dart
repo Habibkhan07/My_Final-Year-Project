@@ -246,25 +246,40 @@ void main() {
   });
 
   group('BookingCard — Cancelled visual treatment', () {
-    testWidgets('cancelled card wraps body in 0.85 opacity', (tester) async {
-      await tester.pumpWidget(
-        _wrap(
-          _booking(
-            status: BookingStatus.cancelled,
-            tone: BookingUiTone.neutral,
-            badgeText: 'Cancelled',
-            headline: 'You cancelled this booking',
+    testWidgets(
+      'terminal card wraps body in 0.70 opacity + greyscale ColorFiltered',
+      (tester) async {
+        await tester.pumpWidget(
+          _wrap(
+            _booking(
+              status: BookingStatus.cancelled,
+              tone: BookingUiTone.neutral,
+              badgeText: 'Cancelled',
+              headline: 'You cancelled this booking',
+            ),
+            segment: BookingSegment.past,
           ),
-          segment: BookingSegment.past,
-        ),
-      );
-      // The outer Opacity(0.85) wraps the card body for cancelled status.
-      final opacities = tester
-          .widgetList<Opacity>(find.byType(Opacity))
-          .map((o) => o.opacity)
-          .toList();
-      expect(opacities, contains(0.85));
-    });
+        );
+        // The outer terminal treatment wraps the card body in:
+        //   1. Opacity(0.70) — global decay.
+        //   2. ColorFiltered with the luminosity greyscale matrix —
+        //      reads as "archived" without disturbing the active cards.
+        final opacities = tester
+            .widgetList<Opacity>(find.byType(Opacity))
+            .map((o) => o.opacity)
+            .toList();
+        expect(
+          opacities,
+          contains(0.70),
+          reason: 'terminal cards must wrap in Opacity(0.70)',
+        );
+
+        // ColorFiltered presence is the greyscale wrapper. We don't
+        // pin the exact matrix coefficients here — keeping the test
+        // resilient to future luminosity-coefficient tweaks.
+        expect(find.byType(ColorFiltered), findsWidgets);
+      },
+    );
 
     testWidgets(
       'address row renders with line-through decoration when cancelled',

@@ -4,6 +4,7 @@ import 'package:shimmer/shimmer.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/theme/app_shapes.dart';
 import '../../../../../core/theme/app_spacing.dart';
+import '../utils/bookings_palette.dart';
 
 /// Shimmer placeholder for [BookingCard]. Dimensions intentionally mirror
 /// the real card so there's no layout flash on data arrival (§7.1).
@@ -24,8 +25,12 @@ class BookingCardSkeleton extends StatelessWidget {
           color: AppColors.surfaceContainerLowest,
           borderRadius: BorderRadius.circular(AppShapes.radiusMD),
           border: Border.all(
-            color: AppColors.outlineVariant.withValues(alpha: 0.30),
+            color: BookingsPalette.brandPrimaryTint12,
           ),
+          // Match the real card's shadow recipe so a skeleton card
+          // and a hydrated card live in the same surface family — no
+          // visual snap on data arrival.
+          boxShadow: BookingsPalette.brandSoftShadow,
         ),
         padding: const EdgeInsets.all(AppSpacing.s4),
         child: Column(

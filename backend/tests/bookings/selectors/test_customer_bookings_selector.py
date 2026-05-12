@@ -382,6 +382,83 @@ class TestListSegmentPast:
         assert [item["id"] for item in result.items] == [recent.id, old.id]
 
 
+class TestEverySegmentCoverageMatrix:
+    """Locks the rule: every JobBooking status appears in exactly one
+    segment for a booking whose scheduled window is in the future.
+
+    Past regressions had bookings in COMPLETED_INSPECTION_ONLY / NO_SHOW
+    / DISPUTED / EN_ROUTE / ARRIVED / INSPECTING / QUOTED / IN_PROGRESS
+    falling through both segments and becoming invisible. This test
+    parametrizes over every status from STATUS_CHOICES so adding a new
+    status without updating the selector breaks the build loudly.
+    """
+
+    # Active-mid-job statuses live in Upcoming regardless of date.
+    _ACTIVE = {
+        JobBooking.STATUS_EN_ROUTE,
+        JobBooking.STATUS_ARRIVED,
+        JobBooking.STATUS_INSPECTING,
+        JobBooking.STATUS_QUOTED,
+        JobBooking.STATUS_IN_PROGRESS,
+    }
+    # Ageable statuses live in Upcoming when scheduled_end is in the future.
+    _AGEABLE = {
+        JobBooking.STATUS_PENDING,
+        JobBooking.STATUS_AWAITING_TECH_ACCEPT,
+        JobBooking.STATUS_CONFIRMED,
+    }
+    # Terminal statuses live in Past.
+    _TERMINAL = {
+        JobBooking.STATUS_COMPLETED,
+        JobBooking.STATUS_COMPLETED_INSPECTION_ONLY,
+        JobBooking.STATUS_CANCELLED,
+        JobBooking.STATUS_REJECTED,
+        JobBooking.STATUS_NO_SHOW,
+        JobBooking.STATUS_DISPUTED,
+    }
+
+    def test_every_status_resolves_to_exactly_one_segment(self):
+        all_known = self._ACTIVE | self._AGEABLE | self._TERMINAL
+        choices = {s for s, _ in JobBooking.STATUS_CHOICES}
+        unaccounted = choices - all_known
+        assert not unaccounted, (
+            f"New booking status(es) without segment assignment: {unaccounted}. "
+            "Update _ACTIVE_UPCOMING_STATUSES / _AGEABLE_UPCOMING_STATUSES / "
+            "_PAST_STATUSES in customer_bookings_selector.py."
+        )
+
+        user = UserFactory()
+        for status in choices:
+            booking = _booking_in_future(customer=user, status=status)
+            upcoming_ids = {
+                item["id"]
+                for item in list_customer_bookings(
+                    user=user, segment=SEGMENT_UPCOMING,
+                ).items
+            }
+            past_ids = {
+                item["id"]
+                for item in list_customer_bookings(
+                    user=user, segment=SEGMENT_PAST,
+                ).items
+            }
+            in_upcoming = booking.id in upcoming_ids
+            in_past = booking.id in past_ids
+            expected_upcoming = status in (self._ACTIVE | self._AGEABLE)
+            expected_past = status in self._TERMINAL
+            assert in_upcoming == expected_upcoming, (
+                f"status={status!r} in_upcoming={in_upcoming} expected={expected_upcoming}"
+            )
+            assert in_past == expected_past, (
+                f"status={status!r} in_past={in_past} expected={expected_past}"
+            )
+            assert in_upcoming != in_past, (
+                f"status={status!r} appeared in both / neither segment"
+            )
+            # Clean up so the next iteration's lists are scoped.
+            booking.delete()
+
+
 class TestListStatusFilterOverride:
 
     def test_explicit_status_overrides_segment_time_window(self):

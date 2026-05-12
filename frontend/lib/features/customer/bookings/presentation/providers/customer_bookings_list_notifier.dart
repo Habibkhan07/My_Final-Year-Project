@@ -48,6 +48,7 @@ import '../../../../../core/realtime/domain/entities/system_event_entity.dart';
 import '../../../../../core/realtime/domain/entities/system_event_type.dart';
 import '../../../../../core/realtime/presentation/notifiers/system_event_notifier.dart';
 import '../../data/mappers/booking_event_patch_mapper.dart';
+import '../../domain/entities/booking_segment.dart';
 import '../../domain/entities/customer_booking.dart';
 import 'customer_bookings_list_state.dart';
 import 'dependency_injection.dart';
@@ -184,23 +185,47 @@ class CustomerBookingsList extends _$CustomerBookingsList {
       case SystemEventType.jobAccepted:
         _patch(event, BookingEventPatchMapper.applyJobAccepted);
         break;
+      // Intermediate in-Upcoming transitions. Each flips the badge from
+      // "Confirmed" through the live phases ("On the way" → "Arrived" →
+      // "Inspecting" → "Quote ready") so the list card stays in sync
+      // with the orchestrator screen. The row remains on Upcoming for
+      // all four — no segment crossing, no refresh needed.
+      case SystemEventType.techEnRoute:
+        _patch(event, BookingEventPatchMapper.applyTechEnRoute);
+        break;
+      case SystemEventType.techArrived:
+        _patch(event, BookingEventPatchMapper.applyTechArrived);
+        break;
+      case SystemEventType.inspectionStarted:
+        _patch(event, BookingEventPatchMapper.applyInspectionStarted);
+        break;
+      case SystemEventType.quoteGenerated:
+        _patch(event, BookingEventPatchMapper.applyQuoteGenerated);
+        break;
+      // Terminal transitions — the row crosses Upcoming → Past. On
+      // Upcoming the card's `_belongsToWrongSegment` collapse animation
+      // hides the patched row; on Past the patch is a no-op because
+      // the row isn't in items yet — _refreshIfOnPast pulls the new row
+      // into view there.
       case SystemEventType.bookingRejected:
         _patch(event, BookingEventPatchMapper.applyBookingRejected);
+        _refreshIfOnPast();
         break;
-      // Booking-orchestrator v1 (sprint session 3) — these patch the
-      // list row's status + ui block in lockstep with the server's
-      // `customer_bookings_selector._resolve_ui_block` logic.
       case SystemEventType.bookingCancelled:
         _patch(event, BookingEventPatchMapper.applyBookingCancelled);
+        _refreshIfOnPast();
         break;
       case SystemEventType.bookingNoShow:
         _patch(event, BookingEventPatchMapper.applyBookingNoShow);
+        _refreshIfOnPast();
         break;
       case SystemEventType.quoteDeclined:
         _patch(event, BookingEventPatchMapper.applyQuoteDeclined);
+        _refreshIfOnPast();
         break;
       case SystemEventType.jobCompleted:
         _patch(event, BookingEventPatchMapper.applyJobCompleted);
+        _refreshIfOnPast();
         break;
       case SystemEventType.bookingRescheduled:
         _patch(event, BookingEventPatchMapper.applyBookingRescheduled);
@@ -212,14 +237,25 @@ class CustomerBookingsList extends _$CustomerBookingsList {
         refresh();
         break;
       // Slot reserved for events without list-side semantics
-      // (`tech_en_route`, `tech_arrived`, `quote_generated`,
-      // `quote_approved`, `quote_revision_requested`, `payment_received`,
-      // `dispute_opened`, `dispute_resolved`). The orchestrator screen
-      // handles those; the list card stays put with whatever status it
-      // had — the next list refresh picks up any drift.
+      // (`customer_arriving`, `quote_approved`, `quote_revision_requested`,
+      // `payment_received`, `dispute_opened`, `dispute_resolved`). Most
+      // are broadcast to the counterparty only; the customer's local
+      // actions on the orchestrator refresh booking detail directly.
       // ignore: no_default_cases
       default:
         break;
+    }
+  }
+
+  /// When the user is on the Past tab and a terminal event arrives, the
+  /// `_patch` call is a no-op (the row isn't in past items yet — it just
+  /// became terminal). Without this, the customer has to pull-to-refresh
+  /// to see the newly-completed/cancelled booking land in Past.
+  void _refreshIfOnPast() {
+    final segment = state.value?.segment;
+    if (segment == BookingSegment.past) {
+      // ignore: discarded_futures
+      refresh();
     }
   }
 

@@ -205,4 +205,81 @@ class BookingEventPatchMapper {
       ),
     );
   }
+
+  // ─── Intermediate-status transitions (server → customer) ────────────
+  //
+  // These cover the in-Upcoming lifecycle the customer can see on the
+  // list while the orchestrator screen drives the actual flow. Without
+  // them the list badge sits on "Confirmed" while the tech is actually
+  // en route / arrived / inspecting / quoting. Each mirrors a row in
+  // `customer_bookings_selector._resolve_ui_block`; copy drift is the
+  // documented cost (CUSTOMER_BOOKINGS_API.md §1.7).
+
+  /// `tech_en_route` — tech has tapped "Start journey".
+  static CustomerBooking applyTechEnRoute(
+    CustomerBooking current,
+    SystemEventEntity event,
+  ) {
+    final techName = current.technician.displayName;
+    return current.copyWith(
+      status: BookingStatus.enRoute,
+      ui: BookingUi(
+        badgeText: 'On the way',
+        badgeTone: BookingUiTone.info,
+        headline: '$techName is on the way',
+      ),
+    );
+  }
+
+  /// `tech_arrived` — tech has crossed the arrival geofence.
+  static CustomerBooking applyTechArrived(
+    CustomerBooking current,
+    SystemEventEntity event,
+  ) {
+    final techName = current.technician.displayName;
+    return current.copyWith(
+      status: BookingStatus.arrived,
+      ui: BookingUi(
+        badgeText: 'Arrived',
+        badgeTone: BookingUiTone.info,
+        headline: '$techName is at your address',
+      ),
+    );
+  }
+
+  /// `inspection_started` — tech has begun inspection (either via the
+  /// customer's "I'm coming out" tap auto-advancing, or the tech's
+  /// fallback `start_inspection` action). Either way the list row
+  /// reflects the new phase.
+  static CustomerBooking applyInspectionStarted(
+    CustomerBooking current,
+    SystemEventEntity event,
+  ) {
+    final techName = current.technician.displayName;
+    return current.copyWith(
+      status: BookingStatus.inspecting,
+      ui: BookingUi(
+        badgeText: 'Inspecting',
+        badgeTone: BookingUiTone.info,
+        headline: '$techName is preparing your quote',
+      ),
+    );
+  }
+
+  /// `quote_generated` — tech has built and sent the quote. The card
+  /// flips to a warning-toned "Quote ready" so the customer notices it
+  /// from the list, even if they're not on the orchestrator screen.
+  static CustomerBooking applyQuoteGenerated(
+    CustomerBooking current,
+    SystemEventEntity event,
+  ) {
+    return current.copyWith(
+      status: BookingStatus.quoted,
+      ui: const BookingUi(
+        badgeText: 'Quote ready',
+        badgeTone: BookingUiTone.warning,
+        headline: 'Review your quote',
+      ),
+    );
+  }
 }

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/theme/app_spacing.dart';
 import '../../domain/entities/booking_segment.dart';
+import '../../domain/entities/bookings_counts.dart';
 import '../../domain/entities/customer_booking.dart';
 import '../../domain/failures/customer_bookings_failure.dart';
 import '../providers/customer_bookings_counts_notifier.dart';
@@ -15,6 +16,7 @@ import '../widgets/booking_card_skeleton.dart';
 import '../widgets/bookings_empty_past.dart';
 import '../widgets/bookings_empty_upcoming.dart';
 import '../widgets/bookings_error_state.dart';
+import '../widgets/bookings_hero_header.dart';
 import '../widgets/bookings_offline_banner.dart';
 import '../widgets/bookings_segmented_control.dart';
 
@@ -106,53 +108,41 @@ class _CustomerBookingsListScreenState
 
     final segment = ref.watch(selectedSegmentProvider);
     final listAsync = ref.watch(customerBookingsListProvider);
+    final countsAsync = ref.watch(customerBookingsCountsProvider);
 
     return Scaffold(
       backgroundColor: AppColors.surface,
-      appBar: _buildAppBar(),
-      body: SafeArea(
-        top: false,
-        child: Column(
-          children: [
-            const SizedBox(height: AppSpacing.s3),
-            const BookingsSegmentedControl(),
-            const SizedBox(height: AppSpacing.s4),
-            Expanded(
-              child: RefreshIndicator(
-                onRefresh: _refreshAll,
-                color: AppColors.primary,
-                child: _buildBody(listAsync, segment),
-              ),
+      body: Column(
+        children: [
+          BookingsHeroHeader(
+            title: 'My Bookings',
+            subtitle: _subtitleFromCounts(countsAsync),
+            onBack: widget.showBackButton
+                ? () => Navigator.of(context).maybePop()
+                : null,
+          ),
+          const SizedBox(height: AppSpacing.s3),
+          const BookingsSegmentedControl(),
+          const SizedBox(height: AppSpacing.s4),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: _refreshAll,
+              color: AppColors.primary,
+              child: _buildBody(listAsync, segment),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
-  PreferredSizeWidget _buildAppBar() {
-    return AppBar(
-      backgroundColor: AppColors.surface,
-      surfaceTintColor: Colors.transparent,
-      elevation: 0,
-      scrolledUnderElevation: 0,
-      automaticallyImplyLeading: widget.showBackButton,
-      title: const Text(
-        'My Bookings',
-        style: TextStyle(
-          fontSize: 20,
-          height: 28 / 20,
-          fontWeight: FontWeight.w700,
-          color: AppColors.primary,
-        ),
-      ),
-      bottom: PreferredSize(
-        preferredSize: const Size.fromHeight(1),
-        child: Container(
-          height: 1,
-          color: AppColors.outlineVariant.withValues(alpha: 0.50),
-        ),
-      ),
+  /// "{upcoming} upcoming · {past} past" once counts have loaded; null
+  /// (no subtitle row) while loading or on error. We deliberately do
+  /// NOT show a "—" placeholder — the hero would otherwise jitter on
+  /// first-frame.
+  String? _subtitleFromCounts(AsyncValue<BookingsCounts> countsAsync) {
+    return countsAsync.whenOrNull(
+      data: (c) => '${c.upcoming} upcoming · ${c.past} past',
     );
   }
 
@@ -329,13 +319,12 @@ class _CardSlot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpacing.s3),
-      child: BookingCard(
-        booking: booking,
-        segment: segment,
-        serverTime: serverTime,
-      ),
+    // No padding wrapper here: BookingCard owns its own bottom margin
+    // inside its collapsing region so dismissed rows leave no ghost gap.
+    return BookingCard(
+      booking: booking,
+      segment: segment,
+      serverTime: serverTime,
     );
   }
 }
