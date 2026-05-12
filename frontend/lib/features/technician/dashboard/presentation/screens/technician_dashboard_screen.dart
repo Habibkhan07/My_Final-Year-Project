@@ -9,8 +9,9 @@ import '../../domain/failures/technician_dashboard_failure.dart';
 import '../notifiers/technician_dashboard_notifier.dart';
 import '../providers/current_position_provider.dart';
 import '../state/technician_dashboard_state.dart';
+import '../../../metrics/presentation/notifiers/metrics_notifier.dart';
+import '../../../metrics/presentation/widgets/dashboard_metrics_row.dart';
 import '../widgets/dashboard_header.dart';
-import '../widgets/dashboard_metrics_row.dart';
 import '../widgets/later_today_list.dart';
 import '../widgets/up_next_job_card.dart';
 
@@ -87,6 +88,7 @@ class _DashboardLayout extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final dashboard = state.dashboard;
+    final metricsAsync = ref.watch(metricsProvider);
 
     return Stack(
       children: [
@@ -130,7 +132,14 @@ class _DashboardLayout extends ConsumerWidget {
           left: 16,
           right: 16,
           bottom: 16,
-          child: DashboardMetricsRow(metrics: dashboard.metrics),
+          child: metricsAsync.when(
+            loading: () => const SizedBox(
+              height: 76,
+              child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+            ),
+            error: (err, st) => const SizedBox.shrink(),
+            data: (metrics) => DashboardMetricsRow(metrics: metrics),
+          ),
         ),
       ],
     );

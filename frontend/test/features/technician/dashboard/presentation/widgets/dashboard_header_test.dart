@@ -21,10 +21,6 @@ TechnicianDashboardEntity _entity({
   profilePicture: profilePicture,
   upNextJob: null,
   laterTodayJobs: const [],
-  metrics: const DashboardMetricsEntity(
-    jobsCompletedToday: 0,
-    cashCollectedToday: 0,
-  ),
 );
 
 Widget buildHeader({

@@ -46,5 +46,4 @@ class TestTechnicianDashboardView:
         assert "profile_picture" in data
         assert data["up_next_job"] is None
         assert data["later_today_jobs"] == []
-        assert data["metrics"]["jobs_completed_today"] == 0
-        assert data["metrics"]["cash_collected_today"] == 0.0
+        assert "metrics" not in data

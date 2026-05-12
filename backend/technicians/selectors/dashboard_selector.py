@@ -1,32 +1,24 @@
 from django.utils import timezone
-from django.db.models import Sum, Count
 from bookings.models import JobBooking
 from technicians.models import TechnicianProfile
 
+
 def get_technician_dashboard(technician: TechnicianProfile, request=None) -> dict:
-    """
-    Returns the technician's daily overview matching the TechnicianDashboardSelector contract.
+    """Returns the technician's daily scheduling overview.
+
+    Metrics (activity + earnings history) are served by a separate selector
+    (metrics_selector.get_technician_metrics) and endpoint (GET /api/technicians/metrics/).
     """
     now = timezone.now()
     today = now.date()
-    
+
     # Base query for today's jobs for this technician
     today_jobs = JobBooking.objects.filter(
         technician=technician,
-        scheduled_start__date=today
+        scheduled_start__date=today,
     ).select_related('customer', 'customer__userprofile', 'address').order_by('scheduled_start')
-    
-    # 1. Metrics: Aggregated from today's COMPLETED jobs only
-    completed_jobs = today_jobs.filter(status=JobBooking.STATUS_COMPLETED)
-    metrics_agg = completed_jobs.aggregate(
-        jobs_completed_today=Count('id'),
-        cash_collected_today=Sum('price_amount')
-    )
-    
-    jobs_completed_today = metrics_agg['jobs_completed_today'] or 0
-    cash_collected_today = float(metrics_agg['cash_collected_today'] or 0.0)
-    
-    # 2. Upcoming Jobs: CONFIRMED jobs scheduled for now or later today
+
+    # Upcoming Jobs: CONFIRMED jobs scheduled for now or later today
     upcoming_jobs = list(today_jobs.filter(
         status=JobBooking.STATUS_CONFIRMED,
         scheduled_start__gte=now
@@ -80,8 +72,4 @@ def get_technician_dashboard(technician: TechnicianProfile, request=None) -> dic
         "profile_picture": profile_picture_url,
         "up_next_job": up_next_job_dict,
         "later_today_jobs": later_today_jobs_list,
-        "metrics": {
-            "jobs_completed_today": jobs_completed_today,
-            "cash_collected_today": cash_collected_today
-        }
     }

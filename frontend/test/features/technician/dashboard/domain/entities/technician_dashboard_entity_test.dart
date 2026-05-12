@@ -4,18 +4,12 @@ import 'package:frontend/features/technician/dashboard/domain/entities/technicia
 void main() {
   group('TechnicianDashboardEntity', () {
     test('should support equality comparison', () {
-      const metrics = DashboardMetricsEntity(
-        jobsCompletedToday: 10,
-        cashCollectedToday: 1000.0,
-      );
-
       final entity1 = TechnicianDashboardEntity(
         walletBalance: 500.0,
         isOnline: true,
         profilePicture: 'url',
         upNextJob: null,
         laterTodayJobs: [],
-        metrics: metrics,
       );
 
       final entity2 = TechnicianDashboardEntity(
@@ -24,7 +18,6 @@ void main() {
         profilePicture: 'url',
         upNextJob: null,
         laterTodayJobs: [],
-        metrics: metrics,
       );
 
       expect(entity1, equals(entity2));

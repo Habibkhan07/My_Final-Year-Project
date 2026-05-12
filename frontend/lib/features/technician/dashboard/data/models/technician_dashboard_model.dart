@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 import '../../domain/entities/technician_dashboard_entity.dart';
 
 class UpNextJobModel {
@@ -133,50 +135,12 @@ class LaterTodayJobModel {
       addressText.hashCode;
 }
 
-class DashboardMetricsModel {
-  final int jobsCompletedToday;
-  final double cashCollectedToday;
-
-  const DashboardMetricsModel({
-    required this.jobsCompletedToday,
-    required this.cashCollectedToday,
-  });
-
-  factory DashboardMetricsModel.fromJson(Map<String, dynamic> json) =>
-      DashboardMetricsModel(
-        jobsCompletedToday: json['jobs_completed_today'],
-        cashCollectedToday: (json['cash_collected_today'] as num).toDouble(),
-      );
-
-  Map<String, dynamic> toJson() => {
-    'jobs_completed_today': jobsCompletedToday,
-    'cash_collected_today': cashCollectedToday,
-  };
-
-  DashboardMetricsEntity toEntity() => DashboardMetricsEntity(
-    jobsCompletedToday: jobsCompletedToday,
-    cashCollectedToday: cashCollectedToday,
-  );
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is DashboardMetricsModel &&
-          runtimeType == other.runtimeType &&
-          jobsCompletedToday == other.jobsCompletedToday &&
-          cashCollectedToday == other.cashCollectedToday;
-
-  @override
-  int get hashCode => jobsCompletedToday.hashCode ^ cashCollectedToday.hashCode;
-}
-
 class TechnicianDashboardModel {
   final double walletBalance;
   final bool isOnline;
   final String? profilePicture;
   final UpNextJobModel? upNextJob;
   final List<LaterTodayJobModel> laterTodayJobs;
-  final DashboardMetricsModel metrics;
 
   const TechnicianDashboardModel({
     required this.walletBalance,
@@ -184,7 +148,6 @@ class TechnicianDashboardModel {
     this.profilePicture,
     this.upNextJob,
     required this.laterTodayJobs,
-    required this.metrics,
   });
 
   factory TechnicianDashboardModel.fromJson(Map<String, dynamic> json) =>
@@ -198,7 +161,6 @@ class TechnicianDashboardModel {
         laterTodayJobs: (json['later_today_jobs'] as List)
             .map((i) => LaterTodayJobModel.fromJson(i))
             .toList(),
-        metrics: DashboardMetricsModel.fromJson(json['metrics']),
       );
 
   Map<String, dynamic> toJson() => {
@@ -207,7 +169,6 @@ class TechnicianDashboardModel {
     'profile_picture': profilePicture,
     'up_next_job': upNextJob?.toJson(),
     'later_today_jobs': laterTodayJobs.map((i) => i.toJson()).toList(),
-    'metrics': metrics.toJson(),
   };
 
   TechnicianDashboardEntity toEntity() => TechnicianDashboardEntity(
@@ -216,7 +177,6 @@ class TechnicianDashboardModel {
     profilePicture: profilePicture,
     upNextJob: upNextJob?.toEntity(),
     laterTodayJobs: laterTodayJobs.map((i) => i.toEntity()).toList(),
-    metrics: metrics.toEntity(),
   );
 
   @override
@@ -228,7 +188,7 @@ class TechnicianDashboardModel {
           isOnline == other.isOnline &&
           profilePicture == other.profilePicture &&
           upNextJob == other.upNextJob &&
-          metrics == other.metrics;
+          listEquals(laterTodayJobs, other.laterTodayJobs);
 
   @override
   int get hashCode =>
@@ -236,6 +196,5 @@ class TechnicianDashboardModel {
       isOnline.hashCode ^
       profilePicture.hashCode ^
       upNextJob.hashCode ^
-      laterTodayJobs.hashCode ^
-      metrics.hashCode;
+      Object.hashAll(laterTodayJobs);
 }

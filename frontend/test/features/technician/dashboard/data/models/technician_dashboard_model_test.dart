@@ -23,18 +23,12 @@ void main() {
     addressText: 'Street 2, Islamabad',
   );
 
-  const tMetricsModel = DashboardMetricsModel(
-    jobsCompletedToday: 5,
-    cashCollectedToday: 5000.0,
-  );
-
   final tDashboardModel = TechnicianDashboardModel(
     walletBalance: 1200.0,
     isOnline: true,
     profilePicture: 'https://example.com/pic.jpg',
     upNextJob: tUpNextJobModel,
     laterTodayJobs: [tLaterTodayJobModel],
-    metrics: tMetricsModel,
   );
 
   final tDashboardJson = {
@@ -61,7 +55,6 @@ void main() {
         'address_text': 'Street 2, Islamabad',
       },
     ],
-    'metrics': {'jobs_completed_today': 5, 'cash_collected_today': 5000.0},
   };
 
   group('fromJson', () {
@@ -101,7 +94,6 @@ void main() {
       expect(result.upNextJob, isA<UpNextJobEntity>());
       expect(result.upNextJob?.serviceTitle, 'AC Repair');
       expect(result.laterTodayJobs.first.serviceTitle, 'Electrician');
-      expect(result.metrics.jobsCompletedToday, 5);
     });
 
     test('should handle null upNextJob in toEntity', () {
@@ -111,7 +103,6 @@ void main() {
         profilePicture: null,
         upNextJob: null,
         laterTodayJobs: [],
-        metrics: tMetricsModel,
       );
 
       final result = model.toEntity();

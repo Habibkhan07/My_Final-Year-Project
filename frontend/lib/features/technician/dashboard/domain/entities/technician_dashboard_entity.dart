@@ -29,16 +29,8 @@ abstract class LaterTodayJobEntity with _$LaterTodayJobEntity {
 }
 
 /// Contract: Fed by GET /api/technicians/dashboard/
-@freezed
-abstract class DashboardMetricsEntity with _$DashboardMetricsEntity {
-  const factory DashboardMetricsEntity({
-    required int jobsCompletedToday,
-    required double cashCollectedToday,
-  }) = _DashboardMetricsEntity;
-}
-
-/// Contract: Fed by GET /api/technicians/dashboard/
-/// Master entity for the technician's daily overview.
+/// Metrics (activity + earnings history) are served by the dedicated
+/// GET /api/technicians/metrics/ endpoint — see features/technician/metrics/.
 @freezed
 abstract class TechnicianDashboardEntity with _$TechnicianDashboardEntity {
   const factory TechnicianDashboardEntity({
@@ -47,6 +39,5 @@ abstract class TechnicianDashboardEntity with _$TechnicianDashboardEntity {
     String? profilePicture,
     UpNextJobEntity? upNextJob,
     required List<LaterTodayJobEntity> laterTodayJobs,
-    required DashboardMetricsEntity metrics,
   }) = _TechnicianDashboardEntity;
 }

@@ -11,50 +11,6 @@ from tests.factories.bookings import JobBookingFactory
 pytestmark = pytest.mark.django_db
 
 class TestTechnicianDashboardSelector:
-    def test_selector_metrics_calculation(self):
-        """Test metrics are strictly calculated from COMPLETED jobs for today."""
-        tech = TechnicianProfileFactory(current_wallet_balance=1500.00)
-        
-        now = timezone.now()
-        
-        # Job 1: Completed today
-        JobBookingFactory(
-            technician=tech,
-            status=JobBooking.STATUS_COMPLETED,
-            scheduled_start=now,
-            price_amount=Decimal("1500.00")
-        )
-        
-        # Job 2: Completed today
-        JobBookingFactory(
-            technician=tech,
-            status=JobBooking.STATUS_COMPLETED,
-            scheduled_start=now + timezone.timedelta(hours=1),
-            price_amount=Decimal("2000.00")
-        )
-        
-        # Job 3: Pending today (should not count in metrics)
-        JobBookingFactory(
-            technician=tech,
-            status=JobBooking.STATUS_PENDING,
-            scheduled_start=now + timezone.timedelta(hours=2),
-            price_amount=Decimal("5000.00")
-        )
-        
-        # Job 4: Completed yesterday (should not count)
-        JobBookingFactory(
-            technician=tech,
-            status=JobBooking.STATUS_COMPLETED,
-            scheduled_start=now - timezone.timedelta(days=1),
-            price_amount=Decimal("1000.00")
-        )
-        
-        dashboard = get_technician_dashboard(tech)
-        
-        assert dashboard["metrics"]["jobs_completed_today"] == 2
-        assert dashboard["metrics"]["cash_collected_today"] == 3500.00
-        assert dashboard["wallet_balance"] == 1500.00
-
     def test_selector_upcoming_jobs_sorting_and_assignment(self):
         """Test up_next_job is the earliest CONFIRMED job today, rest in later_today_jobs."""
         tech = TechnicianProfileFactory(is_online=True)
@@ -135,11 +91,10 @@ class TestTechnicianDashboardSelector:
         """Test handling of no jobs for today."""
         tech = TechnicianProfileFactory()
         dashboard = get_technician_dashboard(tech)
-        
+
         assert dashboard["up_next_job"] is None
         assert dashboard["later_today_jobs"] == []
-        assert dashboard["metrics"]["jobs_completed_today"] == 0
-        assert dashboard["metrics"]["cash_collected_today"] == 0.0
+        assert "metrics" not in dashboard
 
     def test_selector_query_count(self, django_assert_num_queries):
         """Verify we do not have N+1 query issues when fetching customer and address."""
@@ -158,10 +113,9 @@ class TestTechnicianDashboardSelector:
                 scheduled_start=now + timezone.timedelta(minutes=5) + timezone.timedelta(hours=i)
             )
             
-        # Should be a fixed number of queries:
-        # 1. Fetch completed jobs (aggregate)
-        # 2. Fetch confirmed jobs (list/fetch with select_related)
-        with django_assert_num_queries(2):
+        # Dashboard selector only runs the confirmed-jobs query now.
+        # Metrics queries live in metrics_selector (see test_metrics_selector.py).
+        with django_assert_num_queries(1):
             dashboard = get_technician_dashboard(tech)
             assert dashboard["up_next_job"] is not None
             assert len(dashboard["later_today_jobs"]) == 4

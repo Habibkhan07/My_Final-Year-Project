@@ -22,10 +22,6 @@ void main() {
     profilePicture: 'https://example.com/pic.jpg',
     upNextJob: null,
     laterTodayJobs: [],
-    metrics: DashboardMetricsModel(
-      jobsCompletedToday: 5,
-      cashCollectedToday: 5000.0,
-    ),
   );
 
   group('cacheDashboard', () {

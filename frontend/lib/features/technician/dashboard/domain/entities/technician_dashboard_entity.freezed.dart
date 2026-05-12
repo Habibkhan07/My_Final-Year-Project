@@ -556,269 +556,9 @@ as String,
 }
 
 /// @nodoc
-mixin _$DashboardMetricsEntity {
-
- int get jobsCompletedToday; double get cashCollectedToday;
-/// Create a copy of DashboardMetricsEntity
-/// with the given fields replaced by the non-null parameter values.
-@JsonKey(includeFromJson: false, includeToJson: false)
-@pragma('vm:prefer-inline')
-$DashboardMetricsEntityCopyWith<DashboardMetricsEntity> get copyWith => _$DashboardMetricsEntityCopyWithImpl<DashboardMetricsEntity>(this as DashboardMetricsEntity, _$identity);
-
-
-
-@override
-bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is DashboardMetricsEntity&&(identical(other.jobsCompletedToday, jobsCompletedToday) || other.jobsCompletedToday == jobsCompletedToday)&&(identical(other.cashCollectedToday, cashCollectedToday) || other.cashCollectedToday == cashCollectedToday));
-}
-
-
-@override
-int get hashCode => Object.hash(runtimeType,jobsCompletedToday,cashCollectedToday);
-
-@override
-String toString() {
-  return 'DashboardMetricsEntity(jobsCompletedToday: $jobsCompletedToday, cashCollectedToday: $cashCollectedToday)';
-}
-
-
-}
-
-/// @nodoc
-abstract mixin class $DashboardMetricsEntityCopyWith<$Res>  {
-  factory $DashboardMetricsEntityCopyWith(DashboardMetricsEntity value, $Res Function(DashboardMetricsEntity) _then) = _$DashboardMetricsEntityCopyWithImpl;
-@useResult
-$Res call({
- int jobsCompletedToday, double cashCollectedToday
-});
-
-
-
-
-}
-/// @nodoc
-class _$DashboardMetricsEntityCopyWithImpl<$Res>
-    implements $DashboardMetricsEntityCopyWith<$Res> {
-  _$DashboardMetricsEntityCopyWithImpl(this._self, this._then);
-
-  final DashboardMetricsEntity _self;
-  final $Res Function(DashboardMetricsEntity) _then;
-
-/// Create a copy of DashboardMetricsEntity
-/// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? jobsCompletedToday = null,Object? cashCollectedToday = null,}) {
-  return _then(_self.copyWith(
-jobsCompletedToday: null == jobsCompletedToday ? _self.jobsCompletedToday : jobsCompletedToday // ignore: cast_nullable_to_non_nullable
-as int,cashCollectedToday: null == cashCollectedToday ? _self.cashCollectedToday : cashCollectedToday // ignore: cast_nullable_to_non_nullable
-as double,
-  ));
-}
-
-}
-
-
-/// Adds pattern-matching-related methods to [DashboardMetricsEntity].
-extension DashboardMetricsEntityPatterns on DashboardMetricsEntity {
-/// A variant of `map` that fallback to returning `orElse`.
-///
-/// It is equivalent to doing:
-/// ```dart
-/// switch (sealedClass) {
-///   case final Subclass value:
-///     return ...;
-///   case _:
-///     return orElse();
-/// }
-/// ```
-
-@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _DashboardMetricsEntity value)?  $default,{required TResult orElse(),}){
-final _that = this;
-switch (_that) {
-case _DashboardMetricsEntity() when $default != null:
-return $default(_that);case _:
-  return orElse();
-
-}
-}
-/// A `switch`-like method, using callbacks.
-///
-/// Callbacks receives the raw object, upcasted.
-/// It is equivalent to doing:
-/// ```dart
-/// switch (sealedClass) {
-///   case final Subclass value:
-///     return ...;
-///   case final Subclass2 value:
-///     return ...;
-/// }
-/// ```
-
-@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _DashboardMetricsEntity value)  $default,){
-final _that = this;
-switch (_that) {
-case _DashboardMetricsEntity():
-return $default(_that);case _:
-  throw StateError('Unexpected subclass');
-
-}
-}
-/// A variant of `map` that fallback to returning `null`.
-///
-/// It is equivalent to doing:
-/// ```dart
-/// switch (sealedClass) {
-///   case final Subclass value:
-///     return ...;
-///   case _:
-///     return null;
-/// }
-/// ```
-
-@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _DashboardMetricsEntity value)?  $default,){
-final _that = this;
-switch (_that) {
-case _DashboardMetricsEntity() when $default != null:
-return $default(_that);case _:
-  return null;
-
-}
-}
-/// A variant of `when` that fallback to an `orElse` callback.
-///
-/// It is equivalent to doing:
-/// ```dart
-/// switch (sealedClass) {
-///   case Subclass(:final field):
-///     return ...;
-///   case _:
-///     return orElse();
-/// }
-/// ```
-
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int jobsCompletedToday,  double cashCollectedToday)?  $default,{required TResult orElse(),}) {final _that = this;
-switch (_that) {
-case _DashboardMetricsEntity() when $default != null:
-return $default(_that.jobsCompletedToday,_that.cashCollectedToday);case _:
-  return orElse();
-
-}
-}
-/// A `switch`-like method, using callbacks.
-///
-/// As opposed to `map`, this offers destructuring.
-/// It is equivalent to doing:
-/// ```dart
-/// switch (sealedClass) {
-///   case Subclass(:final field):
-///     return ...;
-///   case Subclass2(:final field2):
-///     return ...;
-/// }
-/// ```
-
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int jobsCompletedToday,  double cashCollectedToday)  $default,) {final _that = this;
-switch (_that) {
-case _DashboardMetricsEntity():
-return $default(_that.jobsCompletedToday,_that.cashCollectedToday);case _:
-  throw StateError('Unexpected subclass');
-
-}
-}
-/// A variant of `when` that fallback to returning `null`
-///
-/// It is equivalent to doing:
-/// ```dart
-/// switch (sealedClass) {
-///   case Subclass(:final field):
-///     return ...;
-///   case _:
-///     return null;
-/// }
-/// ```
-
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int jobsCompletedToday,  double cashCollectedToday)?  $default,) {final _that = this;
-switch (_that) {
-case _DashboardMetricsEntity() when $default != null:
-return $default(_that.jobsCompletedToday,_that.cashCollectedToday);case _:
-  return null;
-
-}
-}
-
-}
-
-/// @nodoc
-
-
-class _DashboardMetricsEntity implements DashboardMetricsEntity {
-  const _DashboardMetricsEntity({required this.jobsCompletedToday, required this.cashCollectedToday});
-  
-
-@override final  int jobsCompletedToday;
-@override final  double cashCollectedToday;
-
-/// Create a copy of DashboardMetricsEntity
-/// with the given fields replaced by the non-null parameter values.
-@override @JsonKey(includeFromJson: false, includeToJson: false)
-@pragma('vm:prefer-inline')
-_$DashboardMetricsEntityCopyWith<_DashboardMetricsEntity> get copyWith => __$DashboardMetricsEntityCopyWithImpl<_DashboardMetricsEntity>(this, _$identity);
-
-
-
-@override
-bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _DashboardMetricsEntity&&(identical(other.jobsCompletedToday, jobsCompletedToday) || other.jobsCompletedToday == jobsCompletedToday)&&(identical(other.cashCollectedToday, cashCollectedToday) || other.cashCollectedToday == cashCollectedToday));
-}
-
-
-@override
-int get hashCode => Object.hash(runtimeType,jobsCompletedToday,cashCollectedToday);
-
-@override
-String toString() {
-  return 'DashboardMetricsEntity(jobsCompletedToday: $jobsCompletedToday, cashCollectedToday: $cashCollectedToday)';
-}
-
-
-}
-
-/// @nodoc
-abstract mixin class _$DashboardMetricsEntityCopyWith<$Res> implements $DashboardMetricsEntityCopyWith<$Res> {
-  factory _$DashboardMetricsEntityCopyWith(_DashboardMetricsEntity value, $Res Function(_DashboardMetricsEntity) _then) = __$DashboardMetricsEntityCopyWithImpl;
-@override @useResult
-$Res call({
- int jobsCompletedToday, double cashCollectedToday
-});
-
-
-
-
-}
-/// @nodoc
-class __$DashboardMetricsEntityCopyWithImpl<$Res>
-    implements _$DashboardMetricsEntityCopyWith<$Res> {
-  __$DashboardMetricsEntityCopyWithImpl(this._self, this._then);
-
-  final _DashboardMetricsEntity _self;
-  final $Res Function(_DashboardMetricsEntity) _then;
-
-/// Create a copy of DashboardMetricsEntity
-/// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? jobsCompletedToday = null,Object? cashCollectedToday = null,}) {
-  return _then(_DashboardMetricsEntity(
-jobsCompletedToday: null == jobsCompletedToday ? _self.jobsCompletedToday : jobsCompletedToday // ignore: cast_nullable_to_non_nullable
-as int,cashCollectedToday: null == cashCollectedToday ? _self.cashCollectedToday : cashCollectedToday // ignore: cast_nullable_to_non_nullable
-as double,
-  ));
-}
-
-
-}
-
-/// @nodoc
 mixin _$TechnicianDashboardEntity {
 
- double get walletBalance; bool get isOnline; String? get profilePicture; UpNextJobEntity? get upNextJob; List<LaterTodayJobEntity> get laterTodayJobs; DashboardMetricsEntity get metrics;
+ double get walletBalance; bool get isOnline; String? get profilePicture; UpNextJobEntity? get upNextJob; List<LaterTodayJobEntity> get laterTodayJobs;
 /// Create a copy of TechnicianDashboardEntity
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -829,16 +569,16 @@ $TechnicianDashboardEntityCopyWith<TechnicianDashboardEntity> get copyWith => _$
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is TechnicianDashboardEntity&&(identical(other.walletBalance, walletBalance) || other.walletBalance == walletBalance)&&(identical(other.isOnline, isOnline) || other.isOnline == isOnline)&&(identical(other.profilePicture, profilePicture) || other.profilePicture == profilePicture)&&(identical(other.upNextJob, upNextJob) || other.upNextJob == upNextJob)&&const DeepCollectionEquality().equals(other.laterTodayJobs, laterTodayJobs)&&(identical(other.metrics, metrics) || other.metrics == metrics));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is TechnicianDashboardEntity&&(identical(other.walletBalance, walletBalance) || other.walletBalance == walletBalance)&&(identical(other.isOnline, isOnline) || other.isOnline == isOnline)&&(identical(other.profilePicture, profilePicture) || other.profilePicture == profilePicture)&&(identical(other.upNextJob, upNextJob) || other.upNextJob == upNextJob)&&const DeepCollectionEquality().equals(other.laterTodayJobs, laterTodayJobs));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,walletBalance,isOnline,profilePicture,upNextJob,const DeepCollectionEquality().hash(laterTodayJobs),metrics);
+int get hashCode => Object.hash(runtimeType,walletBalance,isOnline,profilePicture,upNextJob,const DeepCollectionEquality().hash(laterTodayJobs));
 
 @override
 String toString() {
-  return 'TechnicianDashboardEntity(walletBalance: $walletBalance, isOnline: $isOnline, profilePicture: $profilePicture, upNextJob: $upNextJob, laterTodayJobs: $laterTodayJobs, metrics: $metrics)';
+  return 'TechnicianDashboardEntity(walletBalance: $walletBalance, isOnline: $isOnline, profilePicture: $profilePicture, upNextJob: $upNextJob, laterTodayJobs: $laterTodayJobs)';
 }
 
 
@@ -849,11 +589,11 @@ abstract mixin class $TechnicianDashboardEntityCopyWith<$Res>  {
   factory $TechnicianDashboardEntityCopyWith(TechnicianDashboardEntity value, $Res Function(TechnicianDashboardEntity) _then) = _$TechnicianDashboardEntityCopyWithImpl;
 @useResult
 $Res call({
- double walletBalance, bool isOnline, String? profilePicture, UpNextJobEntity? upNextJob, List<LaterTodayJobEntity> laterTodayJobs, DashboardMetricsEntity metrics
+ double walletBalance, bool isOnline, String? profilePicture, UpNextJobEntity? upNextJob, List<LaterTodayJobEntity> laterTodayJobs
 });
 
 
-$UpNextJobEntityCopyWith<$Res>? get upNextJob;$DashboardMetricsEntityCopyWith<$Res> get metrics;
+$UpNextJobEntityCopyWith<$Res>? get upNextJob;
 
 }
 /// @nodoc
@@ -866,15 +606,14 @@ class _$TechnicianDashboardEntityCopyWithImpl<$Res>
 
 /// Create a copy of TechnicianDashboardEntity
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? walletBalance = null,Object? isOnline = null,Object? profilePicture = freezed,Object? upNextJob = freezed,Object? laterTodayJobs = null,Object? metrics = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? walletBalance = null,Object? isOnline = null,Object? profilePicture = freezed,Object? upNextJob = freezed,Object? laterTodayJobs = null,}) {
   return _then(_self.copyWith(
 walletBalance: null == walletBalance ? _self.walletBalance : walletBalance // ignore: cast_nullable_to_non_nullable
 as double,isOnline: null == isOnline ? _self.isOnline : isOnline // ignore: cast_nullable_to_non_nullable
 as bool,profilePicture: freezed == profilePicture ? _self.profilePicture : profilePicture // ignore: cast_nullable_to_non_nullable
 as String?,upNextJob: freezed == upNextJob ? _self.upNextJob : upNextJob // ignore: cast_nullable_to_non_nullable
 as UpNextJobEntity?,laterTodayJobs: null == laterTodayJobs ? _self.laterTodayJobs : laterTodayJobs // ignore: cast_nullable_to_non_nullable
-as List<LaterTodayJobEntity>,metrics: null == metrics ? _self.metrics : metrics // ignore: cast_nullable_to_non_nullable
-as DashboardMetricsEntity,
+as List<LaterTodayJobEntity>,
   ));
 }
 /// Create a copy of TechnicianDashboardEntity
@@ -888,15 +627,6 @@ $UpNextJobEntityCopyWith<$Res>? get upNextJob {
 
   return $UpNextJobEntityCopyWith<$Res>(_self.upNextJob!, (value) {
     return _then(_self.copyWith(upNextJob: value));
-  });
-}/// Create a copy of TechnicianDashboardEntity
-/// with the given fields replaced by the non-null parameter values.
-@override
-@pragma('vm:prefer-inline')
-$DashboardMetricsEntityCopyWith<$Res> get metrics {
-  
-  return $DashboardMetricsEntityCopyWith<$Res>(_self.metrics, (value) {
-    return _then(_self.copyWith(metrics: value));
   });
 }
 }
@@ -980,10 +710,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( double walletBalance,  bool isOnline,  String? profilePicture,  UpNextJobEntity? upNextJob,  List<LaterTodayJobEntity> laterTodayJobs,  DashboardMetricsEntity metrics)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( double walletBalance,  bool isOnline,  String? profilePicture,  UpNextJobEntity? upNextJob,  List<LaterTodayJobEntity> laterTodayJobs)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _TechnicianDashboardEntity() when $default != null:
-return $default(_that.walletBalance,_that.isOnline,_that.profilePicture,_that.upNextJob,_that.laterTodayJobs,_that.metrics);case _:
+return $default(_that.walletBalance,_that.isOnline,_that.profilePicture,_that.upNextJob,_that.laterTodayJobs);case _:
   return orElse();
 
 }
@@ -1001,10 +731,10 @@ return $default(_that.walletBalance,_that.isOnline,_that.profilePicture,_that.up
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( double walletBalance,  bool isOnline,  String? profilePicture,  UpNextJobEntity? upNextJob,  List<LaterTodayJobEntity> laterTodayJobs,  DashboardMetricsEntity metrics)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( double walletBalance,  bool isOnline,  String? profilePicture,  UpNextJobEntity? upNextJob,  List<LaterTodayJobEntity> laterTodayJobs)  $default,) {final _that = this;
 switch (_that) {
 case _TechnicianDashboardEntity():
-return $default(_that.walletBalance,_that.isOnline,_that.profilePicture,_that.upNextJob,_that.laterTodayJobs,_that.metrics);case _:
+return $default(_that.walletBalance,_that.isOnline,_that.profilePicture,_that.upNextJob,_that.laterTodayJobs);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -1021,10 +751,10 @@ return $default(_that.walletBalance,_that.isOnline,_that.profilePicture,_that.up
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( double walletBalance,  bool isOnline,  String? profilePicture,  UpNextJobEntity? upNextJob,  List<LaterTodayJobEntity> laterTodayJobs,  DashboardMetricsEntity metrics)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( double walletBalance,  bool isOnline,  String? profilePicture,  UpNextJobEntity? upNextJob,  List<LaterTodayJobEntity> laterTodayJobs)?  $default,) {final _that = this;
 switch (_that) {
 case _TechnicianDashboardEntity() when $default != null:
-return $default(_that.walletBalance,_that.isOnline,_that.profilePicture,_that.upNextJob,_that.laterTodayJobs,_that.metrics);case _:
+return $default(_that.walletBalance,_that.isOnline,_that.profilePicture,_that.upNextJob,_that.laterTodayJobs);case _:
   return null;
 
 }
@@ -1036,7 +766,7 @@ return $default(_that.walletBalance,_that.isOnline,_that.profilePicture,_that.up
 
 
 class _TechnicianDashboardEntity implements TechnicianDashboardEntity {
-  const _TechnicianDashboardEntity({required this.walletBalance, required this.isOnline, this.profilePicture, this.upNextJob, required final  List<LaterTodayJobEntity> laterTodayJobs, required this.metrics}): _laterTodayJobs = laterTodayJobs;
+  const _TechnicianDashboardEntity({required this.walletBalance, required this.isOnline, this.profilePicture, this.upNextJob, required final  List<LaterTodayJobEntity> laterTodayJobs}): _laterTodayJobs = laterTodayJobs;
   
 
 @override final  double walletBalance;
@@ -1050,7 +780,6 @@ class _TechnicianDashboardEntity implements TechnicianDashboardEntity {
   return EqualUnmodifiableListView(_laterTodayJobs);
 }
 
-@override final  DashboardMetricsEntity metrics;
 
 /// Create a copy of TechnicianDashboardEntity
 /// with the given fields replaced by the non-null parameter values.
@@ -1062,16 +791,16 @@ _$TechnicianDashboardEntityCopyWith<_TechnicianDashboardEntity> get copyWith => 
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TechnicianDashboardEntity&&(identical(other.walletBalance, walletBalance) || other.walletBalance == walletBalance)&&(identical(other.isOnline, isOnline) || other.isOnline == isOnline)&&(identical(other.profilePicture, profilePicture) || other.profilePicture == profilePicture)&&(identical(other.upNextJob, upNextJob) || other.upNextJob == upNextJob)&&const DeepCollectionEquality().equals(other._laterTodayJobs, _laterTodayJobs)&&(identical(other.metrics, metrics) || other.metrics == metrics));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TechnicianDashboardEntity&&(identical(other.walletBalance, walletBalance) || other.walletBalance == walletBalance)&&(identical(other.isOnline, isOnline) || other.isOnline == isOnline)&&(identical(other.profilePicture, profilePicture) || other.profilePicture == profilePicture)&&(identical(other.upNextJob, upNextJob) || other.upNextJob == upNextJob)&&const DeepCollectionEquality().equals(other._laterTodayJobs, _laterTodayJobs));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,walletBalance,isOnline,profilePicture,upNextJob,const DeepCollectionEquality().hash(_laterTodayJobs),metrics);
+int get hashCode => Object.hash(runtimeType,walletBalance,isOnline,profilePicture,upNextJob,const DeepCollectionEquality().hash(_laterTodayJobs));
 
 @override
 String toString() {
-  return 'TechnicianDashboardEntity(walletBalance: $walletBalance, isOnline: $isOnline, profilePicture: $profilePicture, upNextJob: $upNextJob, laterTodayJobs: $laterTodayJobs, metrics: $metrics)';
+  return 'TechnicianDashboardEntity(walletBalance: $walletBalance, isOnline: $isOnline, profilePicture: $profilePicture, upNextJob: $upNextJob, laterTodayJobs: $laterTodayJobs)';
 }
 
 
@@ -1082,11 +811,11 @@ abstract mixin class _$TechnicianDashboardEntityCopyWith<$Res> implements $Techn
   factory _$TechnicianDashboardEntityCopyWith(_TechnicianDashboardEntity value, $Res Function(_TechnicianDashboardEntity) _then) = __$TechnicianDashboardEntityCopyWithImpl;
 @override @useResult
 $Res call({
- double walletBalance, bool isOnline, String? profilePicture, UpNextJobEntity? upNextJob, List<LaterTodayJobEntity> laterTodayJobs, DashboardMetricsEntity metrics
+ double walletBalance, bool isOnline, String? profilePicture, UpNextJobEntity? upNextJob, List<LaterTodayJobEntity> laterTodayJobs
 });
 
 
-@override $UpNextJobEntityCopyWith<$Res>? get upNextJob;@override $DashboardMetricsEntityCopyWith<$Res> get metrics;
+@override $UpNextJobEntityCopyWith<$Res>? get upNextJob;
 
 }
 /// @nodoc
@@ -1099,15 +828,14 @@ class __$TechnicianDashboardEntityCopyWithImpl<$Res>
 
 /// Create a copy of TechnicianDashboardEntity
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? walletBalance = null,Object? isOnline = null,Object? profilePicture = freezed,Object? upNextJob = freezed,Object? laterTodayJobs = null,Object? metrics = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? walletBalance = null,Object? isOnline = null,Object? profilePicture = freezed,Object? upNextJob = freezed,Object? laterTodayJobs = null,}) {
   return _then(_TechnicianDashboardEntity(
 walletBalance: null == walletBalance ? _self.walletBalance : walletBalance // ignore: cast_nullable_to_non_nullable
 as double,isOnline: null == isOnline ? _self.isOnline : isOnline // ignore: cast_nullable_to_non_nullable
 as bool,profilePicture: freezed == profilePicture ? _self.profilePicture : profilePicture // ignore: cast_nullable_to_non_nullable
 as String?,upNextJob: freezed == upNextJob ? _self.upNextJob : upNextJob // ignore: cast_nullable_to_non_nullable
 as UpNextJobEntity?,laterTodayJobs: null == laterTodayJobs ? _self._laterTodayJobs : laterTodayJobs // ignore: cast_nullable_to_non_nullable
-as List<LaterTodayJobEntity>,metrics: null == metrics ? _self.metrics : metrics // ignore: cast_nullable_to_non_nullable
-as DashboardMetricsEntity,
+as List<LaterTodayJobEntity>,
   ));
 }
 
@@ -1122,15 +850,6 @@ $UpNextJobEntityCopyWith<$Res>? get upNextJob {
 
   return $UpNextJobEntityCopyWith<$Res>(_self.upNextJob!, (value) {
     return _then(_self.copyWith(upNextJob: value));
-  });
-}/// Create a copy of TechnicianDashboardEntity
-/// with the given fields replaced by the non-null parameter values.
-@override
-@pragma('vm:prefer-inline')
-$DashboardMetricsEntityCopyWith<$Res> get metrics {
-  
-  return $DashboardMetricsEntityCopyWith<$Res>(_self.metrics, (value) {
-    return _then(_self.copyWith(metrics: value));
   });
 }
 }

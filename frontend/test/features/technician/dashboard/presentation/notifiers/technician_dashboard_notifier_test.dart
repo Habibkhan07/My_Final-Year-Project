@@ -39,10 +39,6 @@ TechnicianDashboardEntity _entity({
         addressText: 'DHA Phase 5',
       ),
     ],
-    metrics: const DashboardMetricsEntity(
-      jobsCompletedToday: 2,
-      cashCollectedToday: 3500.00,
-    ),
   );
 }
 
@@ -200,7 +196,6 @@ void main() {
         expect(state.dashboard.isOnline, entity.isOnline);
         expect(state.dashboard.upNextJob, entity.upNextJob);
         expect(state.dashboard.laterTodayJobs, entity.laterTodayJobs);
-        expect(state.dashboard.metrics, entity.metrics);
       },
     );
 

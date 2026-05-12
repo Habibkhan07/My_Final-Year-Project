@@ -5,11 +5,15 @@ from .onboarding.views import (
     OnboardingMetadataView
 )
 from .dashboard.views import TechnicianDashboardView
+from .metrics.views import TechnicianMetricsView
 from .quote_catalog.views import QuotableSubServicesView
 
 urlpatterns = [
     # Dashboard
     path('dashboard/', TechnicianDashboardView.as_view(), name='tech-dashboard'),
+
+    # Metrics — dedicated endpoint for activity + earnings history.
+    path('metrics/', TechnicianMetricsView.as_view(), name='tech-metrics'),
 
     # Wallet — balance read tonight; Thursday adds topups/withdrawals.
     # Mounted as a sub-include so the wallet app owns its URL surface.
