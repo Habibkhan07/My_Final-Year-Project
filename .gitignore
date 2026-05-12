@@ -6,6 +6,10 @@ uiFigmas/
 .claudeignore
 ui hint/
 
+# Python bytecode caches
+__pycache__/
+*.pyc
+
 # Firebase service-account credentials — never commit
 backend/firebase_credintials.json
 backend/firebase_credentials.json
