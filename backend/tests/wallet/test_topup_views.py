@@ -100,7 +100,8 @@ class TestTopupStatus:
         data = response.data
         assert data['topup_id'] == topup.topup_id
         assert data['status'] == TopupStatus.REDIRECTED
-        assert data['amount'] == '500'
+        # DecimalField(decimal_places=2) → str() always renders 2dp.
+        assert data['amount'] == '500.00'
 
     def test_idor_returns_404(self, settings):
         # Tech A's topup, tech B's request → 404 (not 403, to avoid

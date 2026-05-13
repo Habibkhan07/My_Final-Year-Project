@@ -122,21 +122,23 @@ Amount is whole rupees, **Rs.100 ≤ amount ≤ Rs.25,000**.
 ```json
 {
   "topup_id": 42,
-  "redirect_url": "http://localhost:8000/api/technicians/wallet/topups/42/bridge/?t=42:..."
+  "redirect_url": "https://api.example.com/api/technicians/wallet/topups/42/bridge/?t=<signed_token>"
 }
 ```
 
-The Flutter app pushes `redirect_url` into a webview. Do not interpret
-it — open it.
+The `redirect_url` is built from `SITE_URL` + the reversed
+`wallet-topup-bridge` route + a `TimestampSigner`-signed token. The
+Flutter app pushes it into a webview — do not interpret the URL,
+just open it.
 
 **Errors:**
 
 | Status | Code | Notes |
 |---|---|---|
 | 400 | `validation_error` | Amount missing / non-integer / out of range. |
-| 401 | `not_authenticated` | Missing/invalid JWT. |
+| 401 | (DRF default) | Missing/invalid JWT. |
 | 403 | `permission_denied` | User has no technician profile. |
-| 500 | `improperly_configured` | (Production) JazzCash env vars missing. |
+| 503 | `gateway_unavailable` | `DEFAULT_PAYMENT_GATEWAY=jazzcash` but one of the `JAZZCASH_*` env vars is empty. The adapter raises `ImproperlyConfigured` at construct time; the view maps it to 503 + envelope. |
 
 ### `GET /api/technicians/wallet/topups/<id>/`
 
@@ -193,18 +195,27 @@ statuses (replay-safe).
 
 These come from the **JazzCash merchant onboarding pack**. Self-register
 on the JazzCash sandbox merchant portal; the onboarding email lists
-your Merchant ID, Password, Hashkey/Integrity Salt, Sandbox URL, and
-Production URL. Paste into `backend/.env`:
+your Merchant ID, Password, Hashkey/Integrity Salt, **Sandbox URL**,
+and Production URL. Paste into `backend/.env`:
 
 ```ini
-# Switches the wallet to the real adapter. Leave at 'mock' until creds
-# are filled in below.
+# Switches the wallet to the real adapter. Default in core/settings.py
+# is 'mock'; flip to 'jazzcash' once all five JAZZCASH_* creds below
+# are filled in. Keep 'mock' for demo-day fallback (see below).
 DEFAULT_PAYMENT_GATEWAY=jazzcash
 
-JAZZCASH_MERCHANT_ID=MCxxxxx
-JAZZCASH_PASSWORD=xxxxxxxxxx
-JAZZCASH_INTEGRITY_SALT=xxxxxxxxxx
-JAZZCASH_HOSTED_URL=https://sandbox.jazzcash.com.pk/CustomerPortal/transactionmanagement/merchantform/
+# From the onboarding email — use EXACTLY the values JazzCash issued.
+JAZZCASH_MERCHANT_ID=<your_merchant_id>
+JAZZCASH_PASSWORD=<your_password>
+JAZZCASH_INTEGRITY_SALT=<your_hashkey>
+# The "Sandbox URL" the onboarding pack lists for HTTP POST Page
+# Redirection / Hosted Checkout. Do not invent this — copy from the
+# pack. (Sandbox + production URLs differ; production switch is a
+# one-line env change.)
+JAZZCASH_HOSTED_URL=<sandbox_url_from_onboarding_pack>
+# Your own publicly-reachable URL that JazzCash will POST the result
+# to. In local dev this is your ngrok / cloudflared tunnel + the path
+# /api/wallet/gateway/jazzcash/return/.
 JAZZCASH_RETURN_URL=https://<your-ngrok-host>/api/wallet/gateway/jazzcash/return/
 JAZZCASH_TOPUP_TTL_MINUTES=15
 

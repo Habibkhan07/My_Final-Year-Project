@@ -172,7 +172,9 @@ class TestApplyCallbackSuccess:
         settings.DEFAULT_PAYMENT_GATEWAY = 'mock'
         settings.SITE_URL = 'http://testserver'
         tech = TechnicianProfileFactory()
-        starting_balance = tech.current_wallet_balance
+        # Factory default may store balance as float; coerce to Decimal
+        # for arithmetic. The ledger writes correct Decimal values back.
+        starting_balance = Decimal(str(tech.current_wallet_balance))
         topup = self._start(tech, amount=500)
 
         apply_gateway_callback(
@@ -233,7 +235,9 @@ class TestApplyCallbackIdempotency:
         start_result = start_topup(technician=tech, amount_rs=500)
         topup = WalletTopup.objects.get(pk=start_result.topup_id)
 
-        starting_balance = tech.current_wallet_balance
+        # Factory default may store balance as float; coerce to Decimal
+        # for arithmetic. The ledger writes correct Decimal values back.
+        starting_balance = Decimal(str(tech.current_wallet_balance))
 
         apply_gateway_callback(raw_payload={'pp_TxnRefNo': topup.gateway_session_id})
         apply_gateway_callback(raw_payload={'pp_TxnRefNo': topup.gateway_session_id})
@@ -251,7 +255,9 @@ class TestApplyCallbackFailure:
         tech = TechnicianProfileFactory()
         start_result = start_topup(technician=tech, amount_rs=500)
         topup = WalletTopup.objects.get(pk=start_result.topup_id)
-        starting_balance = tech.current_wallet_balance
+        # Factory default may store balance as float; coerce to Decimal
+        # for arithmetic. The ledger writes correct Decimal values back.
+        starting_balance = Decimal(str(tech.current_wallet_balance))
 
         result = apply_gateway_callback(
             raw_payload={

@@ -19,6 +19,7 @@ Thin views per the project convention. Each view:
 """
 from __future__ import annotations
 
+from django.core.exceptions import ImproperlyConfigured
 from django.core.signing import BadSignature, SignatureExpired
 from django.http import HttpResponse
 from django.shortcuts import render
@@ -206,6 +207,19 @@ class TopupCreateView(APIView):
                     },
                 },
                 status=400,
+            )
+        except ImproperlyConfigured as exc:
+            # The bound gateway raised at construct time (missing creds).
+            # Surface as a service-level 503 so the FE can show a "top-up
+            # is temporarily unavailable" rather than a generic 500.
+            return Response(
+                {
+                    'status': 503,
+                    'code': 'gateway_unavailable',
+                    'message': 'Top-up gateway is not configured. Please try again later.',
+                    'errors': {'gateway': [str(exc)]},
+                },
+                status=503,
             )
 
         return Response(
