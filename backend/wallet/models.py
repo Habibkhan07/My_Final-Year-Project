@@ -184,6 +184,12 @@ class WalletTopup(models.Model):
     )
     gateway_session_id = models.CharField(max_length=128, blank=True, default='')
     gateway_redirect_url = models.URLField(blank=True, default='')
+    # Stash of the pp_* form fields the adapter built when initiating the
+    # topup. Lets the bridge view render an auto-submitting form without
+    # recomputing the SecureHash, and gives forensic visibility into the
+    # exact payload we sent to the gateway. Empty/None for the mock adapter
+    # (which has no real form to POST).
+    gateway_request_payload = models.JSONField(null=True, blank=True)
     gateway_callback_payload = models.JSONField(null=True, blank=True)
     initiated_at = models.DateTimeField(auto_now_add=True)
     completed_at = models.DateTimeField(null=True, blank=True)

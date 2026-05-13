@@ -93,14 +93,37 @@ BOOKING_GEOFENCE_STRICT = env.bool('BOOKING_GEOFENCE_STRICT', default=False)
 # for tests that exercise the orchestrator without finance side-effects).
 FINANCE_BACKEND = env('FINANCE_BACKEND', default='wallet')
 
-# Registry of PaymentGatewayPort adapters. Add EasyPaisa / real JazzCash
-# entries here; ``wallet.services.gateway_factory.get_gateway`` does the
-# lazy import. The mock adapter is the dev default — Thursday adds the
-# real 'jazzcash' entry when the JazzCash SDK lands.
+# Registry of PaymentGatewayPort adapters. ``wallet.services.gateway_factory
+# .get_gateway`` does the lazy import. The mock adapter is the dev default;
+# 'jazzcash' is the real Hosted Checkout adapter (sandbox/production).
+# Flip ``DEFAULT_PAYMENT_GATEWAY=jazzcash`` in .env once the JAZZCASH_* env
+# vars below are populated from the merchant onboarding pack.
 PAYMENT_GATEWAYS = {
     'mock': 'wallet.adapters.mock_jazzcash_gateway.MockJazzCashGateway',
+    'jazzcash': 'wallet.adapters.jazzcash_hosted_gateway.JazzCashHostedGateway',
 }
 DEFAULT_PAYMENT_GATEWAY = env('DEFAULT_PAYMENT_GATEWAY', default='mock')
+
+# --- JazzCash Hosted Checkout credentials ----------------------------------
+# These come from the JazzCash merchant onboarding pack (Self-register on the
+# JazzCash sandbox merchant portal → receive Merchant_ID, Password, Hashkey,
+# Sandbox URL, Production URL via email).  All blank defaults so existing
+# dev environments (DEFAULT_PAYMENT_GATEWAY='mock') keep working without
+# JazzCash credentials.  ``JazzCashHostedGateway.__init__`` raises
+# ImproperlyConfigured when any is missing AND the adapter is actually
+# instantiated — fail-loud at first use rather than silent fallback.
+JAZZCASH_MERCHANT_ID = env('JAZZCASH_MERCHANT_ID', default='')
+JAZZCASH_PASSWORD = env('JAZZCASH_PASSWORD', default='')
+JAZZCASH_INTEGRITY_SALT = env('JAZZCASH_INTEGRITY_SALT', default='')
+JAZZCASH_HOSTED_URL = env('JAZZCASH_HOSTED_URL', default='')
+JAZZCASH_RETURN_URL = env('JAZZCASH_RETURN_URL', default='')
+JAZZCASH_TOPUP_TTL_MINUTES = env.int('JAZZCASH_TOPUP_TTL_MINUTES', default=15)
+
+# Public origin of this Django app — used to build the bridge URL the
+# Flutter webview loads (which then auto-submits the JazzCash form). For
+# local sandbox dev set this to the ngrok / Cloudflare-tunnel hostname
+# (the same one JAZZCASH_RETURN_URL is built on).
+SITE_URL = env('SITE_URL', default='http://localhost:8000')
 
 
 # Application definition

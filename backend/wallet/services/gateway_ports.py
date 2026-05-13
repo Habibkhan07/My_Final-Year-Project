@@ -34,9 +34,19 @@ class TopupSession:
     back to this attempt. The gateway-side identifier (``gateway_session_id``)
     is opaque — the wallet service does not interpret it; it only uses it
     as a lookup key when a webhook arrives.
+
+    ``request_payload`` is an OPTIONAL dict of HTTP form fields the gateway
+    expects the merchant's browser to POST to it (e.g. JazzCash's
+    ``pp_*`` parameter set plus ``pp_SecureHash``). Adapters whose flow is
+    a plain GET redirect leave it as ``None``; adapters whose flow is an
+    HTTP POST page redirection populate it. The wallet service stashes it
+    onto ``WalletTopup.gateway_request_payload`` so the bridge view can
+    render an auto-submitting HTML form server-side, keeping merchant
+    credentials and the SecureHash out of the app's network traffic.
     """
     gateway_session_id: str
     redirect_url: str
+    request_payload: dict[str, str] | None = None
 
 
 @dataclass(frozen=True)
