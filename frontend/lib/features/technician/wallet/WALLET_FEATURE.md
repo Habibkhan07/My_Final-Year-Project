@@ -20,14 +20,32 @@ Thursday wires the actual top-up and withdrawal flows behind the same buttons.
 
 ```dart
 abstract class WalletRepository {
-  Future<WalletState> getBalance();  // throws WalletFailure subclass
+  Future<WalletState> getBalance();                                    // throws WalletFailure subclass
+  Future<WalletTransactionPage> listTransactions({String? cursor});   // throws WalletFailure subclass
 }
 ```
 
-Backed by `GET /api/technicians/wallet/`. Response shape:
-```json
-{ "balance": "1500.00", "as_of": "2026-05-13T22:30:00Z" }
-```
+Backed by:
+- `GET /api/technicians/wallet/` — balance snapshot:
+  ```json
+  { "balance": "1500.00", "as_of": "2026-05-13T22:30:00Z" }
+  ```
+- `GET /api/technicians/wallet/transactions/?cursor=…&page_size=…` — cursor-paginated ledger:
+  ```json
+  {
+    "next_cursor": "MjAyNi0wNS0xM1QxMjowMHwxMjM=" | null,
+    "results": [
+      {
+        "id": 42, "type": "COMMISSION_DEBIT",
+        "amount": "-200.00", "balance_after": "800.00",
+        "timestamp": "2026-05-13T12:00:00Z", "memo": "",
+        "ui_icon": "commission", "ui_title": "Platform commission",
+        "ui_subtitle": "Booking #128", "ui_amount_color": "debit"
+      }
+    ]
+  }
+  ```
+  Five `type` values: `COMMISSION_DEBIT`, `TOPUP_CREDIT`, `WITHDRAWAL_DEBIT`, `REFUND_DEBIT`, `ADJUSTMENT`. Cash exchanges deliberately NOT included (wallet-vs-metrics separation rule). `ui_*` fields are shaped server-side so the Flutter row widget never branches on `type`.
 
 ## Realtime — `WALLET_BALANCE_UPDATED`
 
@@ -45,7 +63,7 @@ Two FE notifiers consume it:
 
 Both patch in-place (no AsyncLoading flash). Pipeline-level dedup at `SystemEventNotifier`.
 
-## Notifier — `WalletNotifier`
+## Notifiers
 
 ```dart
 @riverpod  // keepAlive: false — wallet screen is a leaf route, not a tab
@@ -54,14 +72,25 @@ class WalletNotifier extends _$WalletNotifier {
   Future<void> refresh();         // pull-to-refresh, AsyncValue.guard
   void onBalanceEvent(double);    // realtime patch
 }
+
+@riverpod  // keepAlive: false — same dispose lifecycle
+class WalletTransactionsNotifier extends _$WalletTransactionsNotifier {
+  Future<WalletTransactionsState> build();   // first-page fetch
+  Future<void> refresh();                    // pull-to-refresh
+  Future<void> loadMore();                   // appends next page; re-entry-safe
+}
 ```
+
+`WalletTransactionsState = (page, isLoadingMore)`. `loadMore` no-ops when the cursor is null or already loading; on error it surfaces the failure but keeps existing rows visible so the user can retry.
 
 ## UI
 
-- **WalletScreen**: AppBar "Wallet" + RefreshIndicator scroll + balance card + 2 CTA buttons.
+- **WalletScreen**: AppBar "Wallet" + combined pull-to-refresh (refreshes both balance + history together) → balance card → Top up → Withdraw → **Recent activity** section.
 - **BalanceCard**: gradient hero (primaryContainer → primary), big "Rs. 1,500".
-- **TopUpButton**: ElevatedButton; tonight shows snackbar "JazzCash top-up is launching Thursday".
-- **WithdrawButton**: OutlinedButton; tonight shows snackbar "Withdrawal requests open Thursday".
+- **TopUpButton**: ElevatedButton; currently shows snackbar "JazzCash top-up is launching Thursday".
+- **WithdrawButton**: OutlinedButton; currently shows snackbar "Withdrawal requests open Thursday".
+- **TransactionsSection**: header "Recent activity" → list of `TransactionRow`s OR "No wallet activity yet" empty-state pill OR 5-row skeleton OR inline error+retry. Pagination kicks off when the section is mounted with `hasMore` true (post-frame trigger); a later commit will move to SliverList for proper on-scroll loading.
+- **TransactionRow**: Dumb-UI — leading 40px tinted circle (icon from `ui_icon`, tint from `ui_amount_color`), title (`ui_title`), subtitle (`ui_subtitle` + relative timestamp like "2h ago"), trailing signed `Rs. X` (green for credits, neutral for debits).
 
 ## Routing
 

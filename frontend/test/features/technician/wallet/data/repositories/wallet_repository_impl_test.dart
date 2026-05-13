@@ -6,6 +6,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:frontend/core/common/errors/http_failure.dart';
 import 'package:frontend/features/technician/wallet/data/data_sources/wallet_remote_data_source.dart';
 import 'package:frontend/features/technician/wallet/data/models/wallet_balance_model.dart';
+import 'package:frontend/features/technician/wallet/data/models/wallet_transaction_model.dart';
 import 'package:frontend/features/technician/wallet/data/repositories/wallet_repository_impl.dart';
 import 'package:frontend/features/technician/wallet/domain/failures/wallet_failure.dart';
 
@@ -74,5 +75,69 @@ void main() {
         .thenThrow(const FormatException('bad json'));
 
     await expectLater(repo.getBalance(), throwsA(isA<WalletServerFailure>()));
+  });
+
+  group('listTransactions', () {
+    const emptyPage = WalletTransactionPageModel(
+      results: [],
+      nextCursor: null,
+    );
+
+    test('happy path → WalletTransactionPage entity', () async {
+      when(() => mockRemote.listTransactions(cursor: null))
+          .thenAnswer((_) async => emptyPage);
+
+      final page = await repo.listTransactions();
+
+      expect(page.results, isEmpty);
+      expect(page.nextCursor, isNull);
+    });
+
+    test('passes through the cursor', () async {
+      when(() => mockRemote.listTransactions(cursor: 'C1'))
+          .thenAnswer((_) async => emptyPage);
+
+      await repo.listTransactions(cursor: 'C1');
+
+      verify(() => mockRemote.listTransactions(cursor: 'C1')).called(1);
+    });
+
+    test('HttpFailure 401 → WalletPermissionFailure', () async {
+      when(() => mockRemote.listTransactions(cursor: any(named: 'cursor')))
+          .thenThrow(
+        const HttpFailure(statusCode: 401, code: 'permission_denied', message: 'No'),
+      );
+
+      await expectLater(
+        repo.listTransactions(),
+        throwsA(isA<WalletPermissionFailure>()),
+      );
+    });
+
+    test('HttpFailure 400 (bad cursor) → WalletServerFailure', () async {
+      when(() => mockRemote.listTransactions(cursor: any(named: 'cursor')))
+          .thenThrow(
+        const HttpFailure(
+          statusCode: 400,
+          code: 'validation_error',
+          message: 'Invalid cursor.',
+        ),
+      );
+
+      await expectLater(
+        repo.listTransactions(cursor: 'bad'),
+        throwsA(isA<WalletServerFailure>()),
+      );
+    });
+
+    test('SocketException → WalletNetworkFailure', () async {
+      when(() => mockRemote.listTransactions(cursor: any(named: 'cursor')))
+          .thenThrow(const SocketException('offline'));
+
+      await expectLater(
+        repo.listTransactions(),
+        throwsA(isA<WalletNetworkFailure>()),
+      );
+    });
   });
 }

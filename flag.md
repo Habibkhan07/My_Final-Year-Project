@@ -1406,3 +1406,37 @@ Scoping discipline. Tonight is the wallet sprint, not the dispute sprint. Confla
 **Severity**
 P1 for chatbot day (thesis demonstrates the full dispute → refund flow). P3 for tonight (deferred deliberately; no code references the missing tables).
 
+---
+
+## 39. ~~Wallet transaction history — list view deferred~~ ✅ Resolved (2026-05-13)
+
+**What changed**
+Shipped end-to-end:
+- Backend: `wallet/selectors/wallet_selectors.py::list_transactions(technician, *, cursor, page_size)` with cursor pagination (base64 of `<timestamp>|<id>`) + Dumb-UI shaping (`ui_icon`, `ui_title`, `ui_subtitle`, `ui_amount_color`) so the Flutter row widget never branches on `transaction_type`. `GET /api/technicians/wallet/transactions/?cursor=…&page_size=…` thin view; 400 envelope on bad cursor / page_size.
+- Frontend: `WalletTransactionEntity` + `WalletTransactionPage` domain + cursor-aware datasource + offline-aware repository + `walletTransactionsProvider` (loadMore/refresh) + `TransactionRow` + `TransactionsSection` (skeleton / "No wallet activity yet" pill / inline error). Wired under the existing balance/topup/withdraw card on `WalletScreen` with combined pull-to-refresh.
+- Tests: 12 BE (selector + view; ordering, pagination round-trip, IDOR, Dumb-UI shaping per type, 1-query budget, 400 envelope), 22 FE (datasource, repository failure mapping, notifier loadMore/refresh, widget skeleton/empty/data).
+
+Scope intentionally kept off the wallet list: customer→tech cash transactions remain on Metrics (wallet-vs-metrics separation rule). Cursor over page-number was chosen because the ledger is append-only and offset pagination drifts under concurrent writes.
+
+**Original entry (kept for audit)**
+
+**Where**
+- `backend/wallet/` — `WalletTransaction` rows are written by `ledger.record_transaction` on every commission debit, top-up credit, withdrawal debit, and refund deduction, but no list endpoint or selector exposes them yet.
+- `frontend/lib/features/technician/wallet/presentation/screens/wallet_screen.dart` — currently shows balance card + Top up + Withdraw CTAs only. No transaction list under the balance.
+
+**What's wrong**
+Per the wallet-vs-metrics separation rule, the wallet screen is the canonical home for platform-settlement transactions (commission/topup/withdraw/refund debit). The Metrics tab was previously leaking `commission_deducted_today` as a stat — that has been removed (architectural correction shipped with the bar-chart rework). But the proper destination for that data — a paginated transaction list under the Wallet balance card — has not landed yet, so right now the tech has no in-app way to audit their commission deductions.
+
+**Why we shipped it that way**
+Scope discipline. The bar-chart rework was already a backend + frontend + new dependency commit; bundling the wallet history list in would have made review harder. Both halves of the fix don't need to land atomically because the metrics endpoint stopped emitting `commission_deducted_today`, so there's no leaking transitional state.
+
+**The proper fix**
+1. Backend: `wallet/selectors/wallet_selectors.py::list_transactions(technician, *, page, page_size)` returning paginated `WalletTransaction` rows with `transaction_type`, `amount`, `timestamp`, `memo`, `balance_after`. Mandatory `select_related` on FK joins.
+2. Backend: `GET /api/technicians/wallet/transactions/?page=&page_size=` thin view.
+3. Frontend: extend `wallet/` feature with `WalletTransactionEntity`, model, repository method, family-keyed-by-page notifier, and a `TransactionList` widget that lives under `BalanceCard` on `WalletScreen`. Empty-state copy for new techs. Each row shows: icon (color-coded per `transaction_type`), short label ('Commission', 'Top up', 'Withdrawal', 'Refund deduction'), short date ('Today, 14:32' / 'Yesterday' / 'May 13'), amount (signed, color-coded).
+4. Pagination: infinite-scroll trigger when the bottom row is within ~3 of the end.
+5. Tests: backend selector + view (paginated, ordered by `-timestamp`); frontend data layer + notifier + screen widget (empty / loading / data / load-more).
+
+**Severity**
+P2. Demo-defensible without it (Django Admin shows the full ledger for forensic audit during viva). But the tech-facing audit story is incomplete until the in-app list ships.
+

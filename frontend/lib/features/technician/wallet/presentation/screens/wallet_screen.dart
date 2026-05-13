@@ -4,19 +4,23 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../domain/failures/wallet_failure.dart';
 import '../notifiers/wallet_notifier.dart';
+import '../notifiers/wallet_transactions_notifier.dart';
 import '../widgets/balance_card.dart';
 import '../widgets/top_up_button.dart';
+import '../widgets/transactions_section.dart';
 import '../widgets/withdraw_button.dart';
 
 /// Tech-only Wallet screen. Layout (Foodpanda-style, brand-blue):
 ///   AppBar    — "Wallet" + back
-///   Body      — balance card (hero) → Top up → Withdraw
-///   Refresh   — pull-to-refresh on the scroll surface
+///   Body      — balance card (hero) → Top up → Withdraw → Recent activity
+///   Refresh   — pull-to-refresh on the scroll surface (refreshes BOTH
+///               balance and transaction history together)
 ///
-/// The transaction ledger is intentionally NOT listed here. Per the
-/// wallet-vs-metrics-separation rule: this surface is payment rails
-/// (balance + top-up + withdraw); the dashboard's metrics row owns
-/// cash-earnings visibility. Forensic ledger access is via Django Admin.
+/// The transaction list shows only wallet-side rows (commission /
+/// topup / withdrawal / refund / adjustment). Cash exchanges
+/// (customer→tech) deliberately live on the Metrics screen instead —
+/// the wallet is the platform-money ledger, not a cash earnings view.
+/// See the wallet-vs-metrics-separation rule.
 class WalletScreen extends ConsumerWidget {
   const WalletScreen({super.key});
 
@@ -33,11 +37,18 @@ class WalletScreen extends ConsumerWidget {
         elevation: 0,
       ),
       body: RefreshIndicator(
-        onRefresh: () => ref.read(walletProvider.notifier).refresh(),
+        onRefresh: () async {
+          await Future.wait<void>([
+            ref.read(walletProvider.notifier).refresh(),
+            ref.read(walletTransactionsProvider.notifier).refresh(),
+          ]);
+        },
         child: walletAsync.when(
           loading: () => const _LoadingView(),
           error: (err, _) => _ErrorView(
-            error: err is WalletFailure ? err : const WalletServerFailure('Unexpected error'),
+            error: err is WalletFailure
+                ? err
+                : const WalletServerFailure('Unexpected error'),
             onRetry: () => ref.read(walletProvider.notifier).refresh(),
           ),
           data: (wallet) => SingleChildScrollView(
@@ -51,6 +62,7 @@ class WalletScreen extends ConsumerWidget {
                 const TopUpButton(),
                 const SizedBox(height: 12),
                 const WithdrawButton(),
+                const TransactionsSection(),
               ],
             ),
           ),

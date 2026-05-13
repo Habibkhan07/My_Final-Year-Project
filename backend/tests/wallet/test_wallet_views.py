@@ -1,13 +1,21 @@
-"""Tests for ``GET /api/technicians/wallet/``."""
+"""Tests for ``GET /api/technicians/wallet/`` + ``/transactions/``."""
 from __future__ import annotations
 
+from datetime import timedelta
 from decimal import Decimal
 
 import pytest
+from django.utils import timezone
 from rest_framework.test import APIClient
 
 from tests.factories.accounts import UserFactory
+from tests.factories.bookings import JobBookingCompletedFactory
 from tests.factories.technicians import TechnicianProfileFactory
+from tests.factories.wallet import (
+    JobCommissionFactory,
+    WalletTransactionFactory,
+)
+from wallet.models import TransactionType
 
 
 @pytest.mark.django_db
@@ -60,3 +68,106 @@ class TestWalletBalanceView:
 
         resp = client.get(self.URL)
         assert isinstance(resp.json()['balance'], str)
+
+
+def _make_commission_row(tech, *, when):
+    booking = JobBookingCompletedFactory(technician=tech)
+    txn = WalletTransactionFactory(
+        technician=tech,
+        amount=Decimal('-200.00'),
+        transaction_type=TransactionType.COMMISSION_DEBIT,
+        balance_after=Decimal('800.00'),
+    )
+    JobCommissionFactory(wallet_transaction=txn, booking=booking)
+    type(txn).objects.filter(pk=txn.pk).update(timestamp=when)
+    txn.refresh_from_db(fields=['timestamp'])
+    return txn
+
+
+@pytest.mark.django_db
+class TestWalletTransactionListView:
+    URL = '/api/technicians/wallet/transactions/'
+
+    def test_unauthenticated_returns_401(self):
+        client = APIClient()
+        resp = client.get(self.URL)
+        assert resp.status_code == 401
+
+    def test_non_technician_user_returns_403(self):
+        customer = UserFactory()
+        client = APIClient()
+        client.force_authenticate(user=customer)
+
+        resp = client.get(self.URL)
+        assert resp.status_code == 403
+        assert resp.json()['code'] == 'permission_denied'
+
+    def test_returns_paginated_results_envelope(self):
+        tech = TechnicianProfileFactory()
+        _make_commission_row(tech, when=timezone.now())
+        client = APIClient()
+        client.force_authenticate(user=tech.user)
+
+        resp = client.get(self.URL)
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert 'results' in body
+        assert 'next_cursor' in body
+        assert len(body['results']) == 1
+        row = body['results'][0]
+        assert row['ui_icon'] == 'commission'
+        assert row['ui_title'] == 'Platform commission'
+        assert row['ui_amount_color'] == 'debit'
+
+    def test_cursor_round_trip_via_http(self):
+        tech = TechnicianProfileFactory()
+        now = timezone.now()
+        rows = [
+            _make_commission_row(tech, when=now - timedelta(minutes=offset))
+            for offset in range(3)
+        ]
+        client = APIClient()
+        client.force_authenticate(user=tech.user)
+
+        resp1 = client.get(self.URL, {'page_size': 2})
+        assert resp1.status_code == 200
+        body1 = resp1.json()
+        assert [r['id'] for r in body1['results']] == [rows[0].id, rows[1].id]
+        assert body1['next_cursor'] is not None
+
+        resp2 = client.get(self.URL, {'page_size': 2, 'cursor': body1['next_cursor']})
+        body2 = resp2.json()
+        assert [r['id'] for r in body2['results']] == [rows[2].id]
+        assert body2['next_cursor'] is None
+
+    def test_bad_cursor_returns_400_validation_error(self):
+        tech = TechnicianProfileFactory()
+        client = APIClient()
+        client.force_authenticate(user=tech.user)
+
+        resp = client.get(self.URL, {'cursor': '!!!not-base64!!!'})
+        assert resp.status_code == 400
+        body = resp.json()
+        assert body['code'] == 'validation_error'
+        assert 'cursor' in body['errors']
+
+    def test_bad_page_size_returns_400(self):
+        tech = TechnicianProfileFactory()
+        client = APIClient()
+        client.force_authenticate(user=tech.user)
+
+        resp = client.get(self.URL, {'page_size': 'abc'})
+        assert resp.status_code == 400
+        assert resp.json()['code'] == 'validation_error'
+
+    def test_cannot_see_another_techs_rows(self):
+        me = TechnicianProfileFactory()
+        other = TechnicianProfileFactory()
+        _make_commission_row(other, when=timezone.now())
+        client = APIClient()
+        client.force_authenticate(user=me.user)
+
+        resp = client.get(self.URL)
+        assert resp.status_code == 200
+        assert resp.json()['results'] == []

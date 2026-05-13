@@ -6,9 +6,15 @@ import '../../../../../core/common/errors/http_failure.dart';
 import '../../../../../core/constants.dart';
 import '../../../../auth/data/data_sources/auth_local_data_source.dart';
 import '../models/wallet_balance_model.dart';
+import '../models/wallet_transaction_model.dart';
 
 abstract class IWalletRemoteDataSource {
   Future<WalletBalanceModel> getBalance();
+
+  /// GET ``/wallet/transactions/?cursor=...`` — cursor-paginated ledger
+  /// list, newest-first. ``cursor`` is the opaque token from the
+  /// previous page's ``next_cursor`` field, or null for the first page.
+  Future<WalletTransactionPageModel> listTransactions({String? cursor});
 }
 
 class WalletRemoteDataSource implements IWalletRemoteDataSource {
@@ -37,6 +43,28 @@ class WalletRemoteDataSource implements IWalletRemoteDataSource {
     _handleResponse(response);
     final data = jsonDecode(response.body) as Map<String, dynamic>;
     return WalletBalanceModel.fromJson(data);
+  }
+
+  @override
+  Future<WalletTransactionPageModel> listTransactions({String? cursor}) async {
+    final token = await authLocalDataSource.getToken();
+    final uri = Uri.parse('$baseUrl/wallet/transactions/').replace(
+      queryParameters: {
+        if (cursor != null && cursor.isNotEmpty) 'cursor': cursor,
+      },
+    );
+
+    final response = await client.get(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Token $token',
+      },
+    );
+
+    _handleResponse(response);
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    return WalletTransactionPageModel.fromJson(data);
   }
 
   void _handleResponse(http.Response response) {
