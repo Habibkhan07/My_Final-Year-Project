@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:shimmer/shimmer.dart';
 
 import '../../../../../core/theme/app_colors.dart';
@@ -9,16 +10,9 @@ import '../../domain/failures/technician_dashboard_failure.dart';
 import '../notifiers/technician_dashboard_notifier.dart';
 import '../providers/current_position_provider.dart';
 import '../state/technician_dashboard_state.dart';
-import '../../../metrics/presentation/notifiers/metrics_notifier.dart';
-import '../../../metrics/presentation/widgets/dashboard_metrics_row.dart';
 import '../widgets/dashboard_header.dart';
 import '../widgets/later_today_list.dart';
 import '../widgets/up_next_job_card.dart';
-
-/// Bottom inset reserved for the floating Daily Ledger card so the last
-/// list row never sits underneath it. Equals ledger height (~76) + breathing
-/// room (~16).
-const double _ledgerScrollPadding = 96;
 
 class TechnicianDashboardScreen extends ConsumerWidget {
   const TechnicianDashboardScreen({super.key});
@@ -70,7 +64,7 @@ class TechnicianDashboardScreen extends ConsumerWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Loaded layout — scroll content + floating Daily Ledger
+// Loaded layout — scroll content (header + up next + later today)
 // ---------------------------------------------------------------------------
 
 class _DashboardLayout extends ConsumerWidget {
@@ -88,60 +82,42 @@ class _DashboardLayout extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final dashboard = state.dashboard;
-    final metricsAsync = ref.watch(metricsProvider);
 
-    return Stack(
-      children: [
-        RefreshIndicator(
-          onRefresh: () => _onRefresh(ref),
-          color: AppColors.primaryContainer,
-          child: CustomScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            slivers: [
-              SliverToBoxAdapter(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    DashboardHeader(
-                      dashboard: dashboard,
-                      isToggleLoading: state.toggleStatus.isLoading,
-                      onToggle: notifier.setOnline,
-                    ),
-                    const SizedBox(height: AppSpacing.s4),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.screenPadding,
-                      ),
-                      child: UpNextJobCard(job: dashboard.upNextJob),
-                    ),
-                    const SizedBox(height: AppSpacing.s4),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.screenPadding,
-                      ),
-                      child: LaterTodayList(jobs: dashboard.laterTodayJobs),
-                    ),
-                    const SizedBox(height: _ledgerScrollPadding),
-                  ],
+    return RefreshIndicator(
+      onRefresh: () => _onRefresh(ref),
+      color: AppColors.primaryContainer,
+      child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
+          SliverToBoxAdapter(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                DashboardHeader(
+                  dashboard: dashboard,
+                  isToggleLoading: state.toggleStatus.isLoading,
+                  onToggle: notifier.setOnline,
                 ),
-              ),
-            ],
-          ),
-        ),
-        Positioned(
-          left: 16,
-          right: 16,
-          bottom: 16,
-          child: metricsAsync.when(
-            loading: () => const SizedBox(
-              height: 76,
-              child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                const SizedBox(height: AppSpacing.s4),
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.screenPadding,
+                  ),
+                  child: UpNextJobCard(job: dashboard.upNextJob),
+                ),
+                const SizedBox(height: AppSpacing.s4),
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.screenPadding,
+                  ),
+                  child: LaterTodayList(jobs: dashboard.laterTodayJobs),
+                ),
+                const SizedBox(height: AppSpacing.s4),
+              ],
             ),
-            error: (err, st) => const SizedBox.shrink(),
-            data: (metrics) => DashboardMetricsRow(metrics: metrics),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -158,53 +134,43 @@ class _DashboardSkeleton extends StatelessWidget {
     return Shimmer.fromColors(
       baseColor: AppColors.surfaceContainerHigh,
       highlightColor: AppColors.surfaceContainerLow,
-      child: Stack(
-        children: [
-          SafeArea(
-            child: SingleChildScrollView(
-              physics: const NeverScrollableScrollPhysics(),
-              child: Padding(
-                padding: const EdgeInsets.all(AppSpacing.screenPadding),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+      child: SafeArea(
+        child: SingleChildScrollView(
+          physics: const NeverScrollableScrollPhysics(),
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.screenPadding),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   children: [
-                    Row(
-                      children: [
-                        const _ShimmerBox(height: 40, width: 40, radius: 20),
-                        const SizedBox(width: 12),
-                        Expanded(child: _ShimmerBox(height: 16, radius: 4)),
-                        const SizedBox(width: 8),
-                        const _ShimmerBox(
-                          height: 26,
-                          width: 70,
-                          radius: AppShapes.radiusFull,
-                        ),
-                        const SizedBox(width: 8),
-                        const _ShimmerBox(
-                          height: 26,
-                          width: 90,
-                          radius: AppShapes.radiusFull,
-                        ),
-                      ],
+                    const _ShimmerBox(height: 40, width: 40, radius: 20),
+                    const SizedBox(width: 12),
+                    Expanded(child: _ShimmerBox(height: 16, radius: 4)),
+                    const SizedBox(width: 8),
+                    const _ShimmerBox(
+                      height: 26,
+                      width: 70,
+                      radius: AppShapes.radiusFull,
                     ),
-                    const SizedBox(height: AppSpacing.s4),
-                    _ShimmerBox(height: 380, radius: AppShapes.radiusMD),
-                    const SizedBox(height: AppSpacing.s4),
-                    _ShimmerBox(height: 16, width: 100, radius: 4),
-                    const SizedBox(height: AppSpacing.s2),
-                    _ShimmerBox(height: 80, radius: AppShapes.radiusMD),
+                    const SizedBox(width: 8),
+                    const _ShimmerBox(
+                      height: 26,
+                      width: 90,
+                      radius: AppShapes.radiusFull,
+                    ),
                   ],
                 ),
-              ),
+                const SizedBox(height: AppSpacing.s4),
+                _ShimmerBox(height: 380, radius: AppShapes.radiusMD),
+                const SizedBox(height: AppSpacing.s4),
+                _ShimmerBox(height: 16, width: 100, radius: 4),
+                const SizedBox(height: AppSpacing.s2),
+                _ShimmerBox(height: 80, radius: AppShapes.radiusMD),
+              ],
             ),
           ),
-          Positioned(
-            left: 16,
-            right: 16,
-            bottom: 16,
-            child: _ShimmerBox(height: 76, radius: AppShapes.radiusMD),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -314,6 +280,11 @@ class _DashboardNavBar extends StatelessWidget {
         fontSize: 12,
         fontWeight: FontWeight.w500,
       ),
+      // Only the Metrics tab is wired this commit. Jobs/Schedule/Profile
+      // remain unwired — separate work item.
+      onTap: (index) {
+        if (index == 2) context.push('/technician/metrics');
+      },
       items: const [
         BottomNavigationBarItem(
           icon: Icon(Icons.handyman_outlined),

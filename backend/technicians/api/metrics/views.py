@@ -3,7 +3,11 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from technicians.models import TechnicianProfile
-from technicians.selectors.metrics_selector import get_technician_metrics
+from technicians.selectors.metrics_selector import (
+    PERIOD_WEEK,
+    VALID_PERIODS,
+    get_technician_metrics,
+)
 
 
 class TechnicianMetricsView(APIView):
@@ -25,4 +29,16 @@ class TechnicianMetricsView(APIView):
                 status=403,
             )
 
-        return Response(get_technician_metrics(technician))
+        period = request.query_params.get('period', PERIOD_WEEK)
+        if period not in VALID_PERIODS:
+            return Response(
+                {
+                    'status': 400,
+                    'code': 'validation_error',
+                    'message': f"Invalid period. Must be one of: {', '.join(VALID_PERIODS)}.",
+                    'errors': {'period': [f"'{period}' is not a valid period."]},
+                },
+                status=400,
+            )
+
+        return Response(get_technician_metrics(technician, period=period))

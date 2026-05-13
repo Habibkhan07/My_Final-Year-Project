@@ -12,9 +12,9 @@ class MetricsRepositoryImpl implements MetricsRepository {
   MetricsRepositoryImpl({required this.remoteDataSource});
 
   @override
-  Future<TechnicianMetricsEntity> getMetrics() async {
+  Future<TechnicianMetricsEntity> getMetrics(MetricsPeriod period) async {
     try {
-      final model = await remoteDataSource.getMetrics();
+      final model = await remoteDataSource.getMetrics(period);
       return model.toEntity();
     } on HttpFailure catch (e) {
       if (e.statusCode == 401 || e.statusCode == 403) {

@@ -3,5 +3,5 @@ import '../failures/metrics_failure.dart';
 
 /// Throws [MetricsFailure] subtypes on error — never raw exceptions.
 abstract interface class MetricsRepository {
-  Future<TechnicianMetricsEntity> getMetrics();
+  Future<TechnicianMetricsEntity> getMetrics(MetricsPeriod period);
 }

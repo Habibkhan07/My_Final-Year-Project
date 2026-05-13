@@ -17,6 +17,7 @@ import '../../features/technician/onboarding/domain/entities/technician_entity.d
 import '../../features/booking/presentation/screens/technician_profile_screen.dart';
 import '../../features/customer/addresses/presentation/screens/map_picker_screen.dart';
 import '../../features/technician/dashboard/presentation/screens/technician_dashboard_screen.dart';
+import '../../features/technician/metrics/presentation/screens/metrics_screen.dart';
 import '../../features/technician/wallet/presentation/screens/wallet_screen.dart';
 import '../realtime/presentation/providers/dependency_injection.dart';
 
@@ -174,6 +175,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/wallet',
         builder: (context, state) => const WalletScreen(),
+      ),
+      // Tech-only Metrics screen. Reached from the bottom-nav "Metrics" tab.
+      GoRoute(
+        path: '/technician/metrics',
+        builder: (context, state) => const MetricsScreen(),
       ),
       GoRoute(
         path: '/technician-profile/:id',

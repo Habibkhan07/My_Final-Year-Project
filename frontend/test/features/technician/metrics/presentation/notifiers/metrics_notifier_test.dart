@@ -10,18 +10,18 @@ import 'package:frontend/features/technician/metrics/presentation/providers/depe
 class _MockRepo extends Mock implements MetricsRepository {}
 
 TechnicianMetricsEntity _entity({
-  int jobsToday = 2,
-  double cashToday = 3500.0,
-  double commissionToday = 700.0,
-  int jobsWeek = 8,
-  double cashWeek = 15000.0,
+  MetricsPeriod period = MetricsPeriod.week,
+  int totalJobs = 8,
+  double totalCash = 15000.0,
 }) =>
     TechnicianMetricsEntity(
-      jobsCompletedToday: jobsToday,
-      cashCollectedToday: cashToday,
-      commissionDeductedToday: commissionToday,
-      jobsCompletedThisWeek: jobsWeek,
-      cashCollectedThisWeek: cashWeek,
+      period: period,
+      totalJobs: totalJobs,
+      totalCash: totalCash,
+      buckets: const [
+        MetricsBucket(label: 'Mon', jobs: 2, cash: 4500.0),
+        MetricsBucket(label: 'Tue', jobs: 1, cash: 2000.0),
+      ],
     );
 
 void main() {
@@ -37,29 +37,56 @@ void main() {
 
   tearDown(() => container.dispose());
 
-  group('build()', () {
-    test('loads metrics via the repository', () async {
-      final entity = _entity();
-      when(() => repo.getMetrics()).thenAnswer((_) async => entity);
+  group('build(period)', () {
+    test('loads metrics via the repository for the requested period', () async {
+      when(() => repo.getMetrics(MetricsPeriod.week))
+          .thenAnswer((_) async => _entity());
 
-      final result = await container.read(metricsProvider.future);
+      final result =
+          await container.read(metricsProvider(MetricsPeriod.week).future);
 
-      expect(result.jobsCompletedToday, 2);
-      expect(result.commissionDeductedToday, 700.0);
-      verify(() => repo.getMetrics()).called(1);
+      expect(result.period, MetricsPeriod.week);
+      expect(result.totalJobs, 8);
+      verify(() => repo.getMetrics(MetricsPeriod.week)).called(1);
+    });
+
+    test('each period family entry is cached independently', () async {
+      when(() => repo.getMetrics(MetricsPeriod.week)).thenAnswer(
+        (_) async => _entity(period: MetricsPeriod.week, totalJobs: 8),
+      );
+      when(() => repo.getMetrics(MetricsPeriod.month)).thenAnswer(
+        (_) async => _entity(period: MetricsPeriod.month, totalJobs: 42),
+      );
+
+      final weekResult =
+          await container.read(metricsProvider(MetricsPeriod.week).future);
+      final monthResult =
+          await container.read(metricsProvider(MetricsPeriod.month).future);
+
+      expect(weekResult.totalJobs, 8);
+      expect(monthResult.totalJobs, 42);
+      verify(() => repo.getMetrics(MetricsPeriod.week)).called(1);
+      verify(() => repo.getMetrics(MetricsPeriod.month)).called(1);
     });
   });
 
   group('refresh()', () {
-    test('re-fetches and updates state', () async {
-      when(() => repo.getMetrics()).thenAnswer((_) async => _entity(jobsToday: 1));
-      await container.read(metricsProvider.future);
+    test('re-fetches and updates state for the selected period', () async {
+      when(() => repo.getMetrics(MetricsPeriod.week))
+          .thenAnswer((_) async => _entity(totalJobs: 1));
+      await container.read(metricsProvider(MetricsPeriod.week).future);
 
-      when(() => repo.getMetrics()).thenAnswer((_) async => _entity(jobsToday: 5));
-      await container.read(metricsProvider.notifier).refresh();
+      when(() => repo.getMetrics(MetricsPeriod.week))
+          .thenAnswer((_) async => _entity(totalJobs: 5));
+      await container
+          .read(metricsProvider(MetricsPeriod.week).notifier)
+          .refresh();
 
-      expect(container.read(metricsProvider).requireValue.jobsCompletedToday, 5);
-      verify(() => repo.getMetrics()).called(2);
+      expect(
+        container.read(metricsProvider(MetricsPeriod.week)).requireValue.totalJobs,
+        5,
+      );
+      verify(() => repo.getMetrics(MetricsPeriod.week)).called(2);
     });
   });
 }

@@ -12,9 +12,272 @@ part of 'technician_metrics_entity.dart';
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
+mixin _$MetricsBucket {
+
+ String get label; int get jobs; double get cash;
+/// Create a copy of MetricsBucket
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$MetricsBucketCopyWith<MetricsBucket> get copyWith => _$MetricsBucketCopyWithImpl<MetricsBucket>(this as MetricsBucket, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is MetricsBucket&&(identical(other.label, label) || other.label == label)&&(identical(other.jobs, jobs) || other.jobs == jobs)&&(identical(other.cash, cash) || other.cash == cash));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,label,jobs,cash);
+
+@override
+String toString() {
+  return 'MetricsBucket(label: $label, jobs: $jobs, cash: $cash)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $MetricsBucketCopyWith<$Res>  {
+  factory $MetricsBucketCopyWith(MetricsBucket value, $Res Function(MetricsBucket) _then) = _$MetricsBucketCopyWithImpl;
+@useResult
+$Res call({
+ String label, int jobs, double cash
+});
+
+
+
+
+}
+/// @nodoc
+class _$MetricsBucketCopyWithImpl<$Res>
+    implements $MetricsBucketCopyWith<$Res> {
+  _$MetricsBucketCopyWithImpl(this._self, this._then);
+
+  final MetricsBucket _self;
+  final $Res Function(MetricsBucket) _then;
+
+/// Create a copy of MetricsBucket
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') @override $Res call({Object? label = null,Object? jobs = null,Object? cash = null,}) {
+  return _then(_self.copyWith(
+label: null == label ? _self.label : label // ignore: cast_nullable_to_non_nullable
+as String,jobs: null == jobs ? _self.jobs : jobs // ignore: cast_nullable_to_non_nullable
+as int,cash: null == cash ? _self.cash : cash // ignore: cast_nullable_to_non_nullable
+as double,
+  ));
+}
+
+}
+
+
+/// Adds pattern-matching-related methods to [MetricsBucket].
+extension MetricsBucketPatterns on MetricsBucket {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _MetricsBucket value)?  $default,{required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case _MetricsBucket() when $default != null:
+return $default(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _MetricsBucket value)  $default,){
+final _that = this;
+switch (_that) {
+case _MetricsBucket():
+return $default(_that);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _MetricsBucket value)?  $default,){
+final _that = this;
+switch (_that) {
+case _MetricsBucket() when $default != null:
+return $default(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String label,  int jobs,  double cash)?  $default,{required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case _MetricsBucket() when $default != null:
+return $default(_that.label,_that.jobs,_that.cash);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String label,  int jobs,  double cash)  $default,) {final _that = this;
+switch (_that) {
+case _MetricsBucket():
+return $default(_that.label,_that.jobs,_that.cash);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String label,  int jobs,  double cash)?  $default,) {final _that = this;
+switch (_that) {
+case _MetricsBucket() when $default != null:
+return $default(_that.label,_that.jobs,_that.cash);case _:
+  return null;
+
+}
+}
+
+}
+
+/// @nodoc
+
+
+class _MetricsBucket implements MetricsBucket {
+  const _MetricsBucket({required this.label, required this.jobs, required this.cash});
+  
+
+@override final  String label;
+@override final  int jobs;
+@override final  double cash;
+
+/// Create a copy of MetricsBucket
+/// with the given fields replaced by the non-null parameter values.
+@override @JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+_$MetricsBucketCopyWith<_MetricsBucket> get copyWith => __$MetricsBucketCopyWithImpl<_MetricsBucket>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _MetricsBucket&&(identical(other.label, label) || other.label == label)&&(identical(other.jobs, jobs) || other.jobs == jobs)&&(identical(other.cash, cash) || other.cash == cash));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,label,jobs,cash);
+
+@override
+String toString() {
+  return 'MetricsBucket(label: $label, jobs: $jobs, cash: $cash)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class _$MetricsBucketCopyWith<$Res> implements $MetricsBucketCopyWith<$Res> {
+  factory _$MetricsBucketCopyWith(_MetricsBucket value, $Res Function(_MetricsBucket) _then) = __$MetricsBucketCopyWithImpl;
+@override @useResult
+$Res call({
+ String label, int jobs, double cash
+});
+
+
+
+
+}
+/// @nodoc
+class __$MetricsBucketCopyWithImpl<$Res>
+    implements _$MetricsBucketCopyWith<$Res> {
+  __$MetricsBucketCopyWithImpl(this._self, this._then);
+
+  final _MetricsBucket _self;
+  final $Res Function(_MetricsBucket) _then;
+
+/// Create a copy of MetricsBucket
+/// with the given fields replaced by the non-null parameter values.
+@override @pragma('vm:prefer-inline') $Res call({Object? label = null,Object? jobs = null,Object? cash = null,}) {
+  return _then(_MetricsBucket(
+label: null == label ? _self.label : label // ignore: cast_nullable_to_non_nullable
+as String,jobs: null == jobs ? _self.jobs : jobs // ignore: cast_nullable_to_non_nullable
+as int,cash: null == cash ? _self.cash : cash // ignore: cast_nullable_to_non_nullable
+as double,
+  ));
+}
+
+
+}
+
+/// @nodoc
 mixin _$TechnicianMetricsEntity {
 
- int get jobsCompletedToday; double get cashCollectedToday; double get commissionDeductedToday; int get jobsCompletedThisWeek; double get cashCollectedThisWeek;
+ MetricsPeriod get period; int get totalJobs; double get totalCash; List<MetricsBucket> get buckets;
 /// Create a copy of TechnicianMetricsEntity
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -25,16 +288,16 @@ $TechnicianMetricsEntityCopyWith<TechnicianMetricsEntity> get copyWith => _$Tech
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is TechnicianMetricsEntity&&(identical(other.jobsCompletedToday, jobsCompletedToday) || other.jobsCompletedToday == jobsCompletedToday)&&(identical(other.cashCollectedToday, cashCollectedToday) || other.cashCollectedToday == cashCollectedToday)&&(identical(other.commissionDeductedToday, commissionDeductedToday) || other.commissionDeductedToday == commissionDeductedToday)&&(identical(other.jobsCompletedThisWeek, jobsCompletedThisWeek) || other.jobsCompletedThisWeek == jobsCompletedThisWeek)&&(identical(other.cashCollectedThisWeek, cashCollectedThisWeek) || other.cashCollectedThisWeek == cashCollectedThisWeek));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is TechnicianMetricsEntity&&(identical(other.period, period) || other.period == period)&&(identical(other.totalJobs, totalJobs) || other.totalJobs == totalJobs)&&(identical(other.totalCash, totalCash) || other.totalCash == totalCash)&&const DeepCollectionEquality().equals(other.buckets, buckets));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,jobsCompletedToday,cashCollectedToday,commissionDeductedToday,jobsCompletedThisWeek,cashCollectedThisWeek);
+int get hashCode => Object.hash(runtimeType,period,totalJobs,totalCash,const DeepCollectionEquality().hash(buckets));
 
 @override
 String toString() {
-  return 'TechnicianMetricsEntity(jobsCompletedToday: $jobsCompletedToday, cashCollectedToday: $cashCollectedToday, commissionDeductedToday: $commissionDeductedToday, jobsCompletedThisWeek: $jobsCompletedThisWeek, cashCollectedThisWeek: $cashCollectedThisWeek)';
+  return 'TechnicianMetricsEntity(period: $period, totalJobs: $totalJobs, totalCash: $totalCash, buckets: $buckets)';
 }
 
 
@@ -45,7 +308,7 @@ abstract mixin class $TechnicianMetricsEntityCopyWith<$Res>  {
   factory $TechnicianMetricsEntityCopyWith(TechnicianMetricsEntity value, $Res Function(TechnicianMetricsEntity) _then) = _$TechnicianMetricsEntityCopyWithImpl;
 @useResult
 $Res call({
- int jobsCompletedToday, double cashCollectedToday, double commissionDeductedToday, int jobsCompletedThisWeek, double cashCollectedThisWeek
+ MetricsPeriod period, int totalJobs, double totalCash, List<MetricsBucket> buckets
 });
 
 
@@ -62,14 +325,13 @@ class _$TechnicianMetricsEntityCopyWithImpl<$Res>
 
 /// Create a copy of TechnicianMetricsEntity
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? jobsCompletedToday = null,Object? cashCollectedToday = null,Object? commissionDeductedToday = null,Object? jobsCompletedThisWeek = null,Object? cashCollectedThisWeek = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? period = null,Object? totalJobs = null,Object? totalCash = null,Object? buckets = null,}) {
   return _then(_self.copyWith(
-jobsCompletedToday: null == jobsCompletedToday ? _self.jobsCompletedToday : jobsCompletedToday // ignore: cast_nullable_to_non_nullable
-as int,cashCollectedToday: null == cashCollectedToday ? _self.cashCollectedToday : cashCollectedToday // ignore: cast_nullable_to_non_nullable
-as double,commissionDeductedToday: null == commissionDeductedToday ? _self.commissionDeductedToday : commissionDeductedToday // ignore: cast_nullable_to_non_nullable
-as double,jobsCompletedThisWeek: null == jobsCompletedThisWeek ? _self.jobsCompletedThisWeek : jobsCompletedThisWeek // ignore: cast_nullable_to_non_nullable
-as int,cashCollectedThisWeek: null == cashCollectedThisWeek ? _self.cashCollectedThisWeek : cashCollectedThisWeek // ignore: cast_nullable_to_non_nullable
-as double,
+period: null == period ? _self.period : period // ignore: cast_nullable_to_non_nullable
+as MetricsPeriod,totalJobs: null == totalJobs ? _self.totalJobs : totalJobs // ignore: cast_nullable_to_non_nullable
+as int,totalCash: null == totalCash ? _self.totalCash : totalCash // ignore: cast_nullable_to_non_nullable
+as double,buckets: null == buckets ? _self.buckets : buckets // ignore: cast_nullable_to_non_nullable
+as List<MetricsBucket>,
   ));
 }
 
@@ -154,10 +416,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int jobsCompletedToday,  double cashCollectedToday,  double commissionDeductedToday,  int jobsCompletedThisWeek,  double cashCollectedThisWeek)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( MetricsPeriod period,  int totalJobs,  double totalCash,  List<MetricsBucket> buckets)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _TechnicianMetricsEntity() when $default != null:
-return $default(_that.jobsCompletedToday,_that.cashCollectedToday,_that.commissionDeductedToday,_that.jobsCompletedThisWeek,_that.cashCollectedThisWeek);case _:
+return $default(_that.period,_that.totalJobs,_that.totalCash,_that.buckets);case _:
   return orElse();
 
 }
@@ -175,10 +437,10 @@ return $default(_that.jobsCompletedToday,_that.cashCollectedToday,_that.commissi
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int jobsCompletedToday,  double cashCollectedToday,  double commissionDeductedToday,  int jobsCompletedThisWeek,  double cashCollectedThisWeek)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( MetricsPeriod period,  int totalJobs,  double totalCash,  List<MetricsBucket> buckets)  $default,) {final _that = this;
 switch (_that) {
 case _TechnicianMetricsEntity():
-return $default(_that.jobsCompletedToday,_that.cashCollectedToday,_that.commissionDeductedToday,_that.jobsCompletedThisWeek,_that.cashCollectedThisWeek);case _:
+return $default(_that.period,_that.totalJobs,_that.totalCash,_that.buckets);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -195,10 +457,10 @@ return $default(_that.jobsCompletedToday,_that.cashCollectedToday,_that.commissi
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int jobsCompletedToday,  double cashCollectedToday,  double commissionDeductedToday,  int jobsCompletedThisWeek,  double cashCollectedThisWeek)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( MetricsPeriod period,  int totalJobs,  double totalCash,  List<MetricsBucket> buckets)?  $default,) {final _that = this;
 switch (_that) {
 case _TechnicianMetricsEntity() when $default != null:
-return $default(_that.jobsCompletedToday,_that.cashCollectedToday,_that.commissionDeductedToday,_that.jobsCompletedThisWeek,_that.cashCollectedThisWeek);case _:
+return $default(_that.period,_that.totalJobs,_that.totalCash,_that.buckets);case _:
   return null;
 
 }
@@ -210,14 +472,19 @@ return $default(_that.jobsCompletedToday,_that.cashCollectedToday,_that.commissi
 
 
 class _TechnicianMetricsEntity implements TechnicianMetricsEntity {
-  const _TechnicianMetricsEntity({required this.jobsCompletedToday, required this.cashCollectedToday, required this.commissionDeductedToday, required this.jobsCompletedThisWeek, required this.cashCollectedThisWeek});
+  const _TechnicianMetricsEntity({required this.period, required this.totalJobs, required this.totalCash, required final  List<MetricsBucket> buckets}): _buckets = buckets;
   
 
-@override final  int jobsCompletedToday;
-@override final  double cashCollectedToday;
-@override final  double commissionDeductedToday;
-@override final  int jobsCompletedThisWeek;
-@override final  double cashCollectedThisWeek;
+@override final  MetricsPeriod period;
+@override final  int totalJobs;
+@override final  double totalCash;
+ final  List<MetricsBucket> _buckets;
+@override List<MetricsBucket> get buckets {
+  if (_buckets is EqualUnmodifiableListView) return _buckets;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(_buckets);
+}
+
 
 /// Create a copy of TechnicianMetricsEntity
 /// with the given fields replaced by the non-null parameter values.
@@ -229,16 +496,16 @@ _$TechnicianMetricsEntityCopyWith<_TechnicianMetricsEntity> get copyWith => __$T
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TechnicianMetricsEntity&&(identical(other.jobsCompletedToday, jobsCompletedToday) || other.jobsCompletedToday == jobsCompletedToday)&&(identical(other.cashCollectedToday, cashCollectedToday) || other.cashCollectedToday == cashCollectedToday)&&(identical(other.commissionDeductedToday, commissionDeductedToday) || other.commissionDeductedToday == commissionDeductedToday)&&(identical(other.jobsCompletedThisWeek, jobsCompletedThisWeek) || other.jobsCompletedThisWeek == jobsCompletedThisWeek)&&(identical(other.cashCollectedThisWeek, cashCollectedThisWeek) || other.cashCollectedThisWeek == cashCollectedThisWeek));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TechnicianMetricsEntity&&(identical(other.period, period) || other.period == period)&&(identical(other.totalJobs, totalJobs) || other.totalJobs == totalJobs)&&(identical(other.totalCash, totalCash) || other.totalCash == totalCash)&&const DeepCollectionEquality().equals(other._buckets, _buckets));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,jobsCompletedToday,cashCollectedToday,commissionDeductedToday,jobsCompletedThisWeek,cashCollectedThisWeek);
+int get hashCode => Object.hash(runtimeType,period,totalJobs,totalCash,const DeepCollectionEquality().hash(_buckets));
 
 @override
 String toString() {
-  return 'TechnicianMetricsEntity(jobsCompletedToday: $jobsCompletedToday, cashCollectedToday: $cashCollectedToday, commissionDeductedToday: $commissionDeductedToday, jobsCompletedThisWeek: $jobsCompletedThisWeek, cashCollectedThisWeek: $cashCollectedThisWeek)';
+  return 'TechnicianMetricsEntity(period: $period, totalJobs: $totalJobs, totalCash: $totalCash, buckets: $buckets)';
 }
 
 
@@ -249,7 +516,7 @@ abstract mixin class _$TechnicianMetricsEntityCopyWith<$Res> implements $Technic
   factory _$TechnicianMetricsEntityCopyWith(_TechnicianMetricsEntity value, $Res Function(_TechnicianMetricsEntity) _then) = __$TechnicianMetricsEntityCopyWithImpl;
 @override @useResult
 $Res call({
- int jobsCompletedToday, double cashCollectedToday, double commissionDeductedToday, int jobsCompletedThisWeek, double cashCollectedThisWeek
+ MetricsPeriod period, int totalJobs, double totalCash, List<MetricsBucket> buckets
 });
 
 
@@ -266,14 +533,13 @@ class __$TechnicianMetricsEntityCopyWithImpl<$Res>
 
 /// Create a copy of TechnicianMetricsEntity
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? jobsCompletedToday = null,Object? cashCollectedToday = null,Object? commissionDeductedToday = null,Object? jobsCompletedThisWeek = null,Object? cashCollectedThisWeek = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? period = null,Object? totalJobs = null,Object? totalCash = null,Object? buckets = null,}) {
   return _then(_TechnicianMetricsEntity(
-jobsCompletedToday: null == jobsCompletedToday ? _self.jobsCompletedToday : jobsCompletedToday // ignore: cast_nullable_to_non_nullable
-as int,cashCollectedToday: null == cashCollectedToday ? _self.cashCollectedToday : cashCollectedToday // ignore: cast_nullable_to_non_nullable
-as double,commissionDeductedToday: null == commissionDeductedToday ? _self.commissionDeductedToday : commissionDeductedToday // ignore: cast_nullable_to_non_nullable
-as double,jobsCompletedThisWeek: null == jobsCompletedThisWeek ? _self.jobsCompletedThisWeek : jobsCompletedThisWeek // ignore: cast_nullable_to_non_nullable
-as int,cashCollectedThisWeek: null == cashCollectedThisWeek ? _self.cashCollectedThisWeek : cashCollectedThisWeek // ignore: cast_nullable_to_non_nullable
-as double,
+period: null == period ? _self.period : period // ignore: cast_nullable_to_non_nullable
+as MetricsPeriod,totalJobs: null == totalJobs ? _self.totalJobs : totalJobs // ignore: cast_nullable_to_non_nullable
+as int,totalCash: null == totalCash ? _self.totalCash : totalCash // ignore: cast_nullable_to_non_nullable
+as double,buckets: null == buckets ? _self._buckets : buckets // ignore: cast_nullable_to_non_nullable
+as List<MetricsBucket>,
   ));
 }
 

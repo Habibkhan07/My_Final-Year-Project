@@ -5,10 +5,11 @@ import 'package:http/http.dart' as http;
 import '../../../../../core/common/errors/http_failure.dart';
 import '../../../../../core/constants.dart';
 import '../../../../auth/data/data_sources/auth_local_data_source.dart';
+import '../../domain/entities/technician_metrics_entity.dart';
 import '../models/technician_metrics_model.dart';
 
 abstract interface class IMetricsRemoteDataSource {
-  Future<TechnicianMetricsModel> getMetrics();
+  Future<TechnicianMetricsModel> getMetrics(MetricsPeriod period);
 }
 
 class MetricsRemoteDataSource implements IMetricsRemoteDataSource {
@@ -22,9 +23,9 @@ class MetricsRemoteDataSource implements IMetricsRemoteDataSource {
   });
 
   @override
-  Future<TechnicianMetricsModel> getMetrics() async {
+  Future<TechnicianMetricsModel> getMetrics(MetricsPeriod period) async {
     final token = await authLocalDataSource.getToken();
-    final uri = Uri.parse('$_baseUrl/metrics/');
+    final uri = Uri.parse('$_baseUrl/metrics/?period=${period.wireValue}');
 
     final response = await client.get(
       uri,

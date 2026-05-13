@@ -1,60 +1,65 @@
 import '../../domain/entities/technician_metrics_entity.dart';
 
-/// DTO for GET /api/technicians/metrics/
-/// All numeric fields default to 0 for backward compat if the backend
-/// ever omits a field during a rolling deploy.
+/// DTO for GET /api/technicians/metrics/?period=…
+///
+/// Defensive `?? 0` defaults on numeric fields tolerate a stale backend
+/// that omits a field mid-deploy. Unknown period strings fall back to
+/// [MetricsPeriod.week] so the client never crashes on a bad wire value.
 class TechnicianMetricsModel {
-  final int jobsCompletedToday;
-  final double cashCollectedToday;
-  final double commissionDeductedToday;
-  final int jobsCompletedThisWeek;
-  final double cashCollectedThisWeek;
+  final String period;
+  final int totalJobs;
+  final double totalCash;
+  final List<MetricsBucketModel> buckets;
 
   const TechnicianMetricsModel({
-    required this.jobsCompletedToday,
-    required this.cashCollectedToday,
-    required this.commissionDeductedToday,
-    required this.jobsCompletedThisWeek,
-    required this.cashCollectedThisWeek,
+    required this.period,
+    required this.totalJobs,
+    required this.totalCash,
+    required this.buckets,
   });
 
   factory TechnicianMetricsModel.fromJson(Map<String, dynamic> json) =>
       TechnicianMetricsModel(
-        jobsCompletedToday:
-            (json['jobs_completed_today'] as num? ?? 0).toInt(),
-        cashCollectedToday:
-            (json['cash_collected_today'] as num? ?? 0).toDouble(),
-        commissionDeductedToday:
-            (json['commission_deducted_today'] as num? ?? 0).toDouble(),
-        jobsCompletedThisWeek:
-            (json['jobs_completed_this_week'] as num? ?? 0).toInt(),
-        cashCollectedThisWeek:
-            (json['cash_collected_this_week'] as num? ?? 0).toDouble(),
+        period: (json['period'] as String?) ?? 'week',
+        totalJobs: (json['total_jobs'] as num? ?? 0).toInt(),
+        totalCash: (json['total_cash'] as num? ?? 0).toDouble(),
+        buckets: ((json['buckets'] as List?) ?? const [])
+            .cast<Map<String, dynamic>>()
+            .map(MetricsBucketModel.fromJson)
+            .toList(),
       );
 
-  TechnicianMetricsEntity toEntity() => TechnicianMetricsEntity(
-        jobsCompletedToday: jobsCompletedToday,
-        cashCollectedToday: cashCollectedToday,
-        commissionDeductedToday: commissionDeductedToday,
-        jobsCompletedThisWeek: jobsCompletedThisWeek,
-        cashCollectedThisWeek: cashCollectedThisWeek,
+  TechnicianMetricsEntity toEntity() {
+    final periodEnum = MetricsPeriod.values.firstWhere(
+      (p) => p.wireValue == period,
+      orElse: () => MetricsPeriod.week,
+    );
+    return TechnicianMetricsEntity(
+      period: periodEnum,
+      totalJobs: totalJobs,
+      totalCash: totalCash,
+      buckets: buckets.map((m) => m.toEntity()).toList(growable: false),
+    );
+  }
+}
+
+class MetricsBucketModel {
+  final String label;
+  final int jobs;
+  final double cash;
+
+  const MetricsBucketModel({
+    required this.label,
+    required this.jobs,
+    required this.cash,
+  });
+
+  factory MetricsBucketModel.fromJson(Map<String, dynamic> json) =>
+      MetricsBucketModel(
+        label: (json['label'] as String?) ?? '',
+        jobs: (json['jobs'] as num? ?? 0).toInt(),
+        cash: (json['cash'] as num? ?? 0).toDouble(),
       );
 
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is TechnicianMetricsModel &&
-          jobsCompletedToday == other.jobsCompletedToday &&
-          cashCollectedToday == other.cashCollectedToday &&
-          commissionDeductedToday == other.commissionDeductedToday &&
-          jobsCompletedThisWeek == other.jobsCompletedThisWeek &&
-          cashCollectedThisWeek == other.cashCollectedThisWeek;
-
-  @override
-  int get hashCode =>
-      jobsCompletedToday.hashCode ^
-      cashCollectedToday.hashCode ^
-      commissionDeductedToday.hashCode ^
-      jobsCompletedThisWeek.hashCode ^
-      cashCollectedThisWeek.hashCode;
+  MetricsBucket toEntity() => MetricsBucket(label: label, jobs: jobs, cash: cash);
 }

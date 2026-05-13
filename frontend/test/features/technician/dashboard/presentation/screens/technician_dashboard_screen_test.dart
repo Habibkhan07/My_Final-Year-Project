@@ -13,21 +13,8 @@ import 'package:frontend/features/technician/dashboard/presentation/notifiers/te
 import 'package:frontend/features/technician/dashboard/presentation/providers/current_position_provider.dart';
 import 'package:frontend/features/technician/dashboard/presentation/screens/technician_dashboard_screen.dart';
 import 'package:frontend/features/technician/dashboard/presentation/state/technician_dashboard_state.dart';
-import 'package:frontend/features/technician/metrics/domain/entities/technician_metrics_entity.dart';
-import 'package:frontend/features/technician/metrics/presentation/notifiers/metrics_notifier.dart';
 
 import '../../_helpers/test_overrides.dart';
-
-class _MockMetricsNotifier extends MetricsNotifier {
-  @override
-  Future<TechnicianMetricsEntity> build() async => const TechnicianMetricsEntity(
-    jobsCompletedToday: 3,
-    cashCollectedToday: 4500.0,
-    commissionDeductedToday: 900.0,
-    jobsCompletedThisWeek: 10,
-    cashCollectedThisWeek: 18000.0,
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Mock notifier — overrides build() to return a fixed state so widget tests
@@ -109,7 +96,6 @@ Widget buildScreen(AsyncValue<TechnicianDashboardState> mockState) {
       technicianDashboardProvider.overrideWith(
         () => MockTechnicianDashboardNotifier(mockState),
       ),
-      metricsProvider.overrideWith(() => _MockMetricsNotifier()),
       authProvider.overrideWith(() => FakeAuthNotifier(fakeUser)),
       currentPositionProvider.overrideWith(() => FakeCurrentPosition(null)),
     ],
@@ -293,27 +279,6 @@ void main() {
           await tester.pump();
 
           expect(find.text('Ceiling Fan Repair'), findsOneWidget);
-        });
-      });
-    });
-
-    // -----------------------------------------------------------------------
-    group('AsyncData — metrics row', () {
-      testWidgets('renders jobs count and formatted cash from metricsProvider', (
-        tester,
-      ) async {
-        await mockNetworkImagesFor(() async {
-          await tester.pumpWidget(buildScreen(AsyncData(_state())));
-          // Two pumps: first lets the async notifier build complete, second renders.
-          await tester.pump();
-          await tester.pump();
-
-          // _MockMetricsNotifier: jobsCompletedToday: 3
-          expect(find.text('3'), findsWidgets);
-          // cashCollectedToday: 4500 → "Rs. 4,500"
-          expect(find.text('Rs. 4,500'), findsOneWidget);
-          // commission: 900 → "Rs. 900"
-          expect(find.text('Rs. 900'), findsOneWidget);
         });
       });
     });

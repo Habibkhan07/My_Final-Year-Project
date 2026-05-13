@@ -5,26 +5,27 @@ import '../providers/dependency_injection.dart';
 
 part 'metrics_notifier.g.dart';
 
-/// State holder for the technician metrics row on the dashboard.
+/// State holder for the technician Metrics screen.
 ///
-/// **keepAlive: false** — metrics are per-session fresh data. When the
-/// dashboard is disposed (e.g. during a booking flow), the notifier
-/// disposes and re-fetches on return, ensuring the counts reflect any
-/// jobs completed while away.
+/// **Family-keyed by [MetricsPeriod]** so each tab (Day/Week/Month/Year)
+/// caches its own response independently. Tapping the segmented toggle is
+/// a provider-key change, not a refetch — already-loaded periods snap back
+/// instantly; new periods fetch on first read.
 ///
-/// Pull-to-refresh is delegated to [refresh]. The dashboard screen
-/// calls this when the user drags the RefreshIndicator, same as the
-/// dashboard notifier itself.
+/// **keepAlive: false** — when the user backs out of the Metrics screen the
+/// notifier disposes; re-entry triggers a fresh fetch so the numbers reflect
+/// any jobs completed while away.
 @riverpod
 class MetricsNotifier extends _$MetricsNotifier {
   @override
-  Future<TechnicianMetricsEntity> build() async {
-    return await ref.read(metricsRepositoryProvider).getMetrics();
+  Future<TechnicianMetricsEntity> build(MetricsPeriod period) async {
+    return await ref.read(metricsRepositoryProvider).getMetrics(period);
   }
 
+  /// Pull-to-refresh on the currently-selected period.
   Future<void> refresh() async {
     state = await AsyncValue.guard(
-      () => ref.read(metricsRepositoryProvider).getMetrics(),
+      () => ref.read(metricsRepositoryProvider).getMetrics(period),
     );
   }
 }
