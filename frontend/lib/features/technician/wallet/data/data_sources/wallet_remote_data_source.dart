@@ -5,6 +5,8 @@ import 'package:http/http.dart' as http;
 import '../../../../../core/common/errors/http_failure.dart';
 import '../../../../../core/constants.dart';
 import '../../../../auth/data/data_sources/auth_local_data_source.dart';
+import '../models/topup_session_model.dart';
+import '../models/topup_status_model.dart';
 import '../models/wallet_balance_model.dart';
 import '../models/wallet_transaction_model.dart';
 
@@ -15,6 +17,14 @@ abstract class IWalletRemoteDataSource {
   /// list, newest-first. ``cursor`` is the opaque token from the
   /// previous page's ``next_cursor`` field, or null for the first page.
   Future<WalletTransactionPageModel> listTransactions({String? cursor});
+
+  /// POST ``/wallet/topups/`` — start a Hosted Checkout top-up.
+  ///
+  /// [amountRs] is whole rupees (Rs.100..25,000 server-side).
+  Future<TopupSessionModel> startTopup({required int amountRs});
+
+  /// GET ``/wallet/topups/<id>/`` — poll a topup's terminal status.
+  Future<TopupStatusModel> getTopupStatus({required int topupId});
 }
 
 class WalletRemoteDataSource implements IWalletRemoteDataSource {
@@ -65,6 +75,43 @@ class WalletRemoteDataSource implements IWalletRemoteDataSource {
     _handleResponse(response);
     final data = jsonDecode(response.body) as Map<String, dynamic>;
     return WalletTransactionPageModel.fromJson(data);
+  }
+
+  @override
+  Future<TopupSessionModel> startTopup({required int amountRs}) async {
+    final token = await authLocalDataSource.getToken();
+    final uri = Uri.parse('$baseUrl/wallet/topups/');
+
+    final response = await client.post(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Token $token',
+      },
+      body: jsonEncode({'amount': amountRs}),
+    );
+
+    _handleResponse(response);
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    return TopupSessionModel.fromJson(data);
+  }
+
+  @override
+  Future<TopupStatusModel> getTopupStatus({required int topupId}) async {
+    final token = await authLocalDataSource.getToken();
+    final uri = Uri.parse('$baseUrl/wallet/topups/$topupId/');
+
+    final response = await client.get(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Token $token',
+      },
+    );
+
+    _handleResponse(response);
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    return TopupStatusModel.fromJson(data);
   }
 
   void _handleResponse(http.Response response) {

@@ -1440,3 +1440,139 @@ Scope discipline. The bar-chart rework was already a backend + frontend + new de
 **Severity**
 P2. Demo-defensible without it (Django Admin shows the full ledger for forensic audit during viva). But the tech-facing audit story is incomplete until the in-app list ships.
 
+---
+
+## 40. JazzCash USSD / Push-MPIN flow not in public sandbox
+
+**Where**
+- `backend/wallet/adapters/jazzcash_hosted_gateway.py`
+- `backend/wallet/api/WALLET_API.md`
+- `frontend/lib/features/technician/wallet/WALLET_FEATURE.md`
+
+**What's wrong**
+The single most defensible top-up UX would be USSD Push-MPIN — merchant
+calls JazzCash with `(mobile, amount)`, JazzCash sends a USSD prompt to
+the customer's phone over the cellular network, customer types MPIN on
+their phone's OS-level secure overlay. MPIN never enters our app or any
+webpage. It's how the JazzCash app authenticates internally and is the
+standard for "Account-to-Merchant" Push Pay among Pakistani banks.
+
+Audit of the public JazzCash sandbox docs (v4.2 API References,
+`sandbox.jazzcash.com.pk/SandboxDocumentation`) enumerated every documented
+MWALLET variant: V1.1, V2.0 (CNIC), V3.0 (Hosted MPIN — merchant collects),
+V4.0 Linking (merchant collects), V4.0 Recurring (token reuse). **None
+match the A2M Push-MPIN flow.** It exists as a B2B/telco-tier agreement
+with PMCL (the JazzCash carrier), not as a self-serve sandbox endpoint.
+
+**Why we shipped without it**
+For viva-week (2026-05-18) scope: cannot apply for, get approved, and
+wire a separate telco-tier agreement in time. Hosted Checkout (HTTP POST
+Page Redirection) is the only mode actually available on a self-served
+sandbox account and is what the rest of the Pakistani fintech ecosystem
+uses for in-app webview top-ups. Defensible at viva; degrades trust
+only slightly vs USSD Push.
+
+**The proper fix**
+1. Apply for a "Mobile Account Push Pay" or "A2M" agreement directly with
+   PMCL / JazzCash B2B sales. Lead time historically 4–8 weeks.
+2. Once approved, add a new adapter `JazzCashPushPayGateway implements
+   PaymentGatewayPort`. The Port surface (`initiate_topup`, `verify_topup`)
+   accommodates it — `redirect_url` becomes a no-op (return `''`),
+   `request_payload` is null, and `verify_topup` runs against either a
+   webhook callback OR a polled inquiry endpoint.
+3. Frontend: `topupProvider` flow gains a new branch — if the adapter
+   returned an empty `redirectUrl`, skip the webview push and instead
+   show a "Check your phone for the USSD prompt" full-screen state.
+4. `WALLET_API.md` + `WALLET_FEATURE.md` get a new section comparing the
+   two flows; ops chooses the gateway via `DEFAULT_PAYMENT_GATEWAY`.
+
+**Severity**
+P3. Hosted Checkout is the industry default for Pakistani in-app top-ups.
+Production-defensible. Push-MPIN is a polish-tier upgrade, not a
+correctness gap.
+
+---
+
+## 41. JazzCash tokenization (V4.0 Linking + Recurring) deferred
+
+**Where**
+- `backend/wallet/adapters/jazzcash_hosted_gateway.py`
+- `frontend/lib/features/technician/wallet/presentation/widgets/topup_amount_sheet.dart`
+
+**What's wrong**
+The current top-up adapter implements only the V2.0 single-shot Hosted
+Checkout flow. JazzCash's V4.0 Mobile Account Linking returns a
+`pp_PaymentToken` after a successful first-time link; subsequent top-ups
+can use the V4.0 Recurring endpoint (`DoMWalletTransactionViaToken`) with
+that token, skipping the entire webview round-trip. For a tech who tops
+up weekly, that's the difference between "tap → 4 sub-screens → MPIN" and
+"tap → done".
+
+**Why we shipped without it**
+Single-shot Hosted Checkout is a fully-functional MVP; tokenization is a
+UX optimization that needs:
+1. A new `WalletTopupToken` model (`technician → pp_PaymentToken`, status,
+   issued_at, last_used_at), tied to a `TechnicianJazzCashAccount`.
+2. Admin-facing token revocation flow (for rotated MPINs, customer complaints).
+3. A new branch in `start_topup`: "if technician has a usable token, hit
+   the recurring endpoint directly". Falls back to Hosted Checkout if the
+   token is revoked/expired.
+4. A frontend tweak to `TopupAmountSheet` for "Save for next time" toggle
+   on the first top-up.
+
+None of this is a viva-week blocker. The plumbing is well-isolated to the
+adapter + a new service method; no model migrations beyond the token row.
+
+**The proper fix**
+Post-viva sprint:
+1. `WalletTopupToken` model + migration.
+2. Adapter method `link_account(technician, mobile)` returning a
+   `LinkingSession` that walks the user through one Hosted Checkout to
+   obtain `pp_PaymentToken`.
+3. Adapter method `charge_token(token, amount)` returning `TopupResult`
+   directly (no webview).
+4. Service: prefer `charge_token` when a fresh token exists; fall back
+   to the Hosted flow when revoked or absent.
+5. Admin: `WalletTopupTokenAdmin` with revoke action.
+6. Tests: token issue / reuse / revoke / expiry-fallback round trip.
+
+**Severity**
+P3. UX polish, not correctness.
+
+---
+
+## 42. Wallet transactions list does not patch on `wallet_balance_updated`
+
+**Where**
+- `frontend/lib/features/technician/wallet/presentation/notifiers/wallet_transactions_notifier.dart`
+- `backend/wallet/services/ledger.py` (event payload shape)
+
+**What's wrong**
+The balance card patches in-place when a realtime `wallet_balance_updated`
+event lands (`WalletNotifier.onBalanceEvent`). The transactions list
+notifier does NOT subscribe to the same event — so right after a top-up
+completes, the balance reflects the credit but the transactions list
+still shows the pre-credit set until the tech pull-to-refreshes.
+
+Mismatch is mostly cosmetic (no incorrect totals; just a missing row),
+but the wallet screen looks half-updated for a few seconds.
+
+**Why we shipped without it**
+The realtime event payload carries the `transaction_id`, but appending a
+row to the list requires fetching the full transaction record (we'd need
+either an extra endpoint or an enriched event payload). Cleanest fix: on
+event, invalidate the first page of the list provider and re-fetch. That's
+~10 lines but introduces a subtle UI flash unless we patch in-place.
+
+**The proper fix**
+1. Backend: extend the `wallet_balance_updated` realtime payload to
+   include the full Dumb-UI-shaped transaction row (matches the
+   `list_transactions` selector output for that one row).
+2. Frontend: `WalletTransactionsNotifier` subscribes to
+   `systemEventProvider`, filters on `walletBalanceUpdated`, prepends
+   the payload's transaction row to `state.page.results` (de-duped by id).
+3. Test that two parallel events don't double-insert.
+
+**Severity**
+P3. The pull-to-refresh recovery path is one gesture; no data is wrong.
+

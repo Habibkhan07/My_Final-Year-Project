@@ -87,10 +87,80 @@ class WalletTransactionsNotifier extends _$WalletTransactionsNotifier {
 
 - **WalletScreen**: AppBar "Wallet" + combined pull-to-refresh (refreshes both balance + history together) → balance card → Top up → Withdraw → **Recent activity** section.
 - **BalanceCard**: gradient hero (primaryContainer → primary), big "Rs. 1,500".
-- **TopUpButton**: ElevatedButton; currently shows snackbar "JazzCash top-up is launching Thursday".
+- **TopUpButton**: brand-blue ElevatedButton. Tap → opens the JazzCash top-up flow (sheet → webview → result sheet). See "Top-up flow" below.
 - **WithdrawButton**: OutlinedButton; currently shows snackbar "Withdrawal requests open Thursday".
 - **TransactionsSection**: header "Recent activity" → list of `TransactionRow`s OR "No wallet activity yet" empty-state pill OR 5-row skeleton OR inline error+retry. Pagination kicks off when the section is mounted with `hasMore` true (post-frame trigger); a later commit will move to SliverList for proper on-scroll loading.
 - **TransactionRow**: Dumb-UI — leading 40px tinted circle (icon from `ui_icon`, tint from `ui_amount_color`), title (`ui_title`), subtitle (`ui_subtitle` + relative timestamp like "2h ago"), trailing signed `Rs. X` (green for credits, neutral for debits).
+
+## Top-up flow (JazzCash Hosted Checkout)
+
+Multi-screen state machine driven by `topupProvider` (sync `Notifier<TopupState>`):
+
+```
+TopUpButton.onPressed
+  ↓ showModalBottomSheet
+TopupAmountSheet
+  amount + 4 quick-pick chips (Rs. 200 / 500 / 1000 / 2000)
+  Continue → notifier.start(amount) → POST /api/technicians/wallet/topups/
+  ↓ sheet pops; flow == awaitingGateway
+TopUpButton.ref.listen detects awaitingGateway
+  ↓ Navigator.push
+JazzCashWebviewScreen (webview_flutter)
+  - loads session.redirectUrl (our bridge URL)
+  - bridge auto-POSTs the JazzCash form (real) or shows Pay/Decline (mock)
+  - NavigationDelegate intercepts /api/wallet/gateway/jazzcash/return/
+    → notifier.onGatewayReturned() → flow == verifying → pop
+  - back / close → notifier.onGatewayAborted() → flow == failed(UserAborted)
+TopupNotifier polls GET /topups/<id>/ every 2s (max 15 attempts = 30s budget)
+  - terminal status → flow == success / failed
+TopUpButton.ref.listen detects terminal flow
+  ↓ showModalBottomSheet
+TopupResultSheet
+  - success: green check + "Rs. X added to your wallet" + Done
+  - failed:  red icon + plain-language copy from sealed TopupFailure + Close / Try again
+```
+
+State shape (`presentation/notifiers/topup_state.dart`):
+
+```dart
+class TopupState {
+  final TopupFlow flow;        // idle / starting / awaitingGateway /
+                               // verifying / success / failed
+  final TopupSession? session;       // populated after `start` succeeds
+  final TopupStatus? terminalStatus; // populated by terminal poll
+  final TopupFailure? failure;       // sealed family — see below
+}
+```
+
+### Sealed `TopupFailure` family (`domain/failures/topup_failure.dart`)
+
+Pattern-match these in the result sheet's switch:
+
+| Failure | When it fires | Tech-facing copy |
+|---|---|---|
+| `TopupInvalidAmount(min, max)` | 400 amount validation | "Enter between Rs.100 and Rs.25,000." |
+| `TopupGatewayUnavailable` | 503 — JazzCash creds missing | "Top-up is temporarily unavailable. Try again later." |
+| `TopupNetworkFailure` | SocketException during start/poll | "No internet connection. Check your settings." |
+| `TopupServerFailure(msg)` | Backend 5xx / FormatException | (uses `msg`) |
+| `TopupPermissionFailure` | 401 / 403 / 404 (IDOR) | "Your session has expired. Sign in again." |
+| `TopupUserAborted` | Webview close button / back gesture | "You cancelled the top-up." |
+| `TopupPollTimeout` | 30s poll budget exhausted | "Couldn't confirm in time. Pull to refresh shortly." |
+
+### Realtime balance patch (free)
+
+Successful top-up writes a `TOPUP_CREDIT` ledger row via `record_transaction`,
+which fires `wallet_balance_updated` on `transaction.on_commit`. The existing
+`WalletNotifier.onBalanceEvent` patches the balance card in-place — no extra
+notifier work needed.
+
+### `--dart-define` knob
+
+The webview's `NavigationDelegate` matches the return URL prefix derived from
+`AppConstants.baseUrl` minus the trailing `/api`. If the backend's
+`JAZZCASH_RETURN_URL` host differs (e.g. ngrok tunnel pointing at a different
+prefix than `AppConstants.baseUrl` would build), the match will miss. Future
+work: lift the FE's return-URL match string to a `--dart-define` so it can
+be set independently. Tracked in `flag.md` if it becomes a real issue.
 
 ## Routing
 
@@ -99,14 +169,13 @@ auth state, same surface as the dashboard pill that opens it).
 
 Dashboard's wallet pill `onTap` → `GoRouter.of(context).push('/wallet')`.
 
-## Out of scope tonight (locks Thursday additions)
+## Still out of scope (post-viva work)
 
-- POST `/api/wallet/topups/` + JazzCash redirect flow
 - POST `/api/wallet/withdrawals/` + payout account form
-- POST `/api/wallet/gateways/jazzcash/callback/` (webhook)
 - `WithdrawRequestAdmin.approve_and_process` Django action
 - Auto-creating `TechnicianJazzCashAccount` on first top-up
+- V4.0 Linking + Recurring (one-tap repeat top-ups using stored token)
 
-The backend schemas for all of the above (`WalletTopup`, `WithdrawalRequest`,
-`WithdrawalFulfilment`, `TechnicianBankAccount`, `TechnicianJazzCashAccount`)
-shipped tonight in `0001_initial` so Thursday is pure plumbing.
+Top-up endpoints (`POST /topups/`, `GET /topups/<id>/`,
+`GET /topups/<id>/bridge/`, `POST /gateway/jazzcash/return/`) all shipped —
+see `backend/wallet/api/WALLET_API.md` for the full contract.

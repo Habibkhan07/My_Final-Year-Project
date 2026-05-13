@@ -49,6 +49,10 @@ dependencies:
   shimmer: ^3.0.0
   # Bar chart for the technician Metrics screen (Day/Week/Month/Year buckets).
   fl_chart: ^0.69.0
+  # In-app webview that hosts the JazzCash Hosted Checkout flow during
+  # wallet top-ups. Loads the backend-rendered bridge URL which then
+  # auto-submits the gateway form server-side.
+  webview_flutter: ^4.11.0
   cached_network_image: ^3.4.1
   flutter_svg: ^2.0.10
   intl: ^0.20.2

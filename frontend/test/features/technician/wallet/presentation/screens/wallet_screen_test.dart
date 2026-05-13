@@ -43,7 +43,7 @@ void main() {
     expect(find.text('Withdraw'), findsOneWidget);
   });
 
-  testWidgets('Top up tap shows "Thursday" snackbar', (tester) async {
+  testWidgets('Top up tap opens the amount sheet', (tester) async {
     when(() => repo.getBalance()).thenAnswer(
       (_) async => WalletState(
         balance: 100.0,
@@ -53,9 +53,11 @@ void main() {
 
     await pumpScreen(tester);
     await tester.tap(find.text('Top up'));
-    await tester.pump();
+    await tester.pumpAndSettle();
 
-    expect(find.textContaining('Thursday'), findsOneWidget);
+    // TopupAmountSheet renders its own title + Continue CTA.
+    expect(find.text('Top up wallet'), findsOneWidget);
+    expect(find.text('Continue'), findsOneWidget);
   });
 
   testWidgets('Withdraw tap shows "Thursday" snackbar', (tester) async {
