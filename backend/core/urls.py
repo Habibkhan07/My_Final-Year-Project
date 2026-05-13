@@ -19,6 +19,8 @@ from django.urls import path, include
 from django.conf import settings # Add this
 from django.conf.urls.static import static # Add this
 
+from wallet.api.views import JazzCashReturnView
+
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/accounts/', include('accounts.api.urls')),
@@ -28,7 +30,16 @@ urlpatterns = [
     path('api/bookings/', include('bookings.api.urls')),
     # Realtime Dispatch Hub (Events & Devices)
     path('api/realtime/', include('realtime.api.urls')),
-    ]
+    # JazzCash gateway return URL — unauthenticated, hash-verified.
+    # Mounted at the root URLconf (NOT under /api/technicians/) because
+    # JazzCash POSTs cross-origin to it; conceptually it belongs to the
+    # gateway surface, not the tech-facing API.
+    path(
+        'api/wallet/gateway/jazzcash/return/',
+        JazzCashReturnView.as_view(),
+        name='wallet-jazzcash-return',
+    ),
+]
 
 
 # This allows Django to serve the Profile/CNIC pictures during development

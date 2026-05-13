@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+{# Bridge page — rendered into the Flutter webview. Auto-submits the
+   JazzCash Hosted Checkout form so the merchant credentials and the
+   computed pp_SecureHash never leave the server-rendered HTML. The
+   webview will see jazzcash.com.pk after this auto-submit fires. #}
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+  <title>Redirecting to JazzCash</title>
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; margin: 0; padding: 24px;
+           display: flex; flex-direction: column; align-items: center; justify-content: center;
+           min-height: 100vh; background: #f5f7fa; color: #0051AE; text-align: center; }
+    .spinner { width: 32px; height: 32px; border: 3px solid #d6e4f5; border-top-color: #0051AE;
+               border-radius: 50%; animation: spin 0.9s linear infinite; margin-bottom: 16px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    p { margin: 4px 0; font-size: 14px; }
+    .small { color: #6b7280; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="spinner" aria-hidden="true"></div>
+  <p><strong>Redirecting to JazzCash…</strong></p>
+  <p class="small">Please wait — do not close this window.</p>
+
+  <form id="jazzcash-form" method="POST" action="{{ action }}">
+    {% for key, value in fields.items %}
+      <input type="hidden" name="{{ key }}" value="{{ value }}">
+    {% endfor %}
+  </form>
+
+  <script>
+    // Auto-submit on next tick so the spinner paints first.
+    setTimeout(function () {
+      document.getElementById('jazzcash-form').submit();
+    }, 50);
+  </script>
+</body>
+</html>

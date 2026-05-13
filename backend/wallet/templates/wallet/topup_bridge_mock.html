@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+{# Demo-day fallback bridge. When DEFAULT_PAYMENT_GATEWAY=mock the Flutter
+   webview lands on this page instead of JazzCash. Two buttons synthesise
+   a JazzCash-shaped POST back to our return URL so the end-to-end flow
+   is fully exercisable without sandbox connectivity. #}
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+  <title>Mock JazzCash sandbox</title>
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; margin: 0; padding: 24px;
+           background: #f5f7fa; color: #111827; }
+    .card { max-width: 420px; margin: 32px auto; background: #fff; border-radius: 16px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.08); padding: 24px; }
+    h1 { color: #0051AE; font-size: 18px; margin: 0 0 12px; }
+    p.lead { font-size: 14px; color: #4b5563; margin: 0 0 16px; }
+    .row { display: flex; justify-content: space-between; padding: 8px 0;
+           border-bottom: 1px solid #e5e7eb; font-size: 13px; }
+    .row .k { color: #6b7280; }
+    .row .v { color: #111827; font-weight: 500; }
+    button { width: 100%; padding: 14px; border-radius: 10px; border: 0; font-size: 16px;
+             font-weight: 600; cursor: pointer; margin-top: 12px; }
+    .pay { background: #0051AE; color: #fff; }
+    .decline { background: transparent; color: #b91c1c; border: 1px solid #fecaca; }
+    .footer { font-size: 11px; color: #9ca3af; text-align: center; margin-top: 16px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Mock JazzCash sandbox</h1>
+    <p class="lead">No real money will move. This screen exists so the
+    top-up flow is testable end-to-end without sandbox connectivity.</p>
+
+    <div class="row"><span class="k">Reference</span><span class="v">{{ session_id }}</span></div>
+    <div class="row"><span class="k">Amount</span><span class="v">Rs. {{ topup.amount_attempted }}</span></div>
+
+    <form method="POST" action="{{ return_url }}">
+      <input type="hidden" name="pp_TxnRefNo" value="{{ session_id }}">
+      <input type="hidden" name="pp_ResponseCode" value="000">
+      <input type="hidden" name="pp_RetrievalReferenceNo" value="MOCK-{{ session_id }}">
+      <input type="hidden" name="status" value="ok">
+      <button class="pay" type="submit">Pay Rs. {{ topup.amount_attempted }}</button>
+    </form>
+
+    <form method="POST" action="{{ return_url }}">
+      <input type="hidden" name="pp_TxnRefNo" value="{{ session_id }}">
+      <input type="hidden" name="pp_ResponseCode" value="122">
+      <input type="hidden" name="status" value="failed">
+      <input type="hidden" name="reason" value="cancelled_by_customer">
+      <button class="decline" type="submit">Decline / cancel</button>
+    </form>
+
+    <p class="footer">DEFAULT_PAYMENT_GATEWAY=mock · demo only</p>
+  </div>
+</body>
+</html>
