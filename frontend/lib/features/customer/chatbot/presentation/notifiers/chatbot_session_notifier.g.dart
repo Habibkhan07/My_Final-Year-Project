@@ -52,7 +52,7 @@ final class ChatbotSessionNotifierProvider
 }
 
 String _$chatbotSessionNotifierHash() =>
-    r'c8eb02d33fb29f666dd591b48c994f7fd6758f44';
+    r'fc726935470073d6aa1dcd2aadef3c30831542f2';
 
 final class ChatbotSessionNotifierFamily extends $Family
     with

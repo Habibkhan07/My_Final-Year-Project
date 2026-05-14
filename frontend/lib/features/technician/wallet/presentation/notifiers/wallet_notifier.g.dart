@@ -78,7 +78,7 @@ final class WalletNotifierProvider
   WalletNotifier create() => WalletNotifier();
 }
 
-String _$walletNotifierHash() => r'f01ef8f6b1704460850e540a18d750985da7603d';
+String _$walletNotifierHash() => r'05d035ab20496f00ea474c359ebfe15002c74201';
 
 /// State holder for the tech-only Wallet screen.
 ///
