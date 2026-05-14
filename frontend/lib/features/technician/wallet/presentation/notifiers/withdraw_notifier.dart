@@ -3,6 +3,8 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../domain/entities/payout_account.dart';
 import '../../domain/failures/withdrawal_failure.dart';
 import '../providers/dependency_injection.dart';
+import 'pending_withdrawal_notifier.dart';
+import 'withdrawal_history_notifier.dart';
 import 'withdraw_state.dart';
 
 part 'withdraw_notifier.g.dart';
@@ -144,6 +146,14 @@ class WithdrawNotifier extends _$WithdrawNotifier {
           clearFailure: true,
         ),
       );
+      // Patch the wallet screen's pending pill + history list so the
+      // tech sees their just-submitted row without waiting for a
+      // pull-to-refresh. ``ref.invalidate`` is a no-op when the
+      // provider hasn't been read yet (e.g. wallet screen unmounted),
+      // so this is safe even when the sheet is opened from a deep
+      // link without the wallet screen on the stack.
+      ref.invalidate(pendingWithdrawalProvider);
+      ref.invalidate(withdrawalHistoryProvider);
     } on WithdrawalFailure catch (failure) {
       state = AsyncData(
         current.copyWith(

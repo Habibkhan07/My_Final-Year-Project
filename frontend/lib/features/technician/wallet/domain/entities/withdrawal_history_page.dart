@@ -17,6 +17,19 @@ class WithdrawalHistoryPage {
 
   bool get hasMore => nextCursor != null && nextCursor!.isNotEmpty;
 
+  /// Concatenate this page with the next one fetched via [nextCursor].
+  ///
+  /// Used by ``WithdrawalHistoryNotifier.loadMore`` to extend the list
+  /// without re-creating the existing rows. The merged page carries
+  /// the LATER page's cursor (so the next ``loadMore`` continues past
+  /// the new tail) and the union of the two ``results`` lists in
+  /// newest-first order — the server already returned them sorted.
+  WithdrawalHistoryPage append(WithdrawalHistoryPage next) =>
+      WithdrawalHistoryPage(
+        results: [...results, ...next.results],
+        nextCursor: next.nextCursor,
+      );
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||

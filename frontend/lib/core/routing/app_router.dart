@@ -20,6 +20,7 @@ import '../../features/customer/addresses/presentation/screens/map_picker_screen
 import '../../features/technician/dashboard/presentation/screens/technician_dashboard_screen.dart';
 import '../../features/technician/metrics/presentation/screens/metrics_screen.dart';
 import '../../features/technician/wallet/presentation/screens/wallet_screen.dart';
+import '../../features/technician/wallet/presentation/screens/withdrawal_history_screen.dart';
 import '../realtime/presentation/providers/dependency_injection.dart';
 
 // DEBUG — remove in end-of-UI cleanup pass. Controls where the post-auth
@@ -193,6 +194,13 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/wallet',
         builder: (context, state) => const WalletScreen(),
+      ),
+      // Tech-only withdrawal request history. Pushed from the
+      // wallet screen's "View withdrawal history" link and from the
+      // PendingWithdrawalStrip tap.
+      GoRoute(
+        path: '/withdrawals/history',
+        builder: (context, state) => const WithdrawalHistoryScreen(),
       ),
       // Tech-only Metrics screen. Reached from the bottom-nav "Metrics" tab.
       GoRoute(

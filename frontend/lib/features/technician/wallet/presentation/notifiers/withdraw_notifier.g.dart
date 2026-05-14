@@ -108,7 +108,7 @@ final class WithdrawNotifierProvider
   WithdrawNotifier create() => WithdrawNotifier();
 }
 
-String _$withdrawNotifierHash() => r'ae14c751306a25cfd5061634fe4c1737596983c9';
+String _$withdrawNotifierHash() => r'ed84a582c488ded01d16a0cff51fd4fa9ad02cb1';
 
 /// Drives the withdrawal-sheet state machine.
 ///

@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../../core/theme/app_colors.dart';
 import '../../domain/failures/wallet_failure.dart';
 import '../notifiers/wallet_notifier.dart';
 import '../notifiers/wallet_transactions_notifier.dart';
+import '../notifiers/pending_withdrawal_notifier.dart';
 import '../widgets/balance_card.dart';
+import '../widgets/pending_withdrawal_strip.dart';
 import '../widgets/top_up_button.dart';
 import '../widgets/transactions_section.dart';
 import '../widgets/wallet_lockout_strip.dart';
@@ -39,6 +42,11 @@ class WalletScreen extends ConsumerWidget {
       ),
       body: RefreshIndicator(
         onRefresh: () async {
+          // Refresh all three streams that feed this screen together
+          // so the pull-to-refresh gesture covers the whole surface.
+          // pendingWithdrawal piggybacks on the same history endpoint,
+          // so invalidating it is enough to re-fetch.
+          ref.invalidate(pendingWithdrawalProvider);
           await Future.wait<void>([
             ref.read(walletProvider.notifier).refresh(),
             ref.read(walletTransactionsProvider.notifier).refresh(),
@@ -67,9 +75,12 @@ class WalletScreen extends ConsumerWidget {
                 ],
                 BalanceCard(wallet: wallet),
                 const SizedBox(height: 24),
+                const PendingWithdrawalStrip(),
                 const TopUpButton(),
                 const SizedBox(height: 12),
                 const WithdrawButton(),
+                const SizedBox(height: 8),
+                _WithdrawalHistoryLink(),
                 const TransactionsSection(),
               ],
             ),
@@ -78,6 +89,25 @@ class WalletScreen extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// Small text-button link to the withdrawal-history screen. Lives
+/// directly under the Withdraw CTA so the visibility surface is one
+/// tap away from the action that creates rows on it.
+class _WithdrawalHistoryLink extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) => Align(
+        alignment: Alignment.center,
+        child: TextButton.icon(
+          onPressed: () => context.push('/withdrawals/history'),
+          icon: const Icon(Icons.history, size: 18),
+          label: const Text('View withdrawal history'),
+          style: TextButton.styleFrom(
+            foregroundColor: AppColors.primary,
+            textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+          ),
+        ),
+      );
 }
 
 class _LoadingView extends StatelessWidget {
