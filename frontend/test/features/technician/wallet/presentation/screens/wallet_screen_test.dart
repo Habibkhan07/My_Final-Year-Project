@@ -3,24 +3,42 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
+import 'package:frontend/features/technician/wallet/domain/entities/payout_accounts.dart';
 import 'package:frontend/features/technician/wallet/domain/entities/wallet_state.dart';
 import 'package:frontend/features/technician/wallet/domain/repositories/wallet_repository.dart';
+import 'package:frontend/features/technician/wallet/domain/repositories/withdrawal_repository.dart';
 import 'package:frontend/features/technician/wallet/presentation/providers/dependency_injection.dart';
 import 'package:frontend/features/technician/wallet/presentation/screens/wallet_screen.dart';
 
 class _MockRepo extends Mock implements WalletRepository {}
 
+class _MockWithdrawalRepo extends Mock implements WithdrawalRepository {}
+
 void main() {
   late _MockRepo repo;
+  late _MockWithdrawalRepo withdrawalRepo;
 
   setUp(() {
     repo = _MockRepo();
+    withdrawalRepo = _MockWithdrawalRepo();
+    // Default withdrawal-repo stubs so the sheet's build() resolves
+    // when the Withdraw button is tapped. Individual tests override
+    // when they care about the picker contents.
+    when(() => withdrawalRepo.listPayoutAccounts()).thenAnswer(
+      (_) async => const PayoutAccounts(
+        bankAccounts: [],
+        jazzcashAccounts: [],
+      ),
+    );
   });
 
   Future<void> pumpScreen(WidgetTester tester) async {
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [walletRepositoryProvider.overrideWithValue(repo)],
+        overrides: [
+          walletRepositoryProvider.overrideWithValue(repo),
+          withdrawalRepositoryProvider.overrideWithValue(withdrawalRepo),
+        ],
         child: const MaterialApp(home: WalletScreen()),
       ),
     );
@@ -60,7 +78,7 @@ void main() {
     expect(find.text('Continue'), findsOneWidget);
   });
 
-  testWidgets('Withdraw tap shows "Thursday" snackbar', (tester) async {
+  testWidgets('Withdraw tap opens the withdraw sheet', (tester) async {
     when(() => repo.getBalance()).thenAnswer(
       (_) async => WalletState.fromBalance(
         balance: 100.0,
@@ -70,10 +88,35 @@ void main() {
 
     await pumpScreen(tester);
     await tester.tap(find.text('Withdraw'));
-    await tester.pump();
+    await tester.pumpAndSettle();
 
-    expect(find.textContaining('Thursday'), findsOneWidget);
+    // WithdrawSheet renders its own title.
+    expect(find.text('Withdraw funds'), findsOneWidget);
   });
+
+  testWidgets(
+    'Withdraw button is disabled when wallet is locked out',
+    (tester) async {
+      when(() => repo.getBalance()).thenAnswer(
+        (_) async => WalletState.fromBalance(
+          balance: -50.0,
+          asOf: DateTime.utc(2026, 5, 13),
+        ),
+      );
+
+      await pumpScreen(tester);
+
+      // Button label changes to "Withdraw (locked)" and onPressed=null.
+      expect(find.text('Withdraw (locked)'), findsOneWidget);
+      final btn = tester.widget<OutlinedButton>(
+        find.ancestor(
+          of: find.text('Withdraw (locked)'),
+          matching: find.byType(OutlinedButton),
+        ),
+      );
+      expect(btn.onPressed, isNull);
+    },
+  );
 
   // F5 — lockout strip renders only when the wallet is in lockout.
 
