@@ -69,6 +69,51 @@ class TestWalletBalanceView:
         resp = client.get(self.URL)
         assert isinstance(resp.json()['balance'], str)
 
+    # --- Lockout fields (Dumb-UI payload from lockout_status) -----------
+
+    def test_positive_balance_payload_has_lockout_fields_unlocked(self):
+        tech = TechnicianProfileFactory(current_wallet_balance=Decimal('1500.00'))
+        client = APIClient()
+        client.force_authenticate(user=tech.user)
+
+        body = client.get(self.URL).json()
+        assert body['is_locked_out'] is False
+        assert body['balance_pkr'] == 1500
+        assert body['owed_pkr'] == 0
+
+    def test_zero_balance_is_not_locked(self):
+        """Boundary: zero is NOT lockout — strict ``< 0``."""
+        tech = TechnicianProfileFactory(current_wallet_balance=Decimal('0.00'))
+        client = APIClient()
+        client.force_authenticate(user=tech.user)
+
+        body = client.get(self.URL).json()
+        assert body['is_locked_out'] is False
+        assert body['balance_pkr'] == 0
+        assert body['owed_pkr'] == 0
+
+    def test_negative_balance_payload_carries_owed_amount(self):
+        tech = TechnicianProfileFactory(current_wallet_balance=Decimal('-495.00'))
+        client = APIClient()
+        client.force_authenticate(user=tech.user)
+
+        body = client.get(self.URL).json()
+        assert body['is_locked_out'] is True
+        assert body['balance_pkr'] == -495
+        assert body['owed_pkr'] == 495
+
+    def test_paisa_fraction_owed_rounds_up(self):
+        """Owed must round up so paying it clears the lockout — see the
+        lockout-selector tests for the reasoning."""
+        tech = TechnicianProfileFactory(current_wallet_balance=Decimal('-100.01'))
+        client = APIClient()
+        client.force_authenticate(user=tech.user)
+
+        body = client.get(self.URL).json()
+        assert body['is_locked_out'] is True
+        assert body['balance_pkr'] == -101
+        assert body['owed_pkr'] == 101
+
 
 def _make_commission_row(tech, *, when):
     booking = JobBookingCompletedFactory(technician=tech)

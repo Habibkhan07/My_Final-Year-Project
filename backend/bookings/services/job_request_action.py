@@ -37,6 +37,9 @@ from bookings.exceptions import (
 from bookings.models import JobBooking
 from realtime.constants.event_types import EventType
 from realtime.events.services import EventDispatchService
+from technicians.models import TechnicianProfile
+from wallet.exceptions import WalletLockoutError
+from wallet.selectors.lockout import is_wallet_locked, lockout_status
 
 
 def _to_iso_utc(value: datetime) -> str:
@@ -180,6 +183,18 @@ def accept_job_booking(*, booking_id: int, technician_user) -> JobBooking:
         is not the same-tech idempotent CONFIRMED case (CANCELLED by
         customer, REJECTED by SLA, COMPLETED, PENDING).
 
+    Wallet-lockout gate
+    -------------------
+    Per the negative-balance lockout policy (memory ``wallet-money-mechanics``),
+    a tech whose wallet is currently underwater (``current_wallet_balance < 0``)
+    cannot accept new dispatches until they top up. Raised as
+    ``WalletLockoutError`` (HTTP 403 via the canonical envelope handler).
+
+    The gate fires AFTER the idempotency and AWAITING checks: a tech who
+    already accepted this booking yesterday (and is now locked) still gets
+    the idempotent CONFIRMED back. The lockout is enforced only on the
+    transition that would actually change state.
+
     SECURITY: queryset is scoped to ``technician__user=technician_user`` so
     a technician cannot accept another technician's offer; SELECT FOR
     UPDATE serializes against the SLA timeout task and the customer
@@ -194,12 +209,34 @@ def accept_job_booking(*, booking_id: int, technician_user) -> JobBooking:
         # Idempotent same-tech retry: treat as success without re-emitting.
         # The queryset already proved the requesting tech owns the row;
         # encountering CONFIRMED here means the same tech accepted in a
-        # prior request that we never confirmed back to them.
+        # prior request that we never confirmed back to them. Done BEFORE
+        # the lockout check so a previously-successful accept is not
+        # retroactively reversed by a later wallet dip.
         if booking.status == JobBooking.STATUS_CONFIRMED:
             return booking
 
         if booking.status != JobBooking.STATUS_AWAITING_TECH_ACCEPT:
             raise BookingNotActionableError(current_status=booking.status)
+
+        # Wallet-lockout gate. The booking lock above (`select_for_update`
+        # on JobBooking, with `select_related` JOIN of the tech) only locks
+        # the booking row — the tech's wallet balance could still race a
+        # concurrent commission write. A separate `select_for_update` on
+        # the TechnicianProfile row is mandatory: it observes the latest
+        # committed balance AND serializes against any commission/refund
+        # write currently mid-flight (those writes also hold this same
+        # row lock via `wallet.services.ledger.record_transaction`).
+        locked_tech = (
+            TechnicianProfile.objects
+            .select_for_update()
+            .get(pk=booking.technician_id)
+        )
+        if is_wallet_locked(locked_tech):
+            status = lockout_status(locked_tech)
+            raise WalletLockoutError(
+                balance_pkr=status["balance_pkr"],
+                owed_pkr=status["owed_pkr"],
+            )
 
         booking.status = JobBooking.STATUS_CONFIRMED
         booking.save(update_fields=["status"])

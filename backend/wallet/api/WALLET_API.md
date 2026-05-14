@@ -18,9 +18,9 @@ All endpoints follow the standard error envelope on failure:
 
 ## `GET /api/technicians/wallet/`
 
-Returns the tech's current wallet balance + a snapshot timestamp.
-Realtime `wallet_balance_updated` events patch this between explicit
-reads — typical refresh cadence is event-driven, not polling.
+Returns the tech's current wallet balance + lockout state + a snapshot
+timestamp. Realtime `wallet_balance_updated` events patch this between
+explicit reads — typical refresh cadence is event-driven, not polling.
 
 **Auth:** `IsAuthenticated` + technician profile required (else 403).
 
@@ -29,7 +29,49 @@ reads — typical refresh cadence is event-driven, not polling.
 ```json
 {
   "balance": "1500.00",
-  "as_of": "2026-05-13T22:30:00Z"
+  "as_of": "2026-05-13T22:30:00Z",
+  "is_locked_out": false,
+  "balance_pkr": 1500,
+  "owed_pkr": 0
+}
+```
+
+**Lockout-state fields** (Dumb-UI payload — frontend banner consumes
+these directly, no client-side math):
+
+| Field | Type | Notes |
+|---|---|---|
+| `is_locked_out` | bool | True iff `balance_pkr < 0`. Rule lives in `wallet.selectors.lockout.is_wallet_locked`. |
+| `balance_pkr` | int | Integer rupees. For locked accounts, rounded with `ROUND_FLOOR` so `balance_pkr + owed_pkr == 0`. |
+| `owed_pkr` | int | Positive int, the top-up amount that clears lockout. `0` when not locked. Rounded with `ROUND_CEILING` on paisa fractions so paying this amount fully clears (never leaves a paisa shortfall). |
+
+**Example — locked tech with paisa fraction:**
+
+```json
+{
+  "balance": "-100.01",
+  "as_of": "2026-05-14T10:00:00Z",
+  "is_locked_out": true,
+  "balance_pkr": -101,
+  "owed_pkr": 101
+}
+```
+
+Topping up Rs. 101 brings the balance to `0.99` → unlocked. (The legacy
+`balance` field retains paisa precision for display.)
+
+**Related error envelope** — accept-job and other tech-action endpoints
+return `403 wallet_lockout` when consumed while locked:
+
+```json
+{
+  "status": 403,
+  "code": "wallet_lockout",
+  "message": "Wallet is locked. Top up to continue accepting jobs.",
+  "errors": {
+    "balance_pkr": ["-101"],
+    "owed_pkr": ["101"]
+  }
 }
 ```
 

@@ -38,7 +38,8 @@ from typing import TYPE_CHECKING
 from django.db import transaction
 
 from technicians.models import TechnicianProfile
-from wallet.models import WalletTransaction
+from wallet.exceptions import InsufficientFundsError
+from wallet.models import TransactionType, WalletTransaction
 
 if TYPE_CHECKING:  # pragma: no cover
     pass
@@ -101,6 +102,18 @@ def record_transaction(
       ``transaction.on_commit``. If the surrounding transaction rolls
       back, the broadcast NEVER fires — preventing the customer-visible
       "ghost update" failure mode.
+
+    Raises
+    ------
+    InsufficientFundsError
+        Only when ``transaction_type == WITHDRAWAL_DEBIT`` and the resulting
+        balance would be negative. Per the per-type sufficiency policy
+        (see ``wallet.exceptions`` and memory ``wallet-money-mechanics``),
+        withdrawal is the ONLY debit the ledger refuses to record —
+        commission/refund debits proceed even into negative balance, which
+        is the lockout signal. Raised BEFORE any ledger row is written
+        and BEFORE the ``select_for_update`` lock is released, so the
+        attempt leaves no audit trace and no balance mutation.
     """
     if not isinstance(amount, Decimal):
         amount = Decimal(str(amount))
@@ -132,6 +145,34 @@ def record_transaction(
 
         new_balance = locked_tech.current_wallet_balance + amount
 
+        # Per-type sufficiency policy. Penalizing debits (COMMISSION, REFUND)
+        # proceed regardless and may drive balance negative — that is the
+        # lockout signal consumed at job-accept time. User-initiated
+        # withdrawal is the ONLY debit gated here: a tech cannot borrow
+        # money from the platform by withdrawing more than they currently
+        # hold. ADJUSTMENT is admin discretion (no gate, either direction).
+        # See memory ``wallet-money-mechanics`` for the authoritative table.
+        #
+        # Raising here, before the WalletTransaction.objects.create() call,
+        # means the failed attempt produces NO ledger row and NO balance
+        # mutation — the outer ``with transaction.atomic()`` block rolls
+        # back cleanly. Idempotency replay (above) takes precedence over
+        # this guard, which is correct: an already-recorded withdrawal
+        # was sufficient at write time and is the ledger's source of truth.
+        if (
+            transaction_type == TransactionType.WITHDRAWAL_DEBIT
+            and new_balance < Decimal('0')
+        ):
+            raise InsufficientFundsError(
+                # ``amount`` arrives as a negative Decimal for debits; the
+                # absolute value is what the tech requested. ``int()``
+                # truncates the (model-allowed but practically never used)
+                # paisa fraction — conservative under-reporting for the
+                # "available" side, exact for the "requested" side.
+                requested_pkr=int(-amount),
+                available_pkr=int(locked_tech.current_wallet_balance),
+            )
+
         # Write the ledger row. ``balance_after`` is the forensic invariant:
         # MAX(balance_after) per tech must equal locked_tech.current_wallet_balance
         # after the .save() below. The two writes are atomic together.
@@ -147,10 +188,33 @@ def record_transaction(
         )
 
         # Patch the denormalized balance on the technician row. update_fields
-        # narrows the UPDATE to one column so concurrent writers touching
-        # unrelated fields (e.g. is_online toggle) don't pseudo-collide.
+        # narrows the UPDATE to the columns we actually mutated so concurrent
+        # writers touching unrelated fields don't pseudo-collide.
         locked_tech.current_wallet_balance = new_balance
-        locked_tech.save(update_fields=['current_wallet_balance'])
+        update_fields = ['current_wallet_balance']
+
+        # Auto-offline gate. When this ledger write drives the balance into
+        # negative territory (and the tech is currently online), the same
+        # atomic also forces ``is_online = False``. The tech is structurally
+        # locked out from accepting dispatches (see ``accept_job_booking``
+        # gate) AND visibly removed from the dispatch pool — the demo loop
+        # is "tech sees forced-offline, taps top-up, taps back online".
+        #
+        # Top-ups that clear lockout do NOT auto-flip back to True: coming
+        # back online is intentionally an explicit tech action (memory
+        # ``wallet-money-mechanics``). The condition ``locked_tech.is_online``
+        # makes this branch idempotent — a subsequent commission write on
+        # an already-locked-and-offline tech is a no-op for ``is_online``.
+        #
+        # Boundary: the lockout signal is ``balance < 0`` (strict). A write
+        # that lands balance at exactly 0 (e.g. an exact-amount withdrawal
+        # taken to zero, or admin adjustment) does NOT trigger auto-offline.
+        # This matches the rule in ``wallet.selectors.lockout``.
+        if new_balance < Decimal('0') and locked_tech.is_online:
+            locked_tech.is_online = False
+            update_fields.append('is_online')
+
+        locked_tech.save(update_fields=update_fields)
 
         # Schedule the WS broadcast on commit. If the outer atomic rolls
         # back, this lambda is dropped and no event reaches the tech app.

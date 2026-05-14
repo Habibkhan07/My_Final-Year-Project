@@ -14,16 +14,30 @@ from django.db.models import Q
 
 from technicians.models import TechnicianProfile
 from wallet.models import TransactionType, WalletTransaction
+from wallet.selectors.lockout import lockout_status
 
 
 class WalletBalancePayload(TypedDict):
-    """Response shape for ``GET /api/technicians/wallet/``."""
-    balance: str       # Decimal-as-string, "1500.00"
-    as_of: str         # ISO-8601 UTC timestamp
+    """Response shape for ``GET /api/technicians/wallet/``.
+
+    Five fields, two concerns:
+
+    * Display fidelity (``balance``, ``as_of``) — preserves the legacy
+      Decimal-as-string contract for currency rendering.
+    * Lockout state (``is_locked_out``, ``balance_pkr``, ``owed_pkr``) —
+      Dumb-UI payload from ``wallet.selectors.lockout.lockout_status``.
+      The frontend banner composes "Top up Rs. {owed_pkr} to come online"
+      without any client-side math.
+    """
+    balance: str          # Decimal-as-string, "1500.00"
+    as_of: str            # ISO-8601 UTC timestamp
+    is_locked_out: bool
+    balance_pkr: int
+    owed_pkr: int
 
 
 def get_wallet_balance(technician: TechnicianProfile) -> WalletBalancePayload:
-    """Return the tech's current wallet balance + as-of timestamp.
+    """Return the tech's current wallet balance + lockout state + as-of timestamp.
 
     Uses the denormalized ``TechnicianProfile.current_wallet_balance`` field
     (kept in sync by every ``ledger.record_transaction`` call). The
@@ -33,12 +47,21 @@ def get_wallet_balance(technician: TechnicianProfile) -> WalletBalancePayload:
 
     Decimal is serialized as a string to preserve precision across the
     wire. The frontend parses it back to a numeric type at the boundary.
+
+    Lockout state comes from ``wallet.selectors.lockout.lockout_status``,
+    which is the single source of truth for the negative-balance rule.
+    The fields are additive over the legacy two-field payload so existing
+    Flutter clients that only parse ``balance`` + ``as_of`` keep working.
     """
+    status = lockout_status(technician)
     return {
         'balance': str(technician.current_wallet_balance),
         # ``timezone.now()`` would also work; using datetime.now(tz=UTC) keeps
         # this selector free of django.utils.timezone imports.
         'as_of': datetime.now().astimezone().isoformat(),
+        'is_locked_out': status['is_locked_out'],
+        'balance_pkr': status['balance_pkr'],
+        'owed_pkr': status['owed_pkr'],
     }
 
 

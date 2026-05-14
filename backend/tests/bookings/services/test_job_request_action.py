@@ -520,3 +520,167 @@ class TestCustomerEventPayloadShape:
         # tests/bookings/services/test_tasks.py.
         assert payload["reason"] == "technician_declined"
         assert payload["service_name"] == "Faucet Repair"
+
+
+# =====================================================================
+# accept_job_booking — wallet-lockout gate
+# =====================================================================
+#
+# Per the negative-balance lockout policy (memory ``wallet-money-mechanics``):
+# a tech whose wallet is currently underwater cannot accept new dispatches.
+# These tests pin the placement of the gate within the existing accept
+# transition so future refactors don't inadvertently move it past the
+# state-mutation point (where the rollback guarantee would no longer
+# hold) or past the idempotency short-circuit (which would retroactively
+# break previously-successful accepts).
+
+
+@pytest.mark.django_db
+class TestAcceptJobBookingLockoutGate:
+    """Wallet lockout (balance < 0) blocks accept; balance >= 0 allows it."""
+
+    def _booking_for_tech_with_balance(self, balance, status=JobBooking.STATUS_AWAITING_TECH_ACCEPT):
+        from decimal import Decimal as _D
+        tech = TechnicianProfileFactory(
+            status="APPROVED",
+            current_wallet_balance=_D(str(balance)),
+        )
+        profile = CustomerProfileFactory()
+        address = CustomerAddressFactory(customer=profile)
+        return JobBookingFactory(
+            technician=tech,
+            customer=profile.user,
+            address=address,
+            status=status,
+        )
+
+    def test_negative_balance_blocks_accept(self, mocker):
+        """Locked tech tapping Accept gets 403 wallet_lockout envelope —
+        no state mutation, no customer broadcast."""
+        from wallet.exceptions import WalletLockoutError
+        broadcast = mocker.patch.object(
+            action_module.EventDispatchService, "broadcast_event"
+        )
+        booking = self._booking_for_tech_with_balance('-200.00')
+
+        with pytest.raises(WalletLockoutError) as excinfo:
+            accept_job_booking(
+                booking_id=booking.id,
+                technician_user=booking.technician.user,
+            )
+
+        err = excinfo.value
+        assert err.code == "wallet_lockout"
+        assert err.status_code == 403
+        assert err.errors == {
+            "balance_pkr": ["-200"],
+            "owed_pkr": ["200"],
+        }
+
+        # Booking row untouched.
+        booking.refresh_from_db()
+        assert booking.status == JobBooking.STATUS_AWAITING_TECH_ACCEPT
+        # No customer broadcast — the gate raises BEFORE the on_commit hook
+        # is registered, AND the surrounding atomic block rolls back.
+        assert broadcast.call_count == 0
+
+    def test_zero_balance_allows_accept(self, mocker):
+        """Boundary: zero is NOT locked — the rule is strictly ``< 0``."""
+        mocker.patch.object(action_module.EventDispatchService, "broadcast_event")
+        booking = self._booking_for_tech_with_balance('0.00')
+
+        result = accept_job_booking(
+            booking_id=booking.id,
+            technician_user=booking.technician.user,
+        )
+        result.refresh_from_db()
+        assert result.status == JobBooking.STATUS_CONFIRMED
+
+    def test_positive_balance_allows_accept(self, mocker):
+        mocker.patch.object(action_module.EventDispatchService, "broadcast_event")
+        booking = self._booking_for_tech_with_balance('500.00')
+
+        result = accept_job_booking(
+            booking_id=booking.id,
+            technician_user=booking.technician.user,
+        )
+        result.refresh_from_db()
+        assert result.status == JobBooking.STATUS_CONFIRMED
+
+    def test_idempotent_confirmed_returns_even_if_now_locked(self, mocker):
+        """A tech who accepted yesterday (positive balance then) but is now
+        locked still gets the idempotent CONFIRMED return — the lockout
+        gate must NOT retroactively reverse a successful accept."""
+        broadcast = mocker.patch.object(
+            action_module.EventDispatchService, "broadcast_event"
+        )
+        # Booking is already CONFIRMED (yesterday's accept). Tech wallet
+        # is now negative (commission deducted overnight).
+        booking = self._booking_for_tech_with_balance(
+            '-300.00',
+            status=JobBooking.STATUS_CONFIRMED,
+        )
+
+        result = accept_job_booking(
+            booking_id=booking.id,
+            technician_user=booking.technician.user,
+        )
+
+        assert result.status == JobBooking.STATUS_CONFIRMED
+        # No re-emit on idempotent path.
+        assert broadcast.call_count == 0
+
+    def test_paisa_fraction_owed_rounds_up_in_envelope(self, mocker):
+        """The exception envelope reuses ``lockout_status`` — verify the
+        rounding policy reaches the wire."""
+        from wallet.exceptions import WalletLockoutError
+        mocker.patch.object(action_module.EventDispatchService, "broadcast_event")
+        booking = self._booking_for_tech_with_balance('-100.01')
+
+        with pytest.raises(WalletLockoutError) as excinfo:
+            accept_job_booking(
+                booking_id=booking.id,
+                technician_user=booking.technician.user,
+            )
+
+        assert excinfo.value.errors == {
+            "balance_pkr": ["-101"],  # floor
+            "owed_pkr": ["101"],      # ceiling
+        }
+
+    def test_lockout_check_uses_freshly_committed_balance_not_stale_join(self):
+        """The gate must re-read the tech row under select_for_update, NOT
+        trust the JOIN-loaded ``booking.technician`` instance.
+
+        We mutate the DB row AFTER the booking was created. Without a
+        re-fetch, the gate would still see the original (positive)
+        balance loaded via select_related JOIN and let the accept
+        through. With the re-fetch (current behavior), the gate sees
+        the latest committed balance and blocks.
+        """
+        from decimal import Decimal as _D
+        from wallet.exceptions import WalletLockoutError
+        tech = TechnicianProfileFactory(
+            status="APPROVED",
+            current_wallet_balance=_D('500.00'),
+        )
+        profile = CustomerProfileFactory()
+        address = CustomerAddressFactory(customer=profile)
+        booking = JobBookingFactory(
+            technician=tech,
+            customer=profile.user,
+            address=address,
+            status=JobBooking.STATUS_AWAITING_TECH_ACCEPT,
+        )
+
+        # Direct DB update simulating a concurrent commission write that
+        # flipped balance negative between booking creation and accept.
+        TechnicianProfileFactory._meta.model.objects.filter(pk=tech.pk).update(
+            current_wallet_balance=_D('-50.00')
+        )
+
+        with pytest.raises(WalletLockoutError):
+            accept_job_booking(
+                booking_id=booking.id,
+                technician_user=tech.user,
+            )
