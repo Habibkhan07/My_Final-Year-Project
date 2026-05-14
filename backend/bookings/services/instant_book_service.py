@@ -143,9 +143,18 @@ def create_instant_booking(
         raise InvalidAddressError()
 
     # --- 2. Technician guard ---
+    # ``is_online=True`` is defense in depth: discovery already filters on
+    # this (see ``technicians.selectors.matchmaking_selectors``), but a
+    # customer can hold a stale tech_id from a prior discovery snapshot
+    # and POST it after the tech went offline (manual toggle or
+    # auto-offline via wallet lockout). The booking write must refuse,
+    # otherwise we'd create an AWAITING booking that the tech's accept
+    # call would then bounce — bad UX. Collapsing to DoesNotExist here
+    # keeps the failure mode identical to "tech doesn't exist",
+    # preserving the IDOR-safe opaque response.
     tech = (
         TechnicianProfile.objects
-        .filter(status='APPROVED')
+        .filter(status='APPROVED', is_online=True)
         .get(pk=technician_id)
     )
 

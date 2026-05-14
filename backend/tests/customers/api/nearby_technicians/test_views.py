@@ -190,3 +190,49 @@ class TestTechnicianDiscoveryListView:
         ids = [t['id'] for t in response.json()['results']]
         assert refill_tech.id in ids
         assert install_tech.id not in ids, "Install tech must NOT appear in Gas Refill results"
+
+    # ------------------------------------------------------------------
+    # is_online filter — offline / auto-locked techs vanish from discovery.
+    # ------------------------------------------------------------------
+
+    def test_offline_technician_excluded_from_discovery(self):
+        """A tech with ``is_online=False`` (manually offline OR auto-offlined
+        via wallet lockout) must NOT appear in the customer's discovery list.
+
+        This is the discovery-side counterpart to the auto-offline behavior
+        in ``wallet.services.ledger.record_transaction`` and to the manual
+        offline toggle — the universal "offline = not visible to dispatch"
+        pattern across gig platforms (memory ``wallet-money-mechanics``)."""
+        service = ServiceFactory()
+        sub_service = SubServiceFactory(service=service)
+
+        online_tech = TechnicianProfileFactory(is_online=True)
+        TechnicianSkillFactory(technician=online_tech, sub_service=sub_service)
+
+        offline_tech = TechnicianProfileFactory(is_online=False)
+        TechnicianSkillFactory(technician=offline_tech, sub_service=sub_service)
+
+        response = self.client.get(f"{self.url}?service_id={service.id}")
+
+        assert response.status_code == 200
+        ids = [t['id'] for t in response.json()['results']]
+        assert online_tech.id in ids
+        assert offline_tech.id not in ids, (
+            "Offline tech must NOT appear in discovery — locked/manually-offline "
+            "techs cannot accept work, so showing them is bad UX (customer waits "
+            "for SLA timeout or manual decline)."
+        )
+
+    def test_all_offline_returns_empty_result_set(self):
+        """If every matching tech is offline, the discovery list is empty.
+        No fallback to offline techs — that would defeat the purpose."""
+        service = ServiceFactory()
+        sub_service = SubServiceFactory(service=service)
+
+        tech = TechnicianProfileFactory(is_online=False)
+        TechnicianSkillFactory(technician=tech, sub_service=sub_service)
+
+        response = self.client.get(f"{self.url}?service_id={service.id}")
+
+        assert response.status_code == 200
+        assert response.json()['results'] == []

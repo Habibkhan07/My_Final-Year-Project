@@ -33,9 +33,19 @@ def get_top_nearby_technicians(*, lat: float, lng: float, service_id: int = None
     so that promo/category/gig filtering always works, even when coordinates are absent.
     """
     # 0. Base Queryset (The N+1 Fix is the select_related('user') here)
+    #
+    # ``is_online=True`` is the discovery-side counterpart to the auto-offline
+    # behavior in ``wallet.services.ledger.record_transaction``: when a tech's
+    # wallet drops into lockout territory (balance < 0) the ledger flips them
+    # offline in the same atomic. This filter then removes them from the
+    # customer's discovery list, completing the "tech goes offline → not
+    # bookable" loop. Manual offline toggles get the same treatment, which is
+    # the universal pattern across Uber / Careem / TaskRabbit / Foodpanda:
+    # offline = not visible to dispatch.
     base_qs = TechnicianProfile.objects.select_related('user').prefetch_related('skills__service').filter(
         is_active=True,
-        is_onboarding_complete=True
+        is_onboarding_complete=True,
+        is_online=True,
     )
 
     # --- STEP 1: DOMAIN FILTERING (always applied, GPS-independent) ---

@@ -192,6 +192,21 @@ class TestCreateInstantBooking:
         with pytest.raises(TechnicianProfile.DoesNotExist):
             create_instant_booking(customer_user=profile.user, **_make_booking_kwargs(tech, address))
 
+    def test_offline_technician_raises_does_not_exist(self):
+        """Offline tech (manually toggled OR auto-offlined via wallet lockout)
+        cannot be booked. The customer's discovery list already filters by
+        ``is_online=True``; this is the defense-in-depth check at the booking
+        write that catches stale tech_ids from prior discovery snapshots.
+
+        Collapses to ``TechnicianProfile.DoesNotExist`` to match the
+        IDOR-safe opaque response used for PENDING / REJECTED techs."""
+        tech = TechnicianProfileFactory(status='APPROVED', is_online=False)
+        profile = CustomerProfileFactory()
+        address = CustomerAddressFactory(customer=profile)
+
+        with pytest.raises(TechnicianProfile.DoesNotExist):
+            create_instant_booking(customer_user=profile.user, **_make_booking_kwargs(tech, address))
+
     # ------------------------------------------------------------------
     # GEOFENCE
     # ------------------------------------------------------------------

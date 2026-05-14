@@ -15,6 +15,12 @@ class TechnicianProfileFactory(factory.django.DjangoModelFactory):
     status = 'APPROVED'
     is_onboarding_complete = True
     is_active = True
+    # Happy-path default: tech is online and bookable. Matches the other
+    # bookability gates above (status / is_active / is_onboarding_complete)
+    # so discovery + instant-book tests don't have to repeat themselves.
+    # Tests that exercise offline / locked-out paths set this to False
+    # explicitly.
+    is_online = True
     base_latitude = 31.5204
     base_longitude = 74.3587
     max_travel_radius_km = 10
