@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../domain/entities/booking_detail.dart';
 import '../../../domain/entities/booking_ui_block.dart';
@@ -154,10 +155,7 @@ class HelpSheet extends ConsumerWidget {
             // Contact support is post-completion only. Same gate as the
             // old "Open a dispute" row, since the chatbot IS the dispute
             // intake — two entry points for one workflow would just
-            // confuse the customer. Wires to the chatbot screen on
-            // 2026-05-13 (Day 3 of the viva sprint); today it's a
-            // placeholder snackbar so QA can see the row appear/hide
-            // around the COMPLETED transition.
+            // confuse the customer.
             if (showDispute) ...[
               if (reschedule != null || cancel != null)
                 const Divider(height: 24),
@@ -167,11 +165,13 @@ class HelpSheet extends ConsumerWidget {
                 title: 'Contact support',
                 subtitle: 'Report a problem with this job',
                 onTap: () {
+                  // Capture the router BEFORE popping the sheet —
+                  // after pop, the sheet's element is disposed and
+                  // looking up GoRouter through it would race.
+                  final router = GoRouter.of(context);
                   Navigator.of(context).pop();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Support chat ships in the chatbot sprint.'),
-                    ),
+                  router.push(
+                    '/customer/bookings/${booking.id}/dispute-chat',
                   );
                 },
               ),

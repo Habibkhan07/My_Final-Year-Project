@@ -7,6 +7,7 @@ import '../../features/auth/presentation/screens/login_screen.dart';
 import '../../features/auth/presentation/screens/otp_screen.dart';
 import '../../features/auth/presentation/screens/profile_setup_screen.dart';
 import '../../features/customer/bookings/presentation/screens/customer_bookings_list_screen.dart';
+import '../../features/customer/chatbot/presentation/screens/chatbot_screen.dart';
 import '../../features/orchestrator/presentation/screens/booking_orchestrator_screen.dart';
 import '../../features/customer/home/presentation/screens/home_screen.dart';
 import '../../features/customer/search/presentation/pages/search_page.dart';
@@ -149,6 +150,23 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/customer/bookings',
         builder: (context, state) =>
             const CustomerBookingsListScreen(showBackButton: true),
+      ),
+      // Dispute chatbot — full-screen, persona-scoped to a single
+      // booking. Pushed from the booking detail screen's "File a
+      // dispute" action (visible on COMPLETED / COMPLETED_INSPECTION_ONLY
+      // per the `show_dispute_button` server flag). Malformed bookingId
+      // falls back to the invalid-link screen for the same reason
+      // `/booking/:job_id` does — typo'd deep links should be visible.
+      GoRoute(
+        path: '/customer/bookings/:bookingId/dispute-chat',
+        builder: (context, state) {
+          final raw = state.pathParameters['bookingId'];
+          final id = raw == null ? null : int.tryParse(raw);
+          if (id == null || id <= 0) {
+            return const _InvalidBookingLinkScreen();
+          }
+          return ChatbotScreen(personaKey: 'dispute', bookingId: id);
+        },
       ),
       // Placeholder destinations for low-urgency banner taps. The
       // realtime urgency router maps `chatMessage`/`paymentReceived`/
