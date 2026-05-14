@@ -16,6 +16,7 @@ List<IncomingJobFailure> _allFailureCases() => const [
   IncomingJobNetworkFailure(),
   IncomingJobServerFailure(),
   UnknownIncomingJobFailure(),
+  JobAcceptBlockedByLockout(balancePkr: -495, owedPkr: 495),
 ];
 
 /// Maps every failure to a short identifier via an exhaustive switch
@@ -27,6 +28,7 @@ String _identify(IncomingJobFailure f) => switch (f) {
   IncomingJobNetworkFailure() => 'offline',
   IncomingJobServerFailure() => 'server',
   UnknownIncomingJobFailure() => 'unknown',
+  JobAcceptBlockedByLockout() => 'wallet_locked',
 };
 
 void main() {
@@ -44,6 +46,7 @@ void main() {
         'offline',
         'server',
         'unknown',
+        'wallet_locked',
       });
     });
 

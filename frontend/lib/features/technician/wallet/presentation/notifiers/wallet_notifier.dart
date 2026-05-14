@@ -64,12 +64,23 @@ class WalletNotifier extends _$WalletNotifier {
   /// Public so tests can drive it without faking the full system-event
   /// envelope. Silently ignored if the screen hasn't loaded yet — the
   /// initial [build] fetch will pick up whatever the latest balance is.
+  ///
+  /// **Lockout fields refresh together with balance.** A realtime
+  /// ``wallet_balance_updated`` event carries only the new balance — but
+  /// ``isLockedOut`` / ``balancePkr`` / ``owedPkr`` are derived from it.
+  /// Calling [WalletState.withBalance] keeps the four fields atomic so
+  /// the lockout strip flips in the same frame as the balance changes
+  /// (matches backend B6's atomic ledger + is_online write). A naive
+  /// ``copyWith(balance: ...)`` would leave the derived fields stale and
+  /// the strip would not appear until the next GET. ``asOf`` is bumped
+  /// to ``DateTime.now()`` so the wallet card's "as of" reflects the
+  /// realtime patch, not the stale fetch timestamp.
   @visibleForTesting
   void onBalanceEvent(double newBalance) {
     if (state is! AsyncData<WalletState>) return;
     final current = state.requireValue;
     state = AsyncData(
-      current.copyWith(balance: newBalance, asOf: DateTime.now()),
+      current.withBalance(newBalance, asOf: DateTime.now()),
     );
   }
 }

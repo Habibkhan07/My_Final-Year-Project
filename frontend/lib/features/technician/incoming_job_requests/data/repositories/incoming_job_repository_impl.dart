@@ -71,6 +71,19 @@ class IncomingJobRepositoryImpl implements IIncomingJobRepository {
             : 'This job is no longer available.',
       );
     }
+    // Wallet-lockout branch — distinct UX from a generic 403. Carries
+    // owedPkr so the snackbar can compose "Top up Rs. X to come online"
+    // and route to the wallet screen. The offer is NOT removed: the
+    // tech may top up and re-attempt within the SLA window.
+    if (failure.statusCode == 403 && failure.code == 'wallet_lockout') {
+      return JobAcceptBlockedByLockout(
+        owedPkr: _intFromEnvelope(failure.errors, 'owed_pkr'),
+        balancePkr: _intFromEnvelope(failure.errors, 'balance_pkr'),
+        message: failure.message.isNotEmpty
+            ? failure.message
+            : 'Wallet is locked. Top up to clear the lockout.',
+      );
+    }
     if (failure.statusCode == 404) {
       // IDOR-safe: missing OR wrong-owner. UX outcome is identical.
       return const OfferNoLongerAvailable();
@@ -79,5 +92,22 @@ class IncomingJobRepositoryImpl implements IIncomingJobRepository {
       return const IncomingJobServerFailure();
     }
     return UnknownIncomingJobFailure(failure.message);
+  }
+
+  /// Pulls a single integer out of the canonical envelope's ``errors`` map.
+  ///
+  /// Backend wire shape is ``{"field": ["value"]}``. Defensively accepts
+  /// a bare value too in case a future wire-shape simplification lands.
+  /// Returns 0 on parse failure — degraded but never throws into the host.
+  ///
+  /// Duplicated from [WalletRepositoryImpl] — kept local to avoid a
+  /// cross-feature import. If a third caller appears, promote to
+  /// ``core/common/errors``.
+  static int _intFromEnvelope(Map<String, dynamic> errors, String key) {
+    final raw = errors[key];
+    final str = raw is List && raw.isNotEmpty
+        ? raw.first.toString()
+        : raw?.toString();
+    return int.tryParse(str ?? '') ?? 0;
   }
 }

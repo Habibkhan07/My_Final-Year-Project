@@ -21,11 +21,19 @@ class DashboardHeader extends ConsumerWidget {
     required this.dashboard,
     required this.isToggleLoading,
     required this.onToggle,
+    this.isLocked = false,
   });
 
   final TechnicianDashboardEntity dashboard;
   final bool isToggleLoading;
   final ValueChanged<bool> onToggle;
+
+  /// True when the tech's wallet is in lockout — disables the online
+  /// toggle so the tech can't optimistically flip themselves back on
+  /// (the backend would refuse anyway, see notifier's setOnline gate).
+  /// Defaults to false for backwards-compat with widget tests that
+  /// don't yet pass this argument.
+  final bool isLocked;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -45,6 +53,7 @@ class DashboardHeader extends ConsumerWidget {
           _OnlineToggle(
             isOnline: dashboard.isOnline,
             isLoading: isToggleLoading,
+            isLocked: isLocked,
             onToggle: (next) {
               HapticFeedback.mediumImpact();
               onToggle(next);
@@ -146,11 +155,16 @@ class _OnlineToggle extends StatefulWidget {
     required this.isOnline,
     required this.isLoading,
     required this.onToggle,
+    this.isLocked = false,
   });
 
   final bool isOnline;
   final bool isLoading;
   final ValueChanged<bool> onToggle;
+
+  /// Locked-out techs cannot tap the toggle. The pill renders dimmed
+  /// and ignores taps; the [LockoutBanner] explains why.
+  final bool isLocked;
 
   @override
   State<_OnlineToggle> createState() => _OnlineToggleState();
@@ -177,8 +191,12 @@ class _OnlineToggleState extends State<_OnlineToggle>
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: widget.isLoading ? null : () => widget.onToggle(!widget.isOnline),
+    // Disable on loading OR lockout. Lockout takes precedence visually —
+    // the pill renders dimmed (Opacity wrapper) so the tech reads "I
+    // cannot use this", and the LockoutBanner alongside gives the why.
+    final isDisabled = widget.isLoading || widget.isLocked;
+    final pill = GestureDetector(
+      onTap: isDisabled ? null : () => widget.onToggle(!widget.isOnline),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 220),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -208,6 +226,7 @@ class _OnlineToggleState extends State<_OnlineToggle>
         ),
       ),
     );
+    return widget.isLocked ? Opacity(opacity: 0.5, child: pill) : pill;
   }
 
   Widget _indicator() {

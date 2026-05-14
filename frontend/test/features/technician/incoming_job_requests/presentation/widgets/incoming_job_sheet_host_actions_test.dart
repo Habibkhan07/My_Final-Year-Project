@@ -231,6 +231,52 @@ void main() {
       },
     );
 
+    testWidgets(
+      'accept on wallet_lockout surfaces a "Top up" snackbar carrying the '
+      'owed amount, and the offer stays in the queue',
+      (tester) async {
+        // Backend B4 raises WalletLockoutError → maps to
+        // JobAcceptBlockedByLockout → host renders snackbar with a
+        // "Top up" action (not Retry — retrying without topping up first
+        // would land on the same 403). Offer must stay in the queue so
+        // the tech can clear lockout and re-attempt within the SLA window.
+        final repo = _FakeRepository()
+          ..acceptThrow = const JobAcceptBlockedByLockout(
+            owedPkr: 495,
+            balancePkr: -495,
+          );
+        final h = await _pumpHost(tester, repository: repo);
+        h.container
+            .read(systemEventProvider.notifier)
+            .processEvent(_liveEvent(id: 'e1', jobId: 1));
+        await _pumpSlideIn(tester);
+
+        _invokeAccept(tester);
+        await tester.pump(_acceptTotalDelay);
+        await tester.pump();
+
+        expect(find.byType(SnackBar), findsOneWidget);
+        expect(
+          find.text(
+            'Wallet locked. Top up Rs. 495 to clear the lockout.',
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.widgetWithText(SnackBarAction, 'Top up'),
+          findsOneWidget,
+        );
+        // Not a Retry — distinct CTA so the tech doesn't tap and bounce
+        // off the same 403 again.
+        expect(
+          find.widgetWithText(SnackBarAction, 'Retry'),
+          findsNothing,
+        );
+        // Offer stays — the lockout is potentially recoverable in-window.
+        expect(h.container.read(incomingJobQueueProvider).queue.length, 1);
+      },
+    );
+
     testWidgets('tapping Retry re-invokes accept (second wire dispatch)', (
       tester,
     ) async {

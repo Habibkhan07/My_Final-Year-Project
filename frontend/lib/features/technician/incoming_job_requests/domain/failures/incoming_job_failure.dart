@@ -107,3 +107,44 @@ class UnknownIncomingJobFailure extends IncomingJobFailure {
     super.message = 'Something went wrong. Please try again.',
   ]);
 }
+
+/// Backend returned 403 `wallet_lockout` — the tech tapped Accept while
+/// their wallet balance is currently negative.
+///
+/// **Wire contract.** HTTP `403 wallet_lockout` from
+/// ``bookings.services.job_request_action.accept_job_booking`` — see the
+/// backend's ``WalletLockoutError`` envelope. Both [balancePkr] (signed,
+/// the current underwater balance) and [owedPkr] (positive, the top-up
+/// amount that clears lockout) are carried so any future surface can
+/// render either side of the math without re-parsing the envelope.
+///
+/// **UI contract.** The offer STAYS in the queue (the tech might top up
+/// and re-attempt within the SLA window), but the snackbar carries the
+/// "Top up Rs. X to clear the lockout" copy and routes to the wallet
+/// screen. Retry button is intentionally absent — the next tap would
+/// land on the same 403 unless the wallet was topped up in the interim.
+/// Distinct from [OfferNoLongerAvailable] (offer is GONE) and from
+/// [IncomingJobNetworkFailure] (transient, retry should work).
+///
+/// Sibling type to [WalletLockoutFailure] in the wallet feature —
+/// identical wire code, audience-specific UI hint. Carries the same two
+/// fields for symmetry.
+class JobAcceptBlockedByLockout extends IncomingJobFailure {
+  /// Signed int rupees from the envelope's ``errors.balance_pkr`` (negative
+  /// for a real lockout). Required because every real construction site
+  /// has access to it — the repo mapper parses both ints from the wire,
+  /// and tests must pass both explicitly to avoid the
+  /// "balancePkr == 0 but isLockedOut == true" inconsistent state.
+  final int balancePkr;
+
+  /// Positive int rupees — top-up amount that clears the lockout.
+  /// Backend ROUND_CEILING'd from |balance|, so paying owedPkr exactly
+  /// always clears lockout (never a paisa shortfall).
+  final int owedPkr;
+
+  const JobAcceptBlockedByLockout({
+    required this.balancePkr,
+    required this.owedPkr,
+    String message = 'Wallet is locked. Top up to clear the lockout.',
+  }) : super(message);
+}

@@ -1,5 +1,6 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../../../../core/common/wallet_lockout.dart' as lockout;
 import '../../../../../core/realtime/domain/entities/system_event_type.dart';
 import '../../../../../core/realtime/presentation/notifiers/system_event_notifier.dart';
 import '../providers/dependency_injection.dart';
@@ -130,6 +131,13 @@ class TechnicianDashboardNotifier extends _$TechnicianDashboardNotifier {
   /// tests and the UI today; the realtime pipeline's [onForcedOfflineEvent]
   /// already handles the inverse direction (backend forcing offline).
   ///
+  /// **Lockout gate.** A tech with ``walletBalance < 0`` cannot flip themselves
+  /// online. Mirrors backend B4 ``accept_job_booking`` gate — the would-be
+  /// `POST /api/technicians/online/` would refuse with `wallet_lockout`, so
+  /// the client refuses up front. Going OFFLINE while locked is still allowed
+  /// (always safe to opt out of work). The toggle widget is visually disabled
+  /// when locked; this is defense in depth.
+  ///
   /// No-op when the dashboard hasn't loaded yet — the toggle widget is
   /// disabled in that state, but the guard makes the contract explicit.
   Future<void> setOnline(bool desired) async {
@@ -138,6 +146,13 @@ class TechnicianDashboardNotifier extends _$TechnicianDashboardNotifier {
 
     final previousIsOnline = current.dashboard.isOnline;
     if (previousIsOnline == desired) return;
+
+    // Lockout gate: locked tech cannot flip themselves ONLINE. Going
+    // offline is always allowed. Rule is shared with the banner + wallet
+    // entity via ``core/common/wallet_lockout.dart``.
+    if (desired && lockout.isWalletLocked(current.dashboard.walletBalance)) {
+      return;
+    }
 
     state = AsyncData(
       current.copyWith(
@@ -173,15 +188,35 @@ class TechnicianDashboardNotifier extends _$TechnicianDashboardNotifier {
   /// `WALLET_BALANCE_UPDATED` event arrives. Single-field patch: the rest
   /// of the dashboard entity is preserved, no AsyncLoading flash.
   ///
+  /// **Auto-offline on negative-balance crossover.** When the new balance is
+  /// `< 0` and the tech is currently online, the same patch ALSO flips
+  /// `isOnline` to false. Mirrors backend `wallet.services.ledger` B6 —
+  /// the ledger row write and the auto-offline are atomic on the server,
+  /// and we replicate that atomicity on the client so the toggle pill and
+  /// lockout banner stay in sync without a second round-trip. Top-ups that
+  /// clear lockout do NOT auto-flip back to online (intentional asymmetric
+  /// recovery — see memory `wallet-money-mechanics`).
+  ///
   /// Silently ignored if the dashboard hasn't loaded yet — events that
   /// arrive before first paint will be reconciled by the upcoming
   /// [build]/refresh call.
   void onWalletBalanceEvent(double newBalance) {
     if (state is! AsyncData<TechnicianDashboardState>) return;
     final current = state.requireValue;
+
+    // Mirror B6 backend: balance going underwater forces offline in the
+    // same patch. Condition checks current.dashboard.isOnline so a
+    // subsequent balance event on an already-offline tech is a no-op
+    // for the column. Lockout rule shared via core/common/wallet_lockout.
+    final shouldForceOffline =
+        lockout.isWalletLocked(newBalance) && current.dashboard.isOnline;
+
     state = AsyncData(
       current.copyWith(
-        dashboard: current.dashboard.copyWith(walletBalance: newBalance),
+        dashboard: current.dashboard.copyWith(
+          walletBalance: newBalance,
+          isOnline: shouldForceOffline ? false : current.dashboard.isOnline,
+        ),
       ),
     );
   }

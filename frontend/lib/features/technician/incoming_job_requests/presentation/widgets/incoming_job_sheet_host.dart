@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../domain/entities/job_new_request.dart';
 import '../providers/dependency_injection.dart';
@@ -303,19 +304,64 @@ class _IncomingJobSheetHostState extends ConsumerState<IncomingJobSheetHost>
               ? _handleAccept(jobId)
               : _handleDecline(jobId),
         );
+      case JobActionBlockedByLockout(:final failure):
+        // Distinct from a network/server failure — the action is rejected
+        // for a SEMANTIC reason (wallet underwater), not a transient one.
+        // Retry without topping up first would land on the same 403; the
+        // CTA pushes /wallet so the tech can clear lockout and re-attempt.
+        // The offer stays in the queue (notifier already decided that).
+        // Copy mirrors the dashboard banner + wallet strip so the tech
+        // reads the same wording across all three lockout surfaces.
+        HapticFeedback.mediumImpact();
+        _showSnack(
+          message:
+              'Wallet locked. Top up Rs. ${failure.owedPkr} to clear the lockout.',
+          actionLabel: 'Top up',
+          onAction: () => GoRouter.of(context).push('/wallet'),
+        );
     }
   }
 
-  void _showSnack({required String message, VoidCallback? retry}) {
+  /// Show a snackbar with an optional trailing action.
+  ///
+  /// Two action shapes are supported:
+  ///   * [retry] — used by network/server failures. Label is fixed "Retry"
+  ///     and the callback typically re-invokes the same accept/decline.
+  ///   * [actionLabel] + [onAction] — used by the lockout case where the
+  ///     action is "Top up" and routes to the wallet screen instead of
+  ///     re-running the same operation.
+  ///
+  /// Precedence: when both are passed, [actionLabel]/[onAction] win
+  /// (the lockout case is more specific than a generic retry). When
+  /// neither is passed, no action button is rendered.
+  ///
+  /// The [actionLabel] / [onAction] pair MUST be passed together — passing
+  /// one without the other would silently produce no action button, which
+  /// is a sneaky bug. The assert catches it in debug builds.
+  void _showSnack({
+    required String message,
+    VoidCallback? retry,
+    String? actionLabel,
+    VoidCallback? onAction,
+  }) {
+    assert(
+      (actionLabel == null) == (onAction == null),
+      'actionLabel and onAction must be passed together — passing one '
+      'without the other silently drops the action button.',
+    );
     final messenger = ScaffoldMessenger.maybeOf(context);
     if (messenger == null) return;
     messenger.hideCurrentSnackBar();
+    SnackBarAction? snackAction;
+    if (actionLabel != null && onAction != null) {
+      snackAction = SnackBarAction(label: actionLabel, onPressed: onAction);
+    } else if (retry != null) {
+      snackAction = SnackBarAction(label: 'Retry', onPressed: retry);
+    }
     messenger.showSnackBar(
       SnackBar(
         content: Text(message),
-        action: retry == null
-            ? null
-            : SnackBarAction(label: 'Retry', onPressed: retry),
+        action: snackAction,
       ),
     );
   }

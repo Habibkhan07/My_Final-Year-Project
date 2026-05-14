@@ -12,6 +12,7 @@ import '../providers/current_position_provider.dart';
 import '../state/technician_dashboard_state.dart';
 import '../widgets/dashboard_header.dart';
 import '../widgets/later_today_list.dart';
+import '../widgets/lockout_banner.dart';
 import '../widgets/up_next_job_card.dart';
 
 class TechnicianDashboardScreen extends ConsumerWidget {
@@ -96,8 +97,17 @@ class _DashboardLayout extends ConsumerWidget {
                 DashboardHeader(
                   dashboard: dashboard,
                   isToggleLoading: state.toggleStatus.isLoading,
+                  isLocked: LockoutBanner.isLocked(dashboard.walletBalance),
                   onToggle: notifier.setOnline,
                 ),
+                // Lockout banner — only renders when wallet balance is
+                // negative. Sits between the header (with disabled toggle)
+                // and the up-next card so the tech sees BOTH the disabled
+                // online pill AND the explainer copy on the same screen.
+                if (LockoutBanner.isLocked(dashboard.walletBalance)) ...[
+                  const SizedBox(height: AppSpacing.s3),
+                  LockoutBanner(walletBalance: dashboard.walletBalance),
+                ],
                 const SizedBox(height: AppSpacing.s4),
                 Padding(
                   padding: const EdgeInsets.symmetric(

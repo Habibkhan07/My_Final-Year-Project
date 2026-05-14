@@ -211,6 +211,123 @@ void main() {
       final state = container.read(technicianDashboardProvider);
       expect(state, isA<AsyncLoading<TechnicianDashboardState>>());
     });
+
+    // Auto-offline on negative crossover (mirrors B6 backend).
+    test(
+      'crossing into negative balance ALSO flips isOnline to false in the same patch',
+      () async {
+        when(
+          () => repo.getDashboard(),
+        ).thenAnswer((_) async => _entity(walletBalance: 200, isOnline: true));
+        await container.read(technicianDashboardProvider.future);
+
+        container
+            .read(technicianDashboardProvider.notifier)
+            .onWalletBalanceEvent(-50.0);
+
+        final state = container.read(technicianDashboardProvider).requireValue;
+        expect(state.dashboard.walletBalance, -50.0);
+        expect(
+          state.dashboard.isOnline,
+          false,
+          reason:
+              'Negative balance must auto-flip offline — matches backend B6',
+        );
+      },
+    );
+
+    test(
+      'staying non-negative does NOT touch isOnline (no false-positive offline)',
+      () async {
+        when(() => repo.getDashboard()).thenAnswer(
+          (_) async => _entity(walletBalance: 1000, isOnline: true),
+        );
+        await container.read(technicianDashboardProvider.future);
+
+        container
+            .read(technicianDashboardProvider.notifier)
+            .onWalletBalanceEvent(500.0);
+
+        final state = container.read(technicianDashboardProvider).requireValue;
+        expect(state.dashboard.walletBalance, 500.0);
+        expect(state.dashboard.isOnline, true); // unchanged
+      },
+    );
+
+    test(
+      'topup clearing lockout does NOT auto-flip back to online (asymmetric recovery)',
+      () async {
+        // Tech was forced offline at -200; the topup brings them to +50 but
+        // they stay offline — coming back online is intentionally manual.
+        when(() => repo.getDashboard()).thenAnswer(
+          (_) async => _entity(walletBalance: -200, isOnline: false),
+        );
+        await container.read(technicianDashboardProvider.future);
+
+        container
+            .read(technicianDashboardProvider.notifier)
+            .onWalletBalanceEvent(50.0);
+
+        final state = container.read(technicianDashboardProvider).requireValue;
+        expect(state.dashboard.walletBalance, 50.0);
+        expect(state.dashboard.isOnline, false); // stays offline
+      },
+    );
+
+    test(
+      'already-offline tech going further negative stays offline (idempotent)',
+      () async {
+        when(() => repo.getDashboard()).thenAnswer(
+          (_) async => _entity(walletBalance: -100, isOnline: false),
+        );
+        await container.read(technicianDashboardProvider.future);
+
+        container
+            .read(technicianDashboardProvider.notifier)
+            .onWalletBalanceEvent(-300.0);
+
+        final state = container.read(technicianDashboardProvider).requireValue;
+        expect(state.dashboard.walletBalance, -300.0);
+        expect(state.dashboard.isOnline, false);
+      },
+    );
+  });
+
+  group('setOnline() — lockout gate', () {
+    test('locked tech cannot flip themselves ONLINE', () async {
+      when(() => repo.getDashboard()).thenAnswer(
+        (_) async => _entity(walletBalance: -100, isOnline: false),
+      );
+      await container.read(technicianDashboardProvider.future);
+
+      final before = container.read(technicianDashboardProvider).requireValue;
+
+      await container
+          .read(technicianDashboardProvider.notifier)
+          .setOnline(true);
+
+      final after = container.read(technicianDashboardProvider).requireValue;
+      // State unchanged — gate refused.
+      expect(after.dashboard.isOnline, false);
+      expect(identical(after, before), true);
+    });
+
+    test('locked tech CAN still flip themselves OFFLINE', () async {
+      // Edge: tech was online (e.g. balance just dipped under and the
+      // forced-offline patch hasn't arrived yet) — they should still be
+      // able to manually opt out of work.
+      when(() => repo.getDashboard()).thenAnswer(
+        (_) async => _entity(walletBalance: -100, isOnline: true),
+      );
+      await container.read(technicianDashboardProvider.future);
+
+      await container
+          .read(technicianDashboardProvider.notifier)
+          .setOnline(false);
+
+      final state = container.read(technicianDashboardProvider).requireValue;
+      expect(state.dashboard.isOnline, false);
+    });
   });
 
   group('onForcedOfflineEvent()', () {

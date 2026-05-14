@@ -238,6 +238,39 @@ void main() {
       expect(h.container.read(incomingJobQueueProvider).queue.length, 1);
     });
 
+    test(
+      'JobAcceptBlockedByLockout preserves the offer and returns '
+      'JobActionBlockedByLockout carrying both ints — the tech may top up '
+      'and retry within the SLA window',
+      () async {
+        final repo = _FakeRepository()
+          ..acceptThrow = const JobAcceptBlockedByLockout(
+            owedPkr: 495,
+            balancePkr: -495,
+          );
+        final h = _seed(jobId: 1, repository: repo);
+
+        final result = await h.container
+            .read(incomingJobQueueProvider.notifier)
+            .accept(1);
+
+        expect(result, isA<JobActionBlockedByLockout>());
+        final blocked = result as JobActionBlockedByLockout;
+        expect(blocked.failure.owedPkr, 495);
+        expect(blocked.failure.balancePkr, -495);
+        // Offer stays in queue — the tech can clear lockout via top-up
+        // and re-tap Accept while still within the SLA window.
+        final queue = h.container.read(incomingJobQueueProvider).queue;
+        expect(queue.length, 1);
+        expect(queue.single.jobId, 1);
+        // In-flight cleared so the buttons re-enable.
+        expect(
+          h.container.read(incomingJobQueueProvider).inFlightJobIds,
+          isEmpty,
+        );
+      },
+    );
+
     test('a second concurrent call for the same jobId returns AlreadyInFlight '
         'and does NOT dispatch a second HTTP call', () async {
       final repo = _FakeRepository()..acceptCompleter = Completer<void>();

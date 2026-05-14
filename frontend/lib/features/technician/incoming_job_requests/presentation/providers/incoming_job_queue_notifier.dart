@@ -183,6 +183,12 @@ class IncomingJobQueueNotifier extends _$IncomingJobQueueNotifier {
     } on OfferNoLongerAvailable catch (e) {
       _removeJobAndClearInFlight(jobId);
       return JobActionConflict(e);
+    } on JobAcceptBlockedByLockout catch (e) {
+      // Lockout — offer STAYS in queue (tech may top up and re-attempt
+      // within the SLA window). MUST precede the generic IncomingJobFailure
+      // catch since JobAcceptBlockedByLockout is a subtype of it.
+      _clearInFlight(jobId);
+      return JobActionBlockedByLockout(e);
     } on IncomingJobNetworkFailure catch (e) {
       _clearInFlight(jobId);
       return JobActionNetworkFailure(e);

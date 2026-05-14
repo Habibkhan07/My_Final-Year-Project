@@ -33,6 +33,9 @@ void main() {
   final happyBody = jsonEncode({
     'balance': '1500.00',
     'as_of': '2026-05-13T22:30:00Z',
+    'is_locked_out': false,
+    'balance_pkr': 1500,
+    'owed_pkr': 0,
   });
 
   group('getBalance', () {
@@ -46,6 +49,9 @@ void main() {
       expect(result, isA<WalletBalanceModel>());
       expect(result.balance, '1500.00');
       expect(result.asOf, '2026-05-13T22:30:00Z');
+      expect(result.isLockedOut, false);
+      expect(result.balancePkr, 1500);
+      expect(result.owedPkr, 0);
     });
 
     test('sends Authorization header when token present', () async {

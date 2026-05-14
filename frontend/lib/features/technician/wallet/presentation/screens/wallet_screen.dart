@@ -8,6 +8,7 @@ import '../notifiers/wallet_transactions_notifier.dart';
 import '../widgets/balance_card.dart';
 import '../widgets/top_up_button.dart';
 import '../widgets/transactions_section.dart';
+import '../widgets/wallet_lockout_strip.dart';
 import '../widgets/withdraw_button.dart';
 
 /// Tech-only Wallet screen. Layout (Foodpanda-style, brand-blue):
@@ -57,6 +58,13 @@ class WalletScreen extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                // Lockout strip — rendered when balance < 0. Coherent
+                // with the dashboard banner so the tech sees the same
+                // Rs. X owed in both surfaces (F4 and F5).
+                if (wallet.isLockedOut) ...[
+                  WalletLockoutStrip(wallet: wallet),
+                  const SizedBox(height: 16),
+                ],
                 BalanceCard(wallet: wallet),
                 const SizedBox(height: 24),
                 const TopUpButton(),
@@ -99,6 +107,12 @@ class _ErrorView extends StatelessWidget {
       WalletNetworkFailure() => Icons.wifi_off,
       WalletPermissionFailure() => Icons.lock_outline,
       WalletServerFailure() => Icons.error_outline,
+      // Practically unreachable on the GET endpoint (which succeeds
+      // regardless of balance), but required for sealed exhaustiveness
+      // because future write paths (withdrawal) will raise this. The
+      // dedicated lockout banner lives in F4/F5 on the same screen —
+      // see [WalletState.isLockedOut].
+      WalletLockoutFailure() => Icons.account_balance_wallet_outlined,
     };
 
     return ListView(

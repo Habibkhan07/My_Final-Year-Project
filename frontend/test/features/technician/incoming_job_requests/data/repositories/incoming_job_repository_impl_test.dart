@@ -193,4 +193,90 @@ void main() {
       );
     });
   });
+
+  // ──────────────────────────────────────────────────────────────────
+  // Wallet-lockout branch (403 wallet_lockout) — distinct from generic
+  // 403 / 5xx so the host can surface the top-up CTA with the Rs. X
+  // amount the backend already computed.
+  // ──────────────────────────────────────────────────────────────────
+
+  group('IncomingJobRepositoryImpl.acceptJobRequest — wallet lockout', () {
+    test('403 wallet_lockout → JobAcceptBlockedByLockout with both ints', () async {
+      ds.toThrow = const HttpFailure(
+        statusCode: 403,
+        code: 'wallet_lockout',
+        message: 'Wallet is locked. Top up to clear the lockout.',
+        errors: {
+          'balance_pkr': ['-495'],
+          'owed_pkr': ['495'],
+        },
+      );
+      try {
+        await repo.acceptJobRequest(42);
+        fail('expected JobAcceptBlockedByLockout');
+      } on JobAcceptBlockedByLockout catch (e) {
+        expect(e.owedPkr, 495);
+        // balancePkr is parsed too (symmetric with WalletLockoutFailure)
+        // so future surfaces can render "your balance is Rs. -X".
+        expect(e.balancePkr, -495);
+        expect(
+          e.message,
+          'Wallet is locked. Top up to clear the lockout.',
+        );
+      }
+    });
+
+    test('403 wallet_lockout falls back to default message when blank', () async {
+      ds.toThrow = const HttpFailure(
+        statusCode: 403,
+        code: 'wallet_lockout',
+        message: '',
+        errors: {'owed_pkr': ['101']},
+      );
+      try {
+        await repo.acceptJobRequest(42);
+        fail('expected JobAcceptBlockedByLockout');
+      } on JobAcceptBlockedByLockout catch (e) {
+        expect(e.owedPkr, 101);
+        expect(e.message, isNotEmpty);
+      }
+    });
+
+    test('403 without wallet_lockout code stays in the generic 4xx branch', () {
+      // A future 403 from a different code (e.g. permission_denied) must
+      // NOT land in the lockout branch — generic unknown path instead.
+      ds.toThrow = const HttpFailure(
+        statusCode: 403,
+        code: 'permission_denied',
+        message: 'Not allowed.',
+      );
+      expectLater(
+        repo.acceptJobRequest(42),
+        throwsA(
+          isA<IncomingJobFailure>().having(
+            (f) => f is JobAcceptBlockedByLockout,
+            'is not lockout',
+            isFalse,
+          ),
+        ),
+      );
+    });
+
+    test('owedPkr defaults to 0 when the envelope is missing the field', () async {
+      ds.toThrow = const HttpFailure(
+        statusCode: 403,
+        code: 'wallet_lockout',
+        message: 'locked',
+        errors: {}, // missing owed_pkr
+      );
+      try {
+        await repo.acceptJobRequest(42);
+        fail('expected JobAcceptBlockedByLockout');
+      } on JobAcceptBlockedByLockout catch (e) {
+        // Defensive default — UI shows "Rs. 0" rather than throwing into
+        // the host. Not ideal copy but degraded gracefully.
+        expect(e.owedPkr, 0);
+      }
+    });
+  });
 }

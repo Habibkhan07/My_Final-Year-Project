@@ -58,3 +58,14 @@ class JobActionUnexpectedFailure extends JobActionResult {
 class JobActionAlreadyInFlight extends JobActionResult {
   const JobActionAlreadyInFlight();
 }
+
+/// Server returned 403 `wallet_lockout` — the tech tapped Accept with a
+/// negative wallet balance. The offer STAYS in the queue (the tech may
+/// top up and re-attempt within the SLA window); the host shows a
+/// snackbar with a "Top up" action routing to the wallet screen instead
+/// of a generic Retry button — retrying without topping up first would
+/// land on the same 403.
+class JobActionBlockedByLockout extends JobActionResult {
+  final JobAcceptBlockedByLockout failure;
+  const JobActionBlockedByLockout(this.failure);
+}

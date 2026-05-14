@@ -235,6 +235,9 @@ class _ErrorBox extends StatelessWidget {
       WalletNetworkFailure() => Icons.wifi_off,
       WalletPermissionFailure() => Icons.lock_outline,
       WalletServerFailure() => Icons.error_outline,
+      // Unreachable in practice on the transactions list endpoint —
+      // it succeeds regardless of lockout. Added for sealed exhaustiveness.
+      WalletLockoutFailure() => Icons.account_balance_wallet_outlined,
     };
 
     return Container(

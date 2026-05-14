@@ -92,10 +92,40 @@ class WalletRepositoryImpl implements WalletRepository {
   }
 
   WalletFailure _mapWalletHttpFailure(HttpFailure e) {
+    // Wallet-lockout branch MUST precede the generic 403 catch-all —
+    // both share status 403 but carry distinct semantics. The lockout
+    // envelope ships an ``errors`` map with balance_pkr + owed_pkr the
+    // UI consumes directly; treating it as a generic permission failure
+    // would lose that context.
+    if (e.statusCode == 403 && e.code == 'wallet_lockout') {
+      return WalletLockoutFailure(
+        balancePkr: _intFromEnvelope(e.errors, 'balance_pkr'),
+        owedPkr: _intFromEnvelope(e.errors, 'owed_pkr'),
+        message: e.message.isNotEmpty
+            ? e.message
+            : 'Wallet is locked. Top up to continue.',
+      );
+    }
     if (e.statusCode == 401 || e.statusCode == 403) {
       return const WalletPermissionFailure();
     }
     return WalletServerFailure(e.message);
+  }
+
+  /// Pulls a single integer out of the canonical envelope's ``errors`` map.
+  ///
+  /// Backend shape is ``{"field": ["value"]}`` (DRF per-field convention
+  /// preserved by ``BookingValidationError`` / ``WalletLockoutError``).
+  /// Defensively coerces either a list-of-strings or a bare value so a
+  /// future wire-shape simplification doesn't crash the parser. Returns 0
+  /// on any parse failure — the UI will show "Rs. 0" rather than throw,
+  /// which is a degraded but recoverable surface.
+  static int _intFromEnvelope(Map<String, dynamic> errors, String key) {
+    final raw = errors[key];
+    final str = raw is List && raw.isNotEmpty
+        ? raw.first.toString()
+        : raw?.toString();
+    return int.tryParse(str ?? '') ?? 0;
   }
 
   /// Maps the topup-flow HTTP error codes (per WALLET_API.md) to the
