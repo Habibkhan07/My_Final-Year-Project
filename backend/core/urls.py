@@ -28,6 +28,9 @@ urlpatterns = [
     path('api/customers/', include('customers.api.urls')),
     path('api/catalog/', include('catalog.api.urls')),
     path('api/bookings/', include('bookings.api.urls')),
+    # AI chatbot framework — dispute persona v1 (more personas land here
+    # as folder-adds under chatbot/personas/<key>/, no URLConf edits).
+    path('api/chat/', include('chatbot.urls')),
     # Realtime Dispatch Hub (Events & Devices)
     path('api/realtime/', include('realtime.api.urls')),
     # JazzCash gateway return URL — unauthenticated, hash-verified.

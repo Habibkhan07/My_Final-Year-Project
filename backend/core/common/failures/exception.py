@@ -4,16 +4,17 @@ from rest_framework import status
 from django.db import IntegrityError
 
 def custom_exception_handler(exc, context):
-    # 0. Booking orchestrator transitions raise ``BookingValidationError`` with
-    # stable ``code`` strings (e.g. ``invalid_transition``) and a structured
-    # ``errors`` dict. DRF's default handler would flatten ``code`` into the
-    # generic ``"validation_error"`` and drop the field map — defeating the
-    # whole point of the canonical envelope. Match it first.
-    # Lazy import: ``bookings`` imports DRF, which imports settings, which
-    # imports this handler — module-load circular if we put this at the top.
+    # 0. Bookings orchestrator + chatbot views raise canonical-envelope
+    # errors that carry their own ``code`` / ``message`` / ``errors``.
+    # DRF's default flow would flatten ``code`` into the generic
+    # "validation_error" and drop the field map — match these first.
+    # Lazy imports: ``bookings`` / ``chatbot`` import DRF, which imports
+    # settings, which imports this handler. Top-level imports here would
+    # create a module-load cycle.
     from bookings.exceptions import BookingValidationError
+    from chatbot.exceptions import ChatbotError
 
-    if isinstance(exc, BookingValidationError):
+    if isinstance(exc, (BookingValidationError, ChatbotError)):
         return Response(
             {
                 "status": exc.status_code,

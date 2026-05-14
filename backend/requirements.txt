@@ -21,3 +21,6 @@ redis>=5.0
 celery>=5.3
 firebase-admin>=7.0
 pytest-asyncio>=0.23
+
+# AI chatbot — Gemini SDK (unified google-genai, supersedes google-generativeai)
+google-genai>=1.0

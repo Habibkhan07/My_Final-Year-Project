@@ -1385,29 +1385,21 @@ P2 — feature works without auto-capture (tech can manually add a withdraw dest
 
 ---
 
-## 38. Customer-side dispute / refund models — schemas land with chatbot/dispute day
+## ~~38. Customer-side dispute / refund models — schemas land with chatbot/dispute day~~ ✅ Resolved (2026-05-13)
 
-**Where**
-- `backend/wallet/models.py` — only the *tech-side* financial models ship tonight. The thesis schema (Figure 3.15) also includes `SupportTicket`, `TicketEvidence`, `RefundRequest`, `CustomerBankAccount` — none shipped tonight.
-- `backend/wallet/models.py::RefundDeduction` — *did* ship tonight (it's a 1:1 subtype of `WalletTransaction`, written when admin issues a refund and debits the tech), but no UI or admin action creates one yet.
+Resolved by today's chatbot/dispute sprint. The final shape differs from the originally planned four-model list because `SupportTicket` and `TicketEvidence` already existed in `bookings/models.py` — the original flag author hadn't noticed them. Two new pieces shipped instead: a generic chatbot framework hosting personas, and a focused `disputes` app for refund payout details.
 
-**What's wrong**
-The chatbot's dispute-intake flow (`project_chatbot_scope.md`: narrative + 3 photos + bank mini-form, post-completion entry only) is going to write `SupportTicket` + `TicketEvidence` + `RefundRequest` + `CustomerBankAccount` rows. None of those tables exist in the database tonight. When chatbot day runs, it will need to ship its own migration `0002_dispute_models.py` adding those four tables.
-
-**Why we shipped it that way**
-Scoping discipline. Tonight is the wallet sprint, not the dispute sprint. Conflating them would have ballooned the change set and made review harder. The thesis schema cleanly separates "tech-side money" from "customer-side dispute/refund" — tonight ships the first, chatbot day ships the second.
-
-**The proper fix (Wed 05-13 evening / chatbot day)**
-1. Add `wallet/models.py` entries for `SupportTicket` (with `text` / `description` fields — note the thesis schema has both, may be redundant; pick one or disambiguate as title/body), `TicketEvidence` (FK to ticket + `photo_url`), `RefundRequest` (amount, status, admin_note, processed_at), `CustomerBankAccount` (mirror of `TechnicianBankAccount`).
-2. New migration `wallet/migrations/0002_dispute_models.py`.
-3. Wire admin pages for all four.
-4. Refund flow: admin reviews `RefundRequest`, approves → service writes a `WalletTransaction(REFUND_DEBIT)` for the tech (using the existing `RefundDeduction` subtype that ships tonight) + records the refund payout to the customer's bank account.
-
-**Severity**
-P1 for chatbot day (thesis demonstrates the full dispute → refund flow). P3 for tonight (deferred deliberately; no code references the missing tables).
+**What changed**
+- **Reused existing** `bookings.SupportTicket` (already had `dispute_intake_method=INTAKE_CHATBOT` + `chat_log` JSONField — designed for this integration). The chatbot persona writes tickets via this path. AI metadata (ai_summary, captured_fields, needs_review, transcript snapshot) lives inside `chat_log`.
+- **Reused existing** `bookings.TicketEvidence` — but NOT used by the chatbot intake. Chatbot uploads go through `chatbot.Attachment` instead (lifecycle tied to the conversation, EXIF-stripped on save). Admin views render attachment paths from `chat_log.attachments`. Form-intake disputes continue using TicketEvidence as before.
+- **Replaced** the planned separate `RefundRequest` + `CustomerBankAccount` tables with a single `disputes.RefundIntent` table — simpler shape (ticket + bank_name + account_title + iban). The "request" semantics (status, admin_note) are absorbed by the parent `SupportTicket` (resolution_outcome, resolution_notes already exist there).
+- **New** `chatbot` app — pluggable LLM chat framework with persona registry, content safety, daily LLM quota, Gemini adapter. 5 generic endpoints under `/api/chat/`.
+- **New** `disputes` app — RefundIntent model + `finance_admin` group (data migration 0002) + read-only admin restricted to that group (IBAN hidden from list view).
+- Migrations: `chatbot/0001_initial`, `disputes/0001_initial`, `disputes/0002_finance_admin_group`.
+- **Refund flow integration** — partial. RefundIntent rows are created, but the admin-approval path that writes a `WalletTransaction(REFUND_DEBIT)` for the tech is NOT yet wired. Admin currently uses the existing `admin_resolve_dispute` orchestrator with outcome=REFUND_CUSTOMER but the wallet side-effect is manual / out-of-band. **This residual gap is flagged separately** below (see flag 43).
+- 147 backend tests pass; see `chatbot/api/CHATBOT_API.md` and `disputes/api/DISPUTES_API.md` for full contract.
 
 ---
-
 ## 39. ~~Wallet transaction history — list view deferred~~ ✅ Resolved (2026-05-13)
 
 **What changed**
@@ -1576,3 +1568,286 @@ event, invalidate the first page of the list provider and re-fetch. That's
 **Severity**
 P3. The pull-to-refresh recovery path is one gesture; no data is wrong.
 
+---
+
+## 43. ~~Chatbot-filed dispute skips `dispute_opened_at` + `DISPUTE_OPENED` realtime broadcast~~
+
+✅ **Resolved 2026-05-13.** Extracted `bookings.services.orchestrator.apply_dispute_opened_side_effects(*, ticket, booking, opener_role)` as the single source of truth for the booking-side audit + realtime footprint of a new dispute ticket. Both intake paths now call it inside their `transaction.atomic()` block:
+- Form intake — `bookings.services.orchestrator.open_dispute` (refactored to call helper instead of inlining the side-effect block; opener_role chosen from `is_customer`).
+- Chatbot intake — `disputes.services.ticket_creation.create_from_chatbot_session` (calls helper with `opener_role="customer"` since the dispute persona's eligibility check is customer-only).
+
+Result: chatbot-filed disputes now stamp `dispute_opened_at` on first dispute (idempotent on subsequent), preserve booking terminal status (COMPLETED stays COMPLETED — the dispute is captured by `dispute_opened_at IS NOT NULL`), and broadcast `DISPUTE_OPENED` to both customer and technician via `transaction.on_commit`. Tested in `tests/disputes/test_ticket_creation.py::TestDisputeOpenedSideEffects`; the form path's existing dispute tests in `tests/bookings/services/test_orchestrator.py` still pass (helper extraction was mechanical). Total 1209 backend tests green.
+
+---
+
+**Original entry retained for audit trail:**
+
+**Where**
+- `backend/disputes/services/ticket_creation.py::create_from_chatbot_session` (chatbot intake path)
+- `backend/bookings/services/orchestrator.py::open_dispute` lines 1473–1530 (form intake path — what we should mirror)
+
+**What's wrong**
+The form-intake dispute flow (admin / customer "Report a problem" button) does three things atomically when it files a `SupportTicket`:
+1. Creates the ticket
+2. Stamps `JobBooking.dispute_opened_at = timezone.now()` (first dispute only)
+3. Broadcasts `EventType.DISPUTE_OPENED` to both audiences via `_broadcast_both(...)` on `transaction.on_commit`
+
+The chatbot intake path (today's work) does step 1 only. Bookings filed via the chatbot:
+- Have `dispute_opened_at IS NULL` even though they have an OPEN ticket
+- Don't fire `DISPUTE_OPENED` on the realtime channel
+- Therefore: tech's other tabs / dev_panel sessions don't see the dispute land; any admin queue indicator that keys off `dispute_opened_at` misses chatbot-filed tickets; the customer's own other sessions don't refresh
+
+Status flip (`COMPLETED → DISPUTED`) is correctly a no-op for chatbot tickets because `COMPLETED` is in `TERMINAL_STATUSES` and the form-intake path's guard at line 1503 skips the flip for terminal bookings. That part is fine — only `dispute_opened_at` and the broadcast are missing.
+
+**Why we shipped it without those**
+Scoping. Today's sprint was end-to-end chatbot intake; integrating with the booking orchestrator's side-effect graph (event broadcast topology, `dispute_opened_at` denormalization, the `_broadcast_both` audience-resolver) was a separate plumbing concern. The 147-test surface validates the chatbot's own behavior cleanly; the orchestrator integration is its own correctness story and deserves its own tests.
+
+**The proper fix**
+1. Extract the side-effect block in `bookings/services/orchestrator.py::open_dispute` lines 1488–1530 into a helper, e.g. `bookings.services.orchestrator._apply_dispute_side_effects(booking, opener_user, ticket)`. Idempotent — checks `dispute_opened_at is None` before stamping.
+2. Call that helper from `disputes.services.ticket_creation.create_from_chatbot_session` after the SupportTicket is created (inside the same `transaction.atomic()` block).
+3. Test: chatbot-filed ticket leaves `dispute_opened_at` set, second chatbot dispute on the same booking is idempotent (no double-stamp, no double-broadcast).
+4. Confirm both audiences (customer + tech) receive `DISPUTE_OPENED` via the realtime pipeline.
+
+**Severity**
+P2. No data corruption — tickets are filed correctly, RefundIntent rows are created, admin can adjudicate. But the cross-device sync and admin queue indicators are silently degraded for chatbot-filed disputes. Worth fixing before launch but not blocking the viva demo.
+
+---
+
+## 44. Gemini adapter `tools` parameter accepted but not executed
+
+**Where**
+- `backend/chatbot/adapters/gemini.py::GeminiAgent.generate` — the `tools` kwarg
+- `backend/chatbot/services/ports.py::Tool` Protocol — declared but no adapter dispatches calls
+
+**What's wrong**
+The `ConversationalAgent` Protocol allows a persona to pass `tools=[...]` so the LLM can invoke them as function calls. The Gemini adapter accepts the parameter (Protocol stability — so adding tools later doesn't break the type contract) but immediately `del`s it; the SDK call never receives tool definitions and the returned `AgentOutput.tool_calls` is always `[]`. No persona uses tools in v1, so the branch is dead code today.
+
+**Why we shipped it that way**
+YAGNI. Wiring the function-calling round-trip (tool execution + result feed-back into a second `generate_content` call) without a concrete consumer would have meant testing an unused code path and risking drift between implementation and eventual use. Documenting the seam as a stub is honest; speculative implementation isn't.
+
+**The proper fix**
+When the first persona declares non-empty `tools` (most likely a v1.1 general-Q&A bot that calls things like `get_user_bookings()`, `get_wallet_balance()`, `search_help_articles()`):
+1. In `GeminiAgent.generate`, translate the `tools: list[Tool]` into Gemini's `types.Tool` / `types.FunctionDeclaration` shape and pass via `GenerateContentConfig.tools`.
+2. When `response.candidates[0].content.parts[*].function_call` is non-empty, execute each tool's `.execute(args, user)` (requires plumbing `user` down to the adapter — currently absent).
+3. Feed tool results back as a second `generate_content` call with `Content(role="user", parts=[Part(function_response=…)])`.
+4. Return `AgentOutput.tool_calls` populated with the executed call log so the flow can persist them for audit.
+5. Test: tool round-trip with a fake `Tool` that records its invocation; error path when tool raises; loop cap to prevent infinite tool-call recursion.
+
+**Severity**
+P3. Pure scaffolding; no v1 functionality affected.
+
+---
+
+## 45. Non-state-machine `FlowEngine` implementations not written
+
+**Where**
+- `backend/chatbot/services/ports.py::FlowEngine` — Protocol exists
+- `backend/chatbot/personas/dispute/flow.py::DisputeFlow` — the only implementation
+
+**What's wrong**
+`CHATBOT_API.md` documents two future flow shapes — `FreeFormFlow` (LLM drives all turns, no phases — used by a general-purpose Q&A bot) and `HybridFlow` (free-form with tool calls). Neither file exists. The `Persona` recipe in the API doc references them as if writing one is a known pattern, but the first one to land will be a from-scratch design.
+
+**Why we shipped it that way**
+v1's only persona (dispute) is a state machine. Writing two more flow scaffolds with `NotImplementedError` bodies would have been speculative generality — the rule from the v3 audit was "the `FlowEngine` Protocol's existence proves pluggability; the scaffold files are dead code until they have a consumer."
+
+**The proper fix**
+When the first non-state-machine persona lands (likely a v1.1 general-Q&A bot):
+1. Create `chatbot/personas/<key>/flow.py` implementing `FlowEngine`. `FreeFormFlow` shape: `handle_user_turn` just calls `agent.generate(...)` with the running history and returns a `TurnResult` carrying the raw bot text; no phase machinery; `is_terminal` based on an explicit "/close" sentinel or N turns of inactivity.
+2. Quota integration is automatic — the conversation service already consumes quota on text turns regardless of flow type.
+3. Update the "how to add a persona" recipe in `CHATBOT_API.md` with a concrete `FreeFormFlow` example, replacing the placeholder reference.
+
+**Severity**
+P3. Framework holds the shape; just no second user yet.
+
+---
+
+## 46. Gemini free-tier still in training-data pool — opt-out pending before real PII
+
+**Where**
+- `backend/.env::GEMINI_API_KEY` — free-tier key from Google AI Studio
+- `backend/core/settings.py::GEMINI_API_KEY` reader
+
+**What's wrong**
+Per Google's published policy, requests sent through the free tier of the Gemini API can be used by Google for product improvement, including model training. The dispute chatbot redacts IBAN / phone / CNIC / email / URL shapes from user input via `content_safety.redact_input` before the LLM call, but the free-form narrative itself is not redacted — it can contain names, addresses, complaint details, and incidental PII that pattern-based redaction can't catch ("the technician on Liaqat Road in Pindi…").
+
+For the viva demo (synthetic dispute scenarios from test users) this is acceptable. For real customer narratives post-launch it is not.
+
+**Why we shipped it that way**
+Free-tier was the only realistic path to a working viva demo on the project timeline. Enabling billing requires payment-method setup on a Google Cloud project, which is a real-money commitment that doesn't make sense pre-launch.
+
+**The proper fix (pre-launch, before any real customer flow)**
+1. Create / select a Google Cloud project to host the API key.
+2. Enable billing on that project (link a payment method).
+3. Verify the new key is in the paid tier — paid-tier API content is NOT used for training (per Google's enterprise terms).
+4. Rotate `GEMINI_API_KEY` in production `.env` to the paid-tier key.
+5. Keep the free-tier key for dev / staging environments where only synthetic data flows.
+
+**Severity**
+P1 pre-launch; P3 today (synthetic test data only).
+
+---
+
+## 47. Fallback messages are English-only — Urdu / Roman Urdu variants not authored
+
+**Where**
+- `backend/chatbot/services/content_safety.py::fallback_message` and the `_FALLBACKS` dict
+
+**What's wrong**
+`fallback_message(persona_key, kind, lang="en")` accepts a `lang` parameter for forward compatibility, but the function returns the English string regardless of `lang`. The system prompt instructs Gemini to reply in the customer's language (English / Urdu / Roman Urdu); when validation or vendor errors trigger a fallback, the customer sees an English string in the middle of a Roman-Urdu conversation, which breaks the impression of a localized assistant.
+
+**Why we shipped it that way**
+Authoring vetted Urdu and Roman Urdu strings is a localization pass — needs a native speaker review (the developer is a native speaker but the strings are user-facing legal-adjacent copy ("your ticket has been filed") so a quick double-check is worth doing). Out of scope for the chatbot sprint itself.
+
+**The proper fix**
+1. Author Urdu (Arabic script) and Roman Urdu (Latin script) variants of every entry in `_FALLBACKS` (currently 4: `turn_message`, `summary`, `closing`, `default`). Plus the 3 templated strings in `chatbot/personas/dispute/prompts.py` (`UNDERSTAND_ABORT_MESSAGE`, `FORCED_ADVANCE_MESSAGE`, `PAYOUT_INTRO`, `CONFIRM_INTRO`, `closing_template`).
+2. Restructure `_FALLBACKS` from `{kind: str}` to `{kind: {lang: str}}`. Same for the prompt module's exports.
+3. `fallback_message` dispatches on `lang`, falls back to `en` if unknown.
+4. Detect user language from the last user message (langdetect + Roman-Urdu heuristic — the `Message.lang` field already exists for this).
+5. Pipe detected lang through `TurnResult` so `_handle_understand` and `_handle_evidence_done` / `_handle_payout_form` / `_handle_confirm` all call `fallback_message(lang=detected)`.
+
+**Severity**
+P2. UX polish for the Pakistani market; doesn't affect functional correctness.
+
+---
+
+## 48. `CHATBOT_SCRUB_FIELDS` setting declared but no Sentry / log scrubber reads it
+
+**Where**
+- `backend/core/settings.py::CHATBOT_SCRUB_FIELDS` (defined)
+- No file reads it back — search `grep -r CHATBOT_SCRUB_FIELDS backend/` returns only the definition site
+
+**What's wrong**
+The setting lists the fields that must be scrubbed from request bodies before logging (`user_message, narrative, bank_name, account_title, iban`). The intent — declared in the settings docstring — is that the project's Sentry `before_send` hook and the DRF exception handler both consult this list and strip those keys from breadcrumbs and tracebacks. Neither does so today. Sentry isn't enabled for this project at all, so the practical leak surface today is only Django's default tracebacks reaching `stderr` / `logs/django.log`.
+
+If Sentry gets wired in later (likely pre-launch) without anyone noticing this setting exists, request bodies will flow to Sentry intact, including narratives and IBANs.
+
+**Why we shipped it that way**
+Sentry isn't part of the current dependency set. Writing scrubber infrastructure for a tool not yet installed would have been premature. The setting was declared so the scrubber's eventual implementation has a single source of truth for what to redact.
+
+**The proper fix (when Sentry is enabled)**
+1. Pin `sentry-sdk` in `requirements.txt` and configure DSN in `.env`.
+2. In `core/settings.py`, register a `sentry_sdk.init(..., before_send=_scrub_chatbot_pii)`.
+3. `_scrub_chatbot_pii(event, hint)` walks `event["request"]["data"]` and replaces any key in `settings.CHATBOT_SCRUB_FIELDS` with `"[SCRUBBED]"`. Same treatment for `event["breadcrumbs"]`.
+4. Mirror the scrub in `core/common/failures/exception.py::custom_exception_handler` — before logging any exception context, replace those fields in the cached `request.data`.
+5. Test with a synthetic exception that includes scrub-listed fields in `request.data` — assert Sentry receives `[SCRUBBED]`, not the raw value.
+
+**Severity**
+P2. Functional surface fine today (Sentry off). Will become P1 the moment Sentry is wired without the scrubber.
+
+---
+
+## 49. Booking-detail "File a dispute" button is not wired
+
+**Where**
+- Route exists: `frontend/lib/core/routing/app_router.dart` registers `/customer/bookings/:bookingId/dispute-chat`
+- UI entry point missing: the booking detail screen has no affordance that pushes the chatbot route
+- Backend signal already exists: booking detail response carries `show_dispute_button: bool` (true only on `COMPLETED` + `COMPLETED_INSPECTION_ONLY`, per `feedback_dispute_visibility` memory)
+
+**What's wrong (today)**
+The chatbot feature is fully registered, analyzer-clean, and ships 137 green tests. But there is no UI affordance on the booking detail screen that pushes to the route. Current dev path is a direct deep-link to `/customer/bookings/<id>/dispute-chat`. End users have no way to reach the chatbot.
+
+**Why we shipped it that way**
+The chatbot feature itself is a viva non-negotiable (per `project_chatbot_scope`). Wiring the booking-detail entry point requires auditing the forward-actions cluster placement (per `feedback_cancel_vs_no_show`: cancel lives behind Help — dispute likely follows the same pattern) and a corresponding `show_dispute_button` consumer on the bookings feature. Bundling that work into the chatbot sprint would have stretched it past the viva deadline.
+
+**The proper fix**
+1. Locate the booking detail screen's forward-actions cluster.
+2. Read `show_dispute_button` from the booking detail response model (add the field if not yet on `CustomerBookingModel`).
+3. When `true`, render a "File a dispute" button that calls `context.push('/customer/bookings/$id/dispute-chat')`.
+4. Verify visibility matches `feedback_dispute_visibility`: only on `COMPLETED` / `COMPLETED_INSPECTION_ONLY`.
+5. Decide placement: peer to Help (Foodpanda-style "Need help?" affordance), or as a Help submenu item. Memory `feedback_cancel_vs_no_show` suggests behind Help.
+
+**Severity**
+P1. End users cannot reach a fully-built viva-non-negotiable feature without deep-linking.
+
+---
+
+## 50. `/customer/help` route is a TODO stub in `QuotaExceededModal`
+
+**Where**
+- `frontend/lib/features/customer/chatbot/presentation/widgets/quota_exceeded_modal.dart:51` — the "Use Help" `TextButton.onPressed` only calls `Navigator.of(context).pop()` with a `TODO(D3b/help-flow)` comment
+
+**What's wrong (today)**
+On `LlmQuotaExceededFailure`, the soft-worded modal offers two CTAs: "Use Help" and "OK". Both dismiss the modal — "Use Help" navigates nowhere. The user sees the modal pointing them at Help but tapping it produces no path forward.
+
+**Why we shipped it that way**
+The `/customer/help` flow is a post-viva feature (per `project_viva_sprint`). Shipping a non-functional dead-end CTA is preferable to omitting the soft-routing copy entirely — the modal's primary purpose (soft-wording the rate limit so it doesn't feel like a scolding) still works without the navigation. The modal stays mounted under the user's transcript so the quota can reset and they can keep typing tomorrow.
+
+**The proper fix**
+1. Ship the `/customer/help` route (post-viva).
+2. Replace `Navigator.of(context).pop()` in the "Use Help" handler with `context.push('/customer/help')` (or a deep-link like `/customer/help?source=chatbot_quota`).
+3. Update `test/features/customer/chatbot/presentation/widgets/quota_exceeded_modal_test.dart` — the "Use Help dismisses the dialog (v1 stub)" test should change to assert a route push.
+
+**Severity**
+P2. Modal's primary copy goal works without the navigation. Resolution is bundled with the broader help feature.
+
+---
+
+## 51. Removing a successfully-uploaded chatbot attachment is not supported
+
+**Where**
+- `frontend/lib/features/customer/chatbot/presentation/widgets/attachment_composer.dart:39-41` — "No-removal v1" docstring
+- `frontend/lib/features/customer/chatbot/domain/repositories/chatbot_repository.dart` — no `deleteAttachment` method
+- Backend: no `DELETE /api/chat/conversations/<id>/attachments/<attachment_id>/` endpoint
+
+**What's wrong (today)**
+EVIDENCE-phase composer lets the user pick + upload up to 10 images. If they pick the wrong photo there is no way to remove it — they can only proceed (server-side review handles bad evidence) or re-pick within the count cap.
+
+**Why we shipped it that way**
+Implementing removal needs the full chain: server-side `DELETE` endpoint (with IDOR scoping to `request.user`) → repo method → use case → composer affordance. The chatbot scope (`project_chatbot_scope`) didn't budget for this — v1 dispute is "evidence is what the customer submitted; reviewer handles bad inputs". Adding mid-flow removal also raises a UX question about whether to confirm deletion before each tile.
+
+**The proper fix**
+1. Backend: add `DELETE /api/chat/conversations/<id>/attachments/<attachment_id>/`. IDOR-scope to `request.user`. Soft-delete only — preserve the audit trail.
+2. Add `IChatbotRepository.deleteAttachment(conversationId, attachmentId)` + remote-data-source method + use case + DI wiring.
+3. Add `ChatbotSessionNotifier.removeAttachment(attachmentId)`.
+4. Composer: add a remove-affordance per thumbnail (long-press or "X" overlay) with a confirmation step.
+5. Update the test matrix in `attachment_composer_test.dart`.
+
+**Severity**
+P2. Functional workaround (re-pick + proceed) exists. Quality-of-life shortfall but not a viva-blocker.
+
+---
+
+## 52. No logout-clear-feature-caches hook (chatbot side flagged; concern is cross-cutting)
+
+**Where**
+- `frontend/lib/features/customer/chatbot/data/data_sources/chatbot_local_data_source.dart:160` — `clear()` exists but is never called
+- Auth feature: logout flow does not iterate over feature caches
+
+**What's wrong (today)**
+`ChatbotLocalDataSource` writes two key shapes to `SharedPreferences` — the recovery id and per-conversation drafts. On logout, those keys persist. A different user logging in on the same device would inherit the previous user's recovery id (which would 404 against their auth token, so no actual data leak — but the local state is stale).
+
+**Why we shipped it that way**
+The keys are user-scoped via the `auth_token` boundary in secure storage — a stale recovery id can't fetch another user's conversation. Acceptable for v1. The proper fix requires a cross-feature signal that doesn't exist yet (the auth feature would need to enumerate every feature's `LocalDataSource.clear()` on logout).
+
+**The proper fix**
+1. Define a `FeatureCacheTeardown` signal in the auth feature — e.g., a list of `Future<void> Function()` callbacks registered at boot.
+2. Each feature's DI registers its `LocalDataSource.clear()` against this signal.
+3. `AuthNotifier.logout()` iterates the list before clearing secure storage.
+4. Audit other features for the same gap (bookings, technician onboarding, addresses, …).
+
+Properly an auth-feature task, not chatbot-specific. The chatbot side is one line of registration once the signal exists.
+
+**Severity**
+P3. Acceptable v1 — no real data-leak surface. Will become P2 once shared-device usage becomes a real consideration.
+
+---
+
+## 53. `copyWithPrevious` lint suppressions in chatbot session notifier
+
+**Where**
+- `frontend/lib/features/customer/chatbot/presentation/notifiers/chatbot_session_notifier.dart:83, 124, 183` — three `// ignore: invalid_use_of_internal_member` comments
+- Same un-suppressed warning exists at `frontend/lib/features/customer/bookings/presentation/providers/customer_bookings_list_notifier.dart:105`
+
+**What's wrong (today)**
+Riverpod's `AsyncValue.copyWithPrevious` is marked `@internal` in the framework. We use it deliberately — when an `AsyncError` arises mid-mutation we want the previous `AsyncData` payload preserved so the screen can render the error toast against the prior state (no flicker, no orphan optimistic bubble). The lint flags every call site.
+
+**Why we shipped it that way**
+The pattern already exists un-suppressed in the bookings notifier — `copyWithPrevious` is the documented Riverpod 2 recovery affordance. Suppressing in the new code keeps the chatbot notifier surveyed alongside the bookings baseline. Removing the lint properly would require either a public Riverpod API for this pattern or restructuring the notifier to surface "previous" state differently.
+
+**The proper fix**
+1. Watch for a Riverpod public API replacement (or a `@protected`-style escape hatch) on the next major upgrade.
+2. Until then, keep parity with bookings — either both notifiers suppress the lint or neither does. Don't silently let one drift.
+3. If we restructure: emit a `(Failure, ChatSession?)` tuple from the notifier and let the screen handle the "show error overlaid on previous state" composition itself — that would drop the suppression entirely.
+
+**Severity**
+P3. Surface is the analyzer only; no runtime impact. Costs three inline comments.

@@ -1434,6 +1434,64 @@ _DISPUTE_DISALLOWED = frozenset({
 })
 
 
+def apply_dispute_opened_side_effects(
+    *,
+    ticket: SupportTicket,
+    booking: JobBooking,
+    opener_role: str,
+) -> None:
+    """Stamp ``dispute_opened_at``, flip booking to DISPUTED if non-terminal,
+    and broadcast ``DISPUTE_OPENED`` to both audiences.
+
+    Shared between the form-intake path (``open_dispute``) and the
+    chatbot-intake path
+    (``disputes.services.ticket_creation.create_from_chatbot_session``)
+    so both intake methods produce the same audit + realtime footprint.
+
+    Caller contract:
+      * already holds a ``select_for_update`` lock on ``booking``
+      * already inside ``transaction.atomic``
+      * ``opener_role`` ∈ {"customer", "technician"} — broadcast payload
+        consumers branch on it.
+
+    First-dispute semantics: ``dispute_opened_at`` is only stamped when
+    previously null. Subsequent ticket creations on the same booking
+    (multiple OPEN tickets are permitted) skip the timestamp. The status
+    flip is one-shot via ``TERMINAL_STATUSES`` membership (``DISPUTED``
+    is itself terminal, so the second-open path is also a no-op).
+    """
+    first_dispute = booking.dispute_opened_at is None
+    update_fields: list[str] = []
+    if first_dispute:
+        booking.dispute_opened_at = timezone.now()
+        update_fields.append('dispute_opened_at')
+    # Preserve terminal status. CANCELLED / COMPLETED / etc. bookings
+    # with a dispute filed against them stay queryable as such; the
+    # dispute is captured by ``dispute_opened_at IS NOT NULL`` plus
+    # the ticket row, not by erasing the prior terminal status. For
+    # non-terminal bookings (IN_PROGRESS being the typical case) the
+    # flip to DISPUTED is what locks out further transitions on the
+    # booking until admin resolves, so it stays mandatory there.
+    if booking.status not in JobBooking.TERMINAL_STATUSES:
+        booking.status = JobBooking.STATUS_DISPUTED
+        update_fields.append('status')
+    if update_fields:
+        booking.save(update_fields=update_fields)
+
+    # Broadcast to both audiences so cross-device sessions and dev_panel
+    # invalidate. The opener's own active session typically refreshes via
+    # the local POST action button, but other sessions need the WS event.
+    transaction.on_commit(lambda: _broadcast_both(
+        booking=booking,
+        event_type=EventType.DISPUTE_OPENED,
+        payload={
+            **_payload_basics(booking),
+            'ticket_id': ticket.id,
+            'opened_by_role': opener_role,
+        },
+    ))
+
+
 def open_dispute(
     *,
     booking_id: int,
@@ -1485,42 +1543,11 @@ def open_dispute(
                 image=photo_file,
             )
 
-        first_dispute = booking.dispute_opened_at is None
-        update_fields = []
-        if first_dispute:
-            booking.dispute_opened_at = timezone.now()
-            update_fields.append('dispute_opened_at')
-        # Preserve terminal status. CANCELLED / COMPLETED / etc. bookings
-        # with a dispute filed against them stay queryable as such; the
-        # dispute is captured by ``dispute_opened_at IS NOT NULL`` plus
-        # the ticket row, not by erasing the prior terminal status. For
-        # non-terminal bookings (IN_PROGRESS being the typical case) the
-        # flip to DISPUTED is what locks out further transitions on the
-        # booking until admin resolves, so it stays mandatory there.
-        # ``STATUS_DISPUTED`` is itself in ``TERMINAL_STATUSES``, so a
-        # second open on an already-disputed booking takes the no-flip
-        # branch automatically.
-        if booking.status not in JobBooking.TERMINAL_STATUSES:
-            booking.status = JobBooking.STATUS_DISPUTED
-            update_fields.append('status')
-        if update_fields:
-            booking.save(update_fields=update_fields)
-
-        # Broadcast to both audiences so a cross-device session or
-        # dev_panel sees the dispute land on the opener's other devices
-        # too. The opener's own active session typically refreshes via
-        # the local POST action button, but other sessions (e.g. tech
-        # with two tabs, dev_panel driving as both roles) need the WS
-        # event to invalidate.
-        transaction.on_commit(lambda: _broadcast_both(
+        apply_dispute_opened_side_effects(
+            ticket=ticket,
             booking=booking,
-            event_type=EventType.DISPUTE_OPENED,
-            payload={
-                **_payload_basics(booking),
-                'ticket_id': ticket.id,
-                'opened_by_role': 'customer' if is_customer else 'technician',
-            },
-        ))
+            opener_role='customer' if is_customer else 'technician',
+        )
 
     return ticket
 

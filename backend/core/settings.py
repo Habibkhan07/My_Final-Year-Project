@@ -126,6 +126,59 @@ JAZZCASH_TOPUP_TTL_MINUTES = env.int('JAZZCASH_TOPUP_TTL_MINUTES', default=15)
 SITE_URL = env('SITE_URL', default='http://localhost:8000')
 
 
+# --- AI Chatbot (Gemini) ---------------------------------------------------
+# Pluggable LLM-driven chatbot framework (``chatbot`` app). v1 ships a single
+# persona — dispute resolution — but the framework hosts a registry so new
+# personas (general Q&A, tech onboarding, quote-helper) land as folder-adds
+# under ``chatbot.personas.<key>/`` with no edits to core code.
+#
+# Vendor decoupling: every LLM call goes through the ``ConversationalAgent``
+# Protocol in ``chatbot.services.ports``; the concrete adapter is selected
+# by LLM_ADAPTER. Swap ``gemini`` → ``claude`` / ``openai`` later by writing
+# one adapter file. GEMINI_API_KEY is read here but VALIDATED AT ADAPTER
+# INSTANTIATION (fail-loud at first use, mirroring JazzCashHostedGateway
+# above) so an unused adapter never blocks server boot.
+LLM_ADAPTER = env('LLM_ADAPTER', default='gemini')
+GEMINI_API_KEY = env('GEMINI_API_KEY', default='')
+GEMINI_MODEL = env('GEMINI_MODEL', default='gemini-2.5-flash')
+
+# Per-user daily LLM call quota, shared across all chatbot personas. At 50
+# calls/day this comfortably covers ~16 dispute sessions (~3 LLM calls
+# each — greet, summarize, closing) while protecting the free-tier project
+# quota from a runaway loop or abusive replay.
+CHATBOT_DAILY_CALL_LIMIT = env.int('CHATBOT_DAILY_CALL_LIMIT', default=50)
+
+# Per-phase turn cap for state-machine personas (today: UNDERSTAND phase in
+# the dispute flow). When the cap is exceeded WITH required fields already
+# captured the conversation force-advances with ``needs_review=True`` on the
+# resulting ticket. When the cap is exceeded WITH required fields STILL
+# missing the conversation aborts cleanly — never files a half-baked ticket.
+CHATBOT_UNDERSTAND_TURN_CAP = env.int('CHATBOT_UNDERSTAND_TURN_CAP', default=8)
+
+# Attachment caps (photos for dispute v1; voice / docs in later personas).
+# Per-file cap stops a confused or malicious user from blowing your S3
+# bill; the session cap is a fail-safe behind that. EXIF GPS is stripped
+# by ``Attachment.save()`` regardless of these caps — see chatbot/models.py.
+CHATBOT_MAX_ATTACHMENTS = env.int('CHATBOT_MAX_ATTACHMENTS', default=10)
+CHATBOT_MAX_ATTACHMENT_MB = env.int('CHATBOT_MAX_ATTACHMENT_MB', default=5)
+CHATBOT_MAX_SESSION_MB = env.int('CHATBOT_MAX_SESSION_MB', default=50)
+
+# Fields scrubbed from request bodies before they reach app logs / Sentry
+# breadcrumbs. Chat endpoints carry PII (narrative free text, IBANs, bank
+# account titles) — these must never appear in tracebacks or breadcrumbs.
+# Used by the chatbot logger's filter + the DRF exception handler hook.
+CHATBOT_SCRUB_FIELDS = env.list(
+    'CHATBOT_SCRUB_FIELDS',
+    default=['user_message', 'narrative', 'bank_name', 'account_title', 'iban'],
+)
+
+# Customer-facing SLA copy — single source of truth. The dispute persona's
+# closing message and the ``no SLA other than canonical`` output validator
+# both reference this string, so the LLM cannot quietly promise a different
+# timeline ("within 24 hours", etc.).
+DISPUTE_SLA_STRING = env('DISPUTE_SLA_STRING', default='within 3 working days')
+
+
 # Application definition
 
 INSTALLED_APPS = [
@@ -156,6 +209,8 @@ INSTALLED_APPS = [
     'customers',
     'bookings',
     'wallet',
+    'chatbot',
+    'disputes',
     'django_extensions',
     # Central Event Dispatch Hub
     'core.apps.CoreConfig',
