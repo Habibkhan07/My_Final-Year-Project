@@ -13,13 +13,20 @@ def custom_exception_handler(exc, context):
     # create a module-load cycle.
     from bookings.exceptions import BookingValidationError
     from chatbot.exceptions import ChatbotError
-    from wallet.exceptions import InsufficientFundsError, WalletLockoutError
+    from wallet.exceptions import (
+        DuplicatePendingWithdrawalError,
+        InactiveTechnicianError,
+        InsufficientFundsError,
+        WalletLockoutError,
+    )
 
     if isinstance(
         exc,
         (
             BookingValidationError,
             ChatbotError,
+            DuplicatePendingWithdrawalError,
+            InactiveTechnicianError,
             InsufficientFundsError,
             WalletLockoutError,
         ),

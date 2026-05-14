@@ -30,6 +30,12 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from technicians.models import TechnicianProfile
+from wallet.api.serializers import (
+    PayoutAccountsResponseSerializer,
+    WithdrawalRequestCreateSerializer,
+    WithdrawalRequestListResponseSerializer,
+    WithdrawalRequestReadSerializer,
+)
 from wallet.models import WalletTopup
 from wallet.selectors.wallet_selectors import (
     DEFAULT_PAGE_SIZE,
@@ -38,12 +44,20 @@ from wallet.selectors.wallet_selectors import (
     get_wallet_balance,
     list_transactions,
 )
+from wallet.selectors.withdrawal_selectors import (
+    DEFAULT_PAGE_SIZE as WITHDRAWAL_DEFAULT_PAGE_SIZE,
+    InvalidCursor as InvalidWithdrawalCursor,
+    MAX_PAGE_SIZE as WITHDRAWAL_MAX_PAGE_SIZE,
+    list_active_payout_accounts,
+    list_withdrawal_requests,
+)
 from wallet.services.topup_service import (
     TopupAmountOutOfRange,
     apply_gateway_callback,
     start_topup,
     unsign_bridge_token,
 )
+from wallet.services.withdrawal_service import create_withdrawal_request
 
 
 # SECURITY: every endpoint scopes to ``request.user.tech_profile`` —
@@ -420,3 +434,145 @@ class JazzCashReturnView(APIView):
             },
             status=200,
         )
+
+
+# ---------------------------------------------------------------------------
+# Withdrawal flow — tech-facing
+# ---------------------------------------------------------------------------
+
+
+# SECURITY: every view in this section delegates through
+# ``_require_technician`` first. Payout-account ids in request bodies are
+# never trusted blindly — ``create_withdrawal_request`` re-scopes any
+# supplied account id to the requesting tech and refuses unknown /
+# inactive / cross-tenant rows with a generic ``validation_error`` (no
+# info disclosure). Listing endpoints filter by ``technician=tech`` at
+# the selector layer; there is no path-id parameter that could be IDOR'd.
+
+class PayoutAccountListView(APIView):
+    """GET /api/technicians/wallet/payout-accounts/
+
+    Returns the tech's currently-usable bank + JazzCash payout targets,
+    each with the account number / mobile number MASKED. The raw values
+    never leave the server.
+
+    Feeds the picker on the withdrawal-submit screen. If both lists are
+    empty, the frontend shows the empty-state CTA ("Add a payout
+    account").
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        technician, error_response = _require_technician(request)
+        if error_response is not None:
+            return error_response
+
+        payload = list_active_payout_accounts(technician)
+        serializer = PayoutAccountsResponseSerializer(payload)
+        return Response(serializer.data)
+
+
+class WithdrawalRequestView(APIView):
+    """REST collection endpoint for the tech's own withdrawal requests.
+
+    Two methods on one URL (``/api/technicians/wallet/withdrawals/``):
+
+      * ``POST`` — submit a new withdrawal request. All defensive gates
+        live in ``create_withdrawal_request``; this view's only job is
+        auth, serializer validation, and envelope shaping. Canonical
+        failure envelopes (in addition to ``validation_error`` for
+        serializer-rejected payloads):
+
+          - 400 ``insufficient_funds`` — requested > current balance
+          - 403 ``wallet_lockout`` — balance < 0
+          - 403 ``inactive_technician`` — tech not APPROVED
+          - 409 ``duplicate_pending_withdrawal`` — open request exists
+          - 400 ``validation_error`` — payout account invalid (covers
+            IDOR, soft-deleted, not-found, all with the same message)
+
+      * ``GET`` — cursor-paginated history of this tech's requests,
+        newest-first, all statuses. Pending and APPROVED-but-not-yet-
+        fulfilled rows are the visibility surface for "is my withdrawal
+        still being reviewed?" — the wallet transactions list only
+        shows the WITHDRAWAL_DEBIT row after admin clicks Done.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        technician, error_response = _require_technician(request)
+        if error_response is not None:
+            return error_response
+
+        serializer = WithdrawalRequestCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        # SECURITY: technician is the requester (request.user.tech_profile);
+        # the service rejects any payout-account id that doesn't belong
+        # to this tech with a generic validation error.
+        request_row = create_withdrawal_request(
+            technician=technician,
+            amount=serializer.validated_data['amount'],
+            payout_bank_account_id=serializer.validated_data.get('payout_bank_account_id'),
+            payout_jazzcash_account_id=serializer.validated_data.get('payout_jazzcash_account_id'),
+        )
+
+        return Response(
+            WithdrawalRequestReadSerializer(request_row).data,
+            status=201,
+        )
+
+    def get(self, request):
+        technician, error_response = _require_technician(request)
+        if error_response is not None:
+            return error_response
+
+        cursor = request.query_params.get('cursor') or None
+        page_size_raw = request.query_params.get('page_size')
+
+        page_size = WITHDRAWAL_DEFAULT_PAGE_SIZE
+        if page_size_raw is not None:
+            try:
+                page_size = int(page_size_raw)
+            except ValueError:
+                return Response(
+                    {
+                        'status': 400,
+                        'code': 'validation_error',
+                        'message': 'page_size must be an integer.',
+                        'errors': {'page_size': ['Must be an integer.']},
+                    },
+                    status=400,
+                )
+            if page_size < 1 or page_size > WITHDRAWAL_MAX_PAGE_SIZE:
+                return Response(
+                    {
+                        'status': 400,
+                        'code': 'validation_error',
+                        'message': f'page_size must be between 1 and {WITHDRAWAL_MAX_PAGE_SIZE}.',
+                        'errors': {'page_size': [f'Out of range (1..{WITHDRAWAL_MAX_PAGE_SIZE}).']},
+                    },
+                    status=400,
+                )
+
+        try:
+            page = list_withdrawal_requests(
+                technician,
+                cursor=cursor,
+                page_size=page_size,
+            )
+        except InvalidWithdrawalCursor:
+            return Response(
+                {
+                    'status': 400,
+                    'code': 'validation_error',
+                    'message': 'Invalid cursor.',
+                    'errors': {'cursor': ['Cursor could not be decoded.']},
+                },
+                status=400,
+            )
+
+        serializer = WithdrawalRequestListResponseSerializer({
+            'results': page['results'],
+            'next_cursor': page['next_cursor'],
+        })
+        return Response(serializer.data)

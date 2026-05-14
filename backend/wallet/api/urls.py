@@ -8,11 +8,13 @@ directly because it is NOT tech-authenticated.
 from django.urls import path
 
 from wallet.api.views import (
+    PayoutAccountListView,
     TopupBridgeView,
     TopupCreateView,
     TopupStatusView,
     WalletBalanceView,
     WalletTransactionListView,
+    WithdrawalRequestView,
 )
 
 urlpatterns = [
@@ -31,4 +33,10 @@ urlpatterns = [
     # Renders an auto-submitting JazzCash form OR a manual Pay/Decline
     # page when gateway_name='mock'.
     path('topups/<int:topup_id>/bridge/', TopupBridgeView.as_view(), name='wallet-topup-bridge'),
+    # GET → active bank + JazzCash payout accounts (masked) feeding the
+    # withdrawal-submit picker.
+    path('payout-accounts/', PayoutAccountListView.as_view(), name='wallet-payout-accounts'),
+    # POST → submit a new withdrawal request (PENDING_REVIEW).
+    # GET  → cursor-paginated history of this tech's own requests.
+    path('withdrawals/', WithdrawalRequestView.as_view(), name='wallet-withdrawals'),
 ]

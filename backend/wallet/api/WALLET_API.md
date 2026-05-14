@@ -233,6 +233,262 @@ statuses (replay-safe).
 
 ---
 
+## Withdrawals
+
+Tech-initiated payout requests. The lifecycle is **request-then-admin-
+fulfilment** with out-of-band money movement (see the
+`project_withdrawal_lifecycle` decision log):
+
+1. Tech submits via `POST /api/technicians/wallet/withdrawals/`
+   (`status=PENDING_REVIEW`, **no wallet movement**).
+2. Admin reviews in Django Admin, transfers money externally (bank
+   wire / JazzCash merchant), pastes the external ref, clicks "Approve &
+   Process / Done".
+3. Backend writes `WithdrawalFulfilment` + `WITHDRAWAL_DEBIT` ledger row
+   inside one atomic block. Tech's wallet is debited here, not before.
+
+The tech-facing surface in this doc covers (1) and the read endpoints
+for surfacing status. (2) and (3) live in `wallet/admin.py`.
+
+**Defense-in-depth gates** on `POST /withdrawals/` (in firing order):
+
+| # | Gate | On fail |
+|---|---|---|
+| 1 | Tech `status='APPROVED'` AND `is_active=True` | `403 inactive_technician` |
+| 2 | `current_wallet_balance >= 0` (lockout) | `403 wallet_lockout` |
+| 3 | No open `PENDING_REVIEW` / `APPROVED` request for this tech | `409 duplicate_pending_withdrawal` |
+| 4 | `amount <= current_wallet_balance` | `400 insufficient_funds` |
+| 5 | Payout account belongs to tech and `is_active=True` | `400 validation_error` |
+
+Gates 1–4 run inside one `transaction.atomic()` with
+`SELECT FOR UPDATE` on the `TechnicianProfile` row, serializing
+concurrent submits against commission / refund writes and against
+each other.
+
+---
+
+### `GET /api/technicians/wallet/payout-accounts/`
+
+Returns the tech's currently-usable bank + JazzCash payout targets.
+Active-only (soft-deleted accounts excluded). Feeds the picker on
+the withdrawal-submit screen.
+
+**Auth:** `IsAuthenticated` + technician profile required.
+
+**Response 200:**
+
+```json
+{
+  "bank_accounts": [
+    {
+      "id": 7,
+      "bank_name": "HBL",
+      "account_title": "Ali Khan",
+      "masked_number": "••1234"
+    }
+  ],
+  "jazzcash_accounts": [
+    {
+      "id": 12,
+      "account_title": "Ali Khan",
+      "masked_mobile": "+923•••567"
+    }
+  ]
+}
+```
+
+The raw `account_number_or_iban` and `mobile_number` columns **never**
+leave the server. The serializer's `fields` tuple only includes the
+masked fields.
+
+Empty arrays are valid: the frontend renders the "Add a payout account"
+empty state. (For viva: at least one account is seeded via Django Admin
+or auto-created on first JazzCash top-up.)
+
+---
+
+### `POST /api/technicians/wallet/withdrawals/`
+
+Submit a new withdrawal request. Exactly one of
+`payout_bank_account_id` / `payout_jazzcash_account_id` must be set.
+
+**Auth:** `IsAuthenticated` + technician profile required.
+
+**Request body:**
+
+```json
+{
+  "amount": "1000.00",
+  "payout_bank_account_id": 7
+}
+```
+
+| Field | Type | Notes |
+|---|---|---|
+| `amount` | decimal string or number | Rs. 1.00 ≤ amount ≤ Rs. 5,000.00. `max_digits=10, decimal_places=2`. Sub-paisa precision rejected. |
+| `payout_bank_account_id` | int OR null | Positive id of an active `TechnicianBankAccount` owned by this tech. |
+| `payout_jazzcash_account_id` | int OR null | Positive id of an active `TechnicianJazzCashAccount` owned by this tech. |
+
+**XOR rule:** exactly one of the two payout ids must be non-null.
+Both null OR both set → `400 validation_error`.
+
+**Response 201:**
+
+```json
+{
+  "id": 42,
+  "amount": "1000.00",
+  "status": "PENDING_REVIEW",
+  "ui_status_label": "Under review",
+  "payout": {
+    "kind": "bank",
+    "label": "HBL — Ali Khan",
+    "masked": "••1234"
+  },
+  "admin_external_ref": "",
+  "requested_at": "2026-05-15T10:00:00Z",
+  "reviewed_at": null
+}
+```
+
+Fields:
+
+| Field | Notes |
+|---|---|
+| `status` | Raw enum: `PENDING_REVIEW`, `APPROVED`, `REJECTED`, `PROCESSED`. |
+| `ui_status_label` | Dumb-UI label. Frontend reads this, never branches on `status`. |
+| `payout.kind` | `"bank"` or `"jazzcash"`. |
+| `payout.label` | Human label, e.g. `"HBL — Ali Khan"` / `"JazzCash — Ali Khan"`. |
+| `payout.masked` | Masked account number or MSISDN. Raw values never on the wire. |
+| `admin_external_ref` | Empty string until status reaches `PROCESSED`. Surfaces the admin-entered bank wire / JazzCash merchant ref after fulfilment. |
+
+**Error envelopes:**
+
+`400 insufficient_funds`:
+```json
+{
+  "status": 400,
+  "code": "insufficient_funds",
+  "message": "Cannot withdraw Rs. 1500. Available balance: Rs. 500.",
+  "errors": {
+    "requested_pkr": ["1500"],
+    "available_pkr": ["500"]
+  }
+}
+```
+
+The PKR ints are asymmetrically rounded: `requested` rounds up
+(`ROUND_CEILING`), `available` rounds down (`ROUND_FLOOR`) so paisa
+fractions never make the displayed gap look zero when the gate trips.
+
+`403 wallet_lockout`:
+```json
+{
+  "status": 403,
+  "code": "wallet_lockout",
+  "message": "Wallet is locked. Top up to continue accepting jobs.",
+  "errors": {
+    "balance_pkr": ["-101"],
+    "owed_pkr": ["101"]
+  }
+}
+```
+
+`403 inactive_technician`:
+```json
+{
+  "status": 403,
+  "code": "inactive_technician",
+  "message": "Your technician account is not approved for withdrawals.",
+  "errors": {
+    "status": ["PENDING"]
+  }
+}
+```
+
+`status` carries the raw `TechnicianProfile.status` (`PENDING` / `REJECTED`)
+or the synthetic `"DEACTIVATED"` when an approved tech has `is_active=False`.
+
+`409 duplicate_pending_withdrawal`:
+```json
+{
+  "status": 409,
+  "code": "duplicate_pending_withdrawal",
+  "message": "A previous withdrawal request is still under review. Wait for it to be processed before submitting a new one.",
+  "errors": {
+    "pending_request_id": ["41"]
+  }
+}
+```
+
+`400 validation_error` — XOR rule violated, or payout account id does
+not resolve to an active account owned by this tech (covers IDOR,
+soft-deleted accounts, and unknown ids — all collapse to the same
+message so no information disclosure):
+
+```json
+{
+  "status": 400,
+  "code": "validation_error",
+  "message": "Invalid input data.",
+  "errors": {
+    "payout_bank_account_id": ["Invalid payout account."]
+  }
+}
+```
+
+---
+
+### `GET /api/technicians/wallet/withdrawals/`
+
+Cursor-paginated history of this tech's own withdrawal requests
+(all statuses), newest-first.
+
+**Auth:** `IsAuthenticated` + technician profile required.
+
+**Query params:**
+
+| Param | Type | Default | Notes |
+|---|---|---|---|
+| `cursor` | string | none (page 1) | Opaque base64 cursor returned from a prior page. |
+| `page_size` | int | 20 | 1 ≤ page_size ≤ 50. |
+
+**Response 200:**
+
+```json
+{
+  "next_cursor": "MjAyNi0wNS0xNVQxMDowMHwxMjM=",
+  "results": [
+    {
+      "id": 42,
+      "amount": "1000.00",
+      "status": "PROCESSED",
+      "ui_status_label": "Processed",
+      "payout": {
+        "kind": "bank",
+        "label": "HBL — Ali Khan",
+        "masked": "••1234"
+      },
+      "admin_external_ref": "JC-MERCH-2026-05-20-7821",
+      "requested_at": "2026-05-15T10:00:00Z",
+      "reviewed_at": "2026-05-20T14:30:00Z"
+    }
+  ]
+}
+```
+
+`next_cursor` is `null` on the last page. Tampered cursors return
+`400 validation_error` with `errors.cursor`.
+
+**Why this exists** (vs. just relying on `GET /transactions/`):
+the wallet transactions endpoint only shows the `WITHDRAWAL_DEBIT` row
+**after** admin processes the request — between submit and admin action,
+the request is invisible there. This history endpoint covers the
+`PENDING_REVIEW` / `APPROVED` / `REJECTED` window so the tech can see
+"is my withdrawal still being reviewed?" without polling support.
+
+---
+
 ## Environment variables
 
 These come from the **JazzCash merchant onboarding pack**. Self-register
