@@ -14,6 +14,7 @@ import '../widgets/dashboard_header.dart';
 import '../widgets/later_today_list.dart';
 import '../widgets/lockout_banner.dart';
 import '../widgets/up_next_job_card.dart';
+import '../widgets/work_location_banner.dart';
 
 class TechnicianDashboardScreen extends ConsumerWidget {
   const TechnicianDashboardScreen({super.key});
@@ -108,6 +109,14 @@ class _DashboardLayout extends ConsumerWidget {
                   const SizedBox(height: AppSpacing.s3),
                   LockoutBanner(walletBalance: dashboard.walletBalance),
                 ],
+                // Work-location banner — gates discovery. Self-hiding
+                // (renders as a quiet summary row once set), so it stays
+                // useful as a re-edit affordance after the tech sets it.
+                const SizedBox(height: AppSpacing.s2),
+                WorkLocationBanner(
+                  hasWorkLocation: dashboard.hasWorkLocation,
+                  workAddressLabel: dashboard.workAddressLabel,
+                ),
                 const SizedBox(height: AppSpacing.s4),
                 Padding(
                   padding: const EdgeInsets.symmetric(

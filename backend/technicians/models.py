@@ -48,6 +48,13 @@ class TechnicianProfile(models.Model):
     base_latitude = models.FloatField(null=True, blank=True)
     base_longitude = models.FloatField(null=True, blank=True)
     max_travel_radius_km = models.IntegerField(default=10)
+    # Human-readable label for the work location, populated client-side via
+    # reverse-geocode (Google in prod, OSM Nominatim in dev). lat/lng remain the
+    # trusted source for matchmaking; this is display-only — shown back to the
+    # tech on their profile/dashboard so they can confirm where they registered
+    # themselves. Single field instead of customer-side's 7 locality columns
+    # because the tech never filters/groups by it.
+    work_address_label = models.CharField(max_length=200, null=True, blank=True)
     is_onboarding_complete = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
 

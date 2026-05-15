@@ -66,10 +66,22 @@ def get_technician_dashboard(technician: TechnicianProfile, request=None) -> dic
         if request:
             profile_picture_url = request.build_absolute_uri(profile_picture_url)
 
+    # ``has_work_location`` is the gate the FE dashboard banner reads. The
+    # matchmaker silently excludes null-coord techs from discovery, so a tech
+    # whose lat/lng is unset is invisible to customers — the banner is the
+    # only path that surfaces that fact. Truthy only when BOTH coords are
+    # present (matches the matchmaker's own null-guards).
+    has_work_location = (
+        technician.base_latitude is not None
+        and technician.base_longitude is not None
+    )
+
     return {
         "wallet_balance": float(technician.current_wallet_balance),
         "is_online": technician.is_online,
         "profile_picture": profile_picture_url,
         "up_next_job": up_next_job_dict,
         "later_today_jobs": later_today_jobs_list,
+        "has_work_location": has_work_location,
+        "work_address_label": technician.work_address_label,
     }

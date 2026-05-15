@@ -149,3 +149,40 @@ def get_technician_profile_detail(
         tech.distance_km = None
 
     return tech, resolved_service, resolved_subservice, resolved_promo
+
+
+def get_work_location(*, user) -> dict:
+    """Egress shape for GET /api/technicians/me/work-location/.
+
+    Returns the same keys whether the tech has set a location or not — the
+    ``is_set`` flag tells the FE which path to take. ``is_set=False`` means
+    the matchmaker silently excludes this tech (the bounding-box ``__range``
+    filter drops null-coord rows), so the FE renders the dashboard banner /
+    onboarding prompt.
+
+    Caller-scoped — the URL has no PK; ``request.user`` is the only key.
+    Returns a ``has_profile`` key so the view can short-circuit pure
+    customers without crashing on the OneToOne lookup.
+    """
+    profile = TechnicianProfile.objects.filter(user=user).first()
+
+    if profile is None:
+        return {
+            'has_profile': False,
+            'is_set': False,
+            'latitude': None,
+            'longitude': None,
+            'max_travel_radius_km': 10,
+            'work_address_label': None,
+        }
+
+    is_set = profile.base_latitude is not None and profile.base_longitude is not None
+
+    return {
+        'has_profile': True,
+        'is_set': is_set,
+        'latitude': profile.base_latitude,
+        'longitude': profile.base_longitude,
+        'max_travel_radius_km': profile.max_travel_radius_km,
+        'work_address_label': profile.work_address_label,
+    }

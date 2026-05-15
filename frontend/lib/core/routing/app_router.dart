@@ -21,6 +21,7 @@ import '../../features/technician/onboarding/domain/entities/technician_status.d
 import '../../features/booking/presentation/screens/technician_profile_screen.dart';
 import '../../features/customer/addresses/presentation/screens/map_picker_screen.dart';
 import '../../features/technician/dashboard/presentation/screens/technician_dashboard_screen.dart';
+import '../../features/technician/work_location/presentation/screens/work_location_picker_screen.dart';
 import '../../features/technician/metrics/presentation/screens/metrics_screen.dart';
 import '../../features/technician/wallet/presentation/screens/wallet_screen.dart';
 import '../../features/technician/wallet/presentation/screens/withdrawal_history_screen.dart';
@@ -92,6 +93,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/addresses/map-picker',
         builder: (context, state) => const MapPickerScreen(),
+      ),
+      GoRoute(
+        path: '/technician/work-location',
+        builder: (context, state) => const WorkLocationPickerScreen(),
       ),
       GoRoute(path: '/search', builder: (context, state) => const SearchPage()),
       GoRoute(

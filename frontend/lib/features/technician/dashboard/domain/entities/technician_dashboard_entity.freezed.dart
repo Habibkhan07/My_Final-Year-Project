@@ -558,7 +558,12 @@ as String,
 /// @nodoc
 mixin _$TechnicianDashboardEntity {
 
- double get walletBalance; bool get isOnline; String? get profilePicture; UpNextJobEntity? get upNextJob; List<LaterTodayJobEntity> get laterTodayJobs;
+ double get walletBalance; bool get isOnline; String? get profilePicture; UpNextJobEntity? get upNextJob; List<LaterTodayJobEntity> get laterTodayJobs;// ``hasWorkLocation`` gates the in-dashboard banner that prompts the tech
+// to set their work area. Backend-derived: true iff both base_latitude and
+// base_longitude are non-null on TechnicianProfile. Default false for
+// backwards compat — older cached payloads pre-dating this rollout get
+// treated as "not set" so the banner appears once on first launch.
+ bool get hasWorkLocation; String? get workAddressLabel;
 /// Create a copy of TechnicianDashboardEntity
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -569,16 +574,16 @@ $TechnicianDashboardEntityCopyWith<TechnicianDashboardEntity> get copyWith => _$
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is TechnicianDashboardEntity&&(identical(other.walletBalance, walletBalance) || other.walletBalance == walletBalance)&&(identical(other.isOnline, isOnline) || other.isOnline == isOnline)&&(identical(other.profilePicture, profilePicture) || other.profilePicture == profilePicture)&&(identical(other.upNextJob, upNextJob) || other.upNextJob == upNextJob)&&const DeepCollectionEquality().equals(other.laterTodayJobs, laterTodayJobs));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is TechnicianDashboardEntity&&(identical(other.walletBalance, walletBalance) || other.walletBalance == walletBalance)&&(identical(other.isOnline, isOnline) || other.isOnline == isOnline)&&(identical(other.profilePicture, profilePicture) || other.profilePicture == profilePicture)&&(identical(other.upNextJob, upNextJob) || other.upNextJob == upNextJob)&&const DeepCollectionEquality().equals(other.laterTodayJobs, laterTodayJobs)&&(identical(other.hasWorkLocation, hasWorkLocation) || other.hasWorkLocation == hasWorkLocation)&&(identical(other.workAddressLabel, workAddressLabel) || other.workAddressLabel == workAddressLabel));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,walletBalance,isOnline,profilePicture,upNextJob,const DeepCollectionEquality().hash(laterTodayJobs));
+int get hashCode => Object.hash(runtimeType,walletBalance,isOnline,profilePicture,upNextJob,const DeepCollectionEquality().hash(laterTodayJobs),hasWorkLocation,workAddressLabel);
 
 @override
 String toString() {
-  return 'TechnicianDashboardEntity(walletBalance: $walletBalance, isOnline: $isOnline, profilePicture: $profilePicture, upNextJob: $upNextJob, laterTodayJobs: $laterTodayJobs)';
+  return 'TechnicianDashboardEntity(walletBalance: $walletBalance, isOnline: $isOnline, profilePicture: $profilePicture, upNextJob: $upNextJob, laterTodayJobs: $laterTodayJobs, hasWorkLocation: $hasWorkLocation, workAddressLabel: $workAddressLabel)';
 }
 
 
@@ -589,7 +594,7 @@ abstract mixin class $TechnicianDashboardEntityCopyWith<$Res>  {
   factory $TechnicianDashboardEntityCopyWith(TechnicianDashboardEntity value, $Res Function(TechnicianDashboardEntity) _then) = _$TechnicianDashboardEntityCopyWithImpl;
 @useResult
 $Res call({
- double walletBalance, bool isOnline, String? profilePicture, UpNextJobEntity? upNextJob, List<LaterTodayJobEntity> laterTodayJobs
+ double walletBalance, bool isOnline, String? profilePicture, UpNextJobEntity? upNextJob, List<LaterTodayJobEntity> laterTodayJobs, bool hasWorkLocation, String? workAddressLabel
 });
 
 
@@ -606,14 +611,16 @@ class _$TechnicianDashboardEntityCopyWithImpl<$Res>
 
 /// Create a copy of TechnicianDashboardEntity
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? walletBalance = null,Object? isOnline = null,Object? profilePicture = freezed,Object? upNextJob = freezed,Object? laterTodayJobs = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? walletBalance = null,Object? isOnline = null,Object? profilePicture = freezed,Object? upNextJob = freezed,Object? laterTodayJobs = null,Object? hasWorkLocation = null,Object? workAddressLabel = freezed,}) {
   return _then(_self.copyWith(
 walletBalance: null == walletBalance ? _self.walletBalance : walletBalance // ignore: cast_nullable_to_non_nullable
 as double,isOnline: null == isOnline ? _self.isOnline : isOnline // ignore: cast_nullable_to_non_nullable
 as bool,profilePicture: freezed == profilePicture ? _self.profilePicture : profilePicture // ignore: cast_nullable_to_non_nullable
 as String?,upNextJob: freezed == upNextJob ? _self.upNextJob : upNextJob // ignore: cast_nullable_to_non_nullable
 as UpNextJobEntity?,laterTodayJobs: null == laterTodayJobs ? _self.laterTodayJobs : laterTodayJobs // ignore: cast_nullable_to_non_nullable
-as List<LaterTodayJobEntity>,
+as List<LaterTodayJobEntity>,hasWorkLocation: null == hasWorkLocation ? _self.hasWorkLocation : hasWorkLocation // ignore: cast_nullable_to_non_nullable
+as bool,workAddressLabel: freezed == workAddressLabel ? _self.workAddressLabel : workAddressLabel // ignore: cast_nullable_to_non_nullable
+as String?,
   ));
 }
 /// Create a copy of TechnicianDashboardEntity
@@ -710,10 +717,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( double walletBalance,  bool isOnline,  String? profilePicture,  UpNextJobEntity? upNextJob,  List<LaterTodayJobEntity> laterTodayJobs)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( double walletBalance,  bool isOnline,  String? profilePicture,  UpNextJobEntity? upNextJob,  List<LaterTodayJobEntity> laterTodayJobs,  bool hasWorkLocation,  String? workAddressLabel)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _TechnicianDashboardEntity() when $default != null:
-return $default(_that.walletBalance,_that.isOnline,_that.profilePicture,_that.upNextJob,_that.laterTodayJobs);case _:
+return $default(_that.walletBalance,_that.isOnline,_that.profilePicture,_that.upNextJob,_that.laterTodayJobs,_that.hasWorkLocation,_that.workAddressLabel);case _:
   return orElse();
 
 }
@@ -731,10 +738,10 @@ return $default(_that.walletBalance,_that.isOnline,_that.profilePicture,_that.up
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( double walletBalance,  bool isOnline,  String? profilePicture,  UpNextJobEntity? upNextJob,  List<LaterTodayJobEntity> laterTodayJobs)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( double walletBalance,  bool isOnline,  String? profilePicture,  UpNextJobEntity? upNextJob,  List<LaterTodayJobEntity> laterTodayJobs,  bool hasWorkLocation,  String? workAddressLabel)  $default,) {final _that = this;
 switch (_that) {
 case _TechnicianDashboardEntity():
-return $default(_that.walletBalance,_that.isOnline,_that.profilePicture,_that.upNextJob,_that.laterTodayJobs);case _:
+return $default(_that.walletBalance,_that.isOnline,_that.profilePicture,_that.upNextJob,_that.laterTodayJobs,_that.hasWorkLocation,_that.workAddressLabel);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -751,10 +758,10 @@ return $default(_that.walletBalance,_that.isOnline,_that.profilePicture,_that.up
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( double walletBalance,  bool isOnline,  String? profilePicture,  UpNextJobEntity? upNextJob,  List<LaterTodayJobEntity> laterTodayJobs)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( double walletBalance,  bool isOnline,  String? profilePicture,  UpNextJobEntity? upNextJob,  List<LaterTodayJobEntity> laterTodayJobs,  bool hasWorkLocation,  String? workAddressLabel)?  $default,) {final _that = this;
 switch (_that) {
 case _TechnicianDashboardEntity() when $default != null:
-return $default(_that.walletBalance,_that.isOnline,_that.profilePicture,_that.upNextJob,_that.laterTodayJobs);case _:
+return $default(_that.walletBalance,_that.isOnline,_that.profilePicture,_that.upNextJob,_that.laterTodayJobs,_that.hasWorkLocation,_that.workAddressLabel);case _:
   return null;
 
 }
@@ -766,7 +773,7 @@ return $default(_that.walletBalance,_that.isOnline,_that.profilePicture,_that.up
 
 
 class _TechnicianDashboardEntity implements TechnicianDashboardEntity {
-  const _TechnicianDashboardEntity({required this.walletBalance, required this.isOnline, this.profilePicture, this.upNextJob, required final  List<LaterTodayJobEntity> laterTodayJobs}): _laterTodayJobs = laterTodayJobs;
+  const _TechnicianDashboardEntity({required this.walletBalance, required this.isOnline, this.profilePicture, this.upNextJob, required final  List<LaterTodayJobEntity> laterTodayJobs, this.hasWorkLocation = false, this.workAddressLabel}): _laterTodayJobs = laterTodayJobs;
   
 
 @override final  double walletBalance;
@@ -780,6 +787,13 @@ class _TechnicianDashboardEntity implements TechnicianDashboardEntity {
   return EqualUnmodifiableListView(_laterTodayJobs);
 }
 
+// ``hasWorkLocation`` gates the in-dashboard banner that prompts the tech
+// to set their work area. Backend-derived: true iff both base_latitude and
+// base_longitude are non-null on TechnicianProfile. Default false for
+// backwards compat — older cached payloads pre-dating this rollout get
+// treated as "not set" so the banner appears once on first launch.
+@override@JsonKey() final  bool hasWorkLocation;
+@override final  String? workAddressLabel;
 
 /// Create a copy of TechnicianDashboardEntity
 /// with the given fields replaced by the non-null parameter values.
@@ -791,16 +805,16 @@ _$TechnicianDashboardEntityCopyWith<_TechnicianDashboardEntity> get copyWith => 
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TechnicianDashboardEntity&&(identical(other.walletBalance, walletBalance) || other.walletBalance == walletBalance)&&(identical(other.isOnline, isOnline) || other.isOnline == isOnline)&&(identical(other.profilePicture, profilePicture) || other.profilePicture == profilePicture)&&(identical(other.upNextJob, upNextJob) || other.upNextJob == upNextJob)&&const DeepCollectionEquality().equals(other._laterTodayJobs, _laterTodayJobs));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TechnicianDashboardEntity&&(identical(other.walletBalance, walletBalance) || other.walletBalance == walletBalance)&&(identical(other.isOnline, isOnline) || other.isOnline == isOnline)&&(identical(other.profilePicture, profilePicture) || other.profilePicture == profilePicture)&&(identical(other.upNextJob, upNextJob) || other.upNextJob == upNextJob)&&const DeepCollectionEquality().equals(other._laterTodayJobs, _laterTodayJobs)&&(identical(other.hasWorkLocation, hasWorkLocation) || other.hasWorkLocation == hasWorkLocation)&&(identical(other.workAddressLabel, workAddressLabel) || other.workAddressLabel == workAddressLabel));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,walletBalance,isOnline,profilePicture,upNextJob,const DeepCollectionEquality().hash(_laterTodayJobs));
+int get hashCode => Object.hash(runtimeType,walletBalance,isOnline,profilePicture,upNextJob,const DeepCollectionEquality().hash(_laterTodayJobs),hasWorkLocation,workAddressLabel);
 
 @override
 String toString() {
-  return 'TechnicianDashboardEntity(walletBalance: $walletBalance, isOnline: $isOnline, profilePicture: $profilePicture, upNextJob: $upNextJob, laterTodayJobs: $laterTodayJobs)';
+  return 'TechnicianDashboardEntity(walletBalance: $walletBalance, isOnline: $isOnline, profilePicture: $profilePicture, upNextJob: $upNextJob, laterTodayJobs: $laterTodayJobs, hasWorkLocation: $hasWorkLocation, workAddressLabel: $workAddressLabel)';
 }
 
 
@@ -811,7 +825,7 @@ abstract mixin class _$TechnicianDashboardEntityCopyWith<$Res> implements $Techn
   factory _$TechnicianDashboardEntityCopyWith(_TechnicianDashboardEntity value, $Res Function(_TechnicianDashboardEntity) _then) = __$TechnicianDashboardEntityCopyWithImpl;
 @override @useResult
 $Res call({
- double walletBalance, bool isOnline, String? profilePicture, UpNextJobEntity? upNextJob, List<LaterTodayJobEntity> laterTodayJobs
+ double walletBalance, bool isOnline, String? profilePicture, UpNextJobEntity? upNextJob, List<LaterTodayJobEntity> laterTodayJobs, bool hasWorkLocation, String? workAddressLabel
 });
 
 
@@ -828,14 +842,16 @@ class __$TechnicianDashboardEntityCopyWithImpl<$Res>
 
 /// Create a copy of TechnicianDashboardEntity
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? walletBalance = null,Object? isOnline = null,Object? profilePicture = freezed,Object? upNextJob = freezed,Object? laterTodayJobs = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? walletBalance = null,Object? isOnline = null,Object? profilePicture = freezed,Object? upNextJob = freezed,Object? laterTodayJobs = null,Object? hasWorkLocation = null,Object? workAddressLabel = freezed,}) {
   return _then(_TechnicianDashboardEntity(
 walletBalance: null == walletBalance ? _self.walletBalance : walletBalance // ignore: cast_nullable_to_non_nullable
 as double,isOnline: null == isOnline ? _self.isOnline : isOnline // ignore: cast_nullable_to_non_nullable
 as bool,profilePicture: freezed == profilePicture ? _self.profilePicture : profilePicture // ignore: cast_nullable_to_non_nullable
 as String?,upNextJob: freezed == upNextJob ? _self.upNextJob : upNextJob // ignore: cast_nullable_to_non_nullable
 as UpNextJobEntity?,laterTodayJobs: null == laterTodayJobs ? _self._laterTodayJobs : laterTodayJobs // ignore: cast_nullable_to_non_nullable
-as List<LaterTodayJobEntity>,
+as List<LaterTodayJobEntity>,hasWorkLocation: null == hasWorkLocation ? _self.hasWorkLocation : hasWorkLocation // ignore: cast_nullable_to_non_nullable
+as bool,workAddressLabel: freezed == workAddressLabel ? _self.workAddressLabel : workAddressLabel // ignore: cast_nullable_to_non_nullable
+as String?,
   ));
 }
 

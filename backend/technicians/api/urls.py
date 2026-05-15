@@ -8,6 +8,7 @@ from .onboarding.views import (
 from .dashboard.views import TechnicianDashboardView
 from .metrics.views import TechnicianMetricsView
 from .quote_catalog.views import QuotableSubServicesView
+from .work_location.views import TechnicianWorkLocationView
 
 urlpatterns = [
     # Dashboard
@@ -43,4 +44,14 @@ urlpatterns = [
     # technician dashboard. Returns has_profile=false for users who never
     # applied.
     path('me/status/', TechnicianStatusView.as_view(), name='tech-status'),
+
+    # Work location — single ``GET``/``PATCH`` keyed to ``request.user``.
+    # The matchmaker reads ``base_latitude`` / ``base_longitude`` directly,
+    # so this endpoint is the only path that makes a newly-onboarded tech
+    # discoverable on the customer side.
+    path(
+        'me/work-location/',
+        TechnicianWorkLocationView.as_view(),
+        name='tech-work-location',
+    ),
 ]

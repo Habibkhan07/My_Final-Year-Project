@@ -141,6 +141,11 @@ class TechnicianDashboardModel {
   final String? profilePicture;
   final UpNextJobModel? upNextJob;
   final List<LaterTodayJobModel> laterTodayJobs;
+  // Mirrors the new ``has_work_location`` + ``work_address_label`` keys on
+  // the dashboard payload. Defaulted in [fromJson] so cached payloads from
+  // before this rollout deserialise cleanly as "not set" / null.
+  final bool hasWorkLocation;
+  final String? workAddressLabel;
 
   const TechnicianDashboardModel({
     required this.walletBalance,
@@ -148,6 +153,8 @@ class TechnicianDashboardModel {
     this.profilePicture,
     this.upNextJob,
     required this.laterTodayJobs,
+    this.hasWorkLocation = false,
+    this.workAddressLabel,
   });
 
   factory TechnicianDashboardModel.fromJson(Map<String, dynamic> json) =>
@@ -161,6 +168,8 @@ class TechnicianDashboardModel {
         laterTodayJobs: (json['later_today_jobs'] as List)
             .map((i) => LaterTodayJobModel.fromJson(i))
             .toList(),
+        hasWorkLocation: json['has_work_location'] as bool? ?? false,
+        workAddressLabel: json['work_address_label'] as String?,
       );
 
   Map<String, dynamic> toJson() => {
@@ -169,6 +178,8 @@ class TechnicianDashboardModel {
     'profile_picture': profilePicture,
     'up_next_job': upNextJob?.toJson(),
     'later_today_jobs': laterTodayJobs.map((i) => i.toJson()).toList(),
+    'has_work_location': hasWorkLocation,
+    'work_address_label': workAddressLabel,
   };
 
   TechnicianDashboardEntity toEntity() => TechnicianDashboardEntity(
@@ -177,6 +188,8 @@ class TechnicianDashboardModel {
     profilePicture: profilePicture,
     upNextJob: upNextJob?.toEntity(),
     laterTodayJobs: laterTodayJobs.map((i) => i.toEntity()).toList(),
+    hasWorkLocation: hasWorkLocation,
+    workAddressLabel: workAddressLabel,
   );
 
   @override
@@ -188,7 +201,9 @@ class TechnicianDashboardModel {
           isOnline == other.isOnline &&
           profilePicture == other.profilePicture &&
           upNextJob == other.upNextJob &&
-          listEquals(laterTodayJobs, other.laterTodayJobs);
+          listEquals(laterTodayJobs, other.laterTodayJobs) &&
+          hasWorkLocation == other.hasWorkLocation &&
+          workAddressLabel == other.workAddressLabel;
 
   @override
   int get hashCode =>
@@ -196,5 +211,7 @@ class TechnicianDashboardModel {
       isOnline.hashCode ^
       profilePicture.hashCode ^
       upNextJob.hashCode ^
-      Object.hashAll(laterTodayJobs);
+      Object.hashAll(laterTodayJobs) ^
+      hasWorkLocation.hashCode ^
+      workAddressLabel.hashCode;
 }

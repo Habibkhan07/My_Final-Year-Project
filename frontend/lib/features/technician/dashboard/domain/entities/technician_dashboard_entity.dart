@@ -39,5 +39,12 @@ abstract class TechnicianDashboardEntity with _$TechnicianDashboardEntity {
     String? profilePicture,
     UpNextJobEntity? upNextJob,
     required List<LaterTodayJobEntity> laterTodayJobs,
+    // ``hasWorkLocation`` gates the in-dashboard banner that prompts the tech
+    // to set their work area. Backend-derived: true iff both base_latitude and
+    // base_longitude are non-null on TechnicianProfile. Default false for
+    // backwards compat — older cached payloads pre-dating this rollout get
+    // treated as "not set" so the banner appears once on first launch.
+    @Default(false) bool hasWorkLocation,
+    String? workAddressLabel,
   }) = _TechnicianDashboardEntity;
 }

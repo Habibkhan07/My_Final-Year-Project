@@ -96,6 +96,40 @@ class TestTechnicianDashboardSelector:
         assert dashboard["later_today_jobs"] == []
         assert "metrics" not in dashboard
 
+    def test_selector_surfaces_has_work_location_true(self):
+        """Factory default sets non-null lat/lng → has_work_location is True."""
+        tech = TechnicianProfileFactory(work_address_label='Gulberg, Lahore')
+        dashboard = get_technician_dashboard(tech)
+
+        assert dashboard["has_work_location"] is True
+        assert dashboard["work_address_label"] == 'Gulberg, Lahore'
+
+    def test_selector_surfaces_has_work_location_false_when_null(self):
+        tech = TechnicianProfileFactory(
+            base_latitude=None,
+            base_longitude=None,
+            work_address_label=None,
+        )
+        dashboard = get_technician_dashboard(tech)
+
+        assert dashboard["has_work_location"] is False
+        assert dashboard["work_address_label"] is None
+
+    def test_selector_requires_both_coords_for_has_work_location_true(self):
+        """Half-set (only one of lat/lng non-null) must surface as False —
+        matches the matchmaker's own pair-guard which excludes either-null."""
+        tech_only_lat = TechnicianProfileFactory(
+            base_latitude=31.5,
+            base_longitude=None,
+        )
+        assert get_technician_dashboard(tech_only_lat)["has_work_location"] is False
+
+        tech_only_lng = TechnicianProfileFactory(
+            base_latitude=None,
+            base_longitude=74.3,
+        )
+        assert get_technician_dashboard(tech_only_lng)["has_work_location"] is False
+
     def test_selector_query_count(self, django_assert_num_queries):
         """Verify we do not have N+1 query issues when fetching customer and address."""
         tech = TechnicianProfileFactory()
