@@ -1,0 +1,28 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls %}
+
+{% block content %}
+<form method="post">{% csrf_token %}
+  <h1>{% trans "Reject selected technicians" %}</h1>
+
+  <p>{% trans "The reason below will be shown verbatim to each technician on their holding screen. Please phrase it clearly — they cannot reply to it." %}</p>
+
+  <ul>
+    {% for tech in technicians %}
+      <li><strong>{{ tech.user.get_full_name|default:tech.user.username }}</strong> &mdash; {{ tech.cnic_number }}</li>
+    {% endfor %}
+  </ul>
+
+  <fieldset class="module aligned">
+    {{ form.as_p }}
+  </fieldset>
+
+  {% for tech in technicians %}
+    <input type="hidden" name="_selected_action" value="{{ tech.pk }}">
+  {% endfor %}
+  <input type="hidden" name="action" value="{{ action }}">
+
+  <input type="submit" name="apply" value="{% trans 'Reject these technicians' %}" class="default">
+  <a href="../" class="button cancel-link">{% trans "Cancel" %}</a>
+</form>
+{% endblock %}

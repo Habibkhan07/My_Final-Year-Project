@@ -347,3 +347,105 @@ final class RegisterTechnicianUseCaseProvider
 
 String _$registerTechnicianUseCaseHash() =>
     r'33e40f16d6585b8a039ffb3f727b67fc4a454bc4';
+
+@ProviderFor(technicianStatusRemoteDataSource)
+final technicianStatusRemoteDataSourceProvider =
+    TechnicianStatusRemoteDataSourceProvider._();
+
+final class TechnicianStatusRemoteDataSourceProvider
+    extends
+        $FunctionalProvider<
+          TechnicianStatusRemoteDataSource,
+          TechnicianStatusRemoteDataSource,
+          TechnicianStatusRemoteDataSource
+        >
+    with $Provider<TechnicianStatusRemoteDataSource> {
+  TechnicianStatusRemoteDataSourceProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'technicianStatusRemoteDataSourceProvider',
+        isAutoDispose: false,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$technicianStatusRemoteDataSourceHash();
+
+  @$internal
+  @override
+  $ProviderElement<TechnicianStatusRemoteDataSource> $createElement(
+    $ProviderPointer pointer,
+  ) => $ProviderElement(pointer);
+
+  @override
+  TechnicianStatusRemoteDataSource create(Ref ref) {
+    return technicianStatusRemoteDataSource(ref);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(TechnicianStatusRemoteDataSource value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<TechnicianStatusRemoteDataSource>(
+        value,
+      ),
+    );
+  }
+}
+
+String _$technicianStatusRemoteDataSourceHash() =>
+    r'5007c346dbc88790f09cc41a81c00b714aa353f4';
+
+@ProviderFor(technicianStatusRepository)
+final technicianStatusRepositoryProvider =
+    TechnicianStatusRepositoryProvider._();
+
+final class TechnicianStatusRepositoryProvider
+    extends
+        $FunctionalProvider<
+          TechnicianStatusRepositoryImpl,
+          TechnicianStatusRepositoryImpl,
+          TechnicianStatusRepositoryImpl
+        >
+    with $Provider<TechnicianStatusRepositoryImpl> {
+  TechnicianStatusRepositoryProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'technicianStatusRepositoryProvider',
+        isAutoDispose: false,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$technicianStatusRepositoryHash();
+
+  @$internal
+  @override
+  $ProviderElement<TechnicianStatusRepositoryImpl> $createElement(
+    $ProviderPointer pointer,
+  ) => $ProviderElement(pointer);
+
+  @override
+  TechnicianStatusRepositoryImpl create(Ref ref) {
+    return technicianStatusRepository(ref);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(TechnicianStatusRepositoryImpl value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<TechnicianStatusRepositoryImpl>(
+        value,
+      ),
+    );
+  }
+}
+
+String _$technicianStatusRepositoryHash() =>
+    r'7ab077b34842afdb8d0341cfb96a2d0f28b36ae2';

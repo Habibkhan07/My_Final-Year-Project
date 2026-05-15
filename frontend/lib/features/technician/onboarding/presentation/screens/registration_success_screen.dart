@@ -1,14 +1,26 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../domain/entities/technician_entity.dart';
 
-class RegistrationSuccessScreen extends StatelessWidget {
+import '../../domain/entities/technician_entity.dart';
+import '../providers/technician_status_provider.dart';
+
+/// Final screen of the onboarding wizard. Shown once after a successful
+/// `finalize_registration` call.
+///
+/// On "Continue" we **invalidate the technician status provider** before
+/// navigating so the router's redirect picks up the freshly-created
+/// `TechnicianStatusPending` instead of the stale `NoProfile` cached
+/// before finalize. Without this invalidate the user would land on the
+/// customer home for one frame, then flick over to /technician/pending
+/// once the next read of the provider re-fetches.
+class RegistrationSuccessScreen extends ConsumerWidget {
   final TechnicianEntity technician;
 
   const RegistrationSuccessScreen({super.key, required this.technician});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
       body: SafeArea(
         child: Padding(
@@ -81,13 +93,17 @@ class RegistrationSuccessScreen extends StatelessWidget {
 
               const Spacer(),
 
-              // 4. HOME BUTTON
+              // 4. CONTINUE BUTTON — drops the stale "NoProfile" status
+              // cached before finalize so the router redirect picks up
+              // `Pending` on the next read. We send the user directly to
+              // /technician/pending instead of /home to avoid a one-frame
+              // flicker through the customer surface.
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: () {
-                    // Clear the entire onboarding stack and go back to Customer Home
-                    context.go('/home');
+                    ref.invalidate(technicianStatusProvider);
+                    context.go('/technician/pending');
                   },
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
@@ -98,7 +114,7 @@ class RegistrationSuccessScreen extends StatelessWidget {
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  child: const Text("Return to Home"),
+                  child: const Text("Continue"),
                 ),
               ),
             ],

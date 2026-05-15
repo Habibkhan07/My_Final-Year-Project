@@ -45,6 +45,7 @@ class _OnboardingMainScreenState extends ConsumerState<OnboardingMainScreen> {
         OnboardingSessionExpired(message: final msg) => msg,
         OnboardingUnauthorized(message: final msg) => msg,
         DuplicateTechnician(message: final msg) => msg,
+        DuplicateApplicationFailure(message: final msg) => msg,
         OnboardingNetworkFailure(message: final msg) => msg,
         OnboardingParsingFailure(message: final msg) => "Data Error: $msg",
         OnboardingServerFailure(message: final msg) => "Server Error: $msg",
@@ -54,6 +55,20 @@ class _OnboardingMainScreenState extends ConsumerState<OnboardingMainScreen> {
           error is OnboardingUnauthorized) {
         actionLabel = "Login";
         onAction = () => context.go('/login');
+      } else if (error is DuplicateApplicationFailure) {
+        // The user finalized after losing a race (e.g. admin approved
+        // while they were on Step 5). Send them to the right destination
+        // based on the backend-supplied application status. Default
+        // routes to the pending holding screen — the router redirect
+        // will further refine to /technician/dashboard if APPROVED.
+        actionLabel = error.applicationStatus == 'APPROVED'
+            ? 'Go to dashboard'
+            : 'View status';
+        onAction = () => context.go(
+          error.applicationStatus == 'APPROVED'
+              ? '/technician/dashboard'
+              : '/technician/pending',
+        );
       }
     } else {
       message = error.toString();

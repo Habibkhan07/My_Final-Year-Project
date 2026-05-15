@@ -25,6 +25,21 @@ class DuplicateTechnician extends TechnicianFailure {
   const DuplicateTechnician(this.message);
 }
 
+/// 409 — Backend code `"duplicate_application"`. The user already has a
+/// `TechnicianProfile` in `PENDING` or `APPROVED` state and tried to
+/// finalize again. REJECTED users do NOT trigger this — the backend
+/// resets their row in place and responds 201 OK.
+///
+/// [applicationStatus] is the wire string (`"PENDING"` or `"APPROVED"`),
+/// pulled from the canonical envelope's `errors.application_status`.
+/// The UI picks the message and CTA off this value (e.g. "Go to dashboard"
+/// for APPROVED vs "View pending review" for PENDING).
+class DuplicateApplicationFailure extends TechnicianFailure {
+  final String message;
+  final String? applicationStatus;
+  const DuplicateApplicationFailure(this.message, {this.applicationStatus});
+}
+
 // 4. Corresponds to 500 or Network
 class OnboardingServerFailure extends TechnicianFailure {
   final String message;

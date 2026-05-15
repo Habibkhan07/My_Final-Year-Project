@@ -167,6 +167,92 @@ void main() {
     });
 
     test(
+      'should throw DuplicateApplicationFailure(applicationStatus=PENDING) '
+      'on 409 duplicate_application with PENDING wire status',
+      () async {
+        when(
+          () => mockRemoteDataSource.finalizeRegistration(any(), any()),
+        ).thenThrow(
+          HttpFailure(
+            statusCode: 409,
+            code: 'duplicate_application',
+            message: 'You already have an active technician application.',
+            errors: {
+              'application_status': ['PENDING'],
+            },
+          ),
+        );
+
+        await expectLater(
+          callFinalize(),
+          throwsA(isA<DuplicateApplicationFailure>().having(
+            (e) => e.applicationStatus,
+            'applicationStatus',
+            'PENDING',
+          )),
+        );
+      },
+    );
+
+    test(
+      'should throw DuplicateApplicationFailure(applicationStatus=APPROVED) '
+      'on 409 duplicate_application with APPROVED wire status',
+      () async {
+        when(
+          () => mockRemoteDataSource.finalizeRegistration(any(), any()),
+        ).thenThrow(
+          HttpFailure(
+            statusCode: 409,
+            code: 'duplicate_application',
+            message: 'You are already an approved technician.',
+            errors: {
+              'application_status': ['APPROVED'],
+            },
+          ),
+        );
+
+        await expectLater(
+          callFinalize(),
+          throwsA(isA<DuplicateApplicationFailure>().having(
+            (e) => e.applicationStatus,
+            'applicationStatus',
+            'APPROVED',
+          )),
+        );
+      },
+    );
+
+    test(
+      'should throw DuplicateApplicationFailure(applicationStatus=null) '
+      'when errors envelope is malformed/empty',
+      () async {
+        // Defensive parsing — if the backend ever ships the code without
+        // the structured ``application_status`` payload, the failure
+        // should still construct cleanly with a null status. The screen
+        // falls back to the generic message and a default CTA.
+        when(
+          () => mockRemoteDataSource.finalizeRegistration(any(), any()),
+        ).thenThrow(
+          HttpFailure(
+            statusCode: 409,
+            code: 'duplicate_application',
+            message: 'You already applied.',
+            errors: {},
+          ),
+        );
+
+        await expectLater(
+          callFinalize(),
+          throwsA(isA<DuplicateApplicationFailure>().having(
+            (e) => e.applicationStatus,
+            'applicationStatus',
+            isNull,
+          )),
+        );
+      },
+    );
+
+    test(
       'should throw OnboardingNetworkFailure on SocketException (No Internet)',
       () async {
         when(

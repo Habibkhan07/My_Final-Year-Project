@@ -2,7 +2,8 @@ from django.urls import include, path
 from .onboarding.views import (
     MediaUploadView,
     RegisterTechnicianView,
-    OnboardingMetadataView
+    OnboardingMetadataView,
+    TechnicianStatusView,
 )
 from .dashboard.views import TechnicianDashboardView
 from .metrics.views import TechnicianMetricsView
@@ -36,4 +37,10 @@ urlpatterns = [
 
     # Change 'register' to 'onboarding' to match Flutter RemoteDataSource
     path('onboarding/finalize/', RegisterTechnicianView.as_view(), name='tech-register'),
+
+    # Status endpoint — the Flutter router calls this on cold start to
+    # decide between customer home, pending-approval, rejected, and the
+    # technician dashboard. Returns has_profile=false for users who never
+    # applied.
+    path('me/status/', TechnicianStatusView.as_view(), name='tech-status'),
 ]

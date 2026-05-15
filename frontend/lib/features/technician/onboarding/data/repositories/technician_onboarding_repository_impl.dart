@@ -154,6 +154,18 @@ class TechnicianRepositoryImpl implements TechnicianRepository {
         case 'resource_conflict': // 409 (Duplicate CNIC)
           throw DuplicateTechnician(e.message);
 
+        case 'duplicate_application': // 409 (user already has PENDING/APPROVED profile)
+          // `errors.application_status` carries the wire status string so the
+          // UI can branch on PENDING vs APPROVED without re-parsing the
+          // message. Defensive: a malformed envelope leaves this null and the
+          // consumer falls back to a generic message.
+          final raw = e.errors['application_status'];
+          final status = raw is List && raw.isNotEmpty ? raw.first.toString() : null;
+          throw DuplicateApplicationFailure(
+            e.message,
+            applicationStatus: status,
+          );
+
         default:
           throw OnboardingServerFailure(e.message);
       }

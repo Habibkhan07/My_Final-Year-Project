@@ -5,7 +5,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../data/data_sources/technician_onboarding_remote_datasource.dart';
 import '../../data/data_sources/onboarding_local_data_source.dart';
+import '../../data/data_sources/technician_status_remote_data_source.dart';
 import '../../data/repositories/technician_onboarding_repository_impl.dart';
+import '../../data/repositories/technician_status_repository_impl.dart';
 import '../../domain/usecases/get_onboarding_metadata_usecase.dart';
 import '../../domain/usecases/upload_media_usecase.dart';
 import '../../domain/usecases/register_technician_usecase.dart';
@@ -63,4 +65,18 @@ UploadMediaUseCase uploadMediaUseCase(Ref ref) {
 RegisterTechnicianUseCase registerTechnicianUseCase(Ref ref) {
   final repository = ref.watch(technicianRepositoryProvider);
   return RegisterTechnicianUseCase(repository);
+}
+
+// --- TECH STATUS (router-side; read-only) ---
+
+@Riverpod(keepAlive: true)
+TechnicianStatusRemoteDataSource technicianStatusRemoteDataSource(Ref ref) {
+  final authLocalDataSource = ref.watch(authLocalDataSourceProvider);
+  return TechnicianStatusRemoteDataSource(authLocalDataSource);
+}
+
+@Riverpod(keepAlive: true)
+TechnicianStatusRepositoryImpl technicianStatusRepository(Ref ref) {
+  final remoteDataSource = ref.watch(technicianStatusRemoteDataSourceProvider);
+  return TechnicianStatusRepositoryImpl(remoteDataSource);
 }

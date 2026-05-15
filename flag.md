@@ -1851,3 +1851,59 @@ The pattern already exists un-suppressed in the bookings notifier — `copyWithP
 
 **Severity**
 P3. Surface is the analyzer only; no runtime impact. Costs three inline comments.
+
+---
+
+## 54. `submitted_at` reserved on the `/me/status/` wire but no model column exists
+
+**Where**
+- `backend/technicians/selectors/tech_status_selector.py` — every response shape hard-codes `"submitted_at": None`.
+- `backend/technicians/api/ONBOARDING_API.md` (section 1.4) — field is documented in all four shapes.
+- `backend/technicians/models.py` `TechnicianProfile` — no column captures when the application was submitted.
+- `frontend/lib/features/technician/onboarding/data/models/technician_status_model.dart` — wire model ignores the field on parse.
+
+**What's wrong**
+The wire contract carries `submitted_at` in every response shape, but the server has no column to source it from and the selector returns `None` unconditionally. Any Flutter surface that reads it gets `null` regardless of when the user applied. The asymmetry pins a future migration: adding the column later must keep the response shape stable (already done — costless) or break the wire.
+
+**Why we shipped it that way**
+The router gate was the viva-blocking work; surfacing the submission timestamp is a UX nicety on the holding screen ("Submitted on 2026-05-12 — typically reviewed within 1–2 business days"), not a routing requirement. Adding the column would have meant a second migration in the same sprint with no consumer ready.
+
+**The proper fix**
+Lockstep migration:
+1. `backend/technicians/models.py` — `submitted_at = DateTimeField(auto_now_add=True, null=True)`. Null on backfill is acceptable; legacy rows may leave it blank.
+2. New migration `technicians/0010_add_submitted_at.py` — `AddField` only.
+3. `tech_status_selector.py` — return `profile.submitted_at.isoformat() if profile.submitted_at else None`.
+4. `ONBOARDING_API.md` 1.4 — update field notes; drop the "reserved on the wire" language.
+5. Flutter `technician_status_model.dart` — parse `submitted_at` as `DateTime?`; expose on the sealed `TechnicianStatusPending` / `Rejected` variants.
+6. `pending_approval_screen.dart` — render "Submitted on …" subtext on the pending variant when present.
+Search hints: `submitted_at`, `tech_status_selector`, `TechnicianStatusModel.fromJson`.
+
+**Severity**
+P2. UX polish on the holding screen; no functional gap.
+
+---
+
+## 55. `POST /api/technicians/onboarding/finalize/` permission gate is `IsAuthenticated` only — no "intent to apply" signal
+
+**Where**
+- `backend/technicians/api/onboarding/views.py` `RegisterTechnicianView` — `permission_classes = [IsAuthenticated]`.
+- `backend/technicians/services/registration_service.py::finalize_registration` — accepts any authenticated user.
+
+**What's wrong**
+Any authenticated user with a valid CNIC payload can become a `PENDING` technician by hitting `POST /finalize/` directly. There is no "user explicitly tapped the Apply CTA" signal between the customer-side intent and the server-side creation. Today the Flutter UI is the only gate — the in-app wizard is the lone entry point. If the endpoint is ever exposed to third-party clients, a curl-er can turn any account into a tech application.
+
+**Why we shipped it that way**
+- The Flutter UI is the only sanctioned client and gates the call behind a multi-step wizard with image uploads.
+- Adding a proper intent gate (a separate `TechnicianApplicationIntent` row, an "Apply" endpoint that returns a short-lived token consumed by `/finalize/`, or a state machine on `UserProfile`) is real schema work — not viva-scope.
+- The downstream impact of an "accidental" tech application is bounded: admin reviews every PENDING row before approving, so a junk submission stops at the admin queue.
+
+**The proper fix**
+1. New model `TechnicianApplicationIntent` — `(user OneToOne, created_at, consumed_at nullable)`.
+2. New endpoint `POST /api/technicians/onboarding/intent/` — creates an unconsumed intent row for the calling user. Idempotent (returns 200 if one already exists; refuses if user has an APPROVED profile).
+3. `RegisterTechnicianView` requires the calling user to have an unconsumed intent. Consumes the intent inside the same transaction that creates the `TechnicianProfile`.
+4. Flutter "Apply to be a Technician" CTA POSTs the intent endpoint before pushing `/technician/onboarding`.
+5. Migration risk is zero — additive table, no backfill.
+Search hints: `RegisterTechnicianView`, `finalize_registration`, `IsAuthenticated`.
+
+**Severity**
+P2. Single-client product today (Flutter), so the gate is implicit. Becomes a P1 the moment a second client lands or the API is published.

@@ -5,6 +5,7 @@ from rest_framework.permissions import IsAuthenticated
 from .serializers import MediaUploadSerializer, TechnicianFinalizeSerializer
 from ...services import media_service, registration_service
 from ...selectors import service_selectors
+from ...selectors.tech_status_selector import get_my_tech_status
 
 class OnboardingMetadataView(APIView):
     """New: Provides the metadata Flutter needs to build the form."""
@@ -28,15 +29,31 @@ class MediaUploadView(APIView):
 class RegisterTechnicianView(APIView):
     """Phase 2: Finalizes registration using UUIDs sent back from Flutter."""
     permission_classes = [IsAuthenticated]
-    
+
     def post(self, request):
         # The serializer here still uses your robust 'to_internal_value'
         # which converts UUIDs back into actual File objects for the service.
         serializer = TechnicianFinalizeSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        
+
         profile = registration_service.finalize_registration(
-            user=request.user, 
+            user=request.user,
             validated_data=serializer.validated_data
         )
         return Response(serializer.to_representation(profile), status=status.HTTP_201_CREATED)
+
+
+class TechnicianStatusView(APIView):
+    """Returns the logged-in user's technician application status.
+
+    Read-only and idempotent. Used by the Flutter router on cold start to
+    branch between customer home, pending-approval, rejected, and the tech
+    dashboard.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        # SECURITY: scoped to request.user; no PK in the URL means no IDOR
+        # surface — a caller cannot ask about anyone else's status.
+        data = get_my_tech_status(user=request.user)
+        return Response(data, status=status.HTTP_200_OK)

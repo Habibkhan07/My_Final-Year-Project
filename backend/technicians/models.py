@@ -1,3 +1,4 @@
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.conf import settings
 from django.contrib.auth.models import User
@@ -33,7 +34,16 @@ class TechnicianProfile(models.Model):
     
     # Acceptance Criteria: Approval Status
     STATUS_CHOICES = [('PENDING', 'Pending Approval'), ('APPROVED', 'Approved'), ('REJECTED', 'Rejected')]
-    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='PENDING')
+    # Indexed because matchmaking, dispatch, and the wallet-active gate all
+    # filter on ``status='APPROVED'`` on every booking write — a full scan
+    # on a low-cardinality column scales poorly as the tech base grows.
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='PENDING', db_index=True)
+
+    # Admin-authored reason surfaced on the rejected holding screen. Only
+    # meaningful when status == 'REJECTED' — left blank otherwise. Free-text
+    # so the admin can phrase it however the case demands; the tech sees it
+    # verbatim, so admins should write it with that audience in mind.
+    rejection_reason = models.TextField(blank=True, default='')
 
     base_latitude = models.FloatField(null=True, blank=True)
     base_longitude = models.FloatField(null=True, blank=True)
@@ -49,6 +59,38 @@ class TechnicianProfile(models.Model):
     current_wallet_balance = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     is_online = models.BooleanField(default=False)
     
+    class Meta:
+        # Invariant: a REJECTED profile must carry a non-empty reason.
+        # Backed at both layers — model ``clean()`` runs in the admin and
+        # surfaces a field-level error, the DB CheckConstraint catches any
+        # write path that bypasses ``full_clean`` (raw SQL, ``QuerySet.update``,
+        # data migrations). The ~Q-OR formulation means PENDING/APPROVED
+        # rows with empty reason are accepted; only REJECTED+empty is refused.
+        # MySQL ≥ 8.0.16 enforces this; the project's local DB is 8.0.45.
+        constraints = [
+            models.CheckConstraint(
+                name='technicianprofile_rejected_requires_reason',
+                condition=(
+                    ~models.Q(status='REJECTED')
+                    | ~models.Q(rejection_reason='')
+                ),
+            ),
+        ]
+
+    def clean(self):
+        """Invariant: a REJECTED profile must carry a non-empty reason.
+
+        Model-level mirror of the DB CheckConstraint above. ``clean()``
+        rejects whitespace-only reasons too — the DB constraint only catches
+        the literal empty string, but a reason that renders as a blank block
+        on the tech's holding screen is equally useless.
+        """
+        super().clean()
+        if self.status == 'REJECTED' and not (self.rejection_reason or '').strip():
+            raise ValidationError({
+                'rejection_reason': 'A rejection reason is required when status is REJECTED.',
+            })
+
     def __str__(self):
         return f"{self.user.get_full_name()} - {self.status}"
 

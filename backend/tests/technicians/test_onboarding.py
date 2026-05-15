@@ -9,14 +9,19 @@ from PIL import Image
 
 # Absolute imports targeting the new structure
 from technicians.models import TemporaryMedia, TechnicianProfile, SubService, Service
+from accounts.models import UserProfile
 
 User = get_user_model()
 
 class TechnicianOnboardingTests(APITestCase):
-    
+
     def setUp(self):
         """Sets up the environment matching the refined structure."""
         self.user = User.objects.create_user(username='tech_tester', password='password123')
+        # Production path always creates a UserProfile alongside the User
+        # via process_otp_verification. Mirror that here so finalize can
+        # flip is_technician on the existing row instead of crashing.
+        UserProfile.objects.create(user=self.user, phone='+923000000000')
         self.client.force_authenticate(user=self.user)
         
         # Domain data for Metadata and Skill tests
@@ -100,6 +105,13 @@ class TechnicianOnboardingTests(APITestCase):
         profile = TechnicianProfile.objects.get(user=self.user)
         skill = profile.technicianskill_set.first()
         self.assertEqual(float(skill.labor_rate), 2700.00)
+
+        # Regression: finalize_registration must flip the UserProfile
+        # `is_technician` flag. Without this, verify-otp keeps returning
+        # is_technician=False for real techs and the router can never
+        # route them to the tech surface.
+        self.user.userprofile.refresh_from_db()
+        self.assertTrue(self.user.userprofile.is_technician)
 
     # --- 4. EDGE CASES & SECURITY ---
 

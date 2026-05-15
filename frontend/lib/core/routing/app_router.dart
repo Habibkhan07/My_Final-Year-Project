@@ -13,8 +13,11 @@ import '../../features/customer/home/presentation/screens/home_screen.dart';
 import '../../features/customer/search/presentation/pages/search_page.dart';
 import '../../features/customer/discovery/presentation/screens/discovery_results_screen.dart';
 import '../../features/technician/onboarding/presentation/screens/onboarding_main_screen.dart';
+import '../../features/technician/onboarding/presentation/screens/pending_approval_screen.dart';
 import '../../features/technician/onboarding/presentation/screens/registration_success_screen.dart';
+import '../../features/technician/onboarding/presentation/providers/technician_status_provider.dart';
 import '../../features/technician/onboarding/domain/entities/technician_entity.dart';
+import '../../features/technician/onboarding/domain/entities/technician_status.dart';
 import '../../features/booking/presentation/screens/technician_profile_screen.dart';
 import '../../features/customer/addresses/presentation/screens/map_picker_screen.dart';
 import '../../features/technician/dashboard/presentation/screens/technician_dashboard_screen.dart';
@@ -23,23 +26,14 @@ import '../../features/technician/wallet/presentation/screens/wallet_screen.dart
 import '../../features/technician/wallet/presentation/screens/withdrawal_history_screen.dart';
 import '../realtime/presentation/providers/dependency_injection.dart';
 
-// DEBUG — remove in end-of-UI cleanup pass. Controls where the post-auth
-// redirect lands so two `flutter run -d chrome` tabs can sit on opposite
-// sides of the same booking from a single dev_panel session:
-//
-//   flutter run -d chrome                                      → /home
-//   flutter run -d chrome --dart-define=START_AS=technician    → /technician/dashboard
-//
-// String.fromEnvironment makes the value a compile-time const so unused
-// branches tree-shake out of release builds.
-const String _kStartAs = String.fromEnvironment('START_AS');
-const String _kPostAuthLanding = _kStartAs == 'technician'
-    ? '/technician/dashboard'
-    : '/home';
-
 final routerProvider = Provider<GoRouter>((ref) {
   // Accessing the user through the AsyncValue wrapper
   final user = ref.watch(authProvider.select((async) => async.value?.user));
+  // Status is `AsyncValue<TechnicianStatus>`. We read .value here so the
+  // redirect closure has the resolved status (or `null` while in flight).
+  // The provider itself is `keepAlive: true`, so the fetch happens once
+  // per login and re-runs only on explicit invalidate or auth change.
+  final statusAsync = ref.watch(technicianStatusProvider);
   final navigatorKey = ref.watch(navigatorKeyProvider);
 
   return GoRouter(
@@ -74,9 +68,17 @@ final routerProvider = Provider<GoRouter>((ref) {
         },
       ),
 
+      // Holding screen for PENDING / REJECTED technicians. The screen
+      // watches `technicianStatusProvider` itself and renders the right
+      // variant (loading shim, error+retry, pending, rejected). Routing
+      // an APPROVED or NoProfile user here is a no-op — the redirect
+      // below bounces them out on the next nav.
+      GoRoute(
+        path: '/technician/pending',
+        builder: (context, state) => const PendingApprovalScreen(),
+      ),
+
       GoRoute(path: '/home', builder: (context, state) => const HomeScreen()),
-      // DEBUG: direct route — replace builder with a redirect guard once the
-      // "technician approved" check endpoint is wired up.
       GoRoute(
         path: '/technician/dashboard',
         builder: (context, state) => const TechnicianDashboardScreen(),
@@ -240,6 +242,9 @@ final routerProvider = Provider<GoRouter>((ref) {
       final isLoggingIn = path == '/login';
       final isVerifyingOtp = path.startsWith('/otp');
       final isSettingUpProfile = path == '/profile-setup';
+      final isApplyingAsTech = path == '/technician/onboarding' ||
+          path == '/technician/success';
+      final isOnHoldingScreen = path == '/technician/pending';
 
       if (user == null) {
         if (isLoggingIn || isVerifyingOtp) return null;
@@ -251,8 +256,65 @@ final routerProvider = Provider<GoRouter>((ref) {
         return '/profile-setup';
       }
 
-      if (isLoggingIn || isVerifyingOtp || isSettingUpProfile) {
-        return _kPostAuthLanding;
+      // Status is either AsyncLoading-no-value or AsyncError-no-value.
+      // Choose the least-wrong placement using the cached
+      // `user.isTechnician` flag from the auth payload:
+      //  - real tech → holding screen (it owns retry + spinner UI)
+      //  - pure customer → /home (status will resolve on next nav)
+      // This eliminates the prior "land on /home, then flick to
+      // /technician/pending after fetch resolves" jitter.
+      if (!statusAsync.hasValue) {
+        if (user.isTechnician) {
+          if (isOnHoldingScreen || isApplyingAsTech) return null;
+          return '/technician/pending';
+        }
+        if (isLoggingIn || isVerifyingOtp || isSettingUpProfile) {
+          return '/home';
+        }
+        return null;
+      }
+
+      final statusValue = statusAsync.value!;
+
+      // PENDING → holding screen, no reapply allowed. The backend
+      // service raises 409 `duplicate_application` if a PENDING user
+      // re-submits, so letting them re-enter the onboarding wizard
+      // just leads to a wasted form fill.
+      if (statusValue is TechnicianStatusPending) {
+        if (isOnHoldingScreen) return null;
+        // /technician/success is the post-finalize landing page —
+        // also let it through so the success screen can render once
+        // before redirecting away on the next nav.
+        if (path == '/technician/success') return null;
+        return '/technician/pending';
+      }
+
+      // REJECTED → holding screen, with reapply allowed. The backend
+      // resets the existing row in place on finalize, so the wizard
+      // is a legitimate exit. /technician/success is allowed for the
+      // same reason as above.
+      if (statusValue is TechnicianStatusRejected) {
+        if (isOnHoldingScreen || isApplyingAsTech) return null;
+        return '/technician/pending';
+      }
+
+      // Approved technicians: bounce auth/setup paths to the tech surface.
+      if (statusValue is TechnicianStatusApproved) {
+        if (isLoggingIn ||
+            isVerifyingOtp ||
+            isSettingUpProfile ||
+            isOnHoldingScreen) {
+          return '/technician/dashboard';
+        }
+        return null;
+      }
+
+      // NoProfile → customer flow.
+      if (isLoggingIn ||
+          isVerifyingOtp ||
+          isSettingUpProfile ||
+          isOnHoldingScreen) {
+        return '/home';
       }
 
       return null;

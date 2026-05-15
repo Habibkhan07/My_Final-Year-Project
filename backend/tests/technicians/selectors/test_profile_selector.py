@@ -89,7 +89,13 @@ class TestGetTechnicianProfileDetail:
             get_technician_profile_detail(tech_id=tech.id)
 
     def test_raises_for_rejected_technician(self):
-        tech = TechnicianProfileFactory(status='REJECTED')
+        # ``rejection_reason`` is required for REJECTED rows by the model's
+        # CheckConstraint (technicianprofile_rejected_requires_reason). The
+        # selector's behaviour under test is purely status-based, so a
+        # placeholder reason is fine.
+        tech = TechnicianProfileFactory(
+            status='REJECTED', rejection_reason='Documents incomplete.'
+        )
         with pytest.raises(TechnicianProfile.DoesNotExist):
             get_technician_profile_detail(tech_id=tech.id)
 
