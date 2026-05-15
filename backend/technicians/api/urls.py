@@ -8,6 +8,10 @@ from .onboarding.views import (
 from .dashboard.views import TechnicianDashboardView
 from .metrics.views import TechnicianMetricsView
 from .quote_catalog.views import QuotableSubServicesView
+from .scheduled_jobs.views import (
+    TechnicianScheduledJobsCountsView,
+    TechnicianScheduledJobsListView,
+)
 from .work_location.views import TechnicianWorkLocationView
 
 urlpatterns = [
@@ -53,5 +57,19 @@ urlpatterns = [
         'me/work-location/',
         TechnicianWorkLocationView.as_view(),
         name='tech-work-location',
+    ),
+
+    # Schedule tab — paginated list + counts of the tech's bookings.
+    # Audience-flipped counterpart of the customer ``/api/bookings/``
+    # contract. List + counts split mirrors that pattern.
+    path(
+        'me/scheduled-jobs/',
+        TechnicianScheduledJobsListView.as_view(),
+        name='tech-scheduled-jobs-list',
+    ),
+    path(
+        'me/scheduled-jobs/counts/',
+        TechnicianScheduledJobsCountsView.as_view(),
+        name='tech-scheduled-jobs-counts',
     ),
 ]
