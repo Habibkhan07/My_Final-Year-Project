@@ -339,36 +339,4 @@ void main() {
     });
   });
 
-  // ────────────────────────────────────────────────────────────────────
-  // reset() — Done button on success body
-  // ────────────────────────────────────────────────────────────────────
-
-  test('reset wipes terminal state, keeps fetched accounts', () async {
-    when(() => repo.listPayoutAccounts())
-        .thenAnswer((_) async => _accounts());
-    when(() => repo.createRequest(
-          amount: any(named: 'amount'),
-          bankAccountId: any(named: 'bankAccountId'),
-          jazzcashAccountId: any(named: 'jazzcashAccountId'),
-        )).thenAnswer((_) async => _request());
-
-    await container.read(withdrawProvider.future);
-    final notifier = container.read(withdrawProvider.notifier);
-    notifier.setAmount('100');
-    notifier.selectTarget(container.read(withdrawProvider).value!
-        .accounts!.bankAccounts.first);
-    await notifier.submit();
-    expect(container.read(withdrawProvider).value!.flow,
-        WithdrawFlow.success);
-
-    notifier.reset();
-
-    final state = container.read(withdrawProvider).value!;
-    expect(state.flow, WithdrawFlow.editing);
-    expect(state.amountInput, isEmpty);
-    expect(state.selectedTarget, isNull);
-    expect(state.submitted, isNull);
-    expect(state.failure, isNull);
-    expect(state.accounts, isNotNull); // accounts preserved
-  });
 }

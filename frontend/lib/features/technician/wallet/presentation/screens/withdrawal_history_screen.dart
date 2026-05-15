@@ -148,8 +148,10 @@ class _EmptyView extends StatelessWidget {
         physics: const AlwaysScrollableScrollPhysics(),
         children: [
           const SizedBox(height: 120),
-          Icon(Icons.history,
-              size: 48, color: AppColors.onSurfaceVariant),
+          Center(
+            child: Icon(Icons.history,
+                size: 48, color: AppColors.onSurfaceVariant),
+          ),
           const SizedBox(height: 12),
           const Center(
             child: Text(
@@ -185,7 +187,9 @@ class _ErrorView extends StatelessWidget {
       physics: const AlwaysScrollableScrollPhysics(),
       children: [
         const SizedBox(height: 120),
-        Icon(Icons.error_outline, size: 40, color: AppColors.error),
+        Center(
+          child: Icon(Icons.error_outline, size: 40, color: AppColors.error),
+        ),
         const SizedBox(height: 12),
         Center(
           child: Text(

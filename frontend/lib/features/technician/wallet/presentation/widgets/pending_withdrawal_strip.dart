@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/theme/app_shapes.dart';
 import '../../domain/entities/withdrawal_status.dart';
+import '../format.dart';
 import '../notifiers/pending_withdrawal_notifier.dart';
 
 /// Wallet-screen pill that surfaces the tech's open in-flight
@@ -24,6 +25,20 @@ class PendingWithdrawalStrip extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(pendingWithdrawalProvider);
+
+    // Distinguish three states explicitly:
+    //   * ``hasError && value == null`` → fetch threw. Render a small
+    //     warning strip so the tech doesn't conclude "nothing pending"
+    //     from a hidden network failure. Tap → history screen, which
+    //     has its own retry button.
+    //   * ``value == null`` (loading or genuinely no in-flight row)
+    //     → render nothing (the strip is best-effort visibility).
+    //   * ``value != null`` → the canonical pending row.
+    if (async.hasError && async.value == null) {
+      return _ErrorHint(
+        onTap: () => context.push('/withdrawals/history'),
+      );
+    }
     final request = async.value;
     if (request == null) return const SizedBox.shrink();
 
@@ -31,7 +46,7 @@ class PendingWithdrawalStrip extends ConsumerWidget {
     final label = isApproved
         ? 'Withdrawal approved — processing'
         : 'Withdrawal under review';
-    final amount = 'Rs. ${request.amount.toStringAsFixed(0)}';
+    final amount = formatRs(request.amount);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -88,4 +103,52 @@ class PendingWithdrawalStrip extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// Compact warning strip rendered when the pending-status fetch
+/// errored. Distinct from the main pill (different colour, different
+/// icon, no amount line) — the tech sees that *something* is
+/// in-progress visibility-wise, and tapping takes them to the
+/// history screen which can retry the fetch with its own affordance.
+class _ErrorHint extends StatelessWidget {
+  const _ErrorHint({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: Material(
+          color: AppColors.errorContainer.withValues(alpha: 0.5),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppShapes.radiusMD),
+            side: BorderSide(
+              color: AppColors.error.withValues(alpha: 0.3),
+            ),
+          ),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(AppShapes.radiusMD),
+            onTap: onTap,
+            child: Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline,
+                      color: AppColors.error, size: 18),
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Text(
+                      'Could not load withdrawal status. Tap to view history.',
+                      style: TextStyle(
+                          fontSize: 13, color: AppColors.onErrorContainer),
+                    ),
+                  ),
+                  Icon(Icons.chevron_right,
+                      color: AppColors.error, size: 18),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
 }

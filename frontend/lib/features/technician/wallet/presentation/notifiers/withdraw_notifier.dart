@@ -22,9 +22,11 @@ part 'withdraw_notifier.g.dart';
 ///   3. [submit]           POSTs the request; transitions to
 ///                          ``submitting`` then terminal ``success``
 ///                          or ``failed``.
-///   4. [reset]            wipe terminal state so the next "Withdraw"
-///                          tap shows the form fresh — used by the
-///                          sheet's Done button.
+///
+/// There is no ``reset`` method: the sheet's Done button pops the
+/// modal, the notifier disposes (``keepAlive: false``), and the next
+/// tap of Withdraw triggers a fresh ``build``. A reset would only be
+/// useful for an in-sheet "Submit another" flow we don't ship.
 ///
 /// Sync ``Notifier`` (not ``AsyncNotifier``) for the same reason as
 /// [TopupNotifier]: more states than just loading/data/error. Errors
@@ -171,17 +173,4 @@ class WithdrawNotifier extends _$WithdrawNotifier {
     }
   }
 
-  /// Reset to a fresh editing state, preserving the fetched accounts
-  /// list. Called by the sheet's Done button after a success — the
-  /// next tap of Withdraw shows the form blank.
-  void reset() {
-    final current = state.value;
-    if (current == null) return;
-    state = AsyncData(
-      WithdrawState(
-        flow: WithdrawFlow.editing,
-        accounts: current.accounts,
-      ),
-    );
-  }
 }

@@ -66,8 +66,13 @@ class WithdrawalHistoryNotifier extends _$WithdrawalHistoryNotifier {
     if (current is! AsyncData<WithdrawalHistoryState>) return;
     final value = current.requireValue;
     if (value.isLoadingMore) return;
-    final cursor = value.page.nextCursor;
-    if (cursor == null) return;
+    // ``hasMore`` checks both ``null`` and empty-string cursor — the
+    // raw ``nextCursor != null`` check used to slip an empty string
+    // through to the datasource, which would silently strip it and
+    // re-fetch page 1 (rows would duplicate). The entity getter is
+    // the single source of truth on "is there a next page?".
+    if (!value.page.hasMore) return;
+    final cursor = value.page.nextCursor!;
 
     state = AsyncData(value.copyWith(isLoadingMore: true));
 

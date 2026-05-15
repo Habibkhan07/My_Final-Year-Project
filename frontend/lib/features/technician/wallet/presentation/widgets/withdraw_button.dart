@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/theme/app_shapes.dart';
+import '../notifiers/pending_withdrawal_notifier.dart';
 import '../notifiers/wallet_notifier.dart';
 import 'withdraw_sheet.dart';
 
@@ -22,22 +23,39 @@ class WithdrawButton extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final walletAsync = ref.watch(walletProvider);
+    final pendingAsync = ref.watch(pendingWithdrawalProvider);
     // Default to "not locked" while the wallet is still fetching so
     // the button isn't briefly disabled on initial render. The sheet
     // itself re-checks lockout when it opens.
     final isLockedOut = walletAsync.value?.isLockedOut ?? false;
+    // ``pendingAsync.value`` is non-null only on success-with-data —
+    // ``AsyncError`` and the initial loading both leave it null, so
+    // the button stays tappable in those states (server is the
+    // authoritative gate; 409 will surface inside the sheet if a
+    // pending request really does exist).
+    final hasPending = pendingAsync.value != null;
+
+    final disabled = isLockedOut || hasPending;
+    final String label;
+    if (isLockedOut) {
+      label = 'Withdraw (locked)';
+    } else if (hasPending) {
+      label = 'Withdraw (request pending)';
+    } else {
+      label = 'Withdraw';
+    }
 
     return SizedBox(
       width: double.infinity,
       child: OutlinedButton.icon(
-        onPressed: isLockedOut ? null : () => _openSheet(context),
+        onPressed: disabled ? null : () => _openSheet(context),
         icon: const Icon(Icons.account_balance_outlined),
-        label: Text(isLockedOut ? 'Withdraw (locked)' : 'Withdraw'),
+        label: Text(label),
         style: OutlinedButton.styleFrom(
           padding: const EdgeInsets.symmetric(vertical: 18),
           foregroundColor: AppColors.primary,
           side: BorderSide(
-            color: isLockedOut
+            color: disabled
                 ? AppColors.outline.withValues(alpha: 0.5)
                 : AppColors.primary,
             width: 1.5,

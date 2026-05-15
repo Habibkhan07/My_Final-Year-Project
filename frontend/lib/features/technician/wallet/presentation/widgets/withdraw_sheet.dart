@@ -8,6 +8,7 @@ import '../../domain/entities/payout_account.dart';
 import '../../domain/entities/payout_accounts.dart';
 import '../../domain/entities/withdrawal_request.dart';
 import '../../domain/failures/withdrawal_failure.dart';
+import '../format.dart';
 import '../notifiers/wallet_notifier.dart';
 import '../notifiers/withdraw_notifier.dart';
 import '../notifiers/withdraw_state.dart';
@@ -270,7 +271,7 @@ class _SuccessBody extends StatelessWidget {
             const SizedBox(height: 8),
             Center(
               child: Text(
-                'Rs. ${request.amount.toStringAsFixed(0)} → ${request.payout.label}',
+                '${formatRs(request.amount)} → ${request.payout.label}',
                 style: const TextStyle(fontSize: 14),
               ),
             ),
@@ -324,6 +325,18 @@ class _FormBody extends ConsumerWidget {
     final isLockedOut = walletAsync.value?.isLockedOut ?? false;
     final busy = state.flow == WithdrawFlow.submitting;
 
+    // Client-side pre-empt for ``insufficient_funds``. We compute it
+    // here against the live balance from walletProvider; the server is
+    // still the authoritative gate (the GETs are eventually consistent
+    // and could be stale by a second). If the pre-empt fires, the
+    // submit button disables and we render a banner — saves the
+    // round-trip and matches the canonical error copy when the gate
+    // does eventually fire server-side.
+    final amountParsed = double.tryParse(state.amountInput);
+    final exceedsBalance = amountParsed != null &&
+        balance != null &&
+        amountParsed > balance;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -341,9 +354,8 @@ class _FormBody extends ConsumerWidget {
           decoration: InputDecoration(
             labelText: 'Amount',
             prefixText: 'Rs. ',
-            helperText: balance != null
-                ? 'Available: Rs. ${balance.toStringAsFixed(0)}'
-                : null,
+            helperText:
+                balance != null ? 'Available: ${formatRs(balance)}' : null,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(AppShapes.radiusMD),
             ),
@@ -364,23 +376,26 @@ class _FormBody extends ConsumerWidget {
         ),
         if (state.failure != null) ...[
           const SizedBox(height: 12),
-          _InlineErrorBanner(failure: state.failure!),
+          _InlineErrorBanner(message: _failureCopy(state.failure!)),
         ],
         if (isLockedOut) ...[
           const SizedBox(height: 12),
-          _InlineErrorBanner(
-            failure: const WalletLockoutForWithdrawalFailure(
-              balancePkr: 0,
-              owedPkr: 0,
-            ),
-            overrideMessage:
+          const _InlineErrorBanner(
+            message:
                 'Your wallet is locked. Top up to clear lockout before withdrawing.',
+          ),
+        ] else if (exceedsBalance) ...[
+          const SizedBox(height: 12),
+          _InlineErrorBanner(
+            message:
+                'Amount exceeds available balance (${formatRs(balance)}).',
           ),
         ],
         const SizedBox(height: 20),
         ElevatedButton(
-          onPressed:
-              (busy || isLockedOut || !state.canSubmit) ? null : onSubmit,
+          onPressed: (busy || isLockedOut || exceedsBalance || !state.canSubmit)
+              ? null
+              : onSubmit,
           style: ElevatedButton.styleFrom(
             padding: const EdgeInsets.symmetric(vertical: 16),
             backgroundColor: AppColors.primary,
@@ -521,16 +536,11 @@ class _PayoutRow extends StatelessWidget {
 }
 
 class _InlineErrorBanner extends StatelessWidget {
-  const _InlineErrorBanner({
-    required this.failure,
-    this.overrideMessage,
-  });
-  final WithdrawalFailure failure;
-  final String? overrideMessage;
+  const _InlineErrorBanner({required this.message});
+  final String message;
 
   @override
   Widget build(BuildContext context) {
-    final message = overrideMessage ?? _failureCopy(failure);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
@@ -572,10 +582,13 @@ String _failureCopy(WithdrawalFailure failure) => switch (failure) {
             : 'Wallet is locked. Top up to continue.',
       DuplicatePendingWithdrawalFailure() =>
         'A previous withdrawal is still under review. Wait for it to be processed.',
-      InactiveTechnicianForWithdrawalFailure(:final status) =>
-        status == 'DEACTIVATED'
-            ? 'Your account has been deactivated. Contact support.'
-            : 'Your account is not approved for withdrawals yet.',
+      InactiveTechnicianForWithdrawalFailure(:final status) => switch (status) {
+          'DEACTIVATED' =>
+            'Your account has been deactivated. Contact support.',
+          'REJECTED' =>
+            'Your technician application was rejected. Contact support.',
+          _ => 'Your account is not approved for withdrawals yet.',
+        },
       InvalidPayoutAccountFailure() =>
         'Selected payout account is no longer available. Please pick another.',
       WithdrawalAmountOutOfRangeFailure(:final message) => message,

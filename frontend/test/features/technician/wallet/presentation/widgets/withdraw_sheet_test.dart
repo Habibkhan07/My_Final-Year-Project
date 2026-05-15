@@ -274,4 +274,64 @@ void main() {
 
     expect(find.textContaining('deactivated'), findsOneWidget);
   });
+
+  testWidgets('inactive_technician REJECTED renders the rejected-app copy',
+      (tester) async {
+    when(() => withdrawalRepo.listPayoutAccounts())
+        .thenAnswer((_) async => _accounts());
+    when(() => withdrawalRepo.createRequest(
+          amount: any(named: 'amount'),
+          bankAccountId: any(named: 'bankAccountId'),
+          jazzcashAccountId: any(named: 'jazzcashAccountId'),
+        )).thenThrow(
+      const InactiveTechnicianForWithdrawalFailure(status: 'REJECTED'),
+    );
+
+    await pumpSheet(tester);
+    await tester.enterText(find.byType(TextField), '500');
+    await tester.pump();
+    await tester.tap(find.text('HBL — Ali'));
+    await tester.pump();
+    await tester.tap(find.text('Request withdrawal'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.textContaining('application was rejected'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets(
+      'client-side: amount > balance disables submit and shows banner',
+      (tester) async {
+    // Wallet balance = 1000 (from setUp default). Request 5000 → pre-empt.
+    when(() => withdrawalRepo.listPayoutAccounts())
+        .thenAnswer((_) async => _accounts());
+
+    await pumpSheet(tester);
+    await tester.enterText(find.byType(TextField), '5000');
+    await tester.pump();
+    await tester.tap(find.text('HBL — Ali'));
+    await tester.pump();
+
+    // Banner is rendered.
+    expect(
+      find.textContaining('Amount exceeds available balance'),
+      findsOneWidget,
+    );
+    // Submit button is disabled — onPressed == null.
+    final btn = tester.widget<ElevatedButton>(
+      find.ancestor(
+        of: find.text('Request withdrawal'),
+        matching: find.byType(ElevatedButton),
+      ),
+    );
+    expect(btn.onPressed, isNull);
+    // Server is never asked.
+    verifyNever(() => withdrawalRepo.createRequest(
+          amount: any(named: 'amount'),
+          bankAccountId: any(named: 'bankAccountId'),
+          jazzcashAccountId: any(named: 'jazzcashAccountId'),
+        ));
+  });
 }

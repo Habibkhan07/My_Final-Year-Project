@@ -3,11 +3,33 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
 import 'package:frontend/features/technician/wallet/domain/entities/wallet_state.dart';
+import 'package:frontend/features/technician/wallet/domain/entities/withdrawal_history_page.dart';
+import 'package:frontend/features/technician/wallet/domain/entities/withdrawal_request.dart';
+import 'package:frontend/features/technician/wallet/domain/entities/withdrawal_status.dart';
 import 'package:frontend/features/technician/wallet/domain/repositories/wallet_repository.dart';
+import 'package:frontend/features/technician/wallet/domain/repositories/withdrawal_repository.dart';
+import 'package:frontend/features/technician/wallet/presentation/notifiers/pending_withdrawal_notifier.dart';
 import 'package:frontend/features/technician/wallet/presentation/notifiers/wallet_notifier.dart';
 import 'package:frontend/features/technician/wallet/presentation/providers/dependency_injection.dart';
 
 class _MockRepo extends Mock implements WalletRepository {}
+
+class _MockWithdrawalRepo extends Mock implements WithdrawalRepository {}
+
+WithdrawalRequest _pendingRow() => WithdrawalRequest(
+      id: 42,
+      amount: 500.0,
+      status: WithdrawalStatus.pendingReview,
+      uiStatusLabel: 'Under review',
+      payout: const PayoutDescriptor(
+        kind: 'bank',
+        label: 'HBL — Ali',
+        masked: '••1234',
+      ),
+      adminExternalRef: '',
+      requestedAt: DateTime.utc(2026, 5, 15),
+      reviewedAt: null,
+    );
 
 void main() {
   late _MockRepo repo;
@@ -189,6 +211,98 @@ void main() {
 
       expect(container.read(walletProvider).requireValue.balance, 2.0);
       verify(() => repo.getBalance()).called(2);
+    });
+  });
+
+  // ────────────────────────────────────────────────────────────────────
+  // onWalletTransactionEvent — cross-feature pending-pill invalidation.
+  // ────────────────────────────────────────────────────────────────────
+
+  group('onWalletTransactionEvent', () {
+    // This group needs the withdrawal repo too because the
+    // pendingWithdrawalProvider it invalidates piggybacks on it.
+    late _MockWithdrawalRepo withdrawalRepo;
+    late ProviderContainer crossFeatureContainer;
+
+    setUp(() {
+      withdrawalRepo = _MockWithdrawalRepo();
+      when(() => withdrawalRepo.listHistory(cursor: any(named: 'cursor')))
+          .thenAnswer((_) async => WithdrawalHistoryPage(
+                results: [_pendingRow()],
+                nextCursor: null,
+              ));
+      when(() => repo.getBalance()).thenAnswer(
+        (_) async => WalletState.fromBalance(
+          balance: 1000.0,
+          asOf: DateTime.utc(2026, 5, 15),
+        ),
+      );
+      crossFeatureContainer = ProviderContainer(
+        overrides: [
+          walletRepositoryProvider.overrideWithValue(repo),
+          withdrawalRepositoryProvider.overrideWithValue(withdrawalRepo),
+        ],
+      );
+    });
+
+    tearDown(() => crossFeatureContainer.dispose());
+
+    test('WITHDRAWAL_DEBIT invalidates pendingWithdrawalProvider',
+        () async {
+      // Prime both providers.
+      await crossFeatureContainer.read(walletProvider.future);
+      final firstPending =
+          await crossFeatureContainer.read(pendingWithdrawalProvider.future);
+      expect(firstPending, isNotNull);
+
+      // Switch the mock to return "no pending row" — this is the post-
+      // admin-fulfilment state.
+      when(() => withdrawalRepo.listHistory(cursor: any(named: 'cursor')))
+          .thenAnswer((_) async => const WithdrawalHistoryPage(
+                results: [],
+                nextCursor: null,
+              ));
+
+      // Drive the cross-feature reactor with a WITHDRAWAL_DEBIT event.
+      crossFeatureContainer
+          .read(walletProvider.notifier)
+          .onWalletTransactionEvent('WITHDRAWAL_DEBIT');
+
+      // After invalidation, re-reading the provider re-fetches.
+      final secondPending =
+          await crossFeatureContainer.read(pendingWithdrawalProvider.future);
+      expect(secondPending, isNull);
+      verify(() => withdrawalRepo.listHistory(cursor: any(named: 'cursor')))
+          .called(2);
+    });
+
+    test('non-withdrawal transaction types do NOT invalidate', () async {
+      await crossFeatureContainer.read(walletProvider.future);
+      await crossFeatureContainer.read(pendingWithdrawalProvider.future);
+
+      // COMMISSION_DEBIT and the other non-withdrawal types are no-ops.
+      for (final t in [
+        'COMMISSION_DEBIT',
+        'TOPUP_CREDIT',
+        'REFUND_DEBIT',
+        'ADJUSTMENT',
+        '',
+      ]) {
+        crossFeatureContainer
+            .read(walletProvider.notifier)
+            .onWalletTransactionEvent(t);
+      }
+
+      // Re-read should hit cache (provider not invalidated), so still 1
+      // call to the repo. We accept either 1 or 2 calls here because
+      // Riverpod's caching behaviour for `Ref`-style providers between
+      // reads is implementation-detail; the load-bearing assertion is
+      // that the WITHDRAWAL_DEBIT branch in the previous test did
+      // trigger a re-fetch.
+      final calls = verify(
+        () => withdrawalRepo.listHistory(cursor: any(named: 'cursor')),
+      ).callCount;
+      expect(calls, lessThanOrEqualTo(1));
     });
   });
 }

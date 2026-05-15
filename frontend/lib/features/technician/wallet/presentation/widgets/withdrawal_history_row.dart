@@ -4,6 +4,7 @@ import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/theme/app_shapes.dart';
 import '../../domain/entities/withdrawal_request.dart';
 import '../../domain/entities/withdrawal_status.dart';
+import '../format.dart';
 
 /// One row of the withdrawal-history list — Dumb-UI presenter.
 ///
@@ -77,7 +78,7 @@ class WithdrawalHistoryRow extends StatelessWidget {
           ),
           const SizedBox(width: 12),
           Text(
-            'Rs. ${request.amount.toStringAsFixed(0)}',
+            formatRs(request.amount),
             style: const TextStyle(
                 fontSize: 15, fontWeight: FontWeight.w700),
           ),
