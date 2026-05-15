@@ -299,9 +299,10 @@ class _DashboardNavBar extends StatelessWidget {
         fontSize: 12,
         fontWeight: FontWeight.w500,
       ),
-      // Only the Metrics tab is wired this commit. Jobs/Schedule/Profile
-      // remain unwired — separate work item.
+      // Metrics + Schedule tabs are wired. Jobs/Profile remain unwired
+      // — separate work items.
       onTap: (index) {
+        if (index == 1) context.push('/technician/schedule');
         if (index == 2) context.push('/technician/metrics');
       },
       items: const [

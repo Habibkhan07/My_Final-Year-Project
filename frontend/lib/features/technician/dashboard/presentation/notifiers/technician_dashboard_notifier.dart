@@ -56,6 +56,12 @@ class TechnicianDashboardNotifier extends _$TechnicianDashboardNotifier {
     //   * walletLowBalance → balance + isOnline both must reflect
     //     lockout; safer to refetch than to patch in case the backend
     //     also dropped a job assignment in the same transaction.
+    //   * techEnRoute / techArrived / inspectionStarted / quoteGenerated /
+    //     quoteApproved / quoteRevisionRequested / disputeOpened → the
+    //     row leaves CONFIRMED so the dashboard's `status=CONFIRMED`
+    //     filter drops it. Without these, up_next stays stale until
+    //     pull-to-refresh while the Schedule tab (which listens to all of
+    //     them) shows the truth. The two surfaces must agree.
     ref.listen(systemEventProvider, (previous, next) {
       final event = next.latestEvent;
       if (event == null) return;
@@ -70,6 +76,23 @@ class TechnicianDashboardNotifier extends _$TechnicianDashboardNotifier {
         case SystemEventType.paymentReceived:
         case SystemEventType.bookingRescheduled:
         case SystemEventType.walletLowBalance:
+        // Mid-job transitions out of CONFIRMED. The BE dashboard selector
+        // (`dashboard_selector.get_technician_dashboard`) filters
+        // up_next_job / later_today_jobs to `status=CONFIRMED` only — the
+        // moment the tech presses "On my way" / "I've arrived" / etc., the
+        // row stops qualifying and up_next must promote to the next booking
+        // (or null). Without these events the dashboard would lie about
+        // up_next until pull-to-refresh — and the Schedule tab (which DOES
+        // listen to mid-job events) would silently disagree with the
+        // dashboard's denormalised view. Listening here keeps the two
+        // surfaces consistent.
+        case SystemEventType.techEnRoute:
+        case SystemEventType.techArrived:
+        case SystemEventType.inspectionStarted:
+        case SystemEventType.quoteGenerated:
+        case SystemEventType.quoteApproved:
+        case SystemEventType.quoteRevisionRequested:
+        case SystemEventType.disputeOpened:
           _scheduleRefresh();
           break;
         case SystemEventType.walletBalanceUpdated:

@@ -22,6 +22,8 @@ import '../../../features/customer/bookings/presentation/providers/customer_book
 import '../../../features/customer/bookings/presentation/providers/customer_bookings_list_notifier.dart';
 import '../../../features/technician/dashboard/presentation/notifiers/technician_dashboard_notifier.dart';
 import '../../../features/technician/incoming_job_requests/presentation/providers/incoming_job_queue_notifier.dart';
+import '../../../features/technician/schedule/presentation/providers/scheduled_jobs_counts_notifier.dart';
+import '../../../features/technician/schedule/presentation/providers/scheduled_jobs_list_notifier.dart';
 import '../../../features/technician/location_broadcaster/presentation/providers/dependency_injection.dart'
     as location_broadcaster_di;
 import '../../../features/technician/location_broadcaster/presentation/services/foreground_location_lifecycle.dart';
@@ -378,4 +380,11 @@ List<ProviderListenable<Object?>> realtimeBootHooks(Ref ref) => [
   // tabs would silently drop and the dashboard would render stale
   // aggregates until pull-to-refresh.
   technicianDashboardProvider,
+  // Technician Schedule list + counts. Same audience-flipped wakeup
+  // requirement as the customer-side My Bookings entries above — the
+  // tech may be on any tab when a state-machine event lands; without
+  // these registered the Schedule list/counts would diverge from the
+  // dashboard's denormalised "next job" view until pull-to-refresh.
+  scheduledJobsListProvider,
+  scheduledJobsCountsProvider,
 ];

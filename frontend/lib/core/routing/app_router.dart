@@ -23,6 +23,7 @@ import '../../features/customer/addresses/presentation/screens/map_picker_screen
 import '../../features/technician/dashboard/presentation/screens/technician_dashboard_screen.dart';
 import '../../features/technician/work_location/presentation/screens/work_location_picker_screen.dart';
 import '../../features/technician/metrics/presentation/screens/metrics_screen.dart';
+import '../../features/technician/schedule/presentation/screens/schedule_screen.dart';
 import '../../features/technician/wallet/presentation/screens/wallet_screen.dart';
 import '../../features/technician/wallet/presentation/screens/withdrawal_history_screen.dart';
 import '../realtime/presentation/providers/dependency_injection.dart';
@@ -213,6 +214,13 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/technician/metrics',
         builder: (context, state) => const MetricsScreen(),
+      ),
+      // Tech-only Schedule screen. Reached from the bottom-nav
+      // "Schedule" tab. Audience-flipped counterpart of /customer/bookings.
+      GoRoute(
+        path: '/technician/schedule',
+        builder: (context, state) =>
+            const ScheduleScreen(showBackButton: true),
       ),
       GoRoute(
         path: '/technician-profile/:id',
