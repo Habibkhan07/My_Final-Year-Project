@@ -1,9 +1,10 @@
 // Counts notifier — feeds the Schedule segmented-control badge numbers.
 //
 // **Lifecycle.** `keepAlive: true` and registered in
-// `realtimeBootHooksProvider` alongside the list notifier. Same wakeup
-// rule applies: must be subscribed before WS frames fire after auth so
-// it can refetch counts when a state-machine event lands.
+// `realtimeTechnicianBootHooksProvider` alongside the list notifier
+// (tech-only registry — only iterated when `isTechnician=true`). Same
+// wakeup rule applies: must be subscribed before WS frames fire after
+// auth so it can refetch counts when a state-machine event lands.
 //
 // **Refresh policy.**
 //

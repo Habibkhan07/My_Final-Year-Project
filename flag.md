@@ -1964,3 +1964,30 @@ The profile feature shipped in the viva-week sprint with code-freeze 2026-05-17 
 
 **Severity**
 P3. Cosmetic / honesty concern, no functional or security impact. Becomes P2 only when the app actually ships a version != 1.0.0 and the two call sites drift visibly.
+
+---
+
+## 58. Mid-session role flip (customer → approved tech) needs re-login before tech realtime hooks wake
+
+**Where**
+- `frontend/lib/core/realtime/presentation/app_lifecycle_orchestrator.dart` — `bootAfterAuth(ref, token, isTechnician:)` gates the tech-only registry by the cached `UserEntity.isTechnician`.
+- `frontend/lib/features/auth/presentation/providers/auth_notifier.dart` — `_scheduleBoot(user)` reads `user.isTechnician` from the cached entity; that value is only refreshed on the next `verifyOtp` round-trip.
+
+**What's wrong**
+If a user signs in as a customer, applies for tech onboarding, gets approved by admin, then resumes the SAME session without re-logging:
+- The cached `UserEntity.isTechnician` is still `false` (it only updates from a verify-otp response).
+- Any further `_scheduleBoot` call (e.g. via `_onResumed` after the app comes back from background) skips the tech registry.
+- `incomingJobQueueProvider`, `technicianDashboardProvider`, `scheduledJobsListProvider`, `scheduledJobsCountsProvider` are never woken — their `ref.listen(systemEventProvider, …)` is never registered, so the first WS frame of each event type lands at `SystemEventNotifier` but no feature subscriber sees it.
+
+**Why we shipped it that way**
+The pre-existing behaviour was equivalent: those notifiers DID wake at login, but each one hit a 403 from the tech-gated endpoint (because the user wasn't yet a tech) and cached an `AsyncError`. The cached error stuck until either a manual `ref.invalidate` or re-login. So `ref.listen` was technically registered, but the notifier's data fetch had no usable state. The end-user impact — "open the tech dashboard, see a broken screen until you log out and back in" — is identical between the pre-fix and post-fix behaviours. The fix removed the 403 storm; it didn't try to also build a mid-session role-flip recovery.
+
+**The proper fix**
+1. Either: backend's tech-onboarding finalize endpoint returns a refreshed auth payload `{user_id, token, is_technician, …}` that the FE merges into the cached `UserEntity` immediately on approval (status transition PENDING → APPROVED).
+2. Or: when `technicianStatusProvider` transitions to `TechnicianStatusApproved`, fire a one-shot `AppLifecycleOrchestrator.bootAfterAuth(..., isTechnician: true)` to wake the tech registry. Idempotent because all hook providers are `keepAlive: true`.
+3. Or: the simpler UX answer — after admin approval, the FE forces a logout/re-login, which already produces a clean state.
+
+Search hints: `_scheduleBoot`, `realtimeTechnicianBootHooksProvider`, `TechnicianStatusApproved`, `verifyOtp`.
+
+**Severity**
+P3. No regression vs the pre-fix behaviour; same UX as before. Becomes P2 when the product surfaces "you've been approved, go to your dashboard" as an in-session affordance without a re-login.

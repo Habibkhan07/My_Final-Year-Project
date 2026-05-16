@@ -136,6 +136,7 @@ void main() {
 
     return [
       realtimeBootHooksProvider.overrideWith((ref) => const []),
+      realtimeTechnicianBootHooksProvider.overrideWith((ref) => const []),
       realtime_di.fcmHandlerProvider.overrideWithValue(fcm),
       realtime_di.eventLocalDataSourceProvider.overrideWithValue(local),
       location_broadcaster_di.foregroundLocationLifecycleProvider
@@ -532,9 +533,11 @@ void main() {
         overrides: [
           authRepositoryProvider.overrideWithValue(bridgeRepo),
           verifyOtpUseCaseProvider.overrideWithValue(bridgeVerifyOtp),
-          // Empty registry keeps the bridge tests narrow — feature wake-ups
-          // are exercised in the orchestrator's own test file.
+          // Empty registries keep the bridge tests narrow — feature
+          // wake-ups are exercised in the orchestrator's own test file.
           realtimeBootHooksProvider.overrideWith((ref) => const []),
+          realtimeTechnicianBootHooksProvider
+              .overrideWith((ref) => const []),
           realtime_di.fcmHandlerProvider.overrideWithValue(bridgeFcm),
           realtime_di.eventLocalDataSourceProvider.overrideWithValue(
             bridgeLocal,

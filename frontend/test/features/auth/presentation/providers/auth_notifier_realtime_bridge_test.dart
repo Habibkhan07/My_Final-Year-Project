@@ -119,12 +119,14 @@ ProviderContainer _buildContainer(_Deps deps) {
       auth_di.authRepositoryProvider.overrideWithValue(deps.authRepo),
       auth_di.verifyOtpUseCaseProvider.overrideWithValue(deps.verifyOtp),
 
-      // Default registry is `[incomingJobQueueProvider]`, which would
-      // eagerly instantiate the real feature DI tree when bootAfterAuth
-      // walks it. Override to `[]` so this test stays narrow — the
-      // registry contract is covered separately by R1/R2 in
-      // `app_lifecycle_orchestrator_test.dart`.
+      // Default registries contain real tech + customer feature
+      // providers; reading them would eagerly instantiate full feature
+      // DI trees when bootAfterAuth walks them. Override both to `[]`
+      // so this test stays narrow — the registry contract is covered
+      // separately by R1/R2/R3 in `app_lifecycle_orchestrator_test.dart`.
       realtimeBootHooksProvider.overrideWith((ref) => const []),
+      realtimeTechnicianBootHooksProvider
+          .overrideWith((ref) => const []),
 
       realtime_di.fcmHandlerProvider.overrideWithValue(deps.fcm),
       realtime_di.eventLocalDataSourceProvider.overrideWithValue(deps.local),

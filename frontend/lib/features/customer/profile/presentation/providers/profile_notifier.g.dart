@@ -19,10 +19,12 @@ part of 'profile_notifier.dart';
 ///
 /// `keepAlive: true`: the profile is read across multiple unrelated
 /// screens (tab, edit screen, header pieces) so we keep it warm.
-/// Invalidate via `ref.invalidate(profileProvider)` on logout — the
-/// auth notifier handles this implicitly because logout tears the
-/// secure-storage token, which causes the next `getMe()` to throw
-/// `ProfileUnauthorizedFailure`.
+/// Logout invalidation is centralised in
+/// `AppLifecycleOrchestrator.clearCustomerDataCaches` — the
+/// orchestrator both `ref.invalidate(profileProvider)` and clears the
+/// `cached_profile_me` SharedPreferences row, so a second user
+/// signing in on the same device cannot read either the in-memory
+/// provider state or the offline cache from the previous user.
 
 @ProviderFor(Profile)
 final profileProvider = ProfileProvider._();
@@ -38,10 +40,12 @@ final profileProvider = ProfileProvider._();
 ///
 /// `keepAlive: true`: the profile is read across multiple unrelated
 /// screens (tab, edit screen, header pieces) so we keep it warm.
-/// Invalidate via `ref.invalidate(profileProvider)` on logout — the
-/// auth notifier handles this implicitly because logout tears the
-/// secure-storage token, which causes the next `getMe()` to throw
-/// `ProfileUnauthorizedFailure`.
+/// Logout invalidation is centralised in
+/// `AppLifecycleOrchestrator.clearCustomerDataCaches` — the
+/// orchestrator both `ref.invalidate(profileProvider)` and clears the
+/// `cached_profile_me` SharedPreferences row, so a second user
+/// signing in on the same device cannot read either the in-memory
+/// provider state or the offline cache from the previous user.
 final class ProfileProvider
     extends $AsyncNotifierProvider<Profile, CustomerProfileEntity> {
   /// Owns the customer's own-profile state.
@@ -55,10 +59,12 @@ final class ProfileProvider
   ///
   /// `keepAlive: true`: the profile is read across multiple unrelated
   /// screens (tab, edit screen, header pieces) so we keep it warm.
-  /// Invalidate via `ref.invalidate(profileProvider)` on logout — the
-  /// auth notifier handles this implicitly because logout tears the
-  /// secure-storage token, which causes the next `getMe()` to throw
-  /// `ProfileUnauthorizedFailure`.
+  /// Logout invalidation is centralised in
+  /// `AppLifecycleOrchestrator.clearCustomerDataCaches` — the
+  /// orchestrator both `ref.invalidate(profileProvider)` and clears the
+  /// `cached_profile_me` SharedPreferences row, so a second user
+  /// signing in on the same device cannot read either the in-memory
+  /// provider state or the offline cache from the previous user.
   ProfileProvider._()
     : super(
         from: null,
@@ -78,7 +84,7 @@ final class ProfileProvider
   Profile create() => Profile();
 }
 
-String _$profileHash() => r'29a84930d7d32915c7e5a5ff984ce1eaf428e5c0';
+String _$profileHash() => r'882114918142fbaa7d3cdcc82f1f079d0160f09d';
 
 /// Owns the customer's own-profile state.
 ///
@@ -91,10 +97,12 @@ String _$profileHash() => r'29a84930d7d32915c7e5a5ff984ce1eaf428e5c0';
 ///
 /// `keepAlive: true`: the profile is read across multiple unrelated
 /// screens (tab, edit screen, header pieces) so we keep it warm.
-/// Invalidate via `ref.invalidate(profileProvider)` on logout — the
-/// auth notifier handles this implicitly because logout tears the
-/// secure-storage token, which causes the next `getMe()` to throw
-/// `ProfileUnauthorizedFailure`.
+/// Logout invalidation is centralised in
+/// `AppLifecycleOrchestrator.clearCustomerDataCaches` — the
+/// orchestrator both `ref.invalidate(profileProvider)` and clears the
+/// `cached_profile_me` SharedPreferences row, so a second user
+/// signing in on the same device cannot read either the in-memory
+/// provider state or the offline cache from the previous user.
 
 abstract class _$Profile extends $AsyncNotifier<CustomerProfileEntity> {
   FutureOr<CustomerProfileEntity> build();

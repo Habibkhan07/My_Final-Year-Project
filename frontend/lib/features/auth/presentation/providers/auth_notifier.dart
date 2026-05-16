@@ -2,6 +2,7 @@
 import 'dart:async';
 import 'dart:developer' as developer;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import '../../../../core/common/domain/entities/user_entity.dart';
 import '../../../../core/realtime/presentation/app_lifecycle_orchestrator.dart';
 import '../../domain/failures/auth_failure.dart';
 import 'auth_state.dart';
@@ -17,7 +18,7 @@ class AuthNotifier extends _$AuthNotifier {
     final user = await repository.getCachedUser();
 
     if (user != null) {
-      _scheduleBoot(user.token);
+      _scheduleBoot(user);
       return AuthState(user: user);
     }
 
@@ -37,13 +38,22 @@ class AuthNotifier extends _$AuthNotifier {
   /// treats `null || isEmpty` as "not signed in." A corrupted cache row
   /// could store `token: ""`; without this guard we'd hand an empty string
   /// to `wsConnection.connect(...)` which the backend rejects with 4001/4003.
-  void _scheduleBoot(String? token) {
+  ///
+  /// We pass `user.isTechnician` (not just the token) so the orchestrator
+  /// can decide whether to iterate the tech-only boot-hooks registry.
+  /// Reading `authProvider` inside `bootAfterAuth` would race with this
+  /// `build()` / `verifyOtp` that scheduled it — the state assignment
+  /// happens AFTER `_scheduleBoot` returns. Passing the value explicitly
+  /// closes that race.
+  void _scheduleBoot(UserEntity user) {
+    final token = user.token;
     if (token == null || token.isEmpty) return;
     unawaited(
-      AppLifecycleOrchestrator.bootAfterAuth(ref, token).catchError((
-        Object e,
-        StackTrace st,
-      ) {
+      AppLifecycleOrchestrator.bootAfterAuth(
+        ref,
+        token,
+        isTechnician: user.isTechnician,
+      ).catchError((Object e, StackTrace st) {
         developer.log(
           'bootAfterAuth failed: $e',
           name: 'auth_notifier',
@@ -75,7 +85,7 @@ class AuthNotifier extends _$AuthNotifier {
     state = await AsyncValue.guard(() async {
       final useCase = ref.read(verifyOtpUseCaseProvider);
       final user = await useCase.execute(phone, otp);
-      _scheduleBoot(user.token);
+      _scheduleBoot(user);
       return AuthState(user: user);
     });
   }

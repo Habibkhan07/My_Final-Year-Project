@@ -27,10 +27,12 @@ part 'technician_dashboard_notifier.g.dart';
 /// field.
 ///
 /// **keepAlive: true** so that:
-///   * The notifier wakes at boot (via `realtimeBootHooksProvider`) and
-///     subscribes to `systemEventProvider` BEFORE the first WS frame, so
-///     events that arrive while the dashboard tab isn't open still
-///     refresh the cached state when the user navigates to it.
+///   * The notifier wakes at boot (via `realtimeTechnicianBootHooksProvider`
+///     — the tech-only registry that `bootAfterAuth` iterates only when
+///     `isTechnician=true`) and subscribes to `systemEventProvider`
+///     BEFORE the first WS frame, so events that arrive while the
+///     dashboard tab isn't open still refresh the cached state when
+///     the user navigates to it.
 ///   * The notifier survives bottom-nav tab switches — switching to
 ///     Jobs / Wallet / Profile and back returns to a still-fresh
 ///     dashboard rather than re-fetching on every tap.
@@ -41,9 +43,10 @@ class TechnicianDashboardNotifier extends _$TechnicianDashboardNotifier {
     // Subscribe to the realtime event firehose. Any event that can shift
     // the dashboard's denormalised aggregates (up-next, counts, wallet,
     // online-eligibility) triggers a re-fetch. The notifier is
-    // keepAlive: true + registered with realtimeBootHooksProvider, so
-    // events arriving while the tech is on a different tab still hit
-    // the listener.
+    // keepAlive: true + registered with realtimeTechnicianBootHooksProvider,
+    // so events arriving while the tech is on a different tab still hit
+    // the listener (registration is gated by `isTechnician=true`, which
+    // is always the case if this notifier is being consumed).
     //
     // Reasoning per event:
     //   * jobAccepted → up-next card materialises (tech just accepted).

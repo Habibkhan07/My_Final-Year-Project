@@ -129,34 +129,61 @@ class AppLifecycleOrchestrator extends ConsumerStatefulWidget {
   ///      the 401 is logged and swallowed and the user is left on a logged-in
   ///      shell talking to a backend that has rejected them.
   ///   2. Wake every list-route subscriber registered in
-  ///      [realtimeBootHooksProvider]. `keepAlive: true` notifiers do not
-  ///      subscribe to `systemEventProvider` until first read; reading them
-  ///      here guarantees they wake before the first event of their type
-  ///      arrives. Adding a new event = appending to that registry, never
-  ///      editing this method. See CLAUDE.md → "Per-event feature wiring".
-  ///   3. Initialize FCM (permission, token register, listeners, drain
+  ///      [realtimeBootHooksProvider] (shared — always run). `keepAlive: true`
+  ///      notifiers do not subscribe to `systemEventProvider` until first
+  ///      read; reading them here guarantees they wake before the first
+  ///      event of their type arrives. Adding a new event = appending to
+  ///      that registry, never editing this method. See CLAUDE.md →
+  ///      "Per-event feature wiring".
+  ///   3. If [isTechnician] is true, additionally wake every subscriber
+  ///      in [realtimeTechnicianBootHooksProvider]. These notifiers fetch
+  ///      from tech-gated endpoints (`/api/technicians/me/...`); waking
+  ///      them for a non-technician would fire wasted GETs that each 403
+  ///      and pollute the notifier with a cached `AsyncError`. The caller
+  ///      passes the flag from the cached `UserEntity` — we deliberately
+  ///      do NOT read `authProvider` here because this method runs
+  ///      fire-and-forget from inside the `build()` / `verifyOtp` flow
+  ///      where the auth state may not yet have been assigned.
+  ///   4. Initialize FCM (permission, token register, listeners, drain
   ///      isolate queue).
-  ///   4. Sentinel check — if logout fired during step 3, teardown nulled
+  ///   5. Sentinel check — if logout fired during step 4, teardown nulled
   ///      `onUnauthorized`. Bail before the WS connect to avoid the
   ///      "connecting → disconnecting → connecting-with-stale-token" race.
-  ///   5. Open the WebSocket. The connect cascade triggers
+  ///   6. Open the WebSocket. The connect cascade triggers
   ///      `syncMissedEvents → syncUnacknowledgedCritical → flush pending ACKs`
   ///      automatically, so no manual sync call is needed here.
   ///
   /// Residual race (out of scope here, tracked in flag.md): if logout fires
-  /// during the `_channel!.ready` handshake at step 5, [WsConnectionNotifier]
+  /// during the `_channel!.ready` handshake at step 6, [WsConnectionNotifier]
   /// can still re-arm a reconnect timer in its catch path. That is a WS
   /// layer concern, not an auth-bridge concern.
   ///
   /// The `ref.listenManual` set up in `initState` activates as soon as events
   /// start flowing through `SystemEventNotifier`.
-  static Future<void> bootAfterAuth(Ref ref, String authToken) async {
+  ///
+  /// Mid-session role flip (customer → approved tech): the cached
+  /// `user.isTechnician` only refreshes on the next verify-otp, so a user
+  /// approved between sessions will not have the tech hooks woken until
+  /// re-login. This is consistent with the pre-existing behaviour where
+  /// the tech notifiers (woken for everyone but 403'ing for non-techs)
+  /// already cached `AsyncError` and required either invalidation or
+  /// re-login to recover. See flag.md.
+  static Future<void> bootAfterAuth(
+    Ref ref,
+    String authToken, {
+    required bool isTechnician,
+  }) async {
     ref.read(eventSyncProvider.notifier).onUnauthorized = () {
       ref.read(authProvider.notifier).logout();
     };
 
     for (final hook in ref.read(realtimeBootHooksProvider)) {
       ref.read(hook);
+    }
+    if (isTechnician) {
+      for (final hook in ref.read(realtimeTechnicianBootHooksProvider)) {
+        ref.read(hook);
+      }
     }
 
     await ref.read(fcmHandlerProvider).initialize();
@@ -438,10 +465,17 @@ class _AppLifecycleOrchestratorState
 /// [AppLifecycleOrchestrator.bootAfterAuth] so they subscribe to
 /// `systemEventProvider` BEFORE the WS connect cascade fires.
 ///
-/// Adding a new list-route event feature: append the feature's queue
-/// provider here. There is intentionally no other registration site —
-/// this keeps the boot extension point in one file alongside the
-/// orchestrator that consumes it.
+/// **Audience: shared.** These notifiers fire for every authenticated
+/// user regardless of role. Endpoints behind them accept any token.
+/// Tech-only providers live in [realtimeTechnicianBootHooksProvider]
+/// and only wake when `bootAfterAuth(..., isTechnician: true)`.
+///
+/// Adding a new list-route event feature:
+///   * Customer-side / role-agnostic → append here.
+///   * Tech-only (endpoint gated by `IsTechnician` or similar) →
+///     append to [realtimeTechnicianBootHooksProvider] instead.
+/// There is intentionally no third registration site — these two
+/// registries are the boot extension points alongside the orchestrator.
 ///
 /// Order is currently irrelevant — entries are independent. If a future
 /// feature needs to wake AFTER another, document the constraint here and
@@ -452,15 +486,49 @@ class _AppLifecycleOrchestratorState
 /// `bootAfterAuth` actually iterates the registry.
 @Riverpod(keepAlive: true)
 List<ProviderListenable<Object?>> realtimeBootHooks(Ref ref) => [
-  incomingJobQueueProvider,
   // Customer-side My Bookings list. List-route event feature: must
   // wake before WS frames fire after auth so `job_accepted` /
   // `booking_rejected` patches land on a subscribed notifier instead
   // of going to dead-letter via SystemEventNotifier dedup. The counts
   // notifier is paired here for symmetry — it listens to the same
   // events to refresh its aggregate.
+  //
+  // Stays in the *shared* registry rather than a customer-only one:
+  // a technician can still have customer-side bookings under the
+  // unified user model, and the `/api/customers/bookings/` endpoint
+  // accepts any authenticated token. Cheap to wake regardless.
   customerBookingsListProvider,
   customerBookingsCountsProvider,
+];
+
+/// Realtime boot hooks that wake ONLY when the authenticated user is a
+/// technician. Gated by `bootAfterAuth(..., isTechnician: ...)`.
+///
+/// Every provider here fetches from a tech-gated endpoint:
+///
+///   * `incomingJobQueueProvider`     → `/api/technicians/me/incoming-jobs/`
+///   * `technicianDashboardProvider`  → `/api/technicians/dashboard/`
+///   * `scheduledJobsListProvider`    → `/api/technicians/me/scheduled-jobs/`
+///   * `scheduledJobsCountsProvider`  → `/api/technicians/me/scheduled-jobs/counts/`
+///
+/// Without the gate, a customer login would fire all four GETs and each
+/// would 403 (the backend's `IsTechnician` permission rejects), polluting
+/// every `keepAlive: true` notifier's state with an `AsyncError` that has
+/// no consumer.
+///
+/// Mid-session edge case: a customer who applies for tech onboarding and
+/// gets approved by admin will have `user.isTechnician == false` cached
+/// until next verify-otp. The tech hooks will NOT wake until re-login.
+/// This matches the pre-split behaviour (where the providers always woke
+/// but cached the 403 `AsyncError` from the initial login as a customer)
+/// — either way, re-login was required to get clean tech state. See
+/// flag.md.
+///
+/// Tests override this provider with `[]` to keep narrow, exactly like
+/// the shared registry above.
+@Riverpod(keepAlive: true)
+List<ProviderListenable<Object?>> realtimeTechnicianBootHooks(Ref ref) => [
+  incomingJobQueueProvider,
   // Technician dashboard. keepAlive: true notifier that listens to
   // `systemEventProvider` for job-completed / cancelled / payment /
   // wallet events. Without this wake-up, the dashboard's listener
@@ -470,10 +538,11 @@ List<ProviderListenable<Object?>> realtimeBootHooks(Ref ref) => [
   // aggregates until pull-to-refresh.
   technicianDashboardProvider,
   // Technician Schedule list + counts. Same audience-flipped wakeup
-  // requirement as the customer-side My Bookings entries above — the
-  // tech may be on any tab when a state-machine event lands; without
-  // these registered the Schedule list/counts would diverge from the
-  // dashboard's denormalised "next job" view until pull-to-refresh.
+  // requirement as the customer-side My Bookings entries in the shared
+  // registry — the tech may be on any tab when a state-machine event
+  // lands; without these registered the Schedule list/counts would
+  // diverge from the dashboard's denormalised "next job" view until
+  // pull-to-refresh.
   scheduledJobsListProvider,
   scheduledJobsCountsProvider,
 ];

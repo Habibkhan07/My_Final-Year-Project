@@ -150,9 +150,12 @@ Widget _wrapAppRoot({
               ref.watch(authProvider.select((async) => async.value?.user?.id)),
         ),
 
-        // Realtime: empty boot-hooks registry so we don't drag in
-        // incomingJobQueueProvider's full feature DI tree.
+        // Realtime: empty boot-hooks registries so we don't drag in
+        // the full feature DI trees of any of the boot-time providers
+        // (customer bookings, tech dashboard / schedule, incoming jobs).
         realtimeBootHooksProvider.overrideWith((ref) => const []),
+        realtimeTechnicianBootHooksProvider
+            .overrideWith((ref) => const []),
 
         // Realtime: replace the production FCMHandler / WsConnectionNotifier
         // / EventSyncNotifier / SystemEventNotifier with mocks/recorders so

@@ -33,9 +33,13 @@ ProviderContainer _container() {
   return ProviderContainer(
     overrides: [
       auth_di.authRepositoryProvider.overrideWithValue(repo),
-      // Empty boot-hooks registry — keeps the orchestrator's
+      // Empty boot-hooks registries — keeps the orchestrator's
       // app-lifecycle bridge from attempting realtime connects in tests.
+      // Both shared + tech registries get cleared even though the test
+      // user's empty token bypasses _scheduleBoot — defensive against
+      // future test fixtures that flip `isTechnician: true`.
       realtimeBootHooksProvider.overrideWith((ref) => const []),
+      realtimeTechnicianBootHooksProvider.overrideWith((ref) => const []),
     ],
   );
 }

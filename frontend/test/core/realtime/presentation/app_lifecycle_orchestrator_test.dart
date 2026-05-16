@@ -142,59 +142,132 @@ void main() {
   // `job_new_request` after every login would be missed.
 
   group('realtimeBootHooksProvider registry', () {
-    test('R1 — default registry contains incomingJobQueueProvider', () {
+    test('R1 — tech registry contains incomingJobQueueProvider', () {
       final container = ProviderContainer();
       addTearDown(container.dispose);
 
-      final hooks = container.read(realtimeBootHooksProvider);
+      // The incoming-job queue subscriber lives in the TECH-ONLY registry
+      // because `/api/technicians/me/incoming-jobs/` is `IsTechnician`-
+      // gated — waking it for a customer fired a wasted 403 GET pre-fix.
+      // Queue notifiers that subscribe to `systemEventProvider` must
+      // still be registered SOMEWHERE so they wake before WS connect;
+      // a missing entry silently drops the first event after every
+      // login.
+      final techHooks =
+          container.read(realtimeTechnicianBootHooksProvider);
 
       expect(
-        hooks,
+        techHooks,
         contains(incomingJobQueueProvider),
         reason:
-            'queue notifiers that subscribe to systemEventProvider '
-            'must be registered here so they wake before WS connect; '
+            'queue notifiers that subscribe to systemEventProvider for '
+            'tech-only events must be registered in the tech registry; '
             'missing entry silently drops the first event after every '
-            'login (true regardless of whether the feature presents as '
-            'a route, a sheet overlay, or otherwise).',
+            'login as a technician.',
+      );
+
+      // Sanity: shared registry must NOT contain tech-only providers,
+      // or a customer login would still trigger the 403 we just fixed.
+      final sharedHooks = container.read(realtimeBootHooksProvider);
+      expect(
+        sharedHooks,
+        isNot(contains(incomingJobQueueProvider)),
+        reason:
+            'tech-only providers must not leak into the shared registry; '
+            'doing so reintroduces the customer-login 403 storm.',
       );
     });
 
-    test('R2 — bootAfterAuth reads every entry in the registry', () async {
-      final probeReads = <int>[];
-      // Probe providers double as registry entries and as side-effect
-      // counters: each `ref.read` increments `probeReads`.
-      final probeA = Provider<int>((ref) {
-        probeReads.add(0);
-        return 0;
-      });
-      final probeB = Provider<int>((ref) {
-        probeReads.add(1);
-        return 1;
-      });
+    test(
+      'R2 — bootAfterAuth reads every entry in BOTH registries when '
+      'isTechnician=true',
+      () async {
+        final probeReads = <String>[];
+        // Probe providers double as registry entries and as side-effect
+        // counters: each `ref.read` records its source registry.
+        final sharedProbe = Provider<int>((ref) {
+          probeReads.add('shared');
+          return 0;
+        });
+        final techProbe = Provider<int>((ref) {
+          probeReads.add('tech');
+          return 1;
+        });
 
-      final fcm = _MockFCMHandler();
-      when(() => fcm.initialize()).thenAnswer((_) async {});
+        final fcm = _MockFCMHandler();
+        when(() => fcm.initialize()).thenAnswer((_) async {});
 
-      final container = ProviderContainer(
-        overrides: [
-          realtimeBootHooksProvider.overrideWith((ref) => [probeA, probeB]),
-          realtime_di.fcmHandlerProvider.overrideWithValue(fcm),
-          eventSyncProvider.overrideWith(_RecordingEventSyncNotifier.new),
-          wsConnectionProvider.overrideWith(_RecordingWsNotifier.new),
-        ],
-      );
-      addTearDown(container.dispose);
+        final container = ProviderContainer(
+          overrides: [
+            realtimeBootHooksProvider.overrideWith((ref) => [sharedProbe]),
+            realtimeTechnicianBootHooksProvider
+                .overrideWith((ref) => [techProbe]),
+            realtime_di.fcmHandlerProvider.overrideWithValue(fcm),
+            eventSyncProvider.overrideWith(_RecordingEventSyncNotifier.new),
+            wsConnectionProvider.overrideWith(_RecordingWsNotifier.new),
+          ],
+        );
+        addTearDown(container.dispose);
 
-      await AppLifecycleOrchestrator.bootAfterAuth(
-        container.read(_refProbe),
-        'token',
-      );
+        await AppLifecycleOrchestrator.bootAfterAuth(
+          container.read(_refProbe),
+          'token',
+          isTechnician: true,
+        );
 
-      // Both probes must have been read exactly once. If a future refactor
-      // drops the for-loop, this fails immediately.
-      expect(probeReads, [0, 1]);
-    });
+        // Both probes must have been read exactly once. Shared first
+        // (the orchestrator iterates shared, then tech), so we assert
+        // both the membership and the order.
+        expect(probeReads, ['shared', 'tech']);
+      },
+    );
+
+    test(
+      'R3 — bootAfterAuth SKIPS the tech registry when isTechnician=false',
+      () async {
+        final probeReads = <String>[];
+        final sharedProbe = Provider<int>((ref) {
+          probeReads.add('shared');
+          return 0;
+        });
+        final techProbe = Provider<int>((ref) {
+          probeReads.add('tech');
+          return 1;
+        });
+
+        final fcm = _MockFCMHandler();
+        when(() => fcm.initialize()).thenAnswer((_) async {});
+
+        final container = ProviderContainer(
+          overrides: [
+            realtimeBootHooksProvider.overrideWith((ref) => [sharedProbe]),
+            realtimeTechnicianBootHooksProvider
+                .overrideWith((ref) => [techProbe]),
+            realtime_di.fcmHandlerProvider.overrideWithValue(fcm),
+            eventSyncProvider.overrideWith(_RecordingEventSyncNotifier.new),
+            wsConnectionProvider.overrideWith(_RecordingWsNotifier.new),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        await AppLifecycleOrchestrator.bootAfterAuth(
+          container.read(_refProbe),
+          'token',
+          isTechnician: false,
+        );
+
+        // Shared probe ran; tech probe did NOT — this is the customer
+        // login path that the audience-gate exists to clean up.
+        expect(
+          probeReads,
+          ['shared'],
+          reason:
+              'a customer login (isTechnician=false) must not iterate '
+              'the tech-only registry; doing so causes wasted 403 GETs '
+              'against tech endpoints',
+        );
+      },
+    );
   });
 
   // ─── bootAfterAuth — sentinel race ──────────────────────────────────────
@@ -225,6 +298,11 @@ void main() {
         await AppLifecycleOrchestrator.bootAfterAuth(
           container.read(_refProbe),
           'happy-token',
+          // Sentinel test is audience-agnostic — pass false because we
+          // don't care about tech-only registry iteration here. The
+          // shared registry override above is `const []` so neither
+          // path produces side-effects; the sentinel is what we pin.
+          isTechnician: false,
         );
 
         verify(() => fcm.initialize()).called(1);
@@ -259,6 +337,8 @@ void main() {
       final bootFuture = AppLifecycleOrchestrator.bootAfterAuth(
         container.read(_refProbe),
         'race-token',
+        // Audience-agnostic — same rationale as B1.
+        isTechnician: false,
       );
       await Future<void>.delayed(Duration.zero);
 

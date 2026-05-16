@@ -506,16 +506,25 @@ feature calls at the appropriate lifecycle points. Both take a `Ref`
 ```dart
 // On cold-start with a cached user, or after a successful verifyOtp:
 unawaited(
-  AppLifecycleOrchestrator.bootAfterAuth(ref, authToken).catchError(log),
+  AppLifecycleOrchestrator.bootAfterAuth(
+    ref,
+    authToken,
+    isTechnician: user.isTechnician,
+  ).catchError(log),
 );
 //   1. wires `eventSyncProvider.notifier.onUnauthorized = … logout()`.
-//   2. iterates `realtimeBootHooksProvider` and reads each entry,
-//      waking every list-route feature's queue notifier so it
+//   2. iterates `realtimeBootHooksProvider` (shared) and reads each
+//      entry, waking every list-route feature's queue notifier so it
 //      subscribes to systemEventProvider before frames arrive.
-//   3. fcmHandler.initialize().
-//   4. SENTINEL — if `onUnauthorized` is null (teardown ran while
+//   3. if `isTechnician` is true, additionally iterates
+//      `realtimeTechnicianBootHooksProvider` for tech-gated providers
+//      (incoming jobs, dashboard, schedule list+counts). For non-
+//      technicians, this step is skipped so we don't fire wasted 403
+//      GETs against `/api/technicians/me/...` endpoints.
+//   4. fcmHandler.initialize().
+//   5. SENTINEL — if `onUnauthorized` is null (teardown ran while
 //      FCM init was awaiting), bail before the WS connect.
-//   5. wsConnection.connect(authToken) — cascades sync + ack flush.
+//   6. wsConnection.connect(authToken) — cascades sync + ack flush.
 
 // On logout (BEFORE clearing cached user / token):
 await AppLifecycleOrchestrator.teardownOnLogout(ref);
@@ -530,7 +539,7 @@ await AppLifecycleOrchestrator.teardownOnLogout(ref);
 
 The auth-side wiring lives in `AuthNotifier` (`features/auth/.../auth_notifier.dart`):
 
-- `build()` and `verifyOtp()` schedule boot via a private `_scheduleBoot(token)` helper. The helper short-circuits on `token == null || token.isEmpty` (symmetry with `_onResumed`) and wraps the `unawaited` future in `.catchError(log)` so failures surface in dev/ops instead of vanishing into the Dart zone.
+- `build()` and `verifyOtp()` schedule boot via a private `_scheduleBoot(user)` helper. The helper short-circuits on `token == null || token.isEmpty` (symmetry with `_onResumed`), extracts `user.isTechnician` from the same cached `UserEntity` whose token was just validated (avoids a race that would otherwise have to read `authProvider` mid-`build`), and wraps the `unawaited` future in `.catchError(log)` so failures surface in dev/ops instead of vanishing into the Dart zone.
 - `logout()` is `isLoading`-guarded against double-tap and awaits `teardownOnLogout(ref)` BEFORE `repository.logout()` — load-bearing because the FCM device-unregister POST inside teardown reads the token from secure storage that `repository.logout()` is about to clear.
 
 Boot is fire-and-forget for a reason: `bootAfterAuth` can take seconds on slow networks (FCM init + WS handshake). Awaiting it would stall auth state in `AsyncLoading` and the router would route to `/login`. The orchestrator's helpers are idempotent (FCM init guards against double-register; WS connect short-circuits if already connected), so a fast `verifyOtp` → `completeSignup` chain re-firing boot is benign.

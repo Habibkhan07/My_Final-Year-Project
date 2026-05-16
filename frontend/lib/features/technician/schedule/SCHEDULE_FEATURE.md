@@ -210,8 +210,10 @@ the count doesn't move).
 ### Boot-hook registration
 
 Both `scheduledJobsListProvider` and `scheduledJobsCountsProvider` are
-registered in `realtimeBootHooksProvider`
-(`core/realtime/presentation/app_lifecycle_orchestrator.dart`). Without
+registered in `realtimeTechnicianBootHooksProvider`
+(`core/realtime/presentation/app_lifecycle_orchestrator.dart`) — the
+tech-only registry, only iterated by `bootAfterAuth` when the cached
+`UserEntity.isTechnician` is `true`. Without
 this, the listeners wouldn't register until the tech opens the Schedule
 tab — any event that fired while the tech was on Jobs / Wallet / Profile
 tabs would silently drop, and Schedule would diverge from the dashboard's

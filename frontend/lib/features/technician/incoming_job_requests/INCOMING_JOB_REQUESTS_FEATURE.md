@@ -20,7 +20,7 @@ This feature is the reference implementation of the rule documented in `CLAUDE.m
 - **Audience-first placement**: lives under `features/technician/`, not under `features/booking/` (which is the customer's checkout). The event is *about* a booking but only *received* by the technician.
 - **Subscriber pattern**: `IncomingJobQueueNotifier` (`@Riverpod(keepAlive: true)`) calls `ref.listen(systemEventProvider, …)` and filters by `SystemEventType.jobNewRequest`. Adding a future event = a new notifier in its own feature, never an edit to `core/realtime`'s notifier code.
 - **Bottom-sheet presentation, not a route**: `jobNewRequest` is intentionally **absent** from `EventUrgencyRouter._highUrgencyRoutes` and `_listRouteEvents`. Presentation is owned by `IncomingJobSheetHost` (a global overlay mounted at the app shell via `MaterialApp.router.builder`) which watches `incomingJobQueueProvider` and shows/hides itself on queue empty ↔ non-empty transitions. This collapses the previous "router push + list-route guard" pair into a single state-driven surface and preserves the technician's prior context (the sheet slides up over wherever they were instead of pushing a route).
-- **Wake-up at boot is load-bearing**: the notifier MUST subscribe to `systemEventProvider` before the WS connect cascade. `incomingJobQueueProvider` is registered in `realtimeBootHooksProvider` (declared at the bottom of `app_lifecycle_orchestrator.dart`); `bootAfterAuth` iterates that registry and reads every entry. Adding a future event of this style = append its queue provider to the registry, never edit `bootAfterAuth`. The wake-up contract is *independent* of how the feature presents (route push, sheet overlay, banner) — the orchestrator tests pin only the registry shape.
+- **Wake-up at boot is load-bearing**: the notifier MUST subscribe to `systemEventProvider` before the WS connect cascade. `incomingJobQueueProvider` is registered in `realtimeTechnicianBootHooksProvider` (declared at the bottom of `app_lifecycle_orchestrator.dart` alongside the shared `realtimeBootHooksProvider`); `bootAfterAuth` iterates that registry and reads every entry **only when** the authenticated user has `isTechnician=true`. Adding a future tech-only event of this style = append its queue provider to the tech registry; a role-agnostic event would go in the shared registry. The wake-up contract is *independent* of how the feature presents (route push, sheet overlay, banner) — the orchestrator tests pin only the registry shape.
 
 ---
 
@@ -315,12 +315,12 @@ job_new_request event arrives over ws/events/  (or FCM, or sync replay)
 **Boot sequence (load-bearing order)**:
 1. `AppLifecycleOrchestrator.bootAfterAuth` is called fire-and-forget by `AuthNotifier._scheduleBoot` (cold-start `build()` and `verifyOtp` paths).
 2. `eventSyncProvider.notifier.onUnauthorized` is set.
-3. The for-loop in `bootAfterAuth` iterates `realtimeBootHooksProvider`, reading every entry. `incomingJobQueueProvider` is in that list — this read wakes the queue subscriber.
+3. The for-loop in `bootAfterAuth` iterates `realtimeBootHooksProvider` (shared, always-on) and — when `_scheduleBoot` passed `isTechnician: true` from the cached `UserEntity` — additionally iterates `realtimeTechnicianBootHooksProvider`. `incomingJobQueueProvider` is in the tech registry, so this read only wakes for technicians (the endpoint behind it is `IsTechnician`-gated and would 403 for customers; gating prevents that wasted GET and the resulting cached `AsyncError`).
 4. FCM initializes (drains background queue, registers token).
 5. Sentinel: if teardown ran during step 4 and nulled `onUnauthorized`, `bootAfterAuth` bails. This prevents a stale-token reconnect.
 6. `wsConnectionProvider.notifier.connect(token)` — triggers sync cascade; events start flowing.
 
-If step 3 is skipped or moved after step 6, the very first `job_new_request` of the session is delivered to `SystemEventNotifier` but missed by this feature's listener (because `ref.listen` only fires on transitions *after* subscription). The orchestrator test pins this contract via `realtimeBootHooksProvider registry R1/R2` — R1 asserts the queue provider is in the registry, R2 asserts the for-loop iterates it.
+If step 3 is skipped or moved after step 6, the very first `job_new_request` of the session is delivered to `SystemEventNotifier` but missed by this feature's listener (because `ref.listen` only fires on transitions *after* subscription). The orchestrator test pins this contract via R1/R2/R3 — R1 asserts the queue provider is in the tech registry (and NOT the shared registry), R2 asserts the for-loop iterates both registries when `isTechnician=true`, R3 asserts the tech registry is skipped for non-technicians.
 
 ---
 

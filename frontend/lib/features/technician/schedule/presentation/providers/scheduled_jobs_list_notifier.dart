@@ -5,11 +5,12 @@
 //
 //   * `keepAlive: true` because the notifier MUST be subscribed to
 //     `systemEventProvider` BEFORE any state-machine event arrives. The
-//     orchestrator's `realtimeBootHooksProvider` registry includes
-//     [scheduledJobsListProvider] (and the counts provider) so
-//     `bootAfterAuth` performs an eager `ref.read(...)` before the WS
-//     connect cascade fires. Same pattern the dashboard + customer
-//     bookings list use.
+//     orchestrator's `realtimeTechnicianBootHooksProvider` registry
+//     includes [scheduledJobsListProvider] (and the counts provider)
+//     so `bootAfterAuth` performs an eager `ref.read(...)` before the
+//     WS connect cascade fires — but only when the authenticated user
+//     has `isTechnician=true`. Same pattern the dashboard uses; the
+//     customer bookings list uses the parallel SHARED registry.
 //
 // **Build.**
 //
