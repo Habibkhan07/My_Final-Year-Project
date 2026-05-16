@@ -361,31 +361,43 @@ class _LocationHeader extends ConsumerWidget {
               children: [
                 Icon(Icons.location_on, color: Colors.blue.shade700, size: 18),
                 const SizedBox(width: 4),
-                defaultAddressAsync.when(
-                  loading: () => const SizedBox(
-                    width: 14,
-                    height: 14,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Color(0xFF0051AE),
+                // Wrap in Expanded so the address `Text` has a finite
+                // width budget — geocoded `streetAddress` strings
+                // (e.g. "Rehman Pura, Model Town, Model Town Tehsil,
+                // Lahore District, ...") exceed the viewport. Without
+                // this the Row overflowed horizontally; with this the
+                // text ellipsizes on the right.
+                Expanded(
+                  child: defaultAddressAsync.when(
+                    loading: () => const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Color(0xFF0051AE),
+                      ),
                     ),
-                  ),
-                  error: (_, _) => const Text(
-                    'Location unavailable',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15,
-                      color: Color(0xFF727785),
+                    error: (_, _) => const Text(
+                      'Location unavailable',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                        color: Color(0xFF727785),
+                      ),
                     ),
-                  ),
-                  data: (address) => Text(
-                    address?.streetAddress ?? 'Set your location',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15,
-                      color: address != null
-                          ? const Color(0xFF151C24)
-                          : Colors.grey.shade500,
+                    data: (address) => Text(
+                      address?.streetAddress ?? 'Set your location',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                        color: address != null
+                            ? const Color(0xFF151C24)
+                            : Colors.grey.shade500,
+                      ),
                     ),
                   ),
                 ),
