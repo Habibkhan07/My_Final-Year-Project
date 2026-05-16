@@ -27,4 +27,11 @@ class AddressLocalDataSource {
       return null;
     }
   }
+
+  /// Clears the cached addresses. Called from `teardownOnLogout` so the
+  /// next user signing in on the same device cannot read the previous
+  /// user's saved addresses via the offline-fallback path.
+  Future<void> clear() async {
+    await prefs.remove(_key);
+  }
 }

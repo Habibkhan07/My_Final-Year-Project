@@ -75,3 +75,16 @@ class CompleteSignupView(APIView):
             raise serializers.ValidationError({"detail": message})
 
         return Response({"message": message}, status=status.HTTP_200_OK)
+
+
+class LogoutView(APIView):
+    """Invalidates the caller's auth token server-side."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        # SECURITY: deletes the caller's own Token row only. ``request.user``
+        # is resolved by DRF's TokenAuthentication from the Authorization
+        # header — there is no user_id in the URL or body, so no IDOR
+        # vector. Mass deletion by id is not exposed anywhere on this view.
+        auth_service.logout(user=request.user)
+        return Response(status=status.HTTP_204_NO_CONTENT)

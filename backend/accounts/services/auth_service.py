@@ -87,3 +87,19 @@ def process_otp_verification(*, phone: str, otp_input: str):
             "name_required": name_required,
             "new_user": created,
         }
+
+
+def logout(*, user) -> None:
+    """
+    Invalidates the user's auth token server-side.
+
+    Idempotent: deleting a missing row is a 0-row no-op, not an error.
+    This matters because the FE's logout flow first POSTs here, then
+    clears local secure storage — a retried POST after a transient
+    network failure must succeed cleanly.
+
+    Why a service for one line: the view stays a thin HTTP shell per
+    the 4-layer rule, and this is the right home for future side-effects
+    (audit-log row, per-device revoke in v1.1, etc.).
+    """
+    Token.objects.filter(user=user).delete()

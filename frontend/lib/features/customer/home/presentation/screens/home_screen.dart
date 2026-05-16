@@ -3,11 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../../core/theme/app_colors.dart';
-import '../../../../../core/theme/app_spacing.dart';
 import '../../../addresses/presentation/providers/dependency_injection.dart';
 import '../../../addresses/presentation/widgets/address_selector_sheet.dart';
 import '../../../bookings/presentation/screens/customer_bookings_list_screen.dart';
 import '../../../help/presentation/screens/help_screen.dart';
+import '../../../profile/presentation/screens/profile_tab_screen.dart';
 import '../../domain/failures/home_failure.dart';
 import '../providers/current_tab_notifier.dart';
 import '../providers/home_notifier.dart';
@@ -37,7 +37,8 @@ import '../widgets/technician_carousel.dart';
 ///   0. Home feed (services, promos, top technicians)
 ///   1. Bookings (My Bookings list — `CustomerBookingsListScreen`)
 ///   2. Help     (AI chatbot — `general` persona of the chatbot framework)
-///   3. Profile  (placeholder until the profile feature ships)
+///   3. Profile  (`ProfileTabScreen` — name, addresses, Technician Mode,
+///               About, Sign out)
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
@@ -71,18 +72,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               : const SizedBox.shrink(),
           _visited.contains(2) ? const HelpScreen() : const SizedBox.shrink(),
           _visited.contains(3)
-              ? const _ComingSoonTab(
-                  icon: Icons.person_outline,
-                  label: 'Profile',
-                  body: 'Your profile and settings will live here.',
-                )
+              ? const ProfileTabScreen()
               : const SizedBox.shrink(),
         ],
       ),
       bottomNavigationBar: _BottomNav(),
-      // DEBUG FABs only on the Home tab — these are temporary sprint
-      // helpers, not production navigation.
-      floatingActionButton: tab == 0 ? const _DebugFabs() : null,
     );
   }
 }
@@ -330,102 +324,6 @@ class _HomeFeedTab extends ConsumerWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Coming-soon placeholder for not-yet-built tabs
-// ---------------------------------------------------------------------------
-
-class _ComingSoonTab extends StatelessWidget {
-  const _ComingSoonTab({
-    required this.icon,
-    required this.label,
-    required this.body,
-  });
-
-  final IconData icon;
-  final String label;
-  final String body;
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      child: Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s8),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 120,
-                height: 120,
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceContainerLow,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(icon, size: 64, color: AppColors.outlineVariant),
-              ),
-              const SizedBox(height: AppSpacing.s6),
-              Text(
-                label,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 20,
-                  height: 28 / 20,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.onSurface,
-                ),
-              ),
-              const SizedBox(height: AppSpacing.s2),
-              Text(
-                body,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 14,
-                  height: 20 / 14,
-                  color: AppColors.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Debug FABs (temporary — sprint routing helpers, will be removed)
-// ---------------------------------------------------------------------------
-
-class _DebugFabs extends StatelessWidget {
-  const _DebugFabs();
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        FloatingActionButton.extended(
-          heroTag: 'debug_dashboard',
-          onPressed: () => context.go('/technician/dashboard'),
-          backgroundColor: Colors.green.shade700,
-          icon: const Icon(Icons.dashboard, color: Colors.white),
-          label: const Text(
-            'Tech Dashboard',
-            style: TextStyle(color: Colors.white),
-          ),
-        ),
-        const SizedBox(height: 8),
-        FloatingActionButton(
-          heroTag: 'debug_onboarding',
-          onPressed: () => context.push('/technician/onboarding'),
-          backgroundColor: Colors.blue.shade700,
-          child: const Icon(Icons.handyman, color: Colors.white),
-        ),
-      ],
     );
   }
 }

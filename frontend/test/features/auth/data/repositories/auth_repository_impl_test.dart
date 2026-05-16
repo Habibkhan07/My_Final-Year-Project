@@ -338,13 +338,49 @@ void main() {
   // ---------------------------------------------------------------------------
 
   group('logout', () {
-    test('delegates to localDataSource.clearAll', () async {
+    test('without cached token: just clears local storage', () async {
+      // No token in secure storage → skip the remote round-trip entirely.
+      when(() => mockLocal.getToken()).thenAnswer((_) async => null);
       when(() => mockLocal.clearAll()).thenAnswer((_) async {});
 
       await repository.logout();
 
+      verifyNever(() => mockRemote.logout(any()));
       verify(() => mockLocal.clearAll()).called(1);
     });
+
+    test('with cached token: posts to /logout/ THEN clears local', () async {
+      when(() => mockLocal.getToken()).thenAnswer((_) async => tToken);
+      when(() => mockRemote.logout(any())).thenAnswer((_) async {});
+      when(() => mockLocal.clearAll()).thenAnswer((_) async {});
+
+      await repository.logout();
+
+      verify(() => mockRemote.logout(tToken)).called(1);
+      verify(() => mockLocal.clearAll()).called(1);
+    });
+
+    test(
+      'remote logout failure does NOT block the local clear',
+      () async {
+        // Offline / 401 / dead network — local clear must still happen
+        // so the user always lands at /login (server-side token will be
+        // reaped on next sync or by future cleanup jobs).
+        when(() => mockLocal.getToken()).thenAnswer((_) async => tToken);
+        when(() => mockRemote.logout(any())).thenThrow(
+          const HttpFailure(
+            statusCode: 401,
+            code: 'unauthorized',
+            message: 'Unauthorized.',
+          ),
+        );
+        when(() => mockLocal.clearAll()).thenAnswer((_) async {});
+
+        await repository.logout();
+
+        verify(() => mockLocal.clearAll()).called(1);
+      },
+    );
   });
 
   // ---------------------------------------------------------------------------

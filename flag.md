@@ -1809,26 +1809,29 @@ P2. Functional workaround (re-pick + proceed) exists. Quality-of-life shortfall 
 
 ## 52. No logout-clear-feature-caches hook (chatbot side flagged; concern is cross-cutting)
 
-**Where**
-- `frontend/lib/features/customer/chatbot/data/data_sources/chatbot_local_data_source.dart:160` — `clear()` exists but is never called
-- Auth feature: logout flow does not iterate over feature caches
+**Partial resolution (2026-05-16):** `AppLifecycleOrchestrator.clearCustomerDataCaches` (in `app_lifecycle_orchestrator.dart`) now clears `profileLocalDataSource` + `addressLocalDataSource` + `chatbotLocalDataSource` and invalidates `profileProvider` + `addressesProvider` on logout. The cross-cutting `FeatureCacheTeardown` signal still doesn't exist — each new per-user cache must be manually wired into `clearCustomerDataCaches`. The chatbot-recovery-id staleness from the original flag text is now closed.
 
-**What's wrong (today)**
-`ChatbotLocalDataSource` writes two key shapes to `SharedPreferences` — the recovery id and per-conversation drafts. On logout, those keys persist. A different user logging in on the same device would inherit the previous user's recovery id (which would 404 against their auth token, so no actual data leak — but the local state is stale).
+**Where**
+- ~~`frontend/lib/features/customer/chatbot/data/data_sources/chatbot_local_data_source.dart:173` — `clear()` exists but is never called~~ ✅ wired via the orchestrator registry (2026-05-16)
+- Auth feature: logout flow does not iterate over feature caches; the orchestrator's hardcoded list (profile, addresses, chatbot) is the de-facto registry
+- Other audited gaps still open: bookings, technician onboarding, technician metrics — none of their local caches participate in logout teardown
+
+**What's wrong (residual)**
+The orchestrator's registry is hand-maintained — adding a new per-user cache means manually editing `clearCustomerDataCaches`. A feature added without that edit will leak its local state across user sessions on the same device. There is no compile-time enforcement.
 
 **Why we shipped it that way**
-The keys are user-scoped via the `auth_token` boundary in secure storage — a stale recovery id can't fetch another user's conversation. Acceptable for v1. The proper fix requires a cross-feature signal that doesn't exist yet (the auth feature would need to enumerate every feature's `LocalDataSource.clear()` on logout).
+The proper fix requires a cross-feature signal that doesn't exist yet (the auth feature would need to enumerate every feature's `LocalDataSource.clear()` on logout). The orchestrator's registry is the bridge until that lands.
 
 **The proper fix**
 1. Define a `FeatureCacheTeardown` signal in the auth feature — e.g., a list of `Future<void> Function()` callbacks registered at boot.
 2. Each feature's DI registers its `LocalDataSource.clear()` against this signal.
 3. `AuthNotifier.logout()` iterates the list before clearing secure storage.
-4. Audit other features for the same gap (bookings, technician onboarding, addresses, …).
+4. Audit remaining features for the same gap (bookings, technician onboarding, technician metrics).
 
-Properly an auth-feature task, not chatbot-specific. The chatbot side is one line of registration once the signal exists.
+Properly an auth-feature task. Each feature side is one line of registration once the signal exists.
 
 **Severity**
-P3. Acceptable v1 — no real data-leak surface. Will become P2 once shared-device usage becomes a real consideration.
+P3. The original chatbot-side concern is closed. Residual gap is "no compile-time enforcement that new caches register themselves" — a hygiene issue, not a data-leak surface.
 
 ---
 
@@ -1935,3 +1938,29 @@ Search hints: `GeneralHelpPersona`, `is_closed=False`, `persona_key='general'`, 
 
 **Severity**
 P3. Pure accumulation; no functional or security impact. Becomes P2 when the conversation table grows large enough to hurt `Conversation`-keyed query plans (probably tens of thousands of stale rows).
+
+---
+
+## 57. App version is hardcoded in two profile screens — `package_info_plus` not on `pubspec`
+
+**Where**
+- `frontend/lib/features/customer/profile/presentation/screens/about_karigar_screen.dart:11` — `_appVersion = '1.0.0'`
+- `frontend/lib/features/customer/profile/presentation/screens/profile_tab_screen.dart:98` — `'Karigar  ·  v1.0.0'`
+- `frontend/pubspec.yaml` — `package_info_plus` is absent
+
+**What's wrong**
+The customer Profile feature (Profile tab footer + About Karigar screen) displays the app version as a hardcoded string in two separate places. Any future `pubspec.yaml` version bump will leave both call sites stale, and the two will drift independently if a future maintainer only updates one.
+
+**Why we shipped it that way**
+The profile feature shipped in the viva-week sprint with code-freeze 2026-05-17 02:00. Adding `package_info_plus` to `pubspec.yaml` would have pulled a new transitive dep into a pre-freeze diff (build / iOS pod / CI implications), and the "always says 1.0.0" placeholder was a cleaner risk profile than racing a dep bump against the freeze.
+
+**The proper fix**
+1. Add `package_info_plus: ^8.x` to `pubspec.yaml` under `dependencies:`.
+2. Run `flutter pub get`; verify iOS Podfile.lock + Android build settings still compile (the plugin has native platform code on both).
+3. Replace both hardcoded literals with `(await PackageInfo.fromPlatform()).version` (and `.buildNumber` if we want the `+1` suffix).
+4. Since `PackageInfo.fromPlatform()` is async, hoist it into a `@Riverpod(keepAlive: true)` provider (`appPackageInfo`) so both screens read from a single shared async value.
+
+~5–10 lines of code + one dep. Safe to land post-viva. Search hints: `_appVersion`, `'v1.0.0'`, `Karigar  ·  v`.
+
+**Severity**
+P3. Cosmetic / honesty concern, no functional or security impact. Becomes P2 only when the app actually ships a version != 1.0.0 and the two call sites drift visibly.

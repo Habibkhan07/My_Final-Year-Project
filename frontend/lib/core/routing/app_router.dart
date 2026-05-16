@@ -20,6 +20,10 @@ import '../../features/technician/onboarding/domain/entities/technician_entity.d
 import '../../features/technician/onboarding/domain/entities/technician_status.dart';
 import '../../features/booking/presentation/screens/technician_profile_screen.dart';
 import '../../features/customer/addresses/presentation/screens/map_picker_screen.dart';
+import '../../features/customer/profile/presentation/screens/about_karigar_screen.dart';
+import '../../features/customer/profile/presentation/screens/customer_addresses_screen.dart';
+import '../../features/customer/profile/presentation/screens/edit_profile_screen.dart';
+import '../../features/customer/profile/presentation/screens/terms_and_privacy_screen.dart';
 import '../../features/technician/dashboard/presentation/screens/technician_dashboard_screen.dart';
 import '../../features/technician/work_location/presentation/screens/work_location_picker_screen.dart';
 import '../../features/technician/metrics/presentation/screens/metrics_screen.dart';
@@ -94,6 +98,25 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/addresses/map-picker',
         builder: (context, state) => const MapPickerScreen(),
+      ),
+      // ----------------------------------------------------------------
+      // Customer profile feature — pushed from Profile tab.
+      // ----------------------------------------------------------------
+      GoRoute(
+        path: '/customer/profile/edit',
+        builder: (context, state) => const EditProfileScreen(),
+      ),
+      GoRoute(
+        path: '/customer/addresses',
+        builder: (context, state) => const CustomerAddressesScreen(),
+      ),
+      GoRoute(
+        path: '/customer/about',
+        builder: (context, state) => const AboutKarigarScreen(),
+      ),
+      GoRoute(
+        path: '/customer/legal',
+        builder: (context, state) => const TermsAndPrivacyScreen(),
       ),
       GoRoute(
         path: '/technician/work-location',

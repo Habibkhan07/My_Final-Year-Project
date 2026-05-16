@@ -68,6 +68,18 @@ class AuthRemoteDataSource {
     return data['message'] ?? "Profile updated";
   }
 
+  // --- 4. LOGOUT ---
+  /// Invalidates the auth token server-side. Returns on 204; throws
+  /// [HttpFailure] on any non-2xx. The repository is responsible for
+  /// the offline-safe try/catch so this stays a pure transport call.
+  Future<void> logout(String token) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/logout/'),
+      headers: {'Authorization': 'Token $token'},
+    );
+    _handleResponse(response);
+  }
+
   // --- THE PARSER LOGIC ---
   void _handleResponse(http.Response response) {
     if (response.statusCode >= 200 && response.statusCode < 300) {

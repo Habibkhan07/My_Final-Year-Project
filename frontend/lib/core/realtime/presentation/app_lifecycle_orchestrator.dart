@@ -18,8 +18,12 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 // Anywhere else in core: callback inversion, not a direct import.
 // ───────────────────────────────────────────────────────────────────────────
 import '../../../features/auth/presentation/providers/auth_notifier.dart';
+import '../../../features/customer/addresses/presentation/providers/dependency_injection.dart';
 import '../../../features/customer/bookings/presentation/providers/customer_bookings_counts_notifier.dart';
 import '../../../features/customer/bookings/presentation/providers/customer_bookings_list_notifier.dart';
+import '../../../features/customer/chatbot/presentation/providers/dependency_injection.dart';
+import '../../../features/customer/profile/presentation/providers/dependency_injection.dart';
+import '../../../features/customer/profile/presentation/providers/profile_notifier.dart';
 import '../../../features/technician/dashboard/presentation/notifiers/technician_dashboard_notifier.dart';
 import '../../../features/technician/incoming_job_requests/presentation/providers/incoming_job_queue_notifier.dart';
 import '../../../features/technician/schedule/presentation/providers/scheduled_jobs_counts_notifier.dart';
@@ -221,16 +225,101 @@ class AppLifecycleOrchestrator extends ConsumerStatefulWidget {
     eventSync.onUnauthorized = null;
   }
 
-  static Future<void> teardownOnLogout(Ref ref) => performTeardown(
-    wsConnection: ref.read(wsConnectionProvider.notifier),
-    fcmHandler: ref.read(fcmHandlerProvider),
-    foregroundLocationLifecycle: ref.read(
-      location_broadcaster_di.foregroundLocationLifecycleProvider,
-    ),
-    systemEventNotifier: ref.read(systemEventProvider.notifier),
-    eventSync: ref.read(eventSyncProvider.notifier),
-    local: ref.read(eventLocalDataSourceProvider),
-  );
+  /// Clears all per-user caches and resets `keepAlive` notifiers so a
+  /// second user signing in on the same device cannot read the previous
+  /// user's data via either the offline-fallback path (SharedPreferences)
+  /// or the in-memory provider state.
+  ///
+  /// Called only from [teardownOnLogout]. Split out so the test surface
+  /// can mock the realtime side independently of the customer-data side.
+  ///
+  /// Why both layers: the SharedPreferences cache survives logout because
+  /// `AuthLocalDataSource.clearAll()` only removes the auth token + the
+  /// cached `UserEntity` — every other feature's Tier-2 cache (profile,
+  /// addresses, ...) is invisible to it. Without this reset, a second
+  /// user offline at boot would see the first user's profile/addresses.
+  ///
+  /// Each clear is wrapped in its own try/catch so a missing dependency
+  /// (e.g. tests of the realtime subsystem that don't override
+  /// `sharedPreferencesProvider`) cannot make logout itself fail. In
+  /// production every override is wired in `main.dart`'s `ProviderScope`,
+  /// so the catches are pure test-resilience belts.
+  ///
+  /// Adding a new per-user cache? Wire its `.clear()` call here and
+  /// `ref.invalidate(<provider>)` below.
+  @visibleForTesting
+  static Future<void> clearCustomerDataCaches(Ref ref) async {
+    // Persisted caches (Tier 2 — SharedPreferences).
+    await _safelyClear(
+      () async => (ref.read(profileLocalDataSourceProvider)).clear(),
+      'profileLocalDataSource',
+    );
+    await _safelyClear(
+      () async => (ref.read(addressLocalDataSourceProvider)).clear(),
+      'addressLocalDataSource',
+    );
+    // Chatbot writes two key shapes into prefs: the active conversation
+    // id (per booking, for dispute persona resumability) and per-screen
+    // drafts. Both are per-user; the second signer-in on a shared device
+    // must not inherit them. The notifiers themselves are `@riverpod`
+    // (auto-dispose), so no provider invalidation is needed — only the
+    // prefs keys persist across screen pops.
+    await _safelyClear(
+      () async => (ref.read(chatbotLocalDataSourceProvider)).clear(),
+      'chatbotLocalDataSource',
+    );
+
+    // In-memory provider state. Both are `@Riverpod(keepAlive: true)`
+    // so they survive the logout flow unless explicitly invalidated;
+    // without this, `ref.watch(profileProvider)` returns the previous
+    // user's `AsyncData` until something else triggers a rebuild.
+    _safelyInvalidate(ref, profileProvider, 'profileProvider');
+    _safelyInvalidate(ref, addressesProvider, 'addressesProvider');
+  }
+
+  static Future<void> _safelyClear(
+    Future<void> Function() op,
+    String name,
+  ) async {
+    try {
+      await op();
+    } catch (e, st) {
+      log(
+        'clearCustomerDataCaches: $name clear failed: $e',
+        name: 'core.presentation.app_lifecycle_orchestrator',
+        stackTrace: st,
+      );
+    }
+  }
+
+  static void _safelyInvalidate(Ref ref, ProviderOrFamily p, String name) {
+    try {
+      ref.invalidate(p);
+    } catch (e, st) {
+      log(
+        'clearCustomerDataCaches: $name invalidate failed: $e',
+        name: 'core.presentation.app_lifecycle_orchestrator',
+        stackTrace: st,
+      );
+    }
+  }
+
+  static Future<void> teardownOnLogout(Ref ref) async {
+    await performTeardown(
+      wsConnection: ref.read(wsConnectionProvider.notifier),
+      fcmHandler: ref.read(fcmHandlerProvider),
+      foregroundLocationLifecycle: ref.read(
+        location_broadcaster_di.foregroundLocationLifecycleProvider,
+      ),
+      systemEventNotifier: ref.read(systemEventProvider.notifier),
+      eventSync: ref.read(eventSyncProvider.notifier),
+      local: ref.read(eventLocalDataSourceProvider),
+    );
+    // Customer-data caches: cleared AFTER realtime teardown so any
+    // FCM-unregister / WS-disconnect side-effect that races with this
+    // can't repopulate the cache it just cleared.
+    await clearCustomerDataCaches(ref);
+  }
 }
 
 class _AppLifecycleOrchestratorState

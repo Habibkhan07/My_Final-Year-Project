@@ -33,7 +33,7 @@ final class HelpChatNotifierProvider
   HelpChatNotifier create() => HelpChatNotifier();
 }
 
-String _$helpChatNotifierHash() => r'67afee6fc53c3c45037938c02a58753ebc36f15f';
+String _$helpChatNotifierHash() => r'7ccad3d9fb162486ea2ab5b8d7a5503b0d3022bb';
 
 abstract class _$HelpChatNotifier extends $AsyncNotifier<HelpChatState> {
   FutureOr<HelpChatState> build();

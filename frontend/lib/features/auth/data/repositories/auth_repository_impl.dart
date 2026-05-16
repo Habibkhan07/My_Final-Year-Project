@@ -60,6 +60,25 @@ class AuthRepositoryImpl implements AuthRepository {
 
   @override
   Future<void> logout() async {
+    // Server-side token invalidation FIRST, local clear regardless.
+    //
+    // Order: the POST must run while the token is still in storage so
+    // its Authorization header authenticates. After this we always wipe
+    // local state — an offline failure or 401 from a token already
+    // revoked elsewhere must NOT trap the user in a logged-in shell.
+    // The user always ends up at /login; the worst case on a network
+    // failure is a dead Token row lingering server-side until a future
+    // cleanup job (acceptable per the v1.1 deferral in AUTH_API.md).
+    final token = await localDataSource.getToken();
+    if (token != null && token.isNotEmpty) {
+      try {
+        await remoteDataSource.logout(token);
+      } catch (_) {
+        // Swallow — local clear below is the source of truth for
+        // "is the user signed out on this device?". Server-side
+        // reconciliation can happen later.
+      }
+    }
     await localDataSource.clearAll();
   }
 
