@@ -27,10 +27,12 @@ part of 'technician_dashboard_notifier.dart';
 /// field.
 ///
 /// **keepAlive: true** so that:
-///   * The notifier wakes at boot (via `realtimeBootHooksProvider`) and
-///     subscribes to `systemEventProvider` BEFORE the first WS frame, so
-///     events that arrive while the dashboard tab isn't open still
-///     refresh the cached state when the user navigates to it.
+///   * The notifier wakes at boot (via `realtimeTechnicianBootHooksProvider`
+///     — the tech-only registry that `bootAfterAuth` iterates only when
+///     `isTechnician=true`) and subscribes to `systemEventProvider`
+///     BEFORE the first WS frame, so events that arrive while the
+///     dashboard tab isn't open still refresh the cached state when
+///     the user navigates to it.
 ///   * The notifier survives bottom-nav tab switches — switching to
 ///     Jobs / Wallet / Profile and back returns to a still-fresh
 ///     dashboard rather than re-fetching on every tap.
@@ -57,10 +59,12 @@ final technicianDashboardProvider = TechnicianDashboardNotifierProvider._();
 /// field.
 ///
 /// **keepAlive: true** so that:
-///   * The notifier wakes at boot (via `realtimeBootHooksProvider`) and
-///     subscribes to `systemEventProvider` BEFORE the first WS frame, so
-///     events that arrive while the dashboard tab isn't open still
-///     refresh the cached state when the user navigates to it.
+///   * The notifier wakes at boot (via `realtimeTechnicianBootHooksProvider`
+///     — the tech-only registry that `bootAfterAuth` iterates only when
+///     `isTechnician=true`) and subscribes to `systemEventProvider`
+///     BEFORE the first WS frame, so events that arrive while the
+///     dashboard tab isn't open still refresh the cached state when
+///     the user navigates to it.
 ///   * The notifier survives bottom-nav tab switches — switching to
 ///     Jobs / Wallet / Profile and back returns to a still-fresh
 ///     dashboard rather than re-fetching on every tap.
@@ -89,10 +93,12 @@ final class TechnicianDashboardNotifierProvider
   /// field.
   ///
   /// **keepAlive: true** so that:
-  ///   * The notifier wakes at boot (via `realtimeBootHooksProvider`) and
-  ///     subscribes to `systemEventProvider` BEFORE the first WS frame, so
-  ///     events that arrive while the dashboard tab isn't open still
-  ///     refresh the cached state when the user navigates to it.
+  ///   * The notifier wakes at boot (via `realtimeTechnicianBootHooksProvider`
+  ///     — the tech-only registry that `bootAfterAuth` iterates only when
+  ///     `isTechnician=true`) and subscribes to `systemEventProvider`
+  ///     BEFORE the first WS frame, so events that arrive while the
+  ///     dashboard tab isn't open still refresh the cached state when
+  ///     the user navigates to it.
   ///   * The notifier survives bottom-nav tab switches — switching to
   ///     Jobs / Wallet / Profile and back returns to a still-fresh
   ///     dashboard rather than re-fetching on every tap.
@@ -137,10 +143,12 @@ String _$technicianDashboardNotifierHash() =>
 /// field.
 ///
 /// **keepAlive: true** so that:
-///   * The notifier wakes at boot (via `realtimeBootHooksProvider`) and
-///     subscribes to `systemEventProvider` BEFORE the first WS frame, so
-///     events that arrive while the dashboard tab isn't open still
-///     refresh the cached state when the user navigates to it.
+///   * The notifier wakes at boot (via `realtimeTechnicianBootHooksProvider`
+///     — the tech-only registry that `bootAfterAuth` iterates only when
+///     `isTechnician=true`) and subscribes to `systemEventProvider`
+///     BEFORE the first WS frame, so events that arrive while the
+///     dashboard tab isn't open still refresh the cached state when
+///     the user navigates to it.
 ///   * The notifier survives bottom-nav tab switches — switching to
 ///     Jobs / Wallet / Profile and back returns to a still-fresh
 ///     dashboard rather than re-fetching on every tap.

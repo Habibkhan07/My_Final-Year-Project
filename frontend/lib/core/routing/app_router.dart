@@ -27,6 +27,9 @@ import '../../features/customer/profile/presentation/screens/terms_and_privacy_s
 import '../../features/technician/dashboard/presentation/screens/technician_dashboard_screen.dart';
 import '../../features/technician/work_location/presentation/screens/work_location_picker_screen.dart';
 import '../../features/technician/metrics/presentation/screens/metrics_screen.dart';
+import '../../features/technician/profile/presentation/screens/add_skill_screen.dart';
+import '../../features/technician/profile/presentation/screens/my_skills_screen.dart';
+import '../../features/technician/profile/presentation/screens/technician_profile_tab_screen.dart';
 import '../../features/technician/schedule/presentation/screens/schedule_screen.dart';
 import '../../features/technician/wallet/presentation/screens/wallet_screen.dart';
 import '../../features/technician/wallet/presentation/screens/withdrawal_history_screen.dart';
@@ -244,6 +247,21 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/technician/schedule',
         builder: (context, state) =>
             const ScheduleScreen(showBackButton: true),
+      ),
+      // Tech profile tab — pushed from bottom-nav "Profile" tap on the
+      // dashboard. Mirrors the customer profile tab's visual language;
+      // the /skills child routes own the CRUD surface.
+      GoRoute(
+        path: '/technician/profile',
+        builder: (context, state) => const TechnicianProfileTabScreen(),
+      ),
+      GoRoute(
+        path: '/technician/profile/skills',
+        builder: (context, state) => const MySkillsScreen(),
+      ),
+      GoRoute(
+        path: '/technician/profile/skills/add',
+        builder: (context, state) => const AddSkillScreen(),
       ),
       GoRoute(
         path: '/technician-profile/:id',

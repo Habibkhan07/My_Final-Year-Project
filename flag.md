@@ -1991,3 +1991,25 @@ Search hints: `_scheduleBoot`, `realtimeTechnicianBootHooksProvider`, `Technicia
 
 **Severity**
 P3. No regression vs the pre-fix behaviour; same UX as before. Becomes P2 when the product surfaces "you've been approved, go to your dashboard" as an in-session affordance without a re-login.
+
+---
+
+## 59. Tech profile-tab Skills CRUD — category gate, schema-as-source-of-truth (2026-05-17)
+
+The Profile tab's Add Skill flow now enforces that a tech can only add sub-services within categories they opted into at onboarding. The anchor is `TechnicianServiceLicense` — one row per parent service the tech picked skills under, auto-created by `registration_service.finalize_registration`.
+
+This entry exists to document **decisions** that future sprints must respect, not a bug to fix.
+
+**Schema decision** — `TechnicianServiceLicense.license_picture` is `null=True, blank=True`. Row existence (not picture existence) is the qualification gate. A tech opts into a category by picking skills under it; the legal license document is uploadable later by admin or a future "request verification" flow.
+
+**Unique constraint** — `unique_together = ('technician', 'service')` on `TechnicianServiceLicense`. Required so the onboarding re-application path (REJECTED → re-finalize) can wipe and re-create rows without orphans, and so the FE picker query (`Service.objects.filter(id__in=...)`) doesn't return duplicate rows.
+
+**Onboarding contract** — `finalize_registration` derives the parent-service set from submitted skills and upserts a `TechnicianServiceLicense` row per service. `category_licenses` files supplied for services NOT in the derived set are silently dropped (uploading a license without selecting any skill under that category is not a meaningful opt-in).
+
+**Gate anchor** — `add_skill` queries `TechnicianServiceLicense.objects.filter(technician=..., service=sub_service.service).exists()`. The picker endpoint `GET /me/service-categories/` queries the same table. Decoupling row-existence from current-skills-existence means a tech can drop all skills under a category and still re-add later (license row survives skill churn).
+
+**Copy contract** — error envelope and FE snackbars use neutral copy ("HVAC is not in the categories you chose at onboarding") rather than promising a self-serve "contact support to expand into new categories" flow that the platform does not yet implement. When such a flow ships, the copy can be updated to reference it.
+
+**Future obligation** — when admin tooling adds a "approve new category for existing tech" affordance, it should insert a `TechnicianServiceLicense` row (with or without picture) for that (tech, service) pair. No other changes needed — the gate reads the table directly.
+
+Search hints: `ServiceCategoryNotAllowedError`, `list_my_service_categories`, `category_not_allowed`, `TechnicianServiceLicense`.

@@ -12,6 +12,11 @@ from .scheduled_jobs.views import (
     TechnicianScheduledJobsCountsView,
     TechnicianScheduledJobsListView,
 )
+from .skills.views import (
+    MyServiceCategoriesView,
+    MySkillsDetailView,
+    MySkillsView,
+)
 from .work_location.views import TechnicianWorkLocationView
 
 urlpatterns = [
@@ -57,6 +62,33 @@ urlpatterns = [
         'me/work-location/',
         TechnicianWorkLocationView.as_view(),
         name='tech-work-location',
+    ),
+
+    # Tech-side skills CRUD — backs the Profile tab's "My Skills" tile.
+    # ``/me/`` shape (no PK in the URL) means the caller can only target
+    # their own skill set. The detail route keys by ``sub_service_id``
+    # (the catalog row), not by the bridge row PK — semantically the
+    # operation is "remove this specialty from my skills."
+    path(
+        'me/skills/',
+        MySkillsView.as_view(),
+        name='tech-my-skills',
+    ),
+    path(
+        'me/skills/<int:sub_service_id>/',
+        MySkillsDetailView.as_view(),
+        name='tech-my-skills-detail',
+    ),
+
+    # Picker catalog for the Add Skill screen — service tree filtered
+    # to the categories the caller currently works in (parent services
+    # of their existing ``TechnicianSkill`` rows). Same wire shape as
+    # ``onboarding/metadata/`` so the FE can reuse its parser; the
+    # difference is the access-gate filter.
+    path(
+        'me/service-categories/',
+        MyServiceCategoriesView.as_view(),
+        name='tech-service-categories',
     ),
 
     # Schedule tab — paginated list + counts of the tech's bookings.

@@ -116,11 +116,36 @@ class TechnicianSkill(models.Model):
     class Meta:
         unique_together = ('technician', 'sub_service')
 
-# NEW TABLE: Maps a single license to a parent Service (e.g., Plumbing)
+# NEW TABLE: Maps a single license to a parent Service (e.g., Plumbing).
+#
+# Source of truth for "which service categories did this tech onboard
+# into?". One row per (technician, parent service) the tech opted into
+# at registration — enforced by the onboarding finalize service, which
+# derives the set from the submitted skills and upserts a license row
+# per parent service. The skills CRUD endpoint gates on this table
+# (see ``technicians.services.skills_service.add_skill``).
+#
+# ``license_picture`` is intentionally optional: a tech can be opted
+# into a category (row exists) without yet having uploaded the legal
+# license document. Admin can attach the picture out-of-band; a future
+# "request verification" flow could prompt the tech to upload it.
+# Decoupling row-existence from file-existence means the gate is
+# evaluable even when license-document collection is incomplete.
 class TechnicianServiceLicense(models.Model):
     technician = models.ForeignKey(TechnicianProfile, on_delete=models.CASCADE, related_name="service_licenses")
     service = models.ForeignKey(Service, on_delete=models.CASCADE)
-    license_picture = models.ImageField(upload_to='tech_docs/licenses/')
+    license_picture = models.ImageField(
+        upload_to='tech_docs/licenses/',
+        null=True,
+        blank=True,
+    )
+
+    class Meta:
+        # A tech can only be opted into a given parent service once.
+        # The onboarding service's upsert relies on this — without the
+        # constraint, a re-finalize after REJECTED could leave dup
+        # rows for the same (tech, service).
+        unique_together = ('technician', 'service')
 
 
 # --- MATCHMAKING / PERFORMANCE DOMAIN ---

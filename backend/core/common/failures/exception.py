@@ -13,7 +13,12 @@ def custom_exception_handler(exc, context):
     # create a module-load cycle.
     from bookings.exceptions import BookingValidationError
     from chatbot.exceptions import ChatbotError
-    from technicians.exceptions import DuplicateActiveApplicationError
+    from technicians.exceptions import (
+        DuplicateActiveApplicationError,
+        DuplicateSkillError,
+        LastSkillRequiredError,
+        ServiceCategoryNotAllowedError,
+    )
     from wallet.exceptions import (
         DuplicatePendingWithdrawalError,
         InactiveTechnicianError,
@@ -27,9 +32,12 @@ def custom_exception_handler(exc, context):
             BookingValidationError,
             ChatbotError,
             DuplicateActiveApplicationError,
+            DuplicateSkillError,
             DuplicatePendingWithdrawalError,
             InactiveTechnicianError,
             InsufficientFundsError,
+            LastSkillRequiredError,
+            ServiceCategoryNotAllowedError,
             WalletLockoutError,
         ),
     ):

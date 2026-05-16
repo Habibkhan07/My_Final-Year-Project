@@ -13,7 +13,11 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from PIL import Image
 
 from technicians.exceptions import DuplicateActiveApplicationError
-from technicians.models import TechnicianProfile, TechnicianSkill
+from technicians.models import (
+    TechnicianProfile,
+    TechnicianServiceLicense,
+    TechnicianSkill,
+)
 from technicians.services.registration_service import finalize_registration
 from tests.factories.accounts import UserFactory, UserProfileFactory
 from tests.factories.catalog import ServiceFactory, SubServiceFactory
@@ -97,6 +101,135 @@ class TestReapplicationFlow:
         skills = list(TechnicianSkill.objects.filter(technician=result))
         assert len(skills) == 1
         assert skills[0].sub_service_id == self.sub_service.id
+
+    def test_finalize_auto_creates_license_row_per_skill_parent_service(
+        self,
+    ):
+        """Source-of-truth contract: every parent service the tech
+        picks skills under must produce a ``TechnicianServiceLicense``
+        row, even when no license file is uploaded. The row's existence
+        is what the skills CRUD gate reads later, so missing it would
+        lock the tech out of adding any sibling sub-services.
+        """
+        user = UserFactory()
+        UserProfileFactory(user=user)
+
+        hvac = ServiceFactory(name='HVAC')
+        plumbing_sub = SubServiceFactory(service=self.service)  # Plumbing
+        hvac_sub = SubServiceFactory(service=hvac)
+
+        validated_data = _valid_payload(sub_service=plumbing_sub)
+        # Two skills across two parent services; zero license uploads.
+        validated_data['skills'] = [
+            {
+                'sub_service_id': plumbing_sub.id,
+                'years_of_experience': 2,
+                'labor_rate': 1500.00,
+            },
+            {
+                'sub_service_id': hvac_sub.id,
+                'years_of_experience': 1,
+                'labor_rate': 2000.00,
+            },
+        ]
+        validated_data['category_licenses'] = []
+
+        result = finalize_registration(user=user, validated_data=validated_data)
+
+        license_services = set(
+            TechnicianServiceLicense.objects
+            .filter(technician=result)
+            .values_list('service_id', flat=True)
+        )
+        # One row per parent service the tech picked skills under,
+        # regardless of file upload.
+        assert license_services == {self.service.id, hvac.id}
+
+        # license_picture is None on both rows since no file uploaded.
+        for row in TechnicianServiceLicense.objects.filter(technician=result):
+            assert not row.license_picture
+
+    def test_finalize_attaches_license_picture_when_uploaded(self):
+        """When the tech DOES upload a license file for a category,
+        the file gets attached to that license row. Rows for
+        categories without an uploaded file get NULL pictures."""
+        user = UserFactory()
+        UserProfileFactory(user=user)
+
+        hvac = ServiceFactory(name='HVAC')
+        plumbing_sub = SubServiceFactory(service=self.service)
+        hvac_sub = SubServiceFactory(service=hvac)
+
+        validated_data = _valid_payload(sub_service=plumbing_sub)
+        validated_data['skills'] = [
+            {
+                'sub_service_id': plumbing_sub.id,
+                'years_of_experience': 2,
+                'labor_rate': 1500.00,
+            },
+            {
+                'sub_service_id': hvac_sub.id,
+                'years_of_experience': 1,
+                'labor_rate': 2000.00,
+            },
+        ]
+        # License file uploaded only for Plumbing — HVAC row should
+        # exist but with license_picture=None.
+        validated_data['category_licenses'] = [
+            {
+                'service_id': self.service.id,
+                'license_file': _image_file('plumbing_license.jpg'),
+            },
+        ]
+
+        result = finalize_registration(user=user, validated_data=validated_data)
+
+        plumbing_row = TechnicianServiceLicense.objects.get(
+            technician=result, service=self.service,
+        )
+        hvac_row = TechnicianServiceLicense.objects.get(
+            technician=result, service=hvac,
+        )
+        assert plumbing_row.license_picture  # truthy → file attached
+        assert not hvac_row.license_picture  # falsy → no file
+
+    def test_finalize_ignores_license_files_for_unselected_services(self):
+        """If a tech uploads a license for a service they didn't pick
+        any skill under, the upload is silently dropped — no orphan
+        license row gets created. Justification: uploading a license
+        without selecting any skill in the category is not a meaningful
+        opt-in to that category."""
+        user = UserFactory()
+        UserProfileFactory(user=user)
+
+        hvac = ServiceFactory(name='HVAC')
+        plumbing_sub = SubServiceFactory(service=self.service)
+
+        validated_data = _valid_payload(sub_service=plumbing_sub)
+        validated_data['skills'] = [
+            {
+                'sub_service_id': plumbing_sub.id,
+                'years_of_experience': 2,
+                'labor_rate': 1500.00,
+            },
+        ]
+        # Stray HVAC license upload — no HVAC skill selected, so it
+        # must NOT result in an HVAC license row.
+        validated_data['category_licenses'] = [
+            {
+                'service_id': hvac.id,
+                'license_file': _image_file('stray.jpg'),
+            },
+        ]
+
+        result = finalize_registration(user=user, validated_data=validated_data)
+
+        license_services = set(
+            TechnicianServiceLicense.objects
+            .filter(technician=result)
+            .values_list('service_id', flat=True)
+        )
+        assert license_services == {self.service.id}
 
     def test_rejected_reapply_flips_is_technician(self):
         """is_technician was already True from the first apply, but the flag

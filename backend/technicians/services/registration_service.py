@@ -4,6 +4,7 @@ from django.contrib.auth import get_user_model
 from django.db import transaction
 
 from accounts.models import UserProfile
+from catalog.models import SubService
 
 from ..exceptions import DuplicateActiveApplicationError
 from ..models import TechnicianProfile, TechnicianServiceLicense, TechnicianSkill
@@ -111,21 +112,6 @@ def finalize_registration(*, user, validated_data):
 
         profile.save()
 
-        # Category-level licenses (parent Service, e.g. Plumbing).
-        for cat_lic in category_licenses_data:
-            new_license = TechnicianServiceLicense(
-                technician=profile,
-                service_id=cat_lic['service_id'],
-            )
-            if cat_lic.get('license_file'):
-                clean_name = os.path.basename(cat_lic['license_file'].name)
-                new_license.license_picture.save(
-                    clean_name,
-                    cat_lic['license_file'],
-                    save=False,
-                )
-            new_license.save()
-
         # SubService-level skill rows.
         for skill in skills_data:
             TechnicianSkill.objects.create(
@@ -134,5 +120,48 @@ def finalize_registration(*, user, validated_data):
                 years_of_experience=skill['years_of_experience'],
                 labor_rate=skill.get('labor_rate'),
             )
+
+        # Category-level licenses — the source of truth for "which
+        # categories did this tech opt into?". One row per PARENT
+        # service the tech picked skills under, regardless of whether
+        # they uploaded a license document. The skills CRUD endpoint
+        # gates on this table (see ``skills_service.add_skill``), so
+        # the rows MUST exist for the gate to permit anything.
+        #
+        # If the tech uploaded a license picture for the category, it
+        # gets attached here; otherwise the row is created with
+        # ``license_picture=None`` (admin can attach later or a future
+        # "request verification" flow can populate it).
+        skill_sub_ids = [s['sub_service_id'] for s in skills_data]
+        parent_service_ids = set(
+            SubService.objects
+            .filter(id__in=skill_sub_ids)
+            .values_list('service_id', flat=True)
+        )
+
+        # Index supplied license files by service_id for O(1) lookup.
+        # Any ``category_licenses_data`` entry for a service the tech
+        # did NOT pick a skill under is silently dropped — uploading a
+        # license without selecting any skill under that category is
+        # not a meaningful opt-in.
+        license_files_by_service = {
+            cat_lic['service_id']: cat_lic.get('license_file')
+            for cat_lic in category_licenses_data
+        }
+
+        for service_id in parent_service_ids:
+            new_license = TechnicianServiceLicense(
+                technician=profile,
+                service_id=service_id,
+            )
+            license_file = license_files_by_service.get(service_id)
+            if license_file is not None:
+                clean_name = os.path.basename(license_file.name)
+                new_license.license_picture.save(
+                    clean_name,
+                    license_file,
+                    save=False,
+                )
+            new_license.save()
 
     return profile

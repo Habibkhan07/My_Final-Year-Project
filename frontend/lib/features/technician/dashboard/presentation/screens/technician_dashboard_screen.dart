@@ -299,11 +299,12 @@ class _DashboardNavBar extends StatelessWidget {
         fontSize: 12,
         fontWeight: FontWeight.w500,
       ),
-      // Metrics + Schedule tabs are wired. Jobs/Profile remain unwired
-      // — separate work items.
+      // Index 0 (Jobs) is the dashboard itself — no-op. Schedule,
+      // Metrics, and Profile push their dedicated routes.
       onTap: (index) {
         if (index == 1) context.push('/technician/schedule');
         if (index == 2) context.push('/technician/metrics');
+        if (index == 3) context.push('/technician/profile');
       },
       items: const [
         BottomNavigationBarItem(

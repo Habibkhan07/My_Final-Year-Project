@@ -31,6 +31,9 @@ import '../../../features/technician/schedule/presentation/providers/scheduled_j
 import '../../../features/technician/location_broadcaster/presentation/providers/dependency_injection.dart'
     as location_broadcaster_di;
 import '../../../features/technician/location_broadcaster/presentation/services/foreground_location_lifecycle.dart';
+import '../../../features/technician/profile/presentation/providers/dependency_injection.dart'
+    as tech_profile_di;
+import '../../../features/technician/profile/presentation/providers/skills_notifier.dart';
 import '../data/datasources/event_local_data_source.dart';
 import '../domain/entities/system_event_entity.dart';
 import '../domain/entities/target_role.dart';
@@ -295,13 +298,27 @@ class AppLifecycleOrchestrator extends ConsumerStatefulWidget {
       () async => (ref.read(chatbotLocalDataSourceProvider)).clear(),
       'chatbotLocalDataSource',
     );
+    // Technician skills cache. Key `cached_tech_skills` is single-user
+    // so user A's skill list would otherwise be served to user B at the
+    // next list/picker read, with knock-on effects: My Skills shows
+    // the wrong rows, Add Skill picker offers sub-services the new
+    // tech already has (BE rejects with 409 duplicate_skill), and the
+    // resulting "X is already in your skills" snackbar contradicts
+    // what My Skills displays.
+    await _safelyClear(
+      () async => (ref.read(tech_profile_di.skillsLocalDataSourceProvider))
+          .clear(),
+      'skillsLocalDataSource',
+    );
 
-    // In-memory provider state. Both are `@Riverpod(keepAlive: true)`
+    // In-memory provider state. All three are `@Riverpod(keepAlive: true)`
     // so they survive the logout flow unless explicitly invalidated;
-    // without this, `ref.watch(profileProvider)` returns the previous
-    // user's `AsyncData` until something else triggers a rebuild.
+    // without this, `ref.watch(profileProvider)` (and friends) returns
+    // the previous user's `AsyncData` until something else triggers a
+    // rebuild.
     _safelyInvalidate(ref, profileProvider, 'profileProvider');
     _safelyInvalidate(ref, addressesProvider, 'addressesProvider');
+    _safelyInvalidate(ref, skillsProvider, 'skillsProvider');
   }
 
   static Future<void> _safelyClear(
