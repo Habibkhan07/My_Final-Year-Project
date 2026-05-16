@@ -1,0 +1,62 @@
+{% extends "admin/change_form.html" %}
+{% load i18n %}
+
+{% block content %}
+  {% if fx_hero %}
+    <div class="fx-hero" style="margin-bottom:18px">
+      {% if fx_hero.profile.profile_picture %}
+        <img src="{{ fx_hero.profile.profile_picture.url }}"
+             alt="{{ fx_hero.profile.user.get_full_name|default:fx_hero.profile.user.username }}"
+             class="fx-hero-avatar">
+      {% else %}
+        <div class="fx-hero-avatar fx-hero-avatar-fallback">
+          {{ fx_hero.profile.user.first_name|first|default:fx_hero.profile.user.username|first|upper }}
+        </div>
+      {% endif %}
+      <div class="fx-hero-body">
+        <div class="fx-hero-name">
+          {{ fx_hero.profile.user.get_full_name|default:fx_hero.profile.user.username }}
+          <span class="fx-pill"
+                style="margin-left:10px;font-size:11px;padding:3px 10px;
+                       {% if fx_hero.is_approved %}background:#16a34a;{% elif fx_hero.is_rejected %}background:#dc2626;{% else %}background:#64748b;{% endif %}
+                       color:#fff;border-radius:999px;font-weight:600;
+                       vertical-align:middle;letter-spacing:.04em;text-transform:uppercase">
+            {% if fx_hero.is_suspended %}Suspended{% else %}{{ fx_hero.status }}{% endif %}
+          </span>
+        </div>
+        {% if fx_hero.skills %}
+          <div class="fx-pills" style="margin-top:6px">
+            {% for s in fx_hero.skills %}
+              <span class="fx-pill-svc">
+                {{ s.sub_service.service.name }} &rarr; {{ s.sub_service.name }}
+              </span>
+            {% endfor %}
+          </div>
+        {% endif %}
+        <div class="fx-meta-row">
+          <span class="fx-meta-chip">
+            <span class="fx-meta-chip-label">CNIC</span>
+            <span class="fx-meta-chip-value">{{ fx_hero.profile.cnic_number }}</span>
+          </span>
+          <span class="fx-meta-chip">
+            <span class="fx-meta-chip-label">City</span>
+            <span class="fx-meta-chip-value">{{ fx_hero.profile.get_city_display }}</span>
+          </span>
+          <span class="fx-meta-chip">
+            <span class="fx-meta-chip-label">Experience</span>
+            <span class="fx-meta-chip-value">{{ fx_hero.profile.experience_years }} yr</span>
+          </span>
+          <span class="fx-meta-chip">
+            <span class="fx-meta-chip-label">Phone</span>
+            <span class="fx-meta-chip-value">{{ fx_hero.profile.user.username }}</span>
+          </span>
+          <span class="fx-meta-chip">
+            <span class="fx-meta-chip-label">Wallet</span>
+            <span class="fx-meta-chip-value">Rs.&nbsp;{{ fx_hero.profile.current_wallet_balance|default:"0" }}</span>
+          </span>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+  {{ block.super }}
+{% endblock %}

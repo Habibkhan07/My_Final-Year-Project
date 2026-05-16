@@ -382,6 +382,31 @@ class TechnicianProfileAdmin(admin.ModelAdmin):
                 'admin:technicians_technicianprofile_review',
                 profile_id=object_id,
             )
+
+        # APPROVED / REJECTED / suspended techs keep the editable admin
+        # form (inlines for skills, schedule, wallet ledger are reference
+        # data the supervisor still needs to reach). But we prepend the
+        # same hero strip the /review/ page uses so visual family holds.
+        full_profile = (
+            TechnicianProfile.objects
+            .select_related('user')
+            .get(pk=profile.pk)
+        )
+        skills = list(
+            TechnicianSkill.objects
+            .filter(technician=full_profile)
+            .select_related('sub_service', 'sub_service__service')
+            .order_by('sub_service__service__name', 'sub_service__name')
+        )
+        extra_context = dict(extra_context or {})
+        extra_context['fx_hero'] = {
+            'profile': full_profile,
+            'skills': skills,
+            'status': full_profile.get_status_display(),
+            'is_approved': full_profile.status == 'APPROVED',
+            'is_rejected': full_profile.status == 'REJECTED',
+            'is_suspended': not full_profile.is_active,
+        }
         return super().change_view(request, object_id, form_url, extra_context)
 
     def approval_review_view(self, request, profile_id: int):
