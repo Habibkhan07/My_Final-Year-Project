@@ -8,9 +8,8 @@ display label. The matchmaker reads ``base_latitude`` / ``base_longitude`` /
 discoverable on the next bounding-box query.
 
 A REJECTED profile is intentionally allowed to update its location — a rejected
-tech can still re-apply via the onboarding flow ([[viva_remaining_work]]'s
-onboarding refactor item), and locking out their work location during the
-rejected window would just produce a stale-data bug.
+tech can still re-apply via the onboarding flow, and locking out their work
+location during the rejected window would just produce a stale-data bug.
 """
 from __future__ import annotations
 

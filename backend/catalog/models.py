@@ -33,10 +33,16 @@ class Service(models.Model):
         decimal_places=2,
         default=500.00,
         validators=[_validate_whole_rupee],
+        help_text='Whole rupees only — no paisa. E.g. 500, not 500.50.',
     )
     # Duration of a standard inspection/job for this service category (minutes).
     # Used for availability slot generation when no specific sub-service is requested.
-    default_duration_minutes = models.PositiveIntegerField(default=60)
+    default_duration_minutes = models.PositiveIntegerField(
+        default=60,
+        help_text='Typical job length in minutes for an inspection in this '
+                  'category. Drives availability slot length when no specific '
+                  'sub-service is chosen. E.g. AC service: 60–90.',
+    )
 
     def __str__(self):
         return self.name
@@ -54,6 +60,9 @@ class SubService(models.Model):
         decimal_places=2,
         default=0.00,
         validators=[_validate_whole_rupee],
+        help_text='Whole rupees only — no paisa. For fixed-price gigs this '
+                  'is the locked price; for labor gigs it is the lower bound '
+                  'of the technician\'s rate band.',
     )
     max_price = models.DecimalField(
         max_digits=10,
@@ -61,6 +70,9 @@ class SubService(models.Model):
         null=True,
         blank=True,
         validators=[_validate_whole_rupee],
+        help_text='Whole rupees only. Used ONLY when ``is_fixed_price`` is '
+                  'False — upper bound of the technician\'s labor rate band. '
+                  'Leave blank for fixed-price gigs.',
     )
 
     # NEW: The 'Phase 2 Bypass' flags
@@ -75,7 +87,13 @@ class SubService(models.Model):
     card_image_url = models.URLField(null=True, blank=True)  # Lifestyle photo for fixed gig cards on home screen
     # Estimated job duration for this specific gig (minutes).
     # Null = inherit from parent Service.default_duration_minutes.
-    estimated_duration_minutes = models.PositiveIntegerField(null=True, blank=True)
+    estimated_duration_minutes = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text='Estimated job length in minutes for this specific gig. '
+                  'Leave blank to inherit from the parent service\'s '
+                  'default_duration_minutes. E.g. AC coil clean: 90.',
+    )
 
     def __str__(self):
         return f"{self.service.name} -> {self.name}"

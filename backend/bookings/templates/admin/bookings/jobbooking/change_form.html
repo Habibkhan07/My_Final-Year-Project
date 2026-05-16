@@ -1,0 +1,22 @@
+{% extends "admin/change_form.html" %}
+{% load i18n %}
+
+{% block content %}
+  {% if fx_action_panel %}
+    <div class="fx-action-panel" style="background:linear-gradient(135deg,#fee2e2 0%,#fff 200%);border-color:#fca5a5;">
+      <div class="fx-action-panel-body">
+        <div class="fx-action-panel-title" style="color:#991b1b">{{ fx_action_panel.title }}</div>
+        <div class="fx-action-panel-sub">{{ fx_action_panel.sub }}</div>
+      </div>
+      <div>
+        <a href="{{ fx_action_panel.resolve_url }}" class="fx-qbtn fx-qbtn-process" style="padding:8px 14px;font-size:13px">
+          ⚖ Resolve dispute
+        </a>
+        <a href="{{ fx_action_panel.ticket_url }}" class="fx-qbtn fx-qbtn-ghost" style="padding:8px 14px;font-size:13px;margin-left:6px">
+          View ticket
+        </a>
+      </div>
+    </div>
+  {% endif %}
+  {{ block.super }}
+{% endblock %}

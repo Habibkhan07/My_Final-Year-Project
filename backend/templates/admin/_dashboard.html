@@ -1,0 +1,16 @@
+{% load admin_dashboard %}
+
+<div class="fx-dashboard">
+  <h2>Welcome back{% if request.user.first_name %}, {{ request.user.first_name }}{% endif %}</h2>
+  <p class="fx-subtitle">Live operational snapshot — {{ now|date:"l, F j" }} · {{ now|date:"H:i" }}</p>
+
+  <div class="fx-kpi-grid">
+    {% for k in kpis %}
+      <a class="fx-kpi fx-{{ k.tone }}" href="{{ k.url }}">
+        <span class="fx-kpi-label">{{ k.label }}</span>
+        <span class="fx-kpi-value">{{ k.value }}</span>
+        <span class="fx-kpi-sub">{{ k.sub }}</span>
+      </a>
+    {% endfor %}
+  </div>
+</div>

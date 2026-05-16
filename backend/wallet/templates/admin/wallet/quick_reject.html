@@ -1,0 +1,40 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block content %}
+<form method="post">{% csrf_token %}
+  <div class="fx-action-panel" style="background:linear-gradient(135deg,#fee2e2 0%,#fff 200%);border-color:#fca5a5;">
+    <div class="fx-action-panel-body">
+      <div class="fx-action-panel-title" style="color:#991b1b">Reject withdrawal #{{ request_row.pk }}?</div>
+      <div class="fx-action-panel-sub">
+        Rejecting moves no money. The tech is then free to submit a fresh
+        request. The reason below is internal-only.
+      </div>
+    </div>
+  </div>
+
+  <div class="module">
+    <h2>Request details</h2>
+    <div style="padding:14px 18px">
+      <strong>{{ request_row.technician.user.get_full_name|default:request_row.technician.user.username }}</strong>
+      <span style="color:#94a3b8"> · Rs. {{ request_row.amount }} · requested {{ request_row.requested_at|date:"Y-m-d H:i" }}</span>
+    </div>
+  </div>
+
+  <fieldset class="module aligned">
+    <h2>Rejection reason</h2>
+    <div class="form-row">
+      {{ form.admin_notes.label_tag }}
+      {{ form.admin_notes }}
+      {% if form.admin_notes.errors %}
+        <p style="color:#dc2626;margin-top:6px;font-size:12px">{{ form.admin_notes.errors|join:" " }}</p>
+      {% endif %}
+    </div>
+  </fieldset>
+
+  <div class="submit-row">
+    <input type="submit" value="✗ Reject withdrawal" class="default" name="apply" style="background:#dc2626;border-color:#dc2626">
+    <a href="{% url 'admin:wallet_withdrawalrequest_changelist' %}" class="button cancel-link">Cancel</a>
+  </div>
+</form>
+{% endblock %}

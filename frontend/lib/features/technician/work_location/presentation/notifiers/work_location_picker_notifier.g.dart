@@ -74,7 +74,7 @@ final class WorkLocationPickerNotifierProvider
 }
 
 String _$workLocationPickerNotifierHash() =>
-    r'066928da6e0f221527f1dbd693ced4070bc0666b';
+    r'4b63a436b0494298e408c450e2105babe71951c7';
 
 /// Drives the technician work-location picker screen.
 ///

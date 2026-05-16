@@ -68,7 +68,7 @@ final class WithdrawalHistoryNotifierProvider
 }
 
 String _$withdrawalHistoryNotifierHash() =>
-    r'eb3c79a5c4032607000baf2bb4686235e0d2625d';
+    r'6b8003b7087b8656068793d9b8871b76d866d09e';
 
 /// State holder for [WithdrawalHistoryScreen].
 ///

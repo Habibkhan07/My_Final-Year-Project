@@ -352,15 +352,27 @@ class SupportTicket(models.Model):
         (STATUS_RESOLVED, 'Resolved'),
     ]
 
+    # Binary dispute outcome model: ACCEPT_REFUND / REJECT. The legacy
+    # three-way REFUND_CUSTOMER / PENALIZE_TECH / DISMISS values are
+    # retained in CHOICES so historical rows still validate, but new
+    # resolutions only ever write ACCEPT_REFUND or REJECT. The split
+    # between "refund customer" and "penalize tech" is expressed by
+    # ``tech_penalty_percentage`` on an ACCEPT_REFUND outcome.
     OUTCOME_NONE = 'NONE'
+    OUTCOME_ACCEPT_REFUND = 'ACCEPT_REFUND'
+    OUTCOME_REJECT = 'REJECT'
+    # Legacy values — never written by current code; kept for back-compat
+    # so MIGRATE doesn't fail on rows written before the refactor.
     OUTCOME_REFUND_CUSTOMER = 'REFUND_CUSTOMER'
     OUTCOME_PENALIZE_TECH = 'PENALIZE_TECH'
     OUTCOME_DISMISS = 'DISMISS'
     OUTCOME_CHOICES = [
         (OUTCOME_NONE, 'None'),
-        (OUTCOME_REFUND_CUSTOMER, 'Refund customer'),
-        (OUTCOME_PENALIZE_TECH, 'Penalize tech'),
-        (OUTCOME_DISMISS, 'Dismiss'),
+        (OUTCOME_ACCEPT_REFUND, 'Accept (refund customer)'),
+        (OUTCOME_REJECT, 'Reject (close, no refund)'),
+        (OUTCOME_REFUND_CUSTOMER, 'Refund customer (legacy)'),
+        (OUTCOME_PENALIZE_TECH, 'Penalize tech (legacy)'),
+        (OUTCOME_DISMISS, 'Dismiss (legacy)'),
     ]
 
     booking = models.ForeignKey(JobBooking, on_delete=models.CASCADE, related_name='tickets')
@@ -375,6 +387,38 @@ class SupportTicket(models.Model):
     status = models.CharField(max_length=16, choices=STATUS_CHOICES, default=STATUS_OPEN)
     resolution_outcome = models.CharField(max_length=32, choices=OUTCOME_CHOICES, default=OUTCOME_NONE)
     resolution_notes = models.TextField(blank=True, default='')
+    # Split decision on ACCEPT_REFUND outcomes. Percentage of the booking
+    # final amount (price_amount or final_cash_to_collect) that comes
+    # out of the technician's wallet via a REFUND_DEBIT ledger row.
+    # 0   = platform absorbs the refund (tech blameless)
+    # 100 = tech absorbs the full refund (clearly tech's fault)
+    # 50  = split (both at fault)
+    # MUST be 0 on REJECT outcomes (no ledger write).
+    tech_penalty_percentage = models.PositiveSmallIntegerField(
+        default=0,
+        help_text='0–100. Percent of refund debited from tech wallet on '
+                  'ACCEPT_REFUND. 0 = platform absorbs. 100 = tech absorbs.',
+    )
+    # JazzCash merchant transaction id (or bank wire ref) for the
+    # out-of-band refund the admin manually sent to the customer.
+    # Mandatory on ACCEPT_REFUND, empty on REJECT.
+    external_refund_reference = models.CharField(
+        max_length=80,
+        blank=True,
+        default='',
+        help_text='Gateway txn id of the refund admin sent to customer. '
+                  'Required when outcome is ACCEPT_REFUND.',
+    )
+    # User-facing copy shown to the customer in the app when the
+    # dispute is resolved. The DISPUTE_RESOLVED realtime event carries
+    # this string so the customer sees "why" rather than just a status
+    # flip. Used on both ACCEPT_REFUND and REJECT paths.
+    customer_notification_message = models.TextField(
+        blank=True,
+        default='',
+        help_text='Plain-text message surfaced to the customer in-app '
+                  'when the dispute closes. Pakistani-Urdu phrasing OK.',
+    )
     # The admin who resolved the dispute (audit trail; populated by
     # ``orchestrator.admin_resolve_dispute``). PROTECT so deleting an
     # admin user cannot orphan resolution attribution. Nullable for

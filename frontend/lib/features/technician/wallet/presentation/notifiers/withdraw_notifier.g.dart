@@ -21,9 +21,11 @@ part of 'withdraw_notifier.dart';
 ///   3. [submit]           POSTs the request; transitions to
 ///                          ``submitting`` then terminal ``success``
 ///                          or ``failed``.
-///   4. [reset]            wipe terminal state so the next "Withdraw"
-///                          tap shows the form fresh — used by the
-///                          sheet's Done button.
+///
+/// There is no ``reset`` method: the sheet's Done button pops the
+/// modal, the notifier disposes (``keepAlive: false``), and the next
+/// tap of Withdraw triggers a fresh ``build``. A reset would only be
+/// useful for an in-sheet "Submit another" flow we don't ship.
 ///
 /// Sync ``Notifier`` (not ``AsyncNotifier``) for the same reason as
 /// [TopupNotifier]: more states than just loading/data/error. Errors
@@ -50,9 +52,11 @@ final withdrawProvider = WithdrawNotifierProvider._();
 ///   3. [submit]           POSTs the request; transitions to
 ///                          ``submitting`` then terminal ``success``
 ///                          or ``failed``.
-///   4. [reset]            wipe terminal state so the next "Withdraw"
-///                          tap shows the form fresh — used by the
-///                          sheet's Done button.
+///
+/// There is no ``reset`` method: the sheet's Done button pops the
+/// modal, the notifier disposes (``keepAlive: false``), and the next
+/// tap of Withdraw triggers a fresh ``build``. A reset would only be
+/// useful for an in-sheet "Submit another" flow we don't ship.
 ///
 /// Sync ``Notifier`` (not ``AsyncNotifier``) for the same reason as
 /// [TopupNotifier]: more states than just loading/data/error. Errors
@@ -77,9 +81,11 @@ final class WithdrawNotifierProvider
   ///   3. [submit]           POSTs the request; transitions to
   ///                          ``submitting`` then terminal ``success``
   ///                          or ``failed``.
-  ///   4. [reset]            wipe terminal state so the next "Withdraw"
-  ///                          tap shows the form fresh — used by the
-  ///                          sheet's Done button.
+  ///
+  /// There is no ``reset`` method: the sheet's Done button pops the
+  /// modal, the notifier disposes (``keepAlive: false``), and the next
+  /// tap of Withdraw triggers a fresh ``build``. A reset would only be
+  /// useful for an in-sheet "Submit another" flow we don't ship.
   ///
   /// Sync ``Notifier`` (not ``AsyncNotifier``) for the same reason as
   /// [TopupNotifier]: more states than just loading/data/error. Errors
@@ -108,7 +114,7 @@ final class WithdrawNotifierProvider
   WithdrawNotifier create() => WithdrawNotifier();
 }
 
-String _$withdrawNotifierHash() => r'ed84a582c488ded01d16a0cff51fd4fa9ad02cb1';
+String _$withdrawNotifierHash() => r'd82a4497685bc4f329c501d7c6e397f41aa1953f';
 
 /// Drives the withdrawal-sheet state machine.
 ///
@@ -123,9 +129,11 @@ String _$withdrawNotifierHash() => r'ed84a582c488ded01d16a0cff51fd4fa9ad02cb1';
 ///   3. [submit]           POSTs the request; transitions to
 ///                          ``submitting`` then terminal ``success``
 ///                          or ``failed``.
-///   4. [reset]            wipe terminal state so the next "Withdraw"
-///                          tap shows the form fresh — used by the
-///                          sheet's Done button.
+///
+/// There is no ``reset`` method: the sheet's Done button pops the
+/// modal, the notifier disposes (``keepAlive: false``), and the next
+/// tap of Withdraw triggers a fresh ``build``. A reset would only be
+/// useful for an in-sheet "Submit another" flow we don't ship.
 ///
 /// Sync ``Notifier`` (not ``AsyncNotifier``) for the same reason as
 /// [TopupNotifier]: more states than just loading/data/error. Errors

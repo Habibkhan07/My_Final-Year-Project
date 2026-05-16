@@ -1,0 +1,88 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block content %}
+<form method="post">{% csrf_token %}
+  <div class="fx-action-panel">
+    <div class="fx-action-panel-body">
+      <div class="fx-action-panel-title">Process withdrawal #{{ request_row.pk }}</div>
+      <div class="fx-action-panel-sub">
+        Submitting writes a WITHDRAWAL_DEBIT ledger row and marks the
+        request PROCESSED. This cannot be undone from admin.
+      </div>
+    </div>
+  </div>
+
+  <div class="module">
+    <h2>Request details</h2>
+    <table style="width:100%">
+      <tr>
+        <th style="text-align:left;padding:12px 18px;width:200px;color:#475569">Technician</th>
+        <td style="padding:12px 18px;font-weight:600">
+          {{ request_row.technician.user.get_full_name|default:request_row.technician.user.username }}
+        </td>
+      </tr>
+      <tr>
+        <th style="text-align:left;padding:12px 18px;color:#475569">Amount</th>
+        <td style="padding:12px 18px;font-family:ui-monospace,monospace;font-weight:700;font-size:16px">
+          Rs. {{ request_row.amount }}
+        </td>
+      </tr>
+      <tr>
+        <th style="text-align:left;padding:12px 18px;color:#475569">Tech wallet balance</th>
+        <td style="padding:12px 18px">
+          <span style="font-family:ui-monospace,monospace;font-weight:700;font-size:16px;
+                       color:{% if wallet_status.is_sufficient %}#16a34a{% else %}#dc2626{% endif %}">
+            {{ wallet_status.balance_label }}
+          </span>
+          <span style="margin-left:10px;font-size:12px;
+                       color:{% if wallet_status.is_sufficient %}#475569{% else %}#dc2626{% endif %}">
+            {{ wallet_status.delta_label }}
+          </span>
+        </td>
+      </tr>
+      <tr>
+        <th style="text-align:left;padding:12px 18px;color:#475569">Payout to</th>
+        <td style="padding:12px 18px">
+          {% if request_row.payout_bank_account_id %}
+            {{ request_row.payout_bank_account.bank_name }} ·
+            {{ request_row.payout_bank_account.account_title }} ·
+            <span style="font-family:ui-monospace,monospace">{{ request_row.payout_bank_account.account_number_or_iban }}</span>
+          {% else %}
+            JazzCash ·
+            {{ request_row.payout_jazzcash_account.account_title }} ·
+            <span style="font-family:ui-monospace,monospace">{{ request_row.payout_jazzcash_account.mobile_number }}</span>
+          {% endif %}
+        </td>
+      </tr>
+      <tr>
+        <th style="text-align:left;padding:12px 18px;color:#475569">Requested</th>
+        <td style="padding:12px 18px;color:#475569">{{ request_row.requested_at|date:"Y-m-d H:i" }}</td>
+      </tr>
+    </table>
+  </div>
+
+  <fieldset class="module aligned">
+    <h2>Confirm payout reference</h2>
+    <div class="form-row">
+      {{ form.admin_external_ref.label_tag }}
+      {{ form.admin_external_ref }}
+      {% if form.admin_external_ref.help_text %}
+        <p class="help">{{ form.admin_external_ref.help_text }}</p>
+      {% endif %}
+      {% if form.admin_external_ref.errors %}
+        <p style="color:#dc2626;margin-top:6px;font-size:12px">{{ form.admin_external_ref.errors|join:" " }}</p>
+      {% endif %}
+    </div>
+    <div class="form-row">
+      {{ form.admin_notes.label_tag }}
+      {{ form.admin_notes }}
+    </div>
+  </fieldset>
+
+  <div class="submit-row">
+    <input type="submit" value="✓ Approve & process" class="default" name="apply">
+    <a href="{% url 'admin:wallet_withdrawalrequest_changelist' %}" class="button cancel-link">Cancel</a>
+  </div>
+</form>
+{% endblock %}

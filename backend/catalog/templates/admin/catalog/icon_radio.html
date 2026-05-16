@@ -1,0 +1,20 @@
+{% load static %}
+<div class="fx-icon-picker">
+  {% for group, options, index in widget.optgroups %}
+    {% for option in options %}
+      <label class="fx-icon-tile {% if option.attrs.checked %}fx-icon-tile-selected{% endif %}">
+        <input type="{{ option.type }}" name="{{ option.name }}"
+               value="{{ option.value|default:'' }}"
+               {% if option.attrs.checked %}checked{% endif %}>
+        {% if option.value %}
+          <img src="{% static 'catalog/icons/'|add:option.value|add:'.svg' %}"
+               alt="{{ option.label }}"
+               class="fx-icon-tile-svg" />
+        {% else %}
+          <span class="fx-icon-tile-none">∅</span>
+        {% endif %}
+        <span class="fx-icon-tile-label">{{ option.label }}</span>
+      </label>
+    {% endfor %}
+  {% endfor %}
+</div>

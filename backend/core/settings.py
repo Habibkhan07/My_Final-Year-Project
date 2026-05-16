@@ -233,7 +233,7 @@ ROOT_URLCONF = 'core.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -260,6 +260,13 @@ DATABASES = {
         'PASSWORD': env('DB_PASSWORD'),
         'HOST': env('DB_HOST'),
         'PORT': env('DB_PORT'),
+        # NOTE: deliberately no ``TIME_ZONE`` override here. Setting it
+        # would force Django to call MySQL's ``CONVERT_TZ`` on every
+        # ``__date`` / ``date_hierarchy`` lookup, and this host hasn't
+        # had the MySQL tz tables loaded (``mysql_tzinfo_to_sql``
+        # requires root). The dashboard/admin instead computes day
+        # boundaries in Python in the Asia/Karachi tz and filters via
+        # ``__range`` — see ``core.templatetags.admin_dashboard``.
     }
 }
 
@@ -288,7 +295,11 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'UTC'  # global setting kept at UTC because the MySQL host
+                   # doesn't have tz tables loaded — Django's date_hierarchy
+                   # / __date lookups require CONVERT_TZ otherwise. The
+                   # admin dashboard hardcodes Asia/Karachi where Pakistan-
+                   # local correctness matters (see ``admin_dashboard.py``).
 
 USE_I18N = True
 

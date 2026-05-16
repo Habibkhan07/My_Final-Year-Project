@@ -1,0 +1,21 @@
+{% extends "admin/base.html" %}
+{% load static %}
+
+{% block title %}{{ title }} | {{ site_title|default:_('FixIt Admin') }}{% endblock %}
+
+{% block extrastyle %}
+  {{ block.super }}
+  <link rel="stylesheet" href="{% static 'admin/css/fixit_admin.css' %}">
+  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+{% endblock %}
+
+{% block branding %}
+<div id="site-name">
+  <h1 id="site-name-text" style="display:flex;align-items:center;gap:12px;">
+    <span class="fx-logo" aria-hidden="true">FX</span>
+    <a href="{% url 'admin:index' %}">{{ site_header|default:_('FixIt — Operations Console') }}</a>
+  </h1>
+</div>
+{% endblock %}
+
+{% block nav-global %}{% endblock %}

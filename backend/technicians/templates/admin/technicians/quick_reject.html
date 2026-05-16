@@ -1,0 +1,47 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block content %}
+<form method="post">{% csrf_token %}
+  <div class="fx-action-panel" style="background:linear-gradient(135deg,#fee2e2 0%,#fff 200%);border-color:#fca5a5;">
+    <div class="fx-action-panel-body">
+      <div class="fx-action-panel-title" style="color:#991b1b">Reject this technician?</div>
+      <div class="fx-action-panel-sub">
+        The reason below will be shown verbatim on the technician's holding screen.
+        Please phrase it clearly — they cannot reply to it.
+      </div>
+    </div>
+  </div>
+
+  <div class="fx-documents-panel">
+    <h3>Documents — review before rejecting</h3>
+    {{ documents_strip }}
+  </div>
+
+  <div class="module">
+    <h2>Technician</h2>
+    <div style="padding:14px 18px;font-weight:600">
+      {{ profile.user.get_full_name|default:profile.user.username }}
+      <span style="color:#94a3b8;font-weight:400">· @{{ profile.user.username }} · {{ profile.cnic_number }}</span>
+    </div>
+  </div>
+
+  <fieldset class="module aligned">
+    <h2>Rejection reason</h2>
+    <div class="form-row">
+      {{ form.rejection_reason.label_tag }}
+      {{ form.rejection_reason }}
+      {% if form.rejection_reason.errors %}
+        <p style="color:#dc2626;margin-top:6px;font-size:12px">
+          {{ form.rejection_reason.errors|join:" " }}
+        </p>
+      {% endif %}
+    </div>
+  </fieldset>
+
+  <div class="submit-row">
+    <input type="submit" value="✗ Reject technician" class="default" style="background:#dc2626;border-color:#dc2626">
+    <a href="{% url 'admin:technicians_technicianprofile_changelist' %}" class="button cancel-link">Cancel</a>
+  </div>
+</form>
+{% endblock %}

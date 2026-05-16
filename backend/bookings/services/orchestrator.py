@@ -1558,6 +1558,42 @@ _VALID_FINAL_STATUSES = frozenset({
     JobBooking.STATUS_CANCELLED,
 })
 
+# Binary outcome set used by the v2 admin dispute flow. The legacy
+# three-way outcomes (REFUND_CUSTOMER / PENALIZE_TECH / DISMISS) are
+# retained on the model for back-compat but are NEVER written by this
+# orchestrator — admin_resolve_dispute rejects any value outside this
+# set.
+_VALID_OUTCOMES = frozenset({
+    SupportTicket.OUTCOME_ACCEPT_REFUND,
+    SupportTicket.OUTCOME_REJECT,
+})
+
+
+def _compute_refund_base(booking: JobBooking) -> Decimal:
+    """Pick the canonical "what was the customer charged" amount for refund math.
+
+    Preference order:
+      1. ``final_cash_to_collect`` — orchestrator-stamped at quote
+         approval, the exact number the tech presented to the customer.
+      2. ``cash_collected_amount`` — set on cash collection; tightest
+         match to what actually changed hands.
+      3. ``price_amount`` — booking-creation price floor. Used only when
+         the booking never reached the QUOTED state.
+
+    Returns Decimal('0') for the degenerate case where every column is
+    None — in practice impossible for a DISPUTED booking (dispute can
+    only be opened from CONFIRMED+), but defensive math is cheap.
+    """
+    candidates = (
+        booking.cash_collected_amount,
+        booking.final_cash_to_collect,
+        booking.price_amount,
+    )
+    for c in candidates:
+        if c is not None:
+            return Decimal(c)
+    return Decimal('0')
+
 
 def admin_resolve_dispute(
     *,
@@ -1566,27 +1602,59 @@ def admin_resolve_dispute(
     outcome: str,
     notes: str,
     final_status: str,
+    tech_penalty_percentage: int = 0,
+    external_refund_reference: str = '',
+    customer_notification_message: str = '',
     finance=None,
 ) -> SupportTicket:
-    """DISPUTED → admin-chosen terminal state.
+    """DISPUTED → admin-chosen terminal state. Binary outcome model.
 
-    ``outcome`` is one of ``REFUND_CUSTOMER`` / ``PENALIZE_TECH`` / ``DISMISS``.
+    ``outcome`` is one of ``ACCEPT_REFUND`` / ``REJECT``.
     ``final_status`` is one of ``COMPLETED`` / ``COMPLETED_INSPECTION_ONLY`` /
-    ``CANCELLED``. Both parties get a ``dispute_resolved`` broadcast. Money
-    flows (refunds, penalties) move to the finance sprint; this transition
-    only flips status + closes the ticket.
+    ``CANCELLED``. Both parties get a ``dispute_resolved`` broadcast.
 
-    Authorization: this function trusts the caller's view layer to confirm
-    admin role (Django Admin custom action). No IDOR scope here because the
-    admin is acting across users by design.
+    On ACCEPT_REFUND
+    ----------------
+    * ``external_refund_reference`` is mandatory (admin must have
+      already sent the customer their money via JazzCash / bank wire
+      out-of-band, and pastes the gateway txn id here).
+    * ``tech_penalty_percentage`` (0–100) splits the cost: that
+      percentage of the refund base amount is debited from the
+      technician's wallet as a ``REFUND_DEBIT`` row. The remainder is
+      absorbed by the platform.
+    * The wallet ledger write goes through
+      ``wallet.services.ledger.record_transaction`` which:
+        - Re-fetches the tech under ``select_for_update``.
+        - Computes ``balance_after`` atomically with the deduction.
+        - Auto-flips ``is_online`` to False if the balance crosses
+          into negative (lockout signal).
+        - Schedules a WALLET_BALANCE_UPDATED broadcast on commit.
+      Idempotency: keyed on ``dispute:<ticket_id>:refund`` so retry
+      from the admin form (browser refresh on POST, click-spam) does
+      not double-charge.
+
+    On REJECT
+    ---------
+    * No wallet activity, no ledger row.
+    * ``customer_notification_message`` is stored verbatim — it ships
+      in the realtime payload so the customer sees *why* their dispute
+      was denied rather than just a status flip.
+
+    Both outcomes broadcast ``DISPUTE_RESOLVED`` to both parties.
+
+    Authorization: this function trusts the caller's view layer to
+    confirm admin role (Django Admin custom action). No IDOR scope
+    here because the admin is acting across users by design.
+
+    Idempotency: a re-call after the ticket is already RESOLVED is a
+    no-op — the function returns the existing row without re-locking,
+    re-charging, or re-broadcasting. Wallet idempotency is independently
+    enforced by the ledger's transaction_reference_number constraint;
+    the two layers compose safely.
     """
     finance = _resolve_finance(finance)
 
-    if outcome not in {
-        SupportTicket.OUTCOME_REFUND_CUSTOMER,
-        SupportTicket.OUTCOME_PENALIZE_TECH,
-        SupportTicket.OUTCOME_DISMISS,
-    }:
+    if outcome not in _VALID_OUTCOMES:
         raise BookingValidationError(
             code=ERROR_INVALID_TRANSITION,
             message='Invalid dispute outcome.',
@@ -1599,15 +1667,45 @@ def admin_resolve_dispute(
             errors={'final_status': [final_status]},
         )
 
+    # Coerce + range-check tech_penalty_percentage. Surface-level
+    # validation lives in the admin form, but the orchestrator is the
+    # ledger gate — never trust the caller.
+    try:
+        penalty_pct = int(tech_penalty_percentage)
+    except (TypeError, ValueError):
+        raise BookingValidationError(
+            code=ERROR_INVALID_INPUT,
+            message='Tech penalty must be a whole number 0–100.',
+            errors={'tech_penalty_percentage': [str(tech_penalty_percentage)]},
+        )
+    if not 0 <= penalty_pct <= 100:
+        raise BookingValidationError(
+            code=ERROR_INVALID_INPUT,
+            message='Tech penalty must be between 0 and 100.',
+            errors={'tech_penalty_percentage': [penalty_pct]},
+        )
+
+    # External refund reference is mandatory on ACCEPT_REFUND. On
+    # REJECT it must be empty (we don't want stale refs leaking onto
+    # dismissed disputes).
+    ext_ref = (external_refund_reference or '').strip()
+    if outcome == SupportTicket.OUTCOME_ACCEPT_REFUND and not ext_ref:
+        raise BookingValidationError(
+            code=ERROR_INVALID_INPUT,
+            message='External refund reference is required when accepting a refund.',
+            errors={'external_refund_reference': ['required']},
+        )
+    if outcome == SupportTicket.OUTCOME_REJECT:
+        ext_ref = ''
+        penalty_pct = 0  # REJECT can never carry a wallet penalty.
+
+    customer_msg = (customer_notification_message or '').strip()
+
     with transaction.atomic():
         # Lock-ordering: booking first, ticket second — matches every
         # user-facing transition (which only ever locks the booking),
         # so an admin resolving a dispute concurrent with a customer or
         # tech action can never deadlock-cycle.
-        #
-        # The unlocked ticket fetch only reads ``booking_id``; the row
-        # is then re-fetched under the booking's lock with
-        # select_for_update so the actual mutation is fully serialized.
         try:
             unlocked_ticket = SupportTicket.objects.only(
                 'id', 'booking_id', 'status',
@@ -1634,25 +1732,75 @@ def admin_resolve_dispute(
         if ticket.status == SupportTicket.STATUS_RESOLVED:
             return ticket
 
+        # --- Wallet writeback (ACCEPT_REFUND + penalty > 0 only) --------
+        # Compute refund_base FIRST so the audit row reflects what the
+        # admin saw when they decided the percentage, not whatever the
+        # booking row drifts to afterwards. The ledger call lives inside
+        # the same atomic block — if the wallet write raises, the entire
+        # resolution rolls back (ticket stays OPEN, booking stays
+        # DISPUTED). Defensive maximalism per CLAUDE.md financial-code rule.
+        refund_base = _compute_refund_base(booking)
+        tech_deduction = Decimal('0')
+        if (
+            outcome == SupportTicket.OUTCOME_ACCEPT_REFUND
+            and penalty_pct > 0
+            and refund_base > Decimal('0')
+        ):
+            # Whole-rupee floor — paisa would silently break the wallet
+            # display formatter and the JazzCash withdrawal path. Use
+            # integer division by 100 to stay in Decimal land.
+            tech_deduction = (refund_base * Decimal(penalty_pct)) // Decimal(100)
+            if tech_deduction > Decimal('0'):
+                from wallet.models import RefundDeduction, TransactionType
+                from wallet.services.ledger import record_transaction
+
+                wt = record_transaction(
+                    technician=booking.technician,
+                    transaction_type=TransactionType.REFUND_DEBIT,
+                    amount=-tech_deduction,  # signed: debit
+                    transaction_reference_number=f'dispute:{ticket.id}:refund',
+                    memo=(
+                        f'Refund for booking #{booking.id} '
+                        f'({penalty_pct}% of Rs.{refund_base})'
+                    ),
+                )
+                # Attach the subtype row. OneToOne on wallet_transaction
+                # makes this idempotent against the ledger's own
+                # idempotency key — get_or_create avoids the duplicate-
+                # insert race on browser-refresh-during-POST.
+                RefundDeduction.objects.get_or_create(
+                    wallet_transaction=wt,
+                    defaults={
+                        'penalty_reason': (
+                            f'Dispute ticket #{ticket.id} accepted by '
+                            f'{getattr(admin_user, "username", "admin")} '
+                            f'(refund base Rs.{refund_base}, '
+                            f'tech share {penalty_pct}%)'
+                        ),
+                    },
+                )
+
+        # --- Stamp the ticket ------------------------------------------
         now = timezone.now()
         ticket.status = SupportTicket.STATUS_RESOLVED
         ticket.resolution_outcome = outcome
         ticket.resolution_notes = notes
         ticket.resolved_at = now
         ticket.resolved_by = admin_user
+        ticket.tech_penalty_percentage = penalty_pct
+        ticket.external_refund_reference = ext_ref
+        ticket.customer_notification_message = customer_msg
         ticket.save(update_fields=[
             'status', 'resolution_outcome', 'resolution_notes',
             'resolved_at', 'resolved_by',
+            'tech_penalty_percentage', 'external_refund_reference',
+            'customer_notification_message',
         ])
 
-        # Stamp the booking's terminal-state audit columns to mirror what
-        # the user-facing transitions (cancel_by_*, mark_complete_with_cash)
-        # write. Without this, an admin-resolved cancellation has
-        # ``status=CANCELLED`` but ``cancelled_at IS NULL``, which silently
-        # drops it from any analytics filtering on the timestamp; same for
-        # COMPLETED + completed_at. Cash columns are intentionally NOT
-        # touched — admin resolution doesn't collect cash; whatever was
-        # collected pre-dispute (or none) is the legitimate value.
+        # --- Stamp the booking's terminal-state audit columns ----------
+        # Mirrors what cancel_by_* / mark_complete_with_cash write so
+        # admin-resolved dispositions don't drop out of analytics
+        # filtering on the timestamps.
         booking.status = final_status
         booking_update_fields = ['status']
         if final_status == JobBooking.STATUS_CANCELLED:
@@ -1666,21 +1814,22 @@ def admin_resolve_dispute(
             JobBooking.STATUS_COMPLETED,
             JobBooking.STATUS_COMPLETED_INSPECTION_ONLY,
         ):
-            # Preserve a pre-existing completion timestamp (dispute opened
-            # on an already-COMPLETED booking, admin upholds completion).
             if booking.completed_at is None:
                 booking.completed_at = now
                 booking_update_fields.append('completed_at')
         booking.save(update_fields=booking_update_fields)
 
-        # Capture admin identity in the broadcast for audit. SupportTicket has
-        # no ``resolved_by`` column today; surfacing the admin's username on
-        # the wire keeps the audit trail visible without a schema change.
+        # --- Realtime broadcast ----------------------------------------
         admin_username = (
             getattr(admin_user, 'username', None)
             or getattr(admin_user, 'email', None)
             or 'admin'
         )
+        # Snapshot Decimals as strings for the wire — JSON serialization
+        # of Decimal is implementation-dependent and the Flutter mapper
+        # parses wire-strings.
+        deduction_str = str(tech_deduction)
+        refund_base_str = str(refund_base)
 
         def _emit_to_both():
             for u, role in (
@@ -1697,6 +1846,11 @@ def admin_resolve_dispute(
                         'outcome': outcome,
                         'final_status': final_status,
                         'resolved_by_admin': admin_username,
+                        'customer_message': customer_msg,
+                        'tech_penalty_percentage': penalty_pct,
+                        'tech_wallet_deduction': deduction_str,
+                        'refund_base_amount': refund_base_str,
+                        'external_refund_reference': ext_ref,
                     },
                 )
 

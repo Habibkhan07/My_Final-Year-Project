@@ -18,8 +18,8 @@ business rules):
    Customer paid Rs.500 cash directly to the tech (terminal status
    COMPLETED_INSPECTION_ONLY). Per existing FinancePort docstring,
    commission is NOT levied on this path; tech keeps the 500 as
-   compensation for the wasted visit. Revisit post-viva if business
-   policy changes; flag entry opened.
+   compensation for the wasted visit. Revisit if business policy
+   changes; flag entry opened.
 * ``apply_cancellation_charge``  → no-op for all (actor, phase) tuples.
    Customer-cancel post-arrival is structurally impossible (customer
    declines quote instead). Tech-cancel reliability penalty deferred to
@@ -153,12 +153,11 @@ class WalletFinanceAdapter:
         ``declined`` → terminal status COMPLETED_INSPECTION_ONLY. Customer
         pays Rs.500 cash directly to the tech for the visit. Per the
         existing FinancePort contract, no commission is taken on this path
-        (tech keeps the full Rs.500). Revisit post-viva if business policy
-        changes.
+        (tech keeps the full Rs.500). Revisit if business policy changes.
 
-        Hook retained for forensic completeness — Thursday's withdraw flow
-        may want a JournalEntry here, but for tonight no wallet entry is
-        written and the function returns immediately.
+        Hook retained for forensic completeness — a future withdraw-side
+        accounting change may want a JournalEntry here, but at present
+        no wallet entry is written and the function returns immediately.
         """
         return None
 

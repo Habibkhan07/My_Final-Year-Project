@@ -197,8 +197,8 @@ def record_transaction(
         # negative territory (and the tech is currently online), the same
         # atomic also forces ``is_online = False``. The tech is structurally
         # locked out from accepting dispatches (see ``accept_job_booking``
-        # gate) AND visibly removed from the dispatch pool — the demo loop
-        # is "tech sees forced-offline, taps top-up, taps back online".
+        # gate) AND visibly removed from the dispatch pool. The recovery
+        # loop is "tech sees forced-offline, taps top-up, taps back online".
         #
         # Top-ups that clear lockout do NOT auto-flip back to True: coming
         # back online is intentionally an explicit tech action (memory

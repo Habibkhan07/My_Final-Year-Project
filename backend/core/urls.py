@@ -21,6 +21,15 @@ from django.conf.urls.static import static # Add this
 
 from wallet.api.views import JazzCashReturnView
 
+
+# Admin site branding — replaces the default "Django administration" chrome.
+# Surfaces on every admin page header, browser tab, and index banner.
+admin.site.site_header = "FixIt — Operations Console"
+admin.site.site_title = "FixIt Admin"
+admin.site.index_title = "Marketplace operations"
+admin.site.empty_value_display = "—"
+
+
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/accounts/', include('accounts.api.urls')),

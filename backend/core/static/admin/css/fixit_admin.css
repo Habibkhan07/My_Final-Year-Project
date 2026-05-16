@@ -1,0 +1,1141 @@
+/* ============================================================================
+   FixIt admin theme — drop-in stylesheet that overrides Django 6's default
+   admin chrome via its CSS custom properties + targeted selector layering.
+
+   Loaded once from admin/base_site.html — every admin page picks it up.
+
+   Sections:
+     1.  Design tokens (CSS variables — recolor the whole admin in one place)
+     2.  Typography + global resets
+     3.  Header / branding
+     4.  Breadcrumbs
+     5.  Module / card surfaces
+     6.  Tables + list views (the most-used admin surface)
+     7.  Forms + fieldsets
+     8.  Buttons (default + variants for quick-action cells)
+     9.  Status pills (compose with format_html in admin.py)
+    10.  Filter sidebar
+    11.  Submit row (sticky save bar)
+    12.  Dashboard cards (admin index page)
+    13.  Misc polish (messages, paginator, empty states)
+   ============================================================================ */
+
+/* ---------- 1. Design tokens ------------------------------------------------ */
+
+:root,
+:root[data-theme="light"] {
+  /* Brand */
+  --fx-primary:        #0051AE;
+  --fx-primary-hover:  #003e87;
+  --fx-primary-soft:   #e6efff;
+
+  /* Surfaces */
+  --fx-bg:             #f1f5f9;
+  --fx-surface:        #ffffff;
+  --fx-surface-alt:    #f8fafc;
+  --fx-border:         #e2e8f0;
+  --fx-border-strong:  #cbd5e1;
+
+  /* Text */
+  --fx-text:           #0f172a;
+  --fx-text-muted:     #475569;
+  --fx-text-subtle:    #94a3b8;
+
+  /* States */
+  --fx-success:        #16a34a;
+  --fx-success-soft:   #dcfce7;
+  --fx-warning:        #d97706;
+  --fx-warning-soft:   #fef3c7;
+  --fx-danger:         #dc2626;
+  --fx-danger-soft:    #fee2e2;
+  --fx-info:           #2563eb;
+  --fx-info-soft:      #dbeafe;
+
+  /* Sizing */
+  --fx-radius:         10px;
+  --fx-radius-sm:      6px;
+  --fx-shadow-sm:      0 1px 2px rgba(15, 23, 42, 0.05);
+  --fx-shadow:         0 4px 12px rgba(15, 23, 42, 0.08);
+  --fx-shadow-lg:      0 8px 24px rgba(15, 23, 42, 0.10);
+
+  /* Django admin tokens we hijack to recolor the default chrome */
+  --primary:           var(--fx-primary);
+  --secondary:         var(--fx-primary-hover);
+  --accent:            var(--fx-primary-soft);
+  --link-fg:           var(--fx-primary);
+  --link-hover-color:  var(--fx-primary-hover);
+  --header-bg:         #ffffff;
+  --header-color:      var(--fx-text);
+  --header-branding-color: var(--fx-primary);
+  --header-link-color: var(--fx-primary);
+  --breadcrumbs-bg:    var(--fx-surface-alt);
+  --breadcrumbs-fg:    var(--fx-text-muted);
+  --button-bg:         var(--fx-primary);
+  --button-fg:         #fff;
+  --button-hover-bg:   var(--fx-primary-hover);
+  --default-button-bg: var(--fx-primary);
+  --default-button-hover-bg: var(--fx-primary-hover);
+  --body-bg:           var(--fx-bg);
+  --body-fg:           var(--fx-text);
+  --darkened-bg:       var(--fx-surface-alt);
+  --selected-bg:       var(--fx-primary-soft);
+  --selected-row:      var(--fx-primary-soft);
+  --close-button-bg:   var(--fx-text-muted);
+  --close-button-hover-bg: var(--fx-text);
+  --message-success-bg: var(--fx-success-soft);
+  --message-warning-bg: var(--fx-warning-soft);
+  --message-error-bg:  var(--fx-danger-soft);
+}
+
+/* ---------- 2. Typography + global resets ---------------------------------- */
+
+body, td, th, input, select, textarea {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+               "Helvetica Neue", Arial, sans-serif;
+  font-feature-settings: "ss01", "cv11";
+  -webkit-font-smoothing: antialiased;
+  color: var(--fx-text);
+}
+
+body {
+  background: var(--fx-bg);
+}
+
+a, a:visited {
+  color: var(--fx-primary);
+  text-decoration: none;
+}
+a:hover { color: var(--fx-primary-hover); text-decoration: underline; }
+
+h1, h2, h3, h4 {
+  color: var(--fx-text);
+  letter-spacing: -0.01em;
+}
+
+/* ---------- 3. Header / branding ------------------------------------------- */
+
+#header {
+  background: var(--fx-surface);
+  border-bottom: 1px solid var(--fx-border);
+  box-shadow: var(--fx-shadow-sm);
+  padding: 14px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+#branding {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+#branding h1 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--fx-text);
+  letter-spacing: -0.01em;
+}
+
+#branding h1 a:link, #branding h1 a:visited {
+  color: var(--fx-text);
+}
+
+/* FixIt logo mark (drawn in CSS — no asset dependency) */
+.fx-logo {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, var(--fx-primary) 0%, #2680ff 100%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 800;
+  font-size: 15px;
+  letter-spacing: -0.02em;
+  box-shadow: 0 2px 6px rgba(0, 81, 174, 0.30);
+}
+
+#user-tools {
+  font-size: 13px;
+  color: var(--fx-text-muted);
+}
+#user-tools a {
+  border-bottom: 0;
+  padding: 6px 10px;
+  border-radius: var(--fx-radius-sm);
+  background: var(--fx-surface-alt);
+  margin-left: 4px;
+  color: var(--fx-text);
+}
+#user-tools a:hover {
+  background: var(--fx-primary-soft);
+  color: var(--fx-primary);
+  text-decoration: none;
+}
+
+/* ---------- 4. Breadcrumbs ------------------------------------------------- */
+
+div.breadcrumbs {
+  background: transparent;
+  color: var(--fx-text-muted);
+  padding: 14px 32px 4px;
+  font-size: 13px;
+  border: 0;
+}
+div.breadcrumbs a { color: var(--fx-text-muted); }
+div.breadcrumbs a:hover { color: var(--fx-primary); }
+
+/* ---------- 5. Module / card surfaces -------------------------------------- */
+
+#content {
+  padding: 20px 32px 40px;
+}
+
+.module {
+  background: var(--fx-surface);
+  border: 1px solid var(--fx-border);
+  border-radius: var(--fx-radius);
+  box-shadow: var(--fx-shadow-sm);
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+
+.module h2, .module caption, .inline-group h2 {
+  background: var(--fx-surface);
+  color: var(--fx-text);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--fx-border);
+}
+
+/* Inline editing (foreign-key inlines on change pages) */
+.inline-group {
+  background: var(--fx-surface);
+  border: 1px solid var(--fx-border);
+  border-radius: var(--fx-radius);
+  box-shadow: var(--fx-shadow-sm);
+  margin-bottom: 20px;
+}
+.inline-related {
+  border-top: 1px solid var(--fx-border);
+}
+.inline-related h3 {
+  background: var(--fx-surface-alt);
+  font-weight: 600;
+  padding: 8px 14px;
+}
+/* Fully-readonly TabularInlines (WalletLedger, TicketEvidence, etc.)
+   ship a hidden ``<td class="original">`` containing the model's
+   ``__str__()`` representation. When the row is also readonly Django
+   sometimes leaves it visible — the text stacks on top of the first
+   column and renders as garbled overlapping glyphs. Hide it: readonly
+   inlines render their full state via the explicit ``fields`` list,
+   so the original cell adds no information. */
+.tabular .inline-related td.original {
+  display: none !important;
+}
+.tabular .inline-related td.original p {
+  display: none !important;
+}
+
+/* ---------- 6. Tables + list views ----------------------------------------- */
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+#changelist {
+  background: var(--fx-surface);
+  border: 1px solid var(--fx-border);
+  border-radius: var(--fx-radius);
+  box-shadow: var(--fx-shadow-sm);
+  /* overflow-x:auto so wide tables horizontal-scroll on narrow viewports
+     instead of clipping. overflow-y:visible keeps sticky thead alive
+     (a non-visible y-overflow would create a clipping context that
+     defeats `position: sticky`). */
+  overflow-x: auto;
+  overflow-y: visible;
+}
+
+#changelist-form {
+  background: transparent;
+}
+
+#changelist .results {
+  padding: 0;
+}
+
+#changelist table {
+  background: var(--fx-surface);
+}
+
+#changelist thead th {
+  background: var(--fx-surface-alt);
+  color: var(--fx-text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--fx-border);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+#changelist thead th a {
+  color: var(--fx-text-muted);
+}
+#changelist thead th a:hover { color: var(--fx-primary); text-decoration: none; }
+
+#changelist tbody td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--fx-border);
+  vertical-align: middle;
+  font-size: 13px;
+}
+
+#changelist tbody tr:hover {
+  background: var(--fx-surface-alt);
+}
+#changelist tbody tr:last-child td { border-bottom: 0; }
+
+#changelist tbody td:first-child {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  color: var(--fx-text-muted);
+  font-size: 12px;
+}
+
+/* Toolbar (search + filter) above the changelist */
+#toolbar {
+  background: var(--fx-surface);
+  border: 1px solid var(--fx-border);
+  border-radius: var(--fx-radius);
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  box-shadow: var(--fx-shadow-sm);
+}
+#toolbar form input[type="text"] {
+  border: 1px solid var(--fx-border);
+  border-radius: var(--fx-radius-sm);
+  padding: 7px 12px;
+  font-size: 13px;
+  outline: none;
+}
+#toolbar form input[type="text"]:focus {
+  border-color: var(--fx-primary);
+  box-shadow: 0 0 0 3px var(--fx-primary-soft);
+}
+
+/* Action bar */
+.actions {
+  background: var(--fx-surface-alt);
+  border-bottom: 1px solid var(--fx-border);
+  padding: 10px 14px;
+  font-size: 13px;
+}
+.actions select {
+  border: 1px solid var(--fx-border-strong);
+  border-radius: var(--fx-radius-sm);
+  padding: 5px 10px;
+  background: #fff;
+}
+
+.paginator {
+  background: var(--fx-surface-alt);
+  border-top: 1px solid var(--fx-border);
+  padding: 10px 14px;
+  font-size: 12px;
+  color: var(--fx-text-muted);
+}
+
+/* ---------- 7. Forms + fieldsets ------------------------------------------- */
+
+fieldset.module {
+  margin-bottom: 22px;
+}
+fieldset.collapsed { display: block; }
+
+.form-row {
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--fx-border);
+}
+.form-row:last-child { border-bottom: 0; }
+.form-row label {
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--fx-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+input[type="text"], input[type="password"], input[type="email"],
+input[type="url"], input[type="number"], input[type="tel"],
+input[type="datetime-local"], input[type="date"], input[type="time"],
+textarea, select, .vTextField, .vURLField, .vIntegerField,
+.vDateField, .vTimeField, .vDateTimeField {
+  background: #fff;
+  border: 1px solid var(--fx-border);
+  border-radius: var(--fx-radius-sm);
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--fx-text);
+  transition: border-color 0.1s, box-shadow 0.1s;
+}
+
+input:focus, textarea:focus, select:focus, .vTextField:focus {
+  outline: none;
+  border-color: var(--fx-primary);
+  box-shadow: 0 0 0 3px var(--fx-primary-soft);
+}
+
+textarea { font-family: inherit; line-height: 1.45; }
+
+/* Readonly cells — render as data, not greyed-out form fields */
+.form-row .readonly {
+  background: var(--fx-surface-alt);
+  border: 1px solid var(--fx-border);
+  border-radius: var(--fx-radius-sm);
+  padding: 8px 12px;
+  display: inline-block;
+  min-width: 200px;
+  color: var(--fx-text);
+}
+
+.help { color: var(--fx-text-subtle); font-size: 12px; margin-top: 4px; }
+
+/* ---------- 8. Buttons + quick-action variants ----------------------------- */
+
+input[type="submit"], input[type="button"], .button,
+a.button, a.submit-action {
+  background: var(--fx-primary);
+  color: #fff;
+  border: 1px solid var(--fx-primary);
+  border-radius: var(--fx-radius-sm);
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  text-transform: none;
+  letter-spacing: 0;
+  box-shadow: var(--fx-shadow-sm);
+  transition: background 0.1s, box-shadow 0.1s, transform 0.05s;
+}
+
+input[type="submit"]:hover, .button:hover, a.button:hover {
+  background: var(--fx-primary-hover);
+  color: #fff;
+  text-decoration: none;
+  box-shadow: var(--fx-shadow);
+}
+input[type="submit"]:active, .button:active { transform: translateY(1px); }
+
+.button.default, input[type="submit"].default {
+  background: var(--fx-primary);
+}
+
+a.button.cancel-link, a.cancel-link {
+  background: #fff;
+  color: var(--fx-text);
+  border: 1px solid var(--fx-border-strong);
+  box-shadow: none;
+}
+a.button.cancel-link:hover, a.cancel-link:hover {
+  background: var(--fx-surface-alt);
+  color: var(--fx-text);
+}
+
+/* Quick-action inline buttons — render inside list_display cells */
+.fx-qbtn {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border: 1px solid transparent;
+  text-decoration: none !important;
+  transition: transform 0.05s, box-shadow 0.1s, background 0.1s;
+  white-space: nowrap;
+}
+.fx-qbtn + .fx-qbtn { margin-left: 4px; }
+
+.fx-qbtn-approve {
+  background: var(--fx-success-soft);
+  color: #166534;
+  border-color: #86efac;
+}
+.fx-qbtn-approve:hover {
+  background: var(--fx-success); color: #fff; border-color: var(--fx-success);
+}
+
+.fx-qbtn-reject {
+  background: var(--fx-danger-soft);
+  color: #991b1b;
+  border-color: #fca5a5;
+}
+.fx-qbtn-reject:hover {
+  background: var(--fx-danger); color: #fff; border-color: var(--fx-danger);
+}
+
+.fx-qbtn-process {
+  background: var(--fx-primary-soft);
+  color: var(--fx-primary);
+  border-color: #93c5fd;
+}
+.fx-qbtn-process:hover {
+  background: var(--fx-primary); color: #fff; border-color: var(--fx-primary);
+}
+
+.fx-qbtn-ghost {
+  background: var(--fx-surface);
+  color: var(--fx-text-muted);
+  border-color: var(--fx-border);
+}
+.fx-qbtn-ghost:hover {
+  background: var(--fx-surface-alt); color: var(--fx-text);
+}
+
+/* ---------- 9. (Status pills come from format_html in admin.py) ----------- */
+/*  Defined inline so the tone matches across non-admin surfaces too. CSS    */
+/*  hooks below are for forms / messages that still rely on default classes. */
+
+/* Large action buttons — single canonical sizing for primary in-page CTAs
+   (Approve technician, Resolve dispute, Process withdrawal, etc.). The
+   small ``fx-qbtn`` family stays for inline list-cell badges; this family
+   is for the prominent "make a decision" buttons inside detail pages. */
+.fx-btn {
+  display: inline-block;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-decoration: none !important;
+  border: 1.5px solid transparent;
+  cursor: pointer;
+  transition: transform 0.05s, box-shadow 0.12s, background 0.12s, border-color 0.12s;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.fx-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.14);
+}
+.fx-btn:active { transform: translateY(0); }
+
+.fx-btn-primary {
+  background: var(--fx-primary);
+  color: #fff !important;
+  border-color: var(--fx-primary);
+}
+.fx-btn-primary:hover { background: var(--fx-primary-hover); border-color: var(--fx-primary-hover); }
+
+.fx-btn-success {
+  background: var(--fx-success);
+  color: #fff !important;
+  border-color: var(--fx-success);
+}
+.fx-btn-success:hover { background: #15803d; border-color: #15803d; }
+
+.fx-btn-danger-outline {
+  background: var(--fx-surface);
+  color: var(--fx-danger) !important;
+  border-color: #fca5a5;
+}
+.fx-btn-danger-outline:hover {
+  background: var(--fx-danger-soft);
+  border-color: var(--fx-danger);
+}
+
+.fx-btn-danger {
+  background: var(--fx-danger);
+  color: #fff !important;
+  border-color: var(--fx-danger);
+}
+.fx-btn-danger:hover { background: #b91c1c; border-color: #b91c1c; }
+
+/* ---------- 10. Filter sidebar -------------------------------------------- */
+/* Locked to the right rail at consistent width: never wraps below the table,
+   never bleeds wider than 240px, and stays in view while scrolling long lists.
+   Each filter group is a collapsed <details> by default (see overridden
+   admin/filter.html) so the page opens with a clean "By <field> ▸" list. */
+
+#changelist {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  gap: 16px;
+}
+#changelist > .changelist-form-container {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+#changelist-filter {
+  background: var(--fx-surface);
+  border: 1px solid var(--fx-border);
+  border-radius: var(--fx-radius);
+  box-shadow: var(--fx-shadow-sm);
+  padding: 0;
+  width: 240px;
+  flex: 0 0 240px;
+  margin-left: 0;
+  position: sticky;
+  top: 16px;
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+}
+#changelist-filter h2 {
+  background: var(--fx-surface-alt);
+  color: var(--fx-text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--fx-border);
+  border-radius: var(--fx-radius) var(--fx-radius) 0 0;
+  margin: 0;
+}
+#changelist-filter h3 { display: none; }
+
+#changelist-filter details.fx-filter-group {
+  border-top: 1px solid var(--fx-border);
+}
+#changelist-filter details.fx-filter-group:first-of-type { border-top: 0; }
+#changelist-filter details.fx-filter-group > summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 11px 16px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fx-text);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  user-select: none;
+}
+#changelist-filter details.fx-filter-group > summary::-webkit-details-marker { display: none; }
+#changelist-filter details.fx-filter-group > summary::after {
+  content: '\203A';
+  font-size: 16px;
+  color: var(--fx-text-muted);
+  transition: transform 0.15s ease;
+}
+#changelist-filter details.fx-filter-group[open] > summary {
+  background: var(--fx-surface-alt);
+  border-bottom: 1px solid var(--fx-border);
+  color: var(--fx-primary);
+}
+#changelist-filter details.fx-filter-group[open] > summary::after {
+  transform: rotate(90deg);
+  color: var(--fx-primary);
+}
+#changelist-filter details.fx-filter-group:hover > summary { background: var(--fx-primary-soft); }
+
+#changelist-filter ul {
+  padding: 6px 8px 10px;
+  margin: 0;
+}
+#changelist-filter li {
+  list-style: none;
+  border-radius: var(--fx-radius-sm);
+  padding: 0;
+}
+#changelist-filter li a {
+  display: block;
+  padding: 6px 10px;
+  font-size: 12px;
+  color: var(--fx-text);
+  border-radius: var(--fx-radius-sm);
+  text-decoration: none;
+}
+#changelist-filter li a:hover {
+  background: var(--fx-primary-soft);
+  color: var(--fx-primary);
+}
+#changelist-filter li.selected a {
+  background: var(--fx-primary);
+  color: #fff;
+  font-weight: 600;
+}
+
+/* ---------- 11. Submit row (sticky save bar) ------------------------------ */
+
+.submit-row {
+  background: var(--fx-surface);
+  border: 1px solid var(--fx-border);
+  border-radius: var(--fx-radius);
+  padding: 14px 20px;
+  box-shadow: var(--fx-shadow);
+  position: sticky;
+  bottom: 16px;
+  margin-top: 24px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  z-index: 5;
+}
+.submit-row a.deletelink {
+  background: #fff;
+  color: var(--fx-danger);
+  border: 1px solid #fecaca;
+  padding: 8px 14px;
+  border-radius: var(--fx-radius-sm);
+  font-weight: 600;
+  margin-left: auto;
+}
+.submit-row a.deletelink:hover {
+  background: var(--fx-danger);
+  color: #fff;
+  border-color: var(--fx-danger);
+}
+
+/* ---------- 12. Dashboard cards (admin index) ----------------------------- */
+
+.fx-dashboard {
+  margin-bottom: 24px;
+}
+
+.fx-dashboard h2 {
+  margin: 0 0 14px;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.fx-dashboard .fx-subtitle {
+  color: var(--fx-text-muted);
+  margin: -8px 0 18px;
+  font-size: 13px;
+}
+
+.fx-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+  margin-bottom: 24px;
+}
+
+.fx-kpi {
+  background: var(--fx-surface);
+  border: 1px solid var(--fx-border);
+  border-radius: var(--fx-radius);
+  padding: 16px 18px;
+  box-shadow: var(--fx-shadow-sm);
+  transition: box-shadow 0.15s, transform 0.05s;
+  text-decoration: none !important;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  position: relative;
+  overflow: hidden;
+}
+.fx-kpi:hover {
+  box-shadow: var(--fx-shadow);
+  transform: translateY(-1px);
+  border-color: var(--fx-border-strong);
+}
+
+.fx-kpi-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--fx-text-muted);
+}
+
+.fx-kpi-value {
+  /* Scale down on narrow cards so "Rs. 1,234,567" doesn't blow out a
+     220px-wide cell — but cap upper bound so very small numbers don't
+     look comically large on wider layouts. */
+  font-size: clamp(20px, 4vw, 28px);
+  font-weight: 700;
+  color: var(--fx-text);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+.fx-kpi-sub {
+  font-size: 12px;
+  color: var(--fx-text-subtle);
+}
+
+.fx-kpi.fx-attention {
+  background: linear-gradient(135deg, #fff 0%, var(--fx-warning-soft) 200%);
+  border-color: #fde68a;
+}
+.fx-kpi.fx-attention .fx-kpi-value { color: #92400e; }
+
+.fx-kpi.fx-danger {
+  background: linear-gradient(135deg, #fff 0%, var(--fx-danger-soft) 200%);
+  border-color: #fecaca;
+}
+.fx-kpi.fx-danger .fx-kpi-value { color: #991b1b; }
+
+.fx-kpi.fx-positive .fx-kpi-value { color: var(--fx-success); }
+.fx-kpi.fx-primary .fx-kpi-value  { color: var(--fx-primary); }
+
+/* Activity feed on the dashboard */
+.fx-activity {
+  background: var(--fx-surface);
+  border: 1px solid var(--fx-border);
+  border-radius: var(--fx-radius);
+  box-shadow: var(--fx-shadow-sm);
+  margin-bottom: 24px;
+}
+.fx-activity-header {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--fx-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.fx-activity-header h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--fx-text-muted);
+}
+.fx-activity-list { list-style: none; margin: 0; padding: 0; }
+.fx-activity-list li {
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--fx-border);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 13px;
+}
+.fx-activity-list li:last-child { border-bottom: 0; }
+.fx-activity-list .fx-act-type {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11px;
+  color: var(--fx-text-muted);
+  background: var(--fx-surface-alt);
+  padding: 3px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.fx-activity-list .fx-act-user { font-weight: 600; }
+.fx-activity-list .fx-act-time {
+  margin-left: auto;
+  color: var(--fx-text-subtle);
+  font-size: 12px;
+}
+.fx-activity-empty {
+  padding: 24px;
+  text-align: center;
+  color: var(--fx-text-subtle);
+  font-size: 13px;
+}
+
+/* Section heading for the apps grid */
+.fx-section-title {
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--fx-text-muted);
+  margin: 16px 0 12px;
+}
+
+/* App index — restyled */
+.app-list .module,
+#content-main .module {
+  margin-bottom: 18px;
+}
+.app-list .module > table,
+#content-main .module > table {
+  width: 100%;
+}
+.app-list .module th[scope="row"],
+#content-main .module th[scope="row"] {
+  padding: 12px 18px;
+  font-weight: 600;
+  font-size: 13px;
+}
+.app-list .module td,
+#content-main .module td {
+  padding: 12px 18px;
+  font-size: 12px;
+}
+.app-list .module td a.addlink,
+.app-list .module td a.changelink,
+#content-main .module td a.addlink,
+#content-main .module td a.changelink {
+  padding: 5px 10px;
+  border-radius: var(--fx-radius-sm);
+  background: var(--fx-surface-alt);
+  color: var(--fx-text);
+  font-weight: 500;
+  font-size: 12px;
+  border: 1px solid var(--fx-border);
+}
+.app-list .module td a:hover,
+#content-main .module td a:hover {
+  background: var(--fx-primary-soft);
+  color: var(--fx-primary);
+  border-color: #93c5fd;
+  text-decoration: none;
+}
+
+/* ---------- 13. Messages, login, paginator polish ------------------------- */
+
+ul.messagelist {
+  padding: 0;
+  margin: 0 0 16px;
+}
+ul.messagelist li {
+  border-radius: var(--fx-radius);
+  padding: 12px 16px;
+  font-size: 13px;
+  margin-bottom: 8px;
+  border: 1px solid transparent;
+  box-shadow: var(--fx-shadow-sm);
+}
+ul.messagelist li.success {
+  background: var(--fx-success-soft);
+  border-color: #86efac;
+  color: #166534;
+}
+ul.messagelist li.warning {
+  background: var(--fx-warning-soft);
+  border-color: #fde68a;
+  color: #92400e;
+}
+ul.messagelist li.error {
+  background: var(--fx-danger-soft);
+  border-color: #fca5a5;
+  color: #991b1b;
+}
+
+/* Login page */
+.login #container {
+  background: var(--fx-surface);
+  border: 1px solid var(--fx-border);
+  border-radius: var(--fx-radius);
+  box-shadow: var(--fx-shadow-lg);
+  padding: 28px;
+  max-width: 380px;
+  margin: 80px auto;
+}
+.login #header { display: none; }
+.login form .submit-row { box-shadow: none; border: 0; padding: 0; }
+
+/* Empty state ("No <model>s available") */
+.changelist-form-container .results p,
+#content-main p.help {
+  background: var(--fx-surface-alt);
+  border: 1px dashed var(--fx-border-strong);
+  border-radius: var(--fx-radius);
+  padding: 18px;
+  color: var(--fx-text-muted);
+  text-align: center;
+}
+
+/* Date hierarchy bar */
+.xfull li {
+  font-size: 12px;
+}
+
+/* JSON / payload preview blocks (from format_html in admin.py) — reinforce */
+pre {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+/* ---------- Lightbox (CSS-only :target overlay) --------------------------- */
+
+.fx-lightbox-link { display: inline-block; line-height: 0; }
+
+.fx-lightbox {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.88);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  cursor: zoom-out;
+}
+.fx-lightbox:target { display: flex; }
+.fx-lightbox img {
+  max-width: 92vw;
+  max-height: 92vh;
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+.fx-lightbox-close {
+  position: absolute;
+  top: 18px;
+  right: 24px;
+  color: #fff;
+  font-size: 36px;
+  line-height: 1;
+  font-weight: 300;
+  cursor: pointer;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+/* Hover-zoom on changelist thumbnails */
+.fx-hover-zoom {
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  transform-origin: left center;
+  will-change: transform;
+}
+.fx-hover-zoom:hover {
+  transform: scale(4);
+  z-index: 100;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  position: relative;
+}
+
+/* ---------- Image grid (documents strip) ---------------------------------- */
+
+.fx-img-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 4px 0;
+  margin: 0;
+}
+.fx-img-grid-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+}
+.fx-img-grid-caption {
+  font-weight: 600;
+  color: var(--fx-text);
+  line-height: 1.3;
+}
+.fx-img-grid-subcaption {
+  color: var(--fx-text-muted);
+  font-size: 11px;
+  line-height: 1.3;
+}
+.fx-img-grid-empty {
+  padding: 16px 20px;
+  background: var(--fx-surface-alt);
+  border: 1px dashed var(--fx-border-strong);
+  border-radius: var(--fx-radius);
+  color: var(--fx-text-muted);
+  font-size: 13px;
+  font-style: italic;
+}
+
+/* Documents panel framing — used at the top of tech / dispute pages */
+.fx-documents-panel {
+  background: var(--fx-surface);
+  border: 1px solid var(--fx-border);
+  border-radius: var(--fx-radius);
+  box-shadow: var(--fx-shadow-sm);
+  padding: 16px 18px;
+  margin-bottom: 18px;
+}
+.fx-documents-panel h3 {
+  margin: 0 0 12px;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--fx-text-muted);
+}
+
+/* ---------- Catalog icon picker ------------------------------------------ */
+
+.fx-icon-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 4px 0;
+}
+.fx-icon-tile {
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 84px;
+  padding: 10px 6px 8px;
+  background: var(--fx-surface);
+  border: 2px solid var(--fx-border);
+  border-radius: var(--fx-radius);
+  transition: border-color 0.1s, box-shadow 0.1s, background 0.1s;
+}
+.fx-icon-tile:hover {
+  border-color: var(--fx-primary-soft);
+  background: var(--fx-surface-alt);
+}
+.fx-icon-tile-selected,
+.fx-icon-tile:has(input:checked) {
+  border-color: var(--fx-primary);
+  background: var(--fx-primary-soft);
+  box-shadow: 0 2px 6px rgba(0, 81, 174, 0.15);
+}
+.fx-icon-tile input[type="radio"] {
+  display: none;
+}
+.fx-icon-tile-svg {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+}
+.fx-icon-tile-none {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  color: var(--fx-text-subtle);
+  font-family: ui-monospace, monospace;
+}
+.fx-icon-tile-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fx-text);
+  text-align: center;
+  line-height: 1.2;
+}
+
+/* Action panel banner on top of change pages (custom: rendered above form) */
+.fx-action-panel {
+  background: linear-gradient(135deg, var(--fx-primary-soft) 0%, #f0f9ff 100%);
+  border: 1px solid #93c5fd;
+  border-radius: var(--fx-radius);
+  padding: 16px 18px;
+  margin-bottom: 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  box-shadow: var(--fx-shadow-sm);
+}
+.fx-action-panel-body {
+  flex: 1;
+}
+.fx-action-panel-title {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--fx-primary);
+}
+.fx-action-panel-sub {
+  font-size: 12px;
+  color: var(--fx-text-muted);
+  margin-top: 2px;
+}

@@ -1,0 +1,62 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block content %}
+<form method="post">{% csrf_token %}
+  <div class="fx-action-panel">
+    <div class="fx-action-panel-body">
+      <div class="fx-action-panel-title">Approve this technician?</div>
+      <div class="fx-action-panel-sub">
+        They will appear in customer discovery results once approved.
+        Any existing rejection reason will be cleared.
+      </div>
+    </div>
+  </div>
+
+  <div class="fx-documents-panel">
+    <h3>Documents — verify before approving</h3>
+    {{ documents_strip }}
+  </div>
+
+  <div class="module">
+    <h2>Technician details</h2>
+    <table style="width:100%">
+      <tr>
+        <th style="text-align:left;padding:14px 18px;width:160px;color:#475569">Name</th>
+        <td style="padding:14px 18px;font-weight:600">
+          {{ profile.user.get_full_name|default:profile.user.username }}
+        </td>
+      </tr>
+      <tr>
+        <th style="text-align:left;padding:14px 18px;color:#475569">Username</th>
+        <td style="padding:14px 18px;font-family:ui-monospace,monospace;font-size:13px">
+          @{{ profile.user.username }}
+        </td>
+      </tr>
+      <tr>
+        <th style="text-align:left;padding:14px 18px;color:#475569">CNIC</th>
+        <td style="padding:14px 18px;font-family:ui-monospace,monospace;font-size:13px">
+          {{ profile.cnic_number }}
+        </td>
+      </tr>
+      <tr>
+        <th style="text-align:left;padding:14px 18px;color:#475569">City</th>
+        <td style="padding:14px 18px">{{ profile.get_city_display }}</td>
+      </tr>
+      <tr>
+        <th style="text-align:left;padding:14px 18px;color:#475569">Experience</th>
+        <td style="padding:14px 18px">{{ profile.experience_years }} years</td>
+      </tr>
+      <tr>
+        <th style="text-align:left;padding:14px 18px;color:#475569">Current status</th>
+        <td style="padding:14px 18px">{{ profile.get_status_display }}</td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="submit-row">
+    <input type="submit" value="✓ Approve technician" class="default">
+    <a href="{% url 'admin:technicians_technicianprofile_changelist' %}" class="button cancel-link">Cancel</a>
+  </div>
+</form>
+{% endblock %}

@@ -1,47 +1,339 @@
 {% extends "admin/base_site.html" %}
+{% load i18n %}
 
-{% block title %}Resolve dispute #{{ ticket.id }}{% endblock %}
+{% block title %}Dispute #{{ ticket.id }}{% endblock %}
+
+{% block breadcrumbs %}
+  <div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">Home</a>
+    &rsaquo; <a href="{% url 'admin:bookings_supportticket_changelist' %}">Support tickets</a>
+    &rsaquo; Dispute #{{ ticket.id }}
+  </div>
+{% endblock %}
 
 {% block content %}
-<h1>Resolve dispute ticket #{{ ticket.id }}</h1>
+<div class="fx-dispute-page">
 
-<p><strong>Booking:</strong> {{ ticket.booking_id }}</p>
-<p><strong>Opened by:</strong> {{ ticket.opened_by }}</p>
-<p><strong>Intake method:</strong> {{ ticket.dispute_intake_method }}</p>
-<p><strong>Initial reason:</strong></p>
-<blockquote style="border-left: 3px solid #ccc; padding-left: 12px; margin-left: 0;">
-  {{ ticket.initial_reason|linebreaks }}
-</blockquote>
+  {# Header strip: who, what, when, intake method, status pill. #}
+  <div class="fx-action-panel">
+    <div class="fx-action-panel-body">
+      <div class="fx-action-panel-title">
+        Dispute #{{ ticket.id }} —
+        <span style="color:#1e40af">
+          {{ ticket.booking.customer.get_full_name|default:ticket.booking.customer.username }}
+        </span>
+        vs
+        <span style="color:#9a3412">
+          {{ ticket.booking.technician.user.get_full_name|default:ticket.booking.technician.user.username }}
+        </span>
+        <span style="margin-left:14px;display:inline-block;padding:3px 10px;font-size:12px;
+                     border-radius:12px;font-weight:700;letter-spacing:0.02em;text-transform:uppercase;
+                     {% if is_open %}background:#fef3c7;color:#92400e;border:1px solid #fcd34d;
+                     {% else %}background:#dcfce7;color:#166534;border:1px solid #86efac;{% endif %}">
+          {{ ticket.get_status_display }}
+        </span>
+        {% if needs_review %}
+          <span style="margin-left:8px;display:inline-block;padding:3px 10px;font-size:11px;
+                       border-radius:12px;font-weight:700;background:#fee2e2;color:#991b1b;
+                       border:1px solid #fca5a5">AI FLAGGED</span>
+        {% endif %}
+      </div>
+      <div class="fx-action-panel-sub">
+        Opened {{ ticket.opened_at|date:"F j, Y · H:i" }}
+        via <b>{{ ticket.get_dispute_intake_method_display }}</b> intake
+        on booking
+        <a href="{% url 'admin:bookings_jobbooking_change' ticket.booking_id %}">#{{ ticket.booking_id }}</a>.
+        Refund base: <b>Rs. {{ refund_base }}</b>
+        ({% if ticket.booking.cash_collected_amount %}cash collected{% elif ticket.booking.final_cash_to_collect %}quoted cash{% else %}booking price{% endif %}).
+      </div>
+    </div>
+  </div>
 
-<form method="post">
-  {% csrf_token %}
+  {# AI summary callout — only on chatbot intake. #}
+  {% if ai_summary %}
+    <div style="margin-top:18px;padding:14px 18px;background:#eff6ff;border-left:4px solid #2563eb;
+                border-radius:0 8px 8px 0;line-height:1.6;color:#0f172a">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.06em;
+                  color:#1e40af;font-weight:700;margin-bottom:6px">
+        AI-generated summary
+        {% if ai_summary_lang %}
+          <span style="margin-left:6px;padding:1px 6px;background:#dbeafe;border-radius:8px;
+                       font-size:10px">{{ ai_summary_lang }}</span>
+        {% endif %}
+      </div>
+      <div>{{ ai_summary }}</div>
+    </div>
+  {% endif %}
 
-  <p>
-    <label for="id_outcome"><strong>Outcome:</strong></label><br>
-    <select name="outcome" id="id_outcome" required>
-      {% for value, label in outcomes %}
-        <option value="{{ value }}">{{ label }}</option>
-      {% endfor %}
-    </select>
-  </p>
+  {# Captured fields — chatbot-extracted structured data. #}
+  {% if captured_rows %}
+    <div class="module" style="margin-top:18px">
+      <h2>Captured fields</h2>
+      <table style="width:100%">
+        {% for label, value in captured_rows %}
+          <tr style="border-top:1px solid #e2e8f0">
+            <th style="text-align:left;padding:8px 16px;color:#475569;font-weight:600;width:200px">
+              {{ label }}
+            </th>
+            <td style="padding:8px 16px;font-family:ui-monospace,monospace;color:#0f172a">
+              {{ value }}
+            </td>
+          </tr>
+        {% endfor %}
+      </table>
+    </div>
+  {% endif %}
 
-  <p>
-    <label for="id_final_status"><strong>Final booking status:</strong></label><br>
-    <select name="final_status" id="id_final_status" required>
-      {% for value, label in final_statuses %}
-        <option value="{{ value }}">{{ label }}</option>
-      {% endfor %}
-    </select>
-  </p>
+  {# Initial reason prose block — primary surface for FORM intake. #}
+  {% if ticket.initial_reason %}
+    <div class="module" style="margin-top:18px">
+      <h2>What the customer said</h2>
+      <div style="padding:16px 20px;background:#f8fafc;border-left:3px solid #cbd5e1;
+                  border-radius:0 6px 6px 0;line-height:1.6;white-space:pre-wrap;color:#0f172a">
+        {{ ticket.initial_reason }}
+      </div>
+    </div>
+  {% endif %}
 
-  <p>
-    <label for="id_notes"><strong>Resolution notes:</strong></label><br>
-    <textarea name="notes" id="id_notes" rows="6" cols="80"></textarea>
-  </p>
+  {# Evidence photo grid. Larger thumbs + lightbox links. #}
+  {% if evidence_photos %}
+    <div class="module" style="margin-top:18px">
+      <h2>Evidence photos ({{ evidence_photos|length }})</h2>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));
+                  gap:14px;padding:16px 20px">
+        {% for p in evidence_photos %}
+          <a href="{{ p.url }}" target="_blank" rel="noopener"
+             style="display:block;text-decoration:none;color:inherit">
+            <div style="border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;
+                        box-shadow:0 1px 3px rgba(0,0,0,0.05);background:#fff;
+                        transition:transform 0.15s ease, box-shadow 0.15s ease"
+                 onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 14px rgba(0,0,0,0.12)'"
+                 onmouseout="this.style.transform='';this.style.boxShadow='0 1px 3px rgba(0,0,0,0.05)'">
+              <img src="{{ p.url }}" alt="{{ p.caption }}"
+                   style="width:100%;height:180px;object-fit:cover;display:block">
+              <div style="padding:10px 12px">
+                <div style="font-weight:600;font-size:13px;color:#0f172a">{{ p.caption }}</div>
+                <div style="font-size:11px;color:#64748b;margin-top:2px">{{ p.uploaded_by }}</div>
+              </div>
+            </div>
+          </a>
+        {% endfor %}
+      </div>
+    </div>
+  {% endif %}
 
-  <p>
-    <input type="submit" value="Resolve dispute" class="default">
-    <a href="../../{{ ticket.id }}/change/" class="button cancel-link">Cancel</a>
-  </p>
-</form>
+  {# Chat transcript — bubble layout. Chatbot intake only. #}
+  {% if chat_messages %}
+    <div class="module" style="margin-top:18px">
+      <h2>Conversation transcript ({{ chat_messages|length }} messages)</h2>
+      {% if not finance_admin %}
+        <div style="margin:0 16px 12px;padding:8px 14px;background:#fef3c7;
+                    border-left:4px solid #f59e0b;border-radius:0 6px 6px 0;font-size:12px;color:#92400e">
+          Bank PII redacted. Finance admins see unredacted messages.
+        </div>
+      {% endif %}
+      <div style="padding:8px 20px 20px;display:flex;flex-direction:column;gap:10px;
+                  max-height:520px;overflow-y:auto;background:#f8fafc">
+        {% for m in chat_messages %}
+          {% if m.role == 'USER' %}
+            <div style="display:flex;justify-content:flex-end">
+              <div style="max-width:75%;padding:10px 14px;background:#0051AE;color:#fff;
+                          border-radius:14px 14px 4px 14px;line-height:1.45;font-size:13px;
+                          box-shadow:0 1px 2px rgba(0,0,0,0.08);white-space:pre-wrap">
+                {{ m.text }}
+              </div>
+            </div>
+          {% else %}
+            <div style="display:flex;justify-content:flex-start;align-items:flex-end;gap:8px">
+              <div style="flex-shrink:0;width:28px;height:28px;border-radius:50%;
+                          background:#dbeafe;color:#1e40af;display:flex;align-items:center;
+                          justify-content:center;font-size:13px;font-weight:700">🤖</div>
+              <div style="max-width:75%;padding:10px 14px;background:#fff;color:#0f172a;
+                          border:1px solid #e2e8f0;border-radius:14px 14px 14px 4px;
+                          line-height:1.45;font-size:13px;
+                          box-shadow:0 1px 2px rgba(0,0,0,0.05);white-space:pre-wrap">
+                {{ m.text }}
+              </div>
+            </div>
+          {% endif %}
+        {% endfor %}
+      </div>
+    </div>
+  {% endif %}
+
+  {# Resolution form — OPEN only. RESOLVED shows outcome read-only. #}
+  {% if is_open %}
+    <form method="post" style="margin-top:24px">
+      {% csrf_token %}
+
+      <div class="module">
+        <h2 style="background:#0051AE;color:#fff">Resolution</h2>
+        <div style="padding:18px 20px">
+          <div class="form-row">
+            <label for="id_outcome" style="font-weight:600">Outcome</label>
+            <select name="outcome" id="id_outcome" required style="width:340px;font-size:14px;padding:6px 10px"
+                    onchange="fxToggleOutcomePanels()">
+              {% for value, label in outcomes %}
+                <option value="{{ value }}">{{ label }}</option>
+              {% endfor %}
+            </select>
+            <p class="help" style="margin-top:8px">
+              <b>Accept</b> → booking is cancelled, customer refunded, technician wallet debited
+              by the percentage you choose. <b>Reject</b> → booking marked completed, no money
+              movement; write a clear customer notification explaining why.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="module" id="fx-accept-panel" style="margin-top:18px;background:#fef3c7;border:1px solid #fcd34d">
+        <h2 style="background:#f59e0b;color:#fff">Refund split (Accept only)</h2>
+        <div style="padding:18px 20px">
+          <div class="form-row">
+            <label for="id_penalty" style="font-weight:600;color:#92400e">Tech penalty %</label>
+            <input type="number" name="tech_penalty_percentage" id="id_penalty"
+                   min="0" max="100" step="1" value="100"
+                   style="width:100px;font-size:18px;font-family:ui-monospace,monospace;padding:6px 10px"
+                   onchange="fxUpdatePenaltyPreview()" oninput="fxUpdatePenaltyPreview()">
+            <span style="font-size:20px;font-weight:700;color:#92400e">%</span>
+            <p class="help" id="fx-penalty-preview" style="margin-top:8px;color:#7c2d12">
+              At <b>100%</b>, the technician's wallet is debited <span id="fx-tech-amt">—</span>.
+              At <b>0%</b>, the platform absorbs the entire refund.
+            </p>
+          </div>
+          <div class="form-row">
+            <label for="id_external_ref" style="font-weight:600;color:#92400e">JazzCash / bank refund reference</label>
+            <input type="text" name="external_refund_reference" id="id_external_ref"
+                   maxlength="80"
+                   style="width:340px;font-family:ui-monospace,monospace;padding:6px 10px"
+                   placeholder="e.g. JC-RFND-20260516-XX001">
+            <p class="help" style="color:#7c2d12">
+              Required for Accept. The merchant transaction id from the refund
+              you already sent the customer.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="module" style="margin-top:18px">
+        <h2>Messages</h2>
+        <div style="padding:18px 20px">
+          <div class="form-row">
+            <label for="id_customer_msg" style="font-weight:600">Message to customer</label>
+            <textarea name="customer_notification_message" id="id_customer_msg"
+                      rows="3" cols="80" maxlength="500" style="font-size:13px"
+                      placeholder="e.g. Refund of Rs. 1,500 sent to your JazzCash. Tech penalized."></textarea>
+            <p class="help">Shown to the customer in-app when the dispute closes.</p>
+          </div>
+          <div class="form-row">
+            <label for="id_notes" style="font-weight:600">Internal admin notes</label>
+            <textarea name="notes" id="id_notes" rows="3" cols="80" style="font-size:13px"></textarea>
+            <p class="help">Audit trail. Not visible to customer or technician.</p>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top:24px;display:flex;justify-content:space-between;align-items:center;
+                  padding:14px 20px;background:#fff;border:1px solid #e2e8f0;border-radius:10px">
+        <a href="{% url 'admin:bookings_supportticket_changelist' %}" class="button cancel-link">
+          ← Back to list
+        </a>
+        <button type="submit" class="fx-btn fx-btn-primary">
+          ⚖ Resolve dispute
+        </button>
+      </div>
+    </form>
+  {% else %}
+    <div class="module" style="margin-top:24px;background:#f0fdf4;border:1px solid #86efac">
+      <h2 style="background:#16a34a;color:#fff">Resolution outcome</h2>
+      <div style="padding:18px 20px;line-height:1.7">
+        <table style="width:100%">
+          <tr>
+            <th style="text-align:left;padding:8px 0;color:#475569;width:200px;font-weight:600">Outcome</th>
+            <td style="padding:8px 0">
+              <span style="display:inline-block;padding:3px 12px;border-radius:12px;font-size:12px;
+                           font-weight:700;background:#dcfce7;color:#166534">
+                {{ ticket.get_resolution_outcome_display }}
+              </span>
+            </td>
+          </tr>
+          {% if ticket.tech_penalty_percentage %}
+            <tr>
+              <th style="text-align:left;padding:8px 0;color:#475569;font-weight:600">Tech penalty</th>
+              <td style="padding:8px 0;font-family:ui-monospace,monospace">{{ ticket.tech_penalty_percentage }}%</td>
+            </tr>
+          {% endif %}
+          {% if ticket.external_refund_reference %}
+            <tr>
+              <th style="text-align:left;padding:8px 0;color:#475569;font-weight:600">Refund reference</th>
+              <td style="padding:8px 0;font-family:ui-monospace,monospace">
+                <code style="background:#fef3c7;padding:2px 8px;border-radius:4px">{{ ticket.external_refund_reference }}</code>
+              </td>
+            </tr>
+          {% endif %}
+          {% if ticket.customer_notification_message %}
+            <tr>
+              <th style="text-align:left;padding:8px 0;color:#475569;font-weight:600;vertical-align:top">Customer message</th>
+              <td style="padding:8px 0;white-space:pre-wrap">{{ ticket.customer_notification_message }}</td>
+            </tr>
+          {% endif %}
+          {% if ticket.resolution_notes %}
+            <tr>
+              <th style="text-align:left;padding:8px 0;color:#475569;font-weight:600;vertical-align:top">Internal notes</th>
+              <td style="padding:8px 0;white-space:pre-wrap;color:#475569">{{ ticket.resolution_notes }}</td>
+            </tr>
+          {% endif %}
+          <tr>
+            <th style="text-align:left;padding:8px 0;color:#475569;font-weight:600">Resolved at</th>
+            <td style="padding:8px 0">{{ ticket.resolved_at|date:"F j, Y · H:i" }}
+              {% if ticket.resolved_by %} by <b>{{ ticket.resolved_by.get_full_name|default:ticket.resolved_by.username }}</b>{% endif %}
+            </td>
+          </tr>
+        </table>
+        <div style="margin-top:18px">
+          <a href="{% url 'admin:bookings_supportticket_changelist' %}" class="button cancel-link">
+            ← Back to list
+          </a>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+
+</div>
+
+{% if is_open %}
+<script>
+  var FX_OUTCOME_ACCEPT = "{{ OUTCOME_ACCEPT|escapejs }}";
+  var FX_REFUND_BASE = parseFloat("{{ refund_base|escapejs }}") || 0;
+
+  function fxToggleOutcomePanels() {
+    var sel = document.getElementById('id_outcome');
+    var acceptPanel = document.getElementById('fx-accept-panel');
+    var refInput = document.getElementById('id_external_ref');
+    if (!sel || !acceptPanel) return;
+    var isAccept = sel.value === FX_OUTCOME_ACCEPT;
+    acceptPanel.style.display = isAccept ? '' : 'none';
+    if (refInput) {
+      if (isAccept) refInput.setAttribute('required', 'required');
+      else refInput.removeAttribute('required');
+    }
+  }
+
+  function fxUpdatePenaltyPreview() {
+    var pctInput = document.getElementById('id_penalty');
+    var amtSpan = document.getElementById('fx-tech-amt');
+    if (!pctInput || !amtSpan) return;
+    var pct = parseInt(pctInput.value, 10);
+    if (isNaN(pct) || pct < 0) pct = 0;
+    if (pct > 100) pct = 100;
+    var rs = Math.floor(FX_REFUND_BASE * pct / 100);
+    amtSpan.textContent = 'Rs. ' + rs.toLocaleString('en-PK');
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    fxToggleOutcomePanels();
+    fxUpdatePenaltyPreview();
+  });
+</script>
+{% endif %}
 {% endblock %}

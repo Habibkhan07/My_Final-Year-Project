@@ -1,0 +1,22 @@
+{% extends "admin/change_form.html" %}
+{% load i18n %}
+
+{% block content %}
+  {% if fx_action_panel %}
+    <div class="fx-action-panel" style="flex-direction:column;align-items:stretch;gap:0">
+      <div class="fx-action-panel-body" style="padding-bottom:14px">
+        <div class="fx-action-panel-title">{{ fx_action_panel.title }}</div>
+        <div class="fx-action-panel-sub">{{ fx_action_panel.sub }}</div>
+      </div>
+      <div style="display:flex;gap:12px;padding-top:14px;border-top:1px solid #bfdbfe">
+        <a href="{{ fx_action_panel.process_url }}" class="fx-btn fx-btn-success" style="flex:1;text-align:center">
+          ✓ Approve &amp; process
+        </a>
+        <a href="{{ fx_action_panel.reject_url }}" class="fx-btn fx-btn-danger-outline" style="flex:1;text-align:center">
+          ✗ Reject
+        </a>
+      </div>
+    </div>
+  {% endif %}
+  {{ block.super }}
+{% endblock %}
