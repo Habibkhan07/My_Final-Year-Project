@@ -1907,3 +1907,31 @@ Search hints: `RegisterTechnicianView`, `finalize_registration`, `IsAuthenticate
 
 **Severity**
 P2. Single-client product today (Flutter), so the gate is implicit. Becomes a P1 the moment a second client lands or the API is published.
+
+---
+
+## 56. `general` chatbot persona has no auto-close — open `Conversation` rows accumulate forever
+
+**Where**
+- `backend/chatbot/personas/general/persona.py` — `GeneralHelpPersona` never sets `is_terminal=True` from `handle_user_turn` and has no `find_existing_open` opt-in, so each `POST /api/chat/general/start/` creates a fresh open `Conversation` row.
+- `backend/chatbot/models.py` `Conversation` — the table.
+- `frontend/lib/features/customer/help/presentation/notifiers/help_chat_notifier.dart` — every Help tab open calls `start_conversation`.
+
+**What's wrong**
+The dispute persona terminates via the state machine (`PAYOUT` → `CLOSED` on form submit) and the screen calls `/close/` on completion, so dispute rows reach a terminal `is_closed=True` state. The general persona has neither — there is no content-driven terminal phase and the FE only fires `/close/` from the new "Clear chat" button. Users who never tap Clear leave behind one row per Help tab open. Across N users × M sessions/day this grows unboundedly. Table-bloat over months, not days; no immediate functional impact but a slow accumulation.
+
+**Why we shipped it that way**
+- Dispute persona ships with a real terminal state (it produces a SupportTicket + RefundIntent on close — closure is load-bearing). General help produces nothing on close, so there is no business event that "should" terminate.
+- A simple "close on every screen dispose" would lose mid-session resumability if we ever add that. Better to leave the close decision to a sweeper than couple it to widget lifecycle.
+- Inactivity-based auto-close is real work (Celery beat task + tested idempotency) and was scope-creep against the viva deadline.
+- The Clear chat button (just shipped) gives users a manual close path, so the worst case is "user opens Help once, never clears" — one stale row per user, not per session.
+
+**The proper fix**
+1. New Celery task `chatbot.tasks.close_stale_general_conversations` — runs daily via Celery beat (or every N hours), uses `select_for_update` on each `Conversation` row where `persona_key='general' AND is_closed=False AND last message older than X days` (suggest 7 days). Calls `chatbot.services.conversation.close_conversation` so the existing idempotent on-close path runs (which is a no-op for general persona but keeps the abstraction intact).
+2. `core/celery.py` beat schedule entry (mirrors the existing `bookings.tasks.expire_pending_job_booking` pattern).
+3. Add an index on `(persona_key, is_closed, last_activity_at)` if the sweep grows expensive — the current `Conversation` model has no `last_activity_at` column. Either add one (`auto_now` on save / update on each Message create) or join through `Message` with a subquery. Subquery is fine until volume warrants the denormalized column.
+4. Add a one-test sanity check that the sweeper does not touch dispute conversations even when stale (persona_key filter is load-bearing).
+Search hints: `GeneralHelpPersona`, `is_closed=False`, `persona_key='general'`, the dispute task pattern in `bookings/tasks.py`.
+
+**Severity**
+P3. Pure accumulation; no functional or security impact. Becomes P2 when the conversation table grows large enough to hurt `Conversation`-keyed query plans (probably tens of thousands of stale rows).

@@ -142,11 +142,15 @@ LLM_ADAPTER = env('LLM_ADAPTER', default='gemini')
 GEMINI_API_KEY = env('GEMINI_API_KEY', default='')
 GEMINI_MODEL = env('GEMINI_MODEL', default='gemini-2.5-flash')
 
-# Per-user daily LLM call quota, shared across all chatbot personas. At 50
-# calls/day this comfortably covers ~16 dispute sessions (~3 LLM calls
-# each — greet, summarize, closing) while protecting the free-tier project
-# quota from a runaway loop or abusive replay.
-CHATBOT_DAILY_CALL_LIMIT = env.int('CHATBOT_DAILY_CALL_LIMIT', default=50)
+# Per-user daily LLM call quota, shared across all chatbot personas. Two
+# personas in flight today: ``dispute`` (~3 LLM calls per session — greet
+# templated, UNDERSTAND turns are the real spend, summarize, closing) and
+# ``general`` help Q&A (1 LLM call per user message; greet templated).
+# 100/day comfortably covers ~50 help questions OR ~16 dispute sessions OR
+# any mix in between while still protecting free-tier project quota from a
+# runaway loop or abusive replay. Splitting the budget per persona is a
+# v1.1 task; today the shared single bucket is simpler to reason about.
+CHATBOT_DAILY_CALL_LIMIT = env.int('CHATBOT_DAILY_CALL_LIMIT', default=100)
 
 # Per-phase turn cap for state-machine personas (today: UNDERSTAND phase in
 # the dispute flow). When the cap is exceeded WITH required fields already

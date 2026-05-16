@@ -26,5 +26,7 @@ class ChatbotConfig(AppConfig):
         # No edits to chatbot.core or chatbot.services.
         from chatbot.personas import register
         from chatbot.personas.dispute.persona import DisputePersona
+        from chatbot.personas.general.persona import GeneralHelpPersona
 
         register(DisputePersona())
+        register(GeneralHelpPersona())

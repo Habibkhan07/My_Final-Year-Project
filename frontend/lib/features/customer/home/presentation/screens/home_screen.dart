@@ -7,6 +7,7 @@ import '../../../../../core/theme/app_spacing.dart';
 import '../../../addresses/presentation/providers/dependency_injection.dart';
 import '../../../addresses/presentation/widgets/address_selector_sheet.dart';
 import '../../../bookings/presentation/screens/customer_bookings_list_screen.dart';
+import '../../../help/presentation/screens/help_screen.dart';
 import '../../domain/failures/home_failure.dart';
 import '../providers/current_tab_notifier.dart';
 import '../providers/home_notifier.dart';
@@ -21,39 +22,61 @@ import '../widgets/technician_carousel.dart';
 
 /// Customer-side bottom-nav shell.
 ///
-/// `IndexedStack` keeps every tab mounted: scroll position, Riverpod
-/// state, and any in-flight async work survive tab switches. Switching
-/// to a tab the user already visited is instant — no loading theatrics.
+/// Lazy `IndexedStack`: tabs are built on first visit and kept mounted
+/// after that. Scroll position, Riverpod state, and any in-flight async
+/// work survive tab switches once a tab has been activated.
+///
+/// **Why not the standard eager IndexedStack:** the Help tab opens a
+/// chatbot conversation on mount (its notifier's `build()` POSTs to
+/// `/api/chat/general/start/`). Eager mounting would fire that network
+/// call on every Home open — burning a backend conversation row even
+/// for customers who never tap Help, and timing out widget tests that
+/// don't override the chatbot data source.
 ///
 /// Tabs:
 ///   0. Home feed (services, promos, top technicians)
 ///   1. Bookings (My Bookings list — `CustomerBookingsListScreen`)
-///   2. Messages (placeholder until the messaging feature ships)
-///   3. Profile (placeholder until the profile feature ships)
-class HomeScreen extends ConsumerWidget {
+///   2. Help     (AI chatbot — `general` persona of the chatbot framework)
+///   3. Profile  (placeholder until the profile feature ships)
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends ConsumerState<HomeScreen> {
+  // Track which tabs the user has actually visited. Home (0) is always
+  // visited on first build; others get added when their index becomes
+  // the active tab via `ref.listen` below.
+  final Set<int> _visited = <int>{0};
+
+  @override
+  Widget build(BuildContext context) {
     final tab = ref.watch(currentCustomerTabProvider);
+
+    // Mark a tab as visited the first time it becomes active.
+    ref.listen<int>(currentCustomerTabProvider, (_, next) {
+      if (_visited.add(next)) setState(() {});
+    });
 
     return Scaffold(
       backgroundColor: AppColors.surface,
       body: IndexedStack(
         index: tab,
-        children: const [
-          _HomeFeedTab(),
-          CustomerBookingsListScreen(),
-          _ComingSoonTab(
-            icon: Icons.chat_bubble_outline,
-            label: 'Messages',
-            body: 'In-app chat is coming soon.',
-          ),
-          _ComingSoonTab(
-            icon: Icons.person_outline,
-            label: 'Profile',
-            body: 'Your profile and settings will live here.',
-          ),
+        children: [
+          _visited.contains(0) ? const _HomeFeedTab() : const SizedBox.shrink(),
+          _visited.contains(1)
+              ? const CustomerBookingsListScreen()
+              : const SizedBox.shrink(),
+          _visited.contains(2) ? const HelpScreen() : const SizedBox.shrink(),
+          _visited.contains(3)
+              ? const _ComingSoonTab(
+                  icon: Icons.person_outline,
+                  label: 'Profile',
+                  body: 'Your profile and settings will live here.',
+                )
+              : const SizedBox.shrink(),
         ],
       ),
       bottomNavigationBar: _BottomNav(),
@@ -109,9 +132,9 @@ class _BottomNav extends ConsumerWidget {
               label: 'Bookings',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.chat_bubble_outline),
-              activeIcon: Icon(Icons.chat_bubble),
-              label: 'Messages',
+              icon: Icon(Icons.support_agent_outlined),
+              activeIcon: Icon(Icons.support_agent),
+              label: 'Help',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.person_outline),
@@ -178,35 +201,16 @@ class _HomeFeedTab extends ConsumerWidget {
             onRetry: () => ref.read(homeProvider.notifier).fetchHomeFeed(),
           ),
 
-        // App Bar / Header
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 8.0),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const _LocationHeader(),
-              Stack(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.notifications_outlined, size: 28),
-                    onPressed: () {},
-                  ),
-                  Positioned(
-                    right: 12,
-                    top: 12,
-                    child: Container(
-                      width: 8,
-                      height: 8,
-                      decoration: const BoxDecoration(
-                        color: Colors.red,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
+        // App Bar / Header — location selector only. The notification
+        // bell that used to live here was a no-op stub: empty onPressed,
+        // hardcoded red unread dot, no notification-list screen behind
+        // it. The realtime event architecture (`SystemEventNotifier` for
+        // in-app, FCM for backgrounded) is the canonical notification
+        // surface, so a fake bell adds no functionality and reads as
+        // dishonest UX.
+        const Padding(
+          padding: EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 8.0),
+          child: _LocationHeader(),
         ),
 
         // Scrollable Body
