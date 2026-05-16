@@ -62,7 +62,7 @@ from wallet.services.withdrawal_fulfilment_service import (
 # ---------------------------------------------------------------------------
 
 
-_FINANCE_ADMIN_GROUP = "finance_admin"
+_FINANCE_ADMIN_GROUP = "admin"  # group was renamed in accounts/migrations/0005
 
 
 def _is_finance_admin(user) -> bool:

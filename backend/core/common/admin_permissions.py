@@ -10,9 +10,10 @@ Roles:
 * **supervisor** — operational lead: sees Bookings, SupportTicket,
   Catalog, Promotions, Technicians, Customers. No money, no PII, no
   forensic surfaces.
-* **finance_admin** — supervisor view plus the wallet ledger, payout
-  accounts, withdrawal queue, RefundIntent IBANs, and the unredacted
-  chat_log. Read-most-only; writes happen through named actions.
+* **admin** — supervisor view plus the wallet ledger, payout accounts,
+  withdrawal queue, RefundIntent IBANs, and the unredacted chat_log.
+  Read-most-only; writes happen through named actions. (Group was
+  named ``finance_admin`` historically — see migration 0005.)
 * **engineer** — supervisor view plus forensic surfaces (EventLog,
   FCMDevice, OTPRecord, full Conversation transcripts, DailyLlmCallQuota,
   TemporaryMedia). Read-only; for incident triage and on-call debugging.
@@ -25,7 +26,7 @@ from __future__ import annotations
 
 
 SUPERVISOR_GROUP = "supervisor"
-FINANCE_ADMIN_GROUP = "finance_admin"
+ADMIN_GROUP = "admin"
 ENGINEER_GROUP = "engineer"
 
 
@@ -46,8 +47,12 @@ def is_supervisor(user) -> bool:
     return _has_group(user, SUPERVISOR_GROUP)
 
 
-def is_finance_admin(user) -> bool:
-    return _has_group(user, FINANCE_ADMIN_GROUP)
+def is_admin(user) -> bool:
+    return _has_group(user, ADMIN_GROUP)
+
+
+# Back-compat alias — drop after callers migrate.
+is_finance_admin = is_admin
 
 
 def is_engineer(user) -> bool:
@@ -68,14 +73,18 @@ def is_engineer_or_superuser(user) -> bool:
     return user.groups.filter(name=ENGINEER_GROUP).exists()
 
 
-def is_finance_admin_or_superuser(user) -> bool:
-    """Compat alias for the existing ``_is_finance_admin`` semantics.
+def is_admin_or_superuser(user) -> bool:
+    """Compat alias for the existing finance-admin semantics.
 
     The helper in ``disputes/admin.py`` and ``wallet/admin.py`` already
     treats superusers as members of the group. Same here so callers
     can drop the duplicate definitions without behavioural drift.
     """
-    return is_finance_admin(user)
+    return is_admin(user)
+
+
+# Back-compat alias.
+is_finance_admin_or_superuser = is_admin_or_superuser
 
 
 class EngineerOnlyAdminMixin:

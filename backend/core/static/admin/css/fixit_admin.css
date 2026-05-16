@@ -1139,3 +1139,205 @@ pre {
   color: var(--fx-text-muted);
   margin-top: 2px;
 }
+
+/* ---------- Approval-page design system ---------------------------------- */
+/* Used by tech approval pages (quick_approve.html, approval_review.html)
+   and the dispute resolve page. Keeps every decision page visually identical. */
+
+.fx-approval-shell {
+  max-width: 1100px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding-bottom: 96px;
+}
+
+.fx-hero {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 22px 24px;
+  background: linear-gradient(135deg, #eff6ff 0%, #ffffff 70%);
+  border: 1px solid #bfdbfe;
+  border-radius: var(--fx-radius);
+  box-shadow: var(--fx-shadow-sm);
+}
+.fx-hero-avatar {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--fx-surface-alt);
+  border: 2px solid #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  flex-shrink: 0;
+}
+.fx-hero-avatar-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--fx-primary);
+  background: var(--fx-primary-soft);
+}
+.fx-hero-body { flex: 1; min-width: 0; }
+.fx-hero-name {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--fx-text);
+  letter-spacing: -0.01em;
+  margin-bottom: 6px;
+}
+.fx-hero-want {
+  font-size: 13px;
+  color: var(--fx-text-muted);
+  margin-bottom: 10px;
+}
+.fx-pills { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.fx-pill-svc {
+  display: inline-block;
+  padding: 5px 12px;
+  background: var(--fx-primary);
+  color: #fff;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+.fx-meta-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.fx-meta-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  background: #fff;
+  border: 1px solid var(--fx-border);
+  border-radius: 999px;
+  font-size: 11px;
+  color: var(--fx-text);
+}
+.fx-meta-chip-label {
+  color: var(--fx-text-muted);
+  font-weight: 500;
+}
+.fx-meta-chip-value {
+  font-weight: 600;
+  font-family: ui-monospace, monospace;
+}
+
+.fx-section {
+  background: var(--fx-surface);
+  border: 1px solid var(--fx-border);
+  border-radius: var(--fx-radius);
+  box-shadow: var(--fx-shadow-sm);
+  overflow: hidden;
+}
+.fx-section-title {
+  padding: 12px 20px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--fx-text-muted);
+  background: var(--fx-surface-alt);
+  border-bottom: 1px solid var(--fx-border);
+}
+.fx-section-body { padding: 16px 20px; }
+
+.fx-table-clean {
+  width: 100%;
+  border-collapse: collapse;
+}
+.fx-table-clean th {
+  text-align: left;
+  padding: 10px 18px;
+  background: var(--fx-surface-alt);
+  color: var(--fx-text-muted);
+  font-weight: 600;
+  font-size: 12px;
+  border-bottom: 1px solid var(--fx-border);
+}
+.fx-table-clean td {
+  padding: 12px 18px;
+  border-top: 1px solid var(--fx-border);
+  font-size: 13px;
+  color: var(--fx-text);
+}
+.fx-table-clean tr:first-child td { border-top: 0; }
+.fx-num,
+.fx-table-clean th.fx-num,
+.fx-table-clean td.fx-num {
+  font-family: ui-monospace, monospace;
+  text-align: right;
+}
+
+.fx-warn-box {
+  margin: 12px 20px;
+  padding: 14px 18px;
+  background: #fef3c7;
+  border-left: 4px solid #f59e0b;
+  border-radius: 0 6px 6px 0;
+  color: #92400e;
+  font-size: 13px;
+}
+.fx-warn-box strong { margin-right: 6px; }
+
+.fx-license-thumb {
+  width: 88px;
+  height: 64px;
+  object-fit: cover;
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  cursor: zoom-in;
+  transition: transform 0.08s, box-shadow 0.12s;
+}
+.fx-license-thumb:hover {
+  transform: scale(1.03);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+}
+
+.fx-decision {
+  position: sticky;
+  bottom: 16px;
+  margin-top: 6px;
+  padding: 16px 20px;
+  background: var(--fx-surface);
+  border: 1px solid var(--fx-border);
+  border-radius: var(--fx-radius);
+  box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.06);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  z-index: 50;
+}
+.fx-decision-spacer { flex: 1; }
+.fx-decision-note {
+  font-size: 12px;
+  color: var(--fx-text-muted);
+}
+.fx-decision-reason {
+  margin-top: 12px;
+  padding: 14px 18px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: var(--fx-radius);
+}
+.fx-decision-reason textarea {
+  width: 100%;
+  margin-top: 6px;
+  padding: 10px;
+  border: 1px solid var(--fx-border);
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 13px;
+  resize: vertical;
+  min-height: 80px;
+}
+.fx-decision-reason summary {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fx-danger);
+}

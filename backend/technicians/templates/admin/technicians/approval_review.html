@@ -12,101 +12,116 @@
 {% endblock %}
 
 {% block content %}
-<div class="fx-approval-page">
+<div class="fx-approval-shell">
 
-  <div class="fx-action-panel">
-    <div class="fx-action-panel-body">
-      <div class="fx-action-panel-title">
-        {{ profile.user.get_full_name|default:profile.user.username }} wants to be approved
-        {% if skills %}
-          for
-          <span style="color:#1e40af;font-weight:700">
-            {% for s in skills %}{{ s.sub_service.service.name }} → {{ s.sub_service.name }}{% if not forloop.last %}, {% endif %}{% endfor %}
-          </span>
-        {% else %}
-          — but has not selected any services yet
-        {% endif %}
+  <div class="fx-hero">
+    {% if profile.profile_picture %}
+      <img src="{{ profile.profile_picture.url }}"
+           alt="{{ profile.user.get_full_name|default:profile.user.username }}"
+           class="fx-hero-avatar">
+    {% else %}
+      <div class="fx-hero-avatar fx-hero-avatar-fallback">
+        {{ profile.user.first_name|first|default:profile.user.username|first|upper }}
       </div>
-      <div class="fx-action-panel-sub">
-        Verify the photos match the identity below before approving. Rejection requires a reason that the
-        technician will see in-app and can use to re-apply.
+    {% endif %}
+    <div class="fx-hero-body">
+      <div class="fx-hero-name">
+        {{ profile.user.get_full_name|default:profile.user.username }}
+      </div>
+      <div class="fx-hero-want">
+        {% if skills %}wants approval for{% else %}has not selected any services yet{% endif %}
+      </div>
+      {% if skills %}
+        <div class="fx-pills">
+          {% for s in skills %}
+            <span class="fx-pill-svc">
+              {{ s.sub_service.service.name }} &rarr; {{ s.sub_service.name }}
+            </span>
+          {% endfor %}
+        </div>
+      {% endif %}
+      <div class="fx-meta-row">
+        <span class="fx-meta-chip">
+          <span class="fx-meta-chip-label">CNIC</span>
+          <span class="fx-meta-chip-value">{{ profile.cnic_number }}</span>
+        </span>
+        <span class="fx-meta-chip">
+          <span class="fx-meta-chip-label">City</span>
+          <span class="fx-meta-chip-value">{{ profile.get_city_display }}</span>
+        </span>
+        <span class="fx-meta-chip">
+          <span class="fx-meta-chip-label">Experience</span>
+          <span class="fx-meta-chip-value">{{ profile.experience_years }} yr</span>
+        </span>
+        <span class="fx-meta-chip">
+          <span class="fx-meta-chip-label">Phone</span>
+          <span class="fx-meta-chip-value">{{ profile.user.username }}</span>
+        </span>
       </div>
     </div>
   </div>
 
-  <div class="module">
-    <h2>Identity</h2>
-    <table style="width:100%">
-      {% for label, value in identity_rows %}
-        <tr>
-          <th style="text-align:left;padding:10px 18px;width:200px;color:#475569;font-weight:600">{{ label }}</th>
-          <td style="padding:10px 18px;font-family:ui-monospace,monospace;font-size:13px;color:#0f172a">
-            {{ value }}
-          </td>
-        </tr>
-      {% endfor %}
-    </table>
+  <div class="fx-section">
+    <div class="fx-section-title">Documents &mdash; verify before approving</div>
+    <div class="fx-section-body">
+      {{ documents_strip }}
+    </div>
   </div>
 
-  <div class="module">
-    <h2>Services applied for</h2>
+  <div class="fx-section">
+    <div class="fx-section-title">Services applied for</div>
     {% if skills %}
-      <table style="width:100%">
+      <table class="fx-table-clean">
         <thead>
-          <tr style="background:#f1f5f9">
-            <th style="text-align:left;padding:10px 18px;color:#475569;font-weight:600">Service</th>
-            <th style="text-align:left;padding:10px 18px;color:#475569;font-weight:600">Skill (sub-service)</th>
-            <th style="text-align:right;padding:10px 18px;color:#475569;font-weight:600">Years</th>
-            <th style="text-align:right;padding:10px 18px;color:#475569;font-weight:600">Labor rate</th>
+          <tr>
+            <th>Service</th>
+            <th>Skill (sub-service)</th>
+            <th class="fx-num">Years</th>
+            <th class="fx-num">Labor rate</th>
           </tr>
         </thead>
         <tbody>
           {% for s in skills %}
-            <tr style="border-top:1px solid #e2e8f0">
-              <td style="padding:10px 18px;font-weight:600">{{ s.sub_service.service.name }}</td>
-              <td style="padding:10px 18px">{{ s.sub_service.name }}</td>
-              <td style="padding:10px 18px;text-align:right;font-family:ui-monospace,monospace">
-                {{ s.years_of_experience }}
-              </td>
-              <td style="padding:10px 18px;text-align:right;font-family:ui-monospace,monospace">
-                {% if s.labor_rate %}Rs. {{ s.labor_rate }}{% else %}—{% endif %}
+            <tr>
+              <td style="font-weight:600">{{ s.sub_service.service.name }}</td>
+              <td>{{ s.sub_service.name }}</td>
+              <td class="fx-num">{{ s.years_of_experience }}</td>
+              <td class="fx-num">
+                {% if s.labor_rate %}Rs.&nbsp;{{ s.labor_rate }}{% else %}&mdash;{% endif %}
               </td>
             </tr>
           {% endfor %}
         </tbody>
       </table>
     {% else %}
-      <div style="padding:16px 20px;background:#fef3c7;border-left:4px solid #f59e0b;
-                  margin:0 14px 14px 14px;border-radius:0 6px 6px 0">
-        <strong style="color:#92400e">No services selected.</strong>
-        <span style="color:#92400e">
-          This technician has not chosen any services to offer. Approving them now means they will
-          be approved but invisible to customer search — they have to complete onboarding first.
-        </span>
+      <div class="fx-warn-box">
+        <strong>No services selected.</strong>
+        Approving them now means they will be approved but invisible to customer
+        search &mdash; they have to complete onboarding first.
       </div>
     {% endif %}
+  </div>
 
-    {% if licenses %}
-      <h3 style="margin-top:14px">Licenses uploaded</h3>
-      <table style="width:100%">
+  {% if licenses %}
+    <div class="fx-section">
+      <div class="fx-section-title">Licenses uploaded</div>
+      <table class="fx-table-clean">
         <thead>
-          <tr style="background:#f1f5f9">
-            <th style="text-align:left;padding:10px 18px;color:#475569;font-weight:600">Service</th>
-            <th style="text-align:left;padding:10px 18px;color:#475569;font-weight:600">License document</th>
+          <tr>
+            <th>Service</th>
+            <th>License document</th>
           </tr>
         </thead>
         <tbody>
           {% for l in licenses %}
-            <tr style="border-top:1px solid #e2e8f0">
-              <td style="padding:10px 18px;font-weight:600">{{ l.service.name }}</td>
-              <td style="padding:10px 18px">
+            <tr>
+              <td style="font-weight:600">{{ l.service.name }}</td>
+              <td>
                 {% if l.license_picture %}
                   <a href="{{ l.license_picture.url }}" target="_blank" rel="noopener">
                     <img src="{{ l.license_picture.url }}"
                          alt="License for {{ l.service.name }}"
-                         style="width:80px;height:60px;object-fit:cover;
-                                border-radius:6px;box-shadow:0 1px 3px rgba(0,0,0,0.1);
-                                cursor:zoom-in">
+                         class="fx-license-thumb">
                   </a>
                 {% else %}
                   <em style="color:#9ca3af">No document uploaded</em>
@@ -116,66 +131,44 @@
           {% endfor %}
         </tbody>
       </table>
-    {% endif %}
-  </div>
-
-  <div class="fx-documents-panel">
-    <h3>Identity documents</h3>
-    {{ documents_strip }}
-    <p style="color:#64748b;font-size:12px;margin-top:10px">
-      Click any photo to zoom. The CNIC photo, profile picture, and any service licenses should all match the name above.
-    </p>
-  </div>
+    </div>
+  {% endif %}
 
   <form method="post" id="fx-approve-form" style="margin:0">
     {% csrf_token %}
     <input type="hidden" name="action" value="approve">
-    <div class="module" style="margin-top:24px;background:#ecfdf5;border:1px solid #6ee7b7">
-      <h2 style="background:#16a34a;color:#fff">Approve</h2>
-      <div style="padding:18px 20px">
-        <p style="margin:0 0 14px 0;color:#065f46">
-          Approval is immediate. The technician becomes discoverable in customer search the moment you click below.
-          No reason is required.
-        </p>
-        <button type="submit" class="fx-btn fx-btn-success"
-                onclick="return confirm('Approve this technician? This is immediate.')">
-          ✓ Approve technician
-        </button>
-      </div>
+    <div class="fx-decision">
+      <button type="submit" class="fx-btn fx-btn-success"
+              onclick="return confirm('Approve this technician? This is immediate.')">
+        &check; Approve technician
+      </button>
+      <button type="button" class="fx-btn fx-btn-danger-outline"
+              onclick="document.getElementById('fx-reject-panel').open = true;
+                       document.getElementById('id_rejection_reason').focus();">
+        &times; Reject &hellip;
+      </button>
+      <div class="fx-decision-spacer"></div>
+      <span class="fx-decision-note">Atomic and audited.</span>
     </div>
   </form>
 
-  <form method="post" id="fx-reject-form" style="margin-top:24px">
+  <form method="post" id="fx-reject-form" style="margin:0">
     {% csrf_token %}
     <input type="hidden" name="action" value="reject">
-    <div class="module" style="background:#fef2f2;border:1px solid #fca5a5">
-      <h2 style="background:#dc2626;color:#fff">Reject</h2>
-      <div style="padding:18px 20px">
-        <p style="margin:0 0 12px 0;color:#7f1d1d">
-          A reason is mandatory and is shown to the technician in-app. They can re-apply after correcting
-          the issue you describe.
-        </p>
-        <div class="form-row" style="margin:0">
-          <label for="id_rejection_reason" style="font-weight:600;color:#7f1d1d">Reason (visible to technician)</label>
-          {{ form.rejection_reason }}
-          {% if form.rejection_reason.errors %}
-            <p class="errornote" style="margin-top:6px">{{ form.rejection_reason.errors|join:" " }}</p>
-          {% endif %}
-        </div>
-        <button type="submit" class="fx-btn fx-btn-danger" style="margin-top:14px">
-          ✗ Reject technician
-        </button>
-      </div>
-    </div>
+    <details id="fx-reject-panel" class="fx-decision-reason">
+      <summary>Reject with a reason</summary>
+      <p style="font-size:12px;color:#7f1d1d;margin:8px 0 4px">
+        The technician sees this reason in-app and can re-apply after correcting the issue.
+      </p>
+      {{ form.rejection_reason }}
+      {% if form.rejection_reason.errors %}
+        <p class="errornote" style="margin-top:6px">{{ form.rejection_reason.errors|join:" " }}</p>
+      {% endif %}
+      <button type="submit" class="fx-btn fx-btn-danger" style="margin-top:10px">
+        &times; Confirm rejection
+      </button>
+    </details>
   </form>
 
-  <div style="margin-top:24px;padding-top:16px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between">
-    <a href="{% url 'admin:technicians_technicianprofile_changelist' %}" class="button cancel-link">
-      ← Back to list
-    </a>
-    <span style="color:#94a3b8;font-size:11px">
-      Both actions are atomic and audited.
-    </span>
-  </div>
 </div>
 {% endblock %}

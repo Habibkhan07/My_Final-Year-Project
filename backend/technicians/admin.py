@@ -353,19 +353,9 @@ class TechnicianProfileAdmin(admin.ModelAdmin):
     # --- per-row quick actions ---------------------------------------------
 
     def get_urls(self):
-        """Inject single-row approve / reject endpoints alongside default URLs."""
+        """Inject the unified approval-review endpoint alongside default URLs."""
         urls = super().get_urls()
         custom = [
-            path(
-                '<int:profile_id>/quick-approve/',
-                self.admin_site.admin_view(self.quick_approve_view),
-                name='technicians_technicianprofile_quick_approve',
-            ),
-            path(
-                '<int:profile_id>/quick-reject/',
-                self.admin_site.admin_view(self.quick_reject_view),
-                name='technicians_technicianprofile_quick_reject',
-            ),
             path(
                 '<int:profile_id>/review/',
                 self.admin_site.admin_view(self.approval_review_view),
@@ -413,10 +403,12 @@ class TechnicianProfileAdmin(admin.ModelAdmin):
             self.message_user(request, _('Technician not found.'), messages.ERROR)
             return redirect('admin:technicians_technicianprofile_changelist')
 
-        # If the profile is no longer pending — concurrent admin acted,
-        # or someone bookmarked this URL — bounce them to the model
-        # detail. The approval workflow is one-shot.
-        if profile.status != 'PENDING':
+        # PENDING and REJECTED techs share this page: PENDING is the
+        # first-time decision; REJECTED is the re-decision (admin can
+        # change their mind / re-approve after the tech updates their
+        # docs). APPROVED has nothing left to decide — fall through to
+        # the model detail.
+        if profile.status not in ('PENDING', 'REJECTED'):
             self.message_user(
                 request,
                 _('%(name)s is already %(status)s — opening detail page.') % {
@@ -509,119 +501,21 @@ class TechnicianProfileAdmin(admin.ModelAdmin):
             },
         )
 
-    def quick_approve_view(self, request, profile_id: int):
-        """One-click approve from the list page.
-
-        Renders a small confirmation page on GET; POSTs the same logic
-        the bulk action uses (atomic + select_for_update). Designed to
-        be fired from the inline Approve button in list_display.
-        """
-        try:
-            profile = TechnicianProfile.objects.get(pk=profile_id)
-        except TechnicianProfile.DoesNotExist:
-            self.message_user(request, _('Technician not found.'), messages.ERROR)
-            return redirect('admin:technicians_technicianprofile_changelist')
-
-        if profile.status == 'APPROVED':
-            self.message_user(
-                request,
-                _('%(name)s is already approved.') % {
-                    'name': profile.user.get_full_name() or profile.user.username,
-                },
-                level=messages.INFO,
-            )
-            return redirect('admin:technicians_technicianprofile_changelist')
-
-        if request.method == 'POST':
-            with transaction.atomic():
-                locked = TechnicianProfile.objects.select_for_update().get(pk=profile.pk)
-                locked.status = 'APPROVED'
-                locked.rejection_reason = ''
-                locked.save(update_fields=['status', 'rejection_reason'])
-            self.message_user(
-                request,
-                _('Approved %(name)s.') % {
-                    'name': profile.user.get_full_name() or profile.user.username,
-                },
-                level=messages.SUCCESS,
-            )
-            return redirect('admin:technicians_technicianprofile_changelist')
-
-        # Pre-render the documents strip so the supervisor sees every
-        # photo on the confirmation page — approval should never be
-        # blind. Uses the same helper as the change-form fieldset.
-        return render(
-            request,
-            'admin/technicians/quick_approve.html',
-            context={
-                'documents_strip': self.documents_strip(profile),
-                'title': 'Approve technician',
-                'profile': profile,
-                'opts': self.model._meta,
-            },
-        )
-
-    def quick_reject_view(self, request, profile_id: int):
-        """One-click reject from the list page — reuses the rejection-reason form."""
-        try:
-            profile = TechnicianProfile.objects.get(pk=profile_id)
-        except TechnicianProfile.DoesNotExist:
-            self.message_user(request, _('Technician not found.'), messages.ERROR)
-            return redirect('admin:technicians_technicianprofile_changelist')
-
-        if request.method == 'POST':
-            form = _RejectionReasonForm(request.POST)
-            if form.is_valid():
-                reason = form.cleaned_data['rejection_reason']
-                with transaction.atomic():
-                    locked = TechnicianProfile.objects.select_for_update().get(pk=profile.pk)
-                    locked.status = 'REJECTED'
-                    locked.rejection_reason = reason
-                    locked.save(update_fields=['status', 'rejection_reason'])
-                self.message_user(
-                    request,
-                    _('Rejected %(name)s.') % {
-                        'name': profile.user.get_full_name() or profile.user.username,
-                    },
-                    level=messages.SUCCESS,
-                )
-                return redirect('admin:technicians_technicianprofile_changelist')
-        else:
-            form = _RejectionReasonForm()
-
-        return render(
-            request,
-            'admin/technicians/quick_reject.html',
-            context={
-                'documents_strip': self.documents_strip(profile),
-                'title': 'Reject technician',
-                'profile': profile,
-                'form': form,
-                'opts': self.model._meta,
-            },
-        )
-
     @admin.display(description='Actions')
     def quick_actions(self, obj):
-        """Inline action buttons rendered in the list cell.
+        """Inline action button rendered in the list cell.
 
-        Pending → Approve + Reject. Rejected → Approve only. Approved → none.
+        PENDING and REJECTED both route to the same unified review page
+        — supervisor decides approve / reject from there. APPROVED has
+        no pending decision so no button.
         """
-        if obj.status == 'PENDING':
-            approve_url = reverse('admin:technicians_technicianprofile_quick_approve', args=[obj.pk])
-            reject_url = reverse('admin:technicians_technicianprofile_quick_reject', args=[obj.pk])
+        if obj.status in ('PENDING', 'REJECTED'):
+            review_url = reverse('admin:technicians_technicianprofile_review', args=[obj.pk])
+            label = 'Review' if obj.status == 'PENDING' else 'Re-review'
             return format_html(
-                '<a class="fx-qbtn fx-qbtn-approve" href="{}">✓ Approve</a>'
-                '<a class="fx-qbtn fx-qbtn-reject" href="{}">✗ Reject</a>',
-                approve_url, reject_url,
+                '<a class="fx-qbtn fx-qbtn-approve" href="{}">{}</a>',
+                review_url, label,
             )
-        if obj.status == 'REJECTED':
-            approve_url = reverse('admin:technicians_technicianprofile_quick_approve', args=[obj.pk])
-            return format_html(
-                '<a class="fx-qbtn fx-qbtn-approve" href="{}">✓ Re-approve</a>',
-                approve_url,
-            )
-        # APPROVED — no actions
         return format_html('<span style="color:#9ca3af;font-size:11px">{}</span>', '—')
 
     # --- list-cell helpers --------------------------------------------------

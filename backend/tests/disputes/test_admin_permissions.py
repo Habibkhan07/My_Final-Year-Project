@@ -36,7 +36,7 @@ def request_factory():
 class TestPermissions:
     def test_finance_admin_group_exists(self):
         # Data migration 0002 should have created the group.
-        assert Group.objects.filter(name="finance_admin").exists()
+        assert Group.objects.filter(name="admin").exists()
 
     def test_anonymous_user_denied(self, admin_instance, request_factory):
         # Anonymous = is_active=False, is_staff=False
@@ -63,7 +63,7 @@ class TestPermissions:
 
     def test_staff_in_finance_admin_group_allowed_view(self, admin_instance, request_factory):
         user = UserFactory(is_staff=True)
-        group = Group.objects.get(name="finance_admin")
+        group = Group.objects.get(name="admin")
         user.groups.add(group)
         req = request_factory.get("/")
         req.user = user

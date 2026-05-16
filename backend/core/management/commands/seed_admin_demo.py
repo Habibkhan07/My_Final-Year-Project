@@ -98,8 +98,8 @@ class Command(BaseCommand):
             '  * Dashboard KPIs reflect the new rows.\n'
             '\nRole-based staff accounts (separation-of-duties demo):\n'
             '  * supervisor / supervisor123  — Operations + Catalog + People\n'
-            '  * finance    / finance123     — adds Withdrawals + IBANs + unredacted chat_log\n'
-            '  * engineer   / engineer123    — adds Refund intents + Conversations\n'
+            '  * admin      / admin123        — adds Withdrawals + IBANs + unredacted chat_log\n'
+            '  * engineer   / engineer123     — adds Refund intents + Conversations\n'
         ))
 
     # ---- staff role users --------------------------------------------------
@@ -148,8 +148,8 @@ class Command(BaseCommand):
             group_names=['supervisor'],
         )
         _ensure_staff(
-            'finance', 'finance123', first='Finance',
-            group_names=['supervisor', 'finance_admin'],
+            'admin', 'admin123', first='Admin',
+            group_names=['supervisor', 'admin'],
         )
         _ensure_staff(
             'engineer', 'engineer123', first='Engineer',
