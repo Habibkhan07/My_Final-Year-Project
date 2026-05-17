@@ -7,7 +7,12 @@ void main() {
   // TechnicianProfileModel
   // ---------------------------------------------------------------------------
   group('TechnicianProfileModel', () {
-    const tSkillJson = {'name': 'AC Repair', 'icon_name': 'ac_repair'};
+    const tSkillJson = {
+      'name': 'AC Repair',
+      'icon_name': 'ac_repair',
+      'service_id': 3,
+      'sub_service_id': 17,
+    };
 
     const tReviewJson = {'reviewer_name': 'Sara', 'rating': 5, 'text': 'Good'};
 
@@ -46,7 +51,12 @@ void main() {
       priceContext: 'Labor Fee',
       promoTag: '20% OFF',
       skills: const [
-        TechnicianSkillModel(name: 'AC Repair', iconName: 'ac_repair'),
+        TechnicianSkillModel(
+          name: 'AC Repair',
+          iconName: 'ac_repair',
+          serviceId: 3,
+          subServiceId: 17,
+        ),
       ],
       recentReviews: const [
         TechnicianReviewModel(reviewerName: 'Sara', rating: 5, text: 'Good'),
@@ -66,6 +76,31 @@ void main() {
       expect(entity.primaryPriceRaw, tModel.primaryPriceRaw);
       expect(entity.priceContext, tModel.priceContext);
       expect(entity.skills.first.name, 'AC Repair');
+    });
+
+    test('skill carries service_id + sub_service_id through to entity', () {
+      // Pins the wire contract the customer-side tech-profile picker
+      // depends on. Without these IDs the service-picker chip row
+      // would have nothing to send as `service_id` to the
+      // instant-book endpoint.
+      final entity = tModel.toEntity();
+      expect(entity.skills.first.serviceId, 3);
+      expect(entity.skills.first.subServiceId, 17);
+    });
+
+    test('skill sub_service_id is nullable on the wire', () {
+      final json = {...tProfileJson};
+      json['skills'] = [
+        {
+          'name': 'Electrical',
+          'icon_name': null,
+          'service_id': 5,
+          'sub_service_id': null,
+        },
+      ];
+      final entity = TechnicianProfileModel.fromJson(json).toEntity();
+      expect(entity.skills.first.serviceId, 5);
+      expect(entity.skills.first.subServiceId, isNull);
     });
   });
 

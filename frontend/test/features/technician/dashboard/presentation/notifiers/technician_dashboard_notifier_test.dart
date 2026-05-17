@@ -130,11 +130,14 @@ void main() {
 
   group('setOnline()', () {
     test(
-      'optimistically flips isOnline and settles toggleStatus to data',
+      'flips isOnline, persists via repository, settles toggleStatus to data',
       () async {
         when(
           () => repo.getDashboard(),
         ).thenAnswer((_) async => _entity(isOnline: false));
+        when(() => repo.setOnline(true)).thenAnswer(
+          (_) async => (isOnline: true, walletBalance: 1500.0),
+        );
         await container.read(technicianDashboardProvider.future);
 
         await container
@@ -144,6 +147,114 @@ void main() {
         final state = container.read(technicianDashboardProvider).requireValue;
         expect(state.dashboard.isOnline, true);
         expect(state.toggleStatus, const AsyncData<void>(null));
+        verify(() => repo.setOnline(true)).called(1);
+      },
+    );
+
+    test(
+      'reconciles wallet balance from server response (top-up race)',
+      () async {
+        // Tech tapped Online with locally-cached balance of 200; a top-up
+        // landed mid-request, so the server returns the fresh 2200 number.
+        // The notifier must adopt the server's number — not the stale local
+        // one — so the wallet pill snaps to the truth in the same round trip.
+        when(() => repo.getDashboard()).thenAnswer(
+          (_) async => _entity(isOnline: false, walletBalance: 200),
+        );
+        when(() => repo.setOnline(true)).thenAnswer(
+          (_) async => (isOnline: true, walletBalance: 2200.0),
+        );
+        await container.read(technicianDashboardProvider.future);
+
+        await container
+            .read(technicianDashboardProvider.notifier)
+            .setOnline(true);
+
+        final state = container.read(technicianDashboardProvider).requireValue;
+        expect(state.dashboard.walletBalance, 2200.0);
+        expect(state.dashboard.isOnline, true);
+      },
+    );
+
+    test(
+      'on DashboardWalletLockedFailure reverts isOnline and surfaces error',
+      () async {
+        // Race: local cache says balance is positive (200), so the local
+        // lockout gate passes and the HTTP call goes out. Server has the
+        // truth — a commission just landed, balance is now -100. Server
+        // refuses with wallet_lockout. Notifier must:
+        //   1. Revert the optimistic isOnline=true back to false.
+        //   2. Surface the lockout failure on toggleStatus so the screen
+        //      listener can show the short snackbar.
+        when(() => repo.getDashboard()).thenAnswer(
+          (_) async => _entity(isOnline: false, walletBalance: 200),
+        );
+        when(() => repo.setOnline(true)).thenThrow(
+          const DashboardWalletLockedFailure(
+            balancePkr: -100,
+            owedPkr: 100,
+          ),
+        );
+        await container.read(technicianDashboardProvider.future);
+
+        await container
+            .read(technicianDashboardProvider.notifier)
+            .setOnline(true);
+
+        final state = container.read(technicianDashboardProvider).requireValue;
+        expect(state.dashboard.isOnline, false,
+            reason: 'optimistic flip must revert on lockout');
+        expect(state.toggleStatus, isA<AsyncError<void>>());
+        final err = (state.toggleStatus as AsyncError).error;
+        expect(err, isA<DashboardWalletLockedFailure>());
+      },
+    );
+
+    test(
+      'on generic failure reverts isOnline and surfaces error',
+      () async {
+        when(() => repo.getDashboard()).thenAnswer(
+          (_) async => _entity(isOnline: false, walletBalance: 200),
+        );
+        when(() => repo.setOnline(true))
+            .thenThrow(const DashboardNetworkFailure());
+        await container.read(technicianDashboardProvider.future);
+
+        await container
+            .read(technicianDashboardProvider.notifier)
+            .setOnline(true);
+
+        final state = container.read(technicianDashboardProvider).requireValue;
+        expect(state.dashboard.isOnline, false);
+        expect(state.toggleStatus, isA<AsyncError<void>>());
+      },
+    );
+
+    test(
+      'on network/timeout failure reverts to previousIsOnline AND surfaces '
+      'DashboardNetworkFailure (so the timeout fix has no stuck-loading)',
+      () async {
+        // Tech is currently online; taps offline; backend timeout.
+        // Must revert to ONLINE (previous state), not stay in the
+        // optimistic OFFLINE flip. toggleStatus surfaces the failure
+        // for the snackbar.
+        when(() => repo.getDashboard()).thenAnswer(
+          (_) async => _entity(isOnline: true, walletBalance: 500),
+        );
+        when(() => repo.setOnline(false))
+            .thenThrow(const DashboardNetworkFailure());
+        await container.read(technicianDashboardProvider.future);
+
+        await container
+            .read(technicianDashboardProvider.notifier)
+            .setOnline(false);
+
+        final state = container.read(technicianDashboardProvider).requireValue;
+        expect(state.dashboard.isOnline, true,
+            reason: 'must revert to previous (online) state on timeout');
+        expect(state.toggleStatus, isA<AsyncError<void>>());
+        final err = (state.toggleStatus as AsyncError).error;
+        expect(err, isA<DashboardNetworkFailure>());
       },
     );
 
@@ -161,6 +272,8 @@ void main() {
 
       final after = container.read(technicianDashboardProvider).requireValue;
       expect(identical(after, before), true);
+      // CRITICAL: no HTTP call wasted on a no-op.
+      verifyNever(() => repo.setOnline(any()));
     });
 
     test('is a no-op when state has not loaded yet', () async {
@@ -176,6 +289,7 @@ void main() {
 
       final state = container.read(technicianDashboardProvider);
       expect(state, isA<AsyncLoading<TechnicianDashboardState>>());
+      verifyNever(() => repo.setOnline(any()));
     });
   });
 
@@ -294,23 +408,31 @@ void main() {
   });
 
   group('setOnline() — lockout gate', () {
-    test('locked tech cannot flip themselves ONLINE', () async {
-      when(() => repo.getDashboard()).thenAnswer(
-        (_) async => _entity(walletBalance: -100, isOnline: false),
-      );
-      await container.read(technicianDashboardProvider.future);
+    test(
+      'locked tech cannot flip themselves ONLINE — no HTTP call made',
+      () async {
+        when(() => repo.getDashboard()).thenAnswer(
+          (_) async => _entity(walletBalance: -100, isOnline: false),
+        );
+        await container.read(technicianDashboardProvider.future);
 
-      final before = container.read(technicianDashboardProvider).requireValue;
+        final before =
+            container.read(technicianDashboardProvider).requireValue;
 
-      await container
-          .read(technicianDashboardProvider.notifier)
-          .setOnline(true);
+        await container
+            .read(technicianDashboardProvider.notifier)
+            .setOnline(true);
 
-      final after = container.read(technicianDashboardProvider).requireValue;
-      // State unchanged — gate refused.
-      expect(after.dashboard.isOnline, false);
-      expect(identical(after, before), true);
-    });
+        final after =
+            container.read(technicianDashboardProvider).requireValue;
+        // State unchanged — local gate refused, the visual pill is
+        // already disabled. Server is still the authority but the local
+        // gate avoids an HTTP call when the answer is structurally known.
+        expect(after.dashboard.isOnline, false);
+        expect(identical(after, before), true);
+        verifyNever(() => repo.setOnline(any()));
+      },
+    );
 
     test('locked tech CAN still flip themselves OFFLINE', () async {
       // Edge: tech was online (e.g. balance just dipped under and the
@@ -318,6 +440,9 @@ void main() {
       // able to manually opt out of work.
       when(() => repo.getDashboard()).thenAnswer(
         (_) async => _entity(walletBalance: -100, isOnline: true),
+      );
+      when(() => repo.setOnline(false)).thenAnswer(
+        (_) async => (isOnline: false, walletBalance: -100.0),
       );
       await container.read(technicianDashboardProvider.future);
 
@@ -327,6 +452,7 @@ void main() {
 
       final state = container.read(technicianDashboardProvider).requireValue;
       expect(state.dashboard.isOnline, false);
+      verify(() => repo.setOnline(false)).called(1);
     });
   });
 

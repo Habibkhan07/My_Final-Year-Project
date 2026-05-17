@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shimmer/shimmer.dart';
@@ -23,17 +24,25 @@ class TechnicianDashboardScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // Surfaces toggle errors as a snackbar without triggering a full rebuild.
     // Only fires on the transition to AsyncError — not on every state change.
+    // The lockout failure gets its own short, action-oriented copy so the
+    // tech immediately knows the remediation; other errors fall through to
+    // the generic message.
     ref.listen<AsyncValue<TechnicianDashboardState>>(
       technicianDashboardProvider,
       (prev, next) {
         final wasError = prev?.value?.toggleStatus is AsyncError;
         final isError = next.value?.toggleStatus is AsyncError;
         if (!wasError && isError) {
+          final error = (next.value!.toggleStatus as AsyncError).error;
+          final message = switch (error) {
+            DashboardWalletLockedFailure() => 'Top up your wallet to go online',
+            _ => 'Status update failed. Please try again.',
+          };
           ScaffoldMessenger.of(context)
             ..hideCurrentSnackBar()
             ..showSnackBar(
-              const SnackBar(
-                content: Text('Status update failed. Please try again.'),
+              SnackBar(
+                content: Text(message),
                 backgroundColor: AppColors.error,
               ),
             );
@@ -44,23 +53,30 @@ class TechnicianDashboardScreen extends ConsumerWidget {
     final dashboardAsync = ref.watch(technicianDashboardProvider);
     final notifier = ref.read(technicianDashboardProvider.notifier);
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: dashboardAsync.when(
-        loading: () {
-          // If cached data is available during a background refresh, show the
-          // full UI silently rather than flashing a skeleton.
-          final cached = dashboardAsync.value;
-          if (cached != null) {
-            return _DashboardLayout(state: cached, notifier: notifier);
-          }
-          return const _DashboardSkeleton();
-        },
-        error: (error, _) =>
-            _ErrorState(error: error, onRetry: notifier.refresh),
-        data: (state) => _DashboardLayout(state: state, notifier: notifier),
+    // Dashboard surface is light (#background / surfaceContainerLowest)
+    // so the system status-bar icons must render dark to stay legible.
+    // SystemUiOverlayStyle.dark = dark icons (intended for light bg) —
+    // Flutter's naming is inverted from intuition; see docstring.
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.dark,
+      child: Scaffold(
+        backgroundColor: AppColors.background,
+        body: dashboardAsync.when(
+          loading: () {
+            // If cached data is available during a background refresh,
+            // show the full UI silently rather than flashing a skeleton.
+            final cached = dashboardAsync.value;
+            if (cached != null) {
+              return _DashboardLayout(state: cached, notifier: notifier);
+            }
+            return const _DashboardSkeleton();
+          },
+          error: (error, _) =>
+              _ErrorState(error: error, onRetry: notifier.refresh),
+          data: (state) => _DashboardLayout(state: state, notifier: notifier),
+        ),
+        bottomNavigationBar: const _DashboardNavBar(),
       ),
-      bottomNavigationBar: const _DashboardNavBar(),
     );
   }
 }
@@ -109,14 +125,15 @@ class _DashboardLayout extends ConsumerWidget {
                   const SizedBox(height: AppSpacing.s3),
                   LockoutBanner(walletBalance: dashboard.walletBalance),
                 ],
-                // Work-location banner — gates discovery. Self-hiding
-                // (renders as a quiet summary row once set), so it stays
-                // useful as a re-edit affordance after the tech sets it.
-                const SizedBox(height: AppSpacing.s2),
-                WorkLocationBanner(
-                  hasWorkLocation: dashboard.hasWorkLocation,
-                  workAddressLabel: dashboard.workAddressLabel,
-                ),
+                // Work-location banner — gates discovery. Renders only
+                // while unset; once set, the dashboard hides it and the
+                // tech edits via Profile → Work Location.
+                if (!dashboard.hasWorkLocation) ...[
+                  const SizedBox(height: AppSpacing.s2),
+                  WorkLocationBanner(
+                    hasWorkLocation: dashboard.hasWorkLocation,
+                  ),
+                ],
                 const SizedBox(height: AppSpacing.s4),
                 Padding(
                   padding: const EdgeInsets.symmetric(
@@ -162,20 +179,17 @@ class _DashboardSkeleton extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
-                  children: [
-                    const _ShimmerBox(height: 40, width: 40, radius: 20),
-                    const SizedBox(width: 12),
-                    Expanded(child: _ShimmerBox(height: 16, radius: 4)),
-                    const SizedBox(width: 8),
-                    const _ShimmerBox(
-                      height: 26,
-                      width: 70,
+                  children: const [
+                    Spacer(),
+                    _ShimmerBox(
+                      height: 40,
+                      width: 96,
                       radius: AppShapes.radiusFull,
                     ),
-                    const SizedBox(width: 8),
-                    const _ShimmerBox(
-                      height: 26,
-                      width: 90,
+                    SizedBox(width: 12),
+                    _ShimmerBox(
+                      height: 40,
+                      width: 104,
                       radius: AppShapes.radiusFull,
                     ),
                   ],

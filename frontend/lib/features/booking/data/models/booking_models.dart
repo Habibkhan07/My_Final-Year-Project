@@ -18,6 +18,8 @@ abstract class TechnicianSkillModel with _$TechnicianSkillModel {
     required String name,
     // Nullable: backend sends null when SubService.icon_name is unset in Admin.
     @JsonKey(name: 'icon_name') required String? iconName,
+    @JsonKey(name: 'service_id') required int serviceId,
+    @JsonKey(name: 'sub_service_id') int? subServiceId,
   }) = _TechnicianSkillModel;
 
   factory TechnicianSkillModel.fromJson(Map<String, dynamic> json) =>
@@ -25,8 +27,12 @@ abstract class TechnicianSkillModel with _$TechnicianSkillModel {
 
   const TechnicianSkillModel._();
 
-  TechnicianSkillEntity toEntity() =>
-      TechnicianSkillEntity(name: name, iconName: iconName);
+  TechnicianSkillEntity toEntity() => TechnicianSkillEntity(
+    name: name,
+    iconName: iconName,
+    serviceId: serviceId,
+    subServiceId: subServiceId,
+  );
 }
 
 @freezed

@@ -3,6 +3,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../../../../core/common/wallet_lockout.dart' as lockout;
 import '../../../../../core/realtime/domain/entities/system_event_type.dart';
 import '../../../../../core/realtime/presentation/notifiers/system_event_notifier.dart';
+import '../../domain/repositories/technician_dashboard_repository.dart';
 import '../providers/dependency_injection.dart';
 import '../state/technician_dashboard_state.dart';
 
@@ -187,16 +188,24 @@ class TechnicianDashboardNotifier extends _$TechnicianDashboardNotifier {
       ),
     );
 
-    final result = await AsyncValue.guard<void>(() async {
-      // TODO(dashboard): call repository.setOnline(desired) once
-      // POST /api/technicians/online/ exists. Until then the optimistic
-      // flip above is the only effect.
+    // Persist the toggle to the backend. The response carries the
+    // post-commit `is_online` AND the fresh wallet balance — patched
+    // back into local state below so a top-up that landed between the
+    // dashboard's last refresh and this tap is reconciled in the same
+    // round trip (avoids the "tech thinks they're locked but actually
+    // topped up two seconds ago" race).
+    final result = await AsyncValue.guard<OnlineToggleResult>(() async {
+      return ref.read(technicianDashboardRepositoryProvider).setOnline(desired);
     });
 
     if (state is! AsyncData<TechnicianDashboardState>) return;
     final after = state.requireValue;
 
     if (result is AsyncError) {
+      // Revert optimistic flip on any failure (wallet_lockout, network,
+      // permission denied). The error itself is surfaced via the
+      // toggleStatus AsyncValue, which the screen listens to and maps
+      // to a short snackbar (see technician_dashboard_screen.dart).
       state = AsyncData(
         after.copyWith(
           dashboard: after.dashboard.copyWith(isOnline: previousIsOnline),
@@ -204,7 +213,20 @@ class TechnicianDashboardNotifier extends _$TechnicianDashboardNotifier {
         ),
       );
     } else {
-      state = AsyncData(after.copyWith(toggleStatus: result));
+      // Reconcile local state from the server's authoritative shape.
+      // The response's `isOnline` already matches our optimistic flip
+      // (otherwise the server would have raised); the `walletBalance`
+      // might differ if a top-up or commission landed mid-request.
+      final patched = result.requireValue;
+      state = AsyncData(
+        after.copyWith(
+          dashboard: after.dashboard.copyWith(
+            isOnline: patched.isOnline,
+            walletBalance: patched.walletBalance,
+          ),
+          toggleStatus: const AsyncData(null),
+        ),
+      );
     }
   }
 

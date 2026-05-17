@@ -69,35 +69,63 @@ class ReviewBookingSheet extends ConsumerWidget {
     final daySuffix = _getDaySuffix(selectedDate.day);
     final displayDate = '$formattedDate$daySuffix';
 
+    // Disabled-state semantics:
+    //   * isSubmitting       → spinner (no label flip — the spinner is
+    //                          its own affordance).
+    //   * defaultAddress nil → label "Add a service address", tap opens
+    //                          AddressSelectorSheet (remediation in
+    //                          place, not a dead-end).
+    //   * serviceId nil      → defense-in-depth only; the tech profile
+    //                          screen's service picker now gates this
+    //                          path, so reaching the Review sheet with
+    //                          a null serviceId would be a routing bug.
+    //                          The button refuses the tap and shows
+    //                          "Pick a service first" rather than
+    //                          letting an invalid POST go out.
+    final missingAddress = !isSubmitting && defaultAddress == null;
+    final missingService = !isSubmitting && serviceId == null;
+    final bookEnabled = !isSubmitting && !missingAddress && !missingService;
+
     return ModalBottomSheetLayout(
       title: 'Review Booking',
       footer: SizedBox(
         width: double.infinity,
         child: ElevatedButton(
-          onPressed: isSubmitting || defaultAddress == null || serviceId == null
+          onPressed: isSubmitting
               ? null
-              : () {
-                  ref
-                      .read(instantBookingProvider.notifier)
-                      .book(
-                        technicianId: technician.id,
-                        addressId: defaultAddress.id,
-                        serviceId: serviceId!,
-                        subServiceId: subServiceId,
-                        promotionId: promotionId,
-                        scheduledStart: selectedSlot.isoStart,
-                        scheduledEnd: selectedSlot.isoEnd,
-                      );
-                },
+              : missingAddress
+                  ? () => showModalBottomSheet(
+                        context: context,
+                        isScrollControlled: true,
+                        backgroundColor: Colors.transparent,
+                        builder: (_) => const AddressSelectorSheet(),
+                      )
+                  : missingService
+                      ? null
+                      : () {
+                          ref
+                              .read(instantBookingProvider.notifier)
+                              .book(
+                                technicianId: technician.id,
+                                addressId: defaultAddress!.id,
+                                serviceId: serviceId!,
+                                subServiceId: subServiceId,
+                                promotionId: promotionId,
+                                scheduledStart: selectedSlot.isoStart,
+                                scheduledEnd: selectedSlot.isoEnd,
+                              );
+                        },
           style: ElevatedButton.styleFrom(
             backgroundColor: const Color(0xFF0051AE),
             foregroundColor: Colors.white,
+            disabledBackgroundColor: const Color(0xFFE1E9F3),
+            disabledForegroundColor: const Color(0xFF727785),
             padding: const EdgeInsets.symmetric(vertical: 16),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
             ),
-            elevation: 8,
-            shadowColor: const Color(0xFF0051AE).withOpacity(0.4),
+            elevation: bookEnabled ? 8 : 0,
+            shadowColor: const Color(0xFF0051AE).withValues(alpha: 0.4),
           ),
           child: isSubmitting
               ? const SizedBox(
@@ -108,10 +136,17 @@ class ReviewBookingSheet extends ConsumerWidget {
                     strokeWidth: 2,
                   ),
                 )
-              : const Text(
-                  'Book',
+              : Text(
+                  missingService
+                      ? 'Pick a service first'
+                      : missingAddress
+                          ? 'Add a service address'
+                          : 'Book',
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
         ),
       ),

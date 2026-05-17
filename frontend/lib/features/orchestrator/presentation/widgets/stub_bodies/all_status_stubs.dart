@@ -8,12 +8,14 @@
 //
 // Dumb-UI principle (CLAUDE.md): every stub reads its prose from
 // `booking.ui.bodyText`; none branches on status for copy.
+import 'dart:async';
 import 'dart:developer' as developer;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../../../../../core/animations/loop_mode.dart';
 import '../../../../../core/constants.dart';
 import '../../../../../core/widgets/map/live_tracking_map.dart';
 import '../../../../customer/bookings/domain/entities/booking_status.dart';
@@ -29,6 +31,7 @@ import '../../providers/technician_location_stream_notifier.dart';
 import '../_palette/orchestrator_palette.dart';
 import '../animated_status_icon.dart';
 import '../meeting_countdown_button.dart';
+import '../sheets/receipt_sheet.dart';
 import '../slots/booking_summary_card.dart';
 import '_body_shell.dart';
 
@@ -107,6 +110,261 @@ class _AnimatedBody extends StatelessWidget {
   }
 }
 
+// ─── WAITING archetype — slim body for always-waiting statuses ────────────
+
+/// The "you can wait, nothing for you to do" body shape.
+///
+/// Replaces [_AnimatedBody]'s 180-px hero on the three statuses where
+/// the user is passively waiting (AWAITING, INSPECTING, IN_PROGRESS).
+/// Same [BodyShell] surface — preserves the brand-blue card family —
+/// but the inner content shrinks to:
+///
+///   * A 40-px brand-blue breathing ring (replaces the dominating hero;
+///     small enough to feel "background" rather than "stop and look").
+///   * The server's [BookingDetail.ui.bodyText], centered, titleMedium.
+///   * Optional live elapsed counter ("Working for X min" /
+///     "Inspecting for X min") driven by a 30-second Timer.periodic
+///     when [elapsedSince] is non-null.
+///
+/// The hero pill above (with its own pulsing dot) carries the status
+/// fact; the body no longer competes for that attention. The audit's
+/// Visual Sameness Catalog finding came from these three screens
+/// rendering as identical "blue circle + giant icon + sentence" surfaces
+/// — same shape, three statuses. After this widget lands they're still
+/// visually similar (same shell + breathing ring), but the body's
+/// vertical footprint shrinks by ~140 px and stops dominating the
+/// screen.
+class _WaitingBody extends StatefulWidget {
+  const _WaitingBody({
+    required this.message,
+    this.elapsedSince,
+    this.verbPrefix = '',
+  });
+
+  /// Server-resolved status prose. Empty string renders no text.
+  final String message;
+
+  /// When non-null, an elapsed-minutes counter renders beneath the
+  /// message ("[verbPrefix] for X min"). Drives a 30-second ticker.
+  final DateTime? elapsedSince;
+
+  /// Verb that prefixes the elapsed counter, e.g. "Working", "Inspecting".
+  /// Ignored when [elapsedSince] is null.
+  final String verbPrefix;
+
+  @override
+  State<_WaitingBody> createState() => _WaitingBodyState();
+}
+
+class _WaitingBodyState extends State<_WaitingBody> {
+  Timer? _ticker;
+
+  @override
+  void initState() {
+    super.initState();
+    // 30-second cadence is enough granularity for "Working for X min"
+    // — second-level precision would over-render and second-by-second
+    // updates have no UX value at the minute scale. Skipped in tests
+    // via shouldLoopAnimations() (same pattern as every other animated
+    // widget in this file).
+    if (widget.elapsedSince != null && shouldLoopAnimations()) {
+      _ticker = Timer.periodic(const Duration(seconds: 30), (_) {
+        if (mounted) setState(() {});
+      });
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _WaitingBody old) {
+    super.didUpdateWidget(old);
+    // Re-arm or cancel the ticker if elapsedSince transitions
+    // null↔non-null (e.g. when workStartedAt arrives on a WS frame).
+    final wantsTicker =
+        widget.elapsedSince != null && shouldLoopAnimations();
+    final hasTicker = _ticker != null;
+    if (wantsTicker && !hasTicker) {
+      _ticker = Timer.periodic(const Duration(seconds: 30), (_) {
+        if (mounted) setState(() {});
+      });
+    } else if (!wantsTicker && hasTicker) {
+      _ticker?.cancel();
+      _ticker = null;
+    }
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    super.dispose();
+  }
+
+  String? _elapsedLabel() {
+    final since = widget.elapsedSince;
+    if (since == null) return null;
+    final minutes = DateTime.now().difference(since).inMinutes;
+    if (minutes < 1) return '${widget.verbPrefix} · just started';
+    return '${widget.verbPrefix} for $minutes min';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final label = _elapsedLabel();
+    // Column uses `CrossAxisAlignment.stretch` so it fills the card's
+    // horizontal width (otherwise the Column shrink-wraps to its
+    // widest child's intrinsic width and the radar visually anchors
+    // to the card's left edge, not the center). The ring is then
+    // wrapped in `Center()` to sit horizontally centered inside the
+    // stretched column. Mirrors the existing `_AnimatedBody`
+    // centering recipe.
+    return BodyShell(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Center(child: _BreathingRing()),
+          if (widget.message.isNotEmpty) ...[
+            const SizedBox(height: 18),
+            Text(
+              widget.message,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: OrchestratorPalette.inkPrimary,
+                height: 1.35,
+              ),
+            ),
+          ],
+          if (label != null) ...[
+            const SizedBox(height: 10),
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: OrchestratorPalette.inkSecondary,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.2,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Centered radar-style animation for the WAITING archetype.
+///
+/// 96 px outer envelope by default. Three concentric brand-blue rings
+/// expand outward and fade at staggered phases (0.0, 0.33, 0.66 of a
+/// single 2.4 s cycle) — reads as "the system is alive and watching"
+/// without the dominance of the dropped 180-px hero. A 28-px solid
+/// brand-blue dot stays in the center as the visual anchor, with a
+/// soft brand-blue drop shadow that pairs with the rest of the
+/// orchestrator's surface family.
+///
+/// **Why a radar pattern, not a single breathing halo.** The previous
+/// 40-px version of this widget (one halo + a 13-px solid dot)
+/// rendered as "almost nothing" on a real device — the dot was small,
+/// the halo was faint, and the eye skipped past it. Multiple rings
+/// expanding outward give the animation enough visual weight to
+/// anchor the center of the WAITING card without competing with the
+/// hero header above.
+///
+/// Single AnimationController, no Opacity widgets (color alphas only)
+/// — cheap to mount.
+class _BreathingRing extends StatefulWidget {
+  const _BreathingRing();
+
+  /// Outer envelope. Inlined here — every caller renders the WAITING
+  /// archetype card at the same scale, so a configurable size would
+  /// be premature abstraction (per CLAUDE.md).
+  static const double _envelope = 96;
+
+  @override
+  State<_BreathingRing> createState() => _BreathingRingState();
+}
+
+class _BreathingRingState extends State<_BreathingRing>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulse;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulse = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2400),
+    );
+    if (shouldLoopAnimations()) _pulse.repeat();
+  }
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    super.dispose();
+  }
+
+  /// Ring at the given phase offset [0, 1). Each ring scales from 35%
+  /// → 100% of the envelope while fading from peak alpha → 0,
+  /// producing a single radar ping per cycle. Three rings at
+  /// staggered phases keep at least one ring visible at all times.
+  Widget _ring(double phase, double t) {
+    final p = (t + phase) % 1.0;
+    final scale = 0.35 + p * 0.65;
+    final alpha = (1.0 - p) * 0.30;
+    return Container(
+      width: _BreathingRing._envelope * scale,
+      height: _BreathingRing._envelope * scale,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: OrchestratorPalette.brandPrimary.withValues(alpha: alpha),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _pulse,
+      builder: (context, _) {
+        final t = _pulse.value;
+        return SizedBox(
+          width: _BreathingRing._envelope,
+          height: _BreathingRing._envelope,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              _ring(0.0, t),
+              _ring(0.33, t),
+              _ring(0.66, t),
+              // Center solid dot — fixed size (independent of the
+              // envelope) so the anchor reads the same across any
+              // future caller that supplies a different `size`.
+              Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: OrchestratorPalette.brandPrimary,
+                  boxShadow: [
+                    BoxShadow(
+                      color: OrchestratorPalette.brandPrimary
+                          .withValues(alpha: 0.32),
+                      blurRadius: 14,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
 // ─── Per-status stubs ─────────────────────────────────────────────────────
 
 class AwaitingBodyStub extends StatelessWidget {
@@ -114,8 +372,7 @@ class AwaitingBodyStub extends StatelessWidget {
   final BookingDetail booking;
 
   @override
-  Widget build(BuildContext context) => _AnimatedBody(
-    status: BookingStatus.awaiting,
+  Widget build(BuildContext context) => _WaitingBody(
     message: booking.ui.bodyText,
   );
 }
@@ -224,17 +481,19 @@ class EnRouteBodyStub extends ConsumerWidget {
                       .openSystemSettings()
                 : null,
           ),
-          // Map dominates the body. Bounded height (~55% of screen,
+          // Map dominates the body. Bounded height (~70% of screen,
           // clamped) is required because BodySlot is hosted inside a
           // SingleChildScrollView in BookingOrchestratorScreen, which
           // hands its child unbounded vertical constraints — Expanded
           // would render at zero height (invisible map) or throw on
-          // some platforms. The clamp keeps the map readable on small
-          // phones and from dominating very tall screens.
+          // some platforms. The 0.70 / [420, 640] envelope matches
+          // Foodpanda's tracking-screen map dominance; on smaller
+          // phones the map can exceed remaining viewport and the
+          // user scrolls to see the supporting body text below.
           SizedBox(
-            height: (MediaQuery.of(context).size.height * 0.55).clamp(
-              320.0,
-              520.0,
+            height: (MediaQuery.of(context).size.height * 0.70).clamp(
+              420.0,
+              640.0,
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(14),
@@ -314,23 +573,32 @@ class ArrivedBodyStub extends ConsumerWidget {
   }
 }
 
-/// Customer-side ARRIVED layout — map-led (Foodpanda position).
+/// Customer-side ARRIVED layout — map-only (Foodpanda position).
 ///
-/// **Layout (top → bottom inside the screen's scrollable body):**
-///   1. Live tracking map — LARGE (~55% of screen, clamped 320–520px).
-///      The map IS the focal element; the customer's job in this moment
-///      is "find the tech outside", and the map answers that. No text
-///      above the map competes for their first-glance attention.
-///   2. Address recap — same surface language as the summary card, sits
-///      directly under the map as the supporting context for the pin.
-///   3. [BookingSummaryCard] — scroll-revealed. The call affordance
-///      ("can't see the tech outside") is one scroll away. It does NOT
-///      render here when the screen's always-on slot has it pinned for
-///      other statuses; on ARRIVED that always-on slot is hidden so
-///      this is the only mount point for the summary.
+/// **The body is the map. Nothing else.**
+///
+/// Map slot — LARGE (~70% of screen, clamped 420–640px). The map IS
+/// the focal element; the customer's job in this moment is "find the
+/// tech outside", and the map answers that.
+///
+/// **No address recap card.** The pin shows where the meeting
+/// happens; rendering the address text below the pin duplicates the
+/// same fact in two places.
+///
+/// **No BookingSummaryCard.** Tech identity is built during
+/// CONFIRMED + EN_ROUTE; resurfacing it during ARRIVED competes with
+/// the urgency moment (the pinned countdown) for no information
+/// value. The map's own Call FAB handles the "I can't find them
+/// outside" case (`callPhoneNumber` is wired to support for the
+/// customer view via `resolveLiveCallTarget`).
+///
+/// The screen's always-on summary slot is suppressed for customer
+/// ARRIVED (`booking_orchestrator_screen.dart`'s `hideAlwaysOnSummary`),
+/// so dropping it from the body removes the summary card from ARRIVED
+/// entirely (apart from the defensive null-address fallback below).
 ///
 /// The "Your technician has arrived" message + "I'm coming out"
-/// countdown button BOTH live in the pinned [ArrivalActionCard] at the
+/// countdown button live in the pinned [ArrivalActionCard] at the
 /// bottom of the screen (inside the action bar) — see
 /// `arrival_action_card.dart` for the rationale.
 class _CustomerArrivedBody extends ConsumerWidget {
@@ -355,47 +623,50 @@ class _CustomerArrivedBody extends ConsumerWidget {
     final frame = ref.watch(technicianLocationStreamProvider(booking.id));
     final destination = LatLng(addr.latitude, addr.longitude);
     final callTarget = resolveLiveCallTarget(booking);
-    final mapHeight = (MediaQuery.of(context).size.height * 0.55).clamp(
-      320.0,
-      520.0,
+    // Map dominance on customer ARRIVED — matches EnRouteBodyStub's
+    // envelope (0.70 / [420, 640]). The customer's job in this moment
+    // is "find the tech outside"; the map is the answer.
+    final mapHeight = (MediaQuery.of(context).size.height * 0.70).clamp(
+      420.0,
+      640.0,
     );
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-          child: SizedBox(
-            height: mapHeight,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(14),
-              child: LiveTrackingMap(
-                technicianPosition: frame == null
-                    ? null
-                    : LatLng(frame.latitude, frame.longitude),
-                technicianHeadingDegrees: frame?.heading,
-                lastFrameAt: frame?.frameArrivedAt,
-                destination: destination,
-                phase: TrackingPhase.arrived,
-                callPhoneNumber: callTarget.phone,
-                callTooltip: callTarget.tooltip,
-              ),
-            ),
+    // Body on customer ARRIVED is the map, full stop.
+    //
+    //   * No address recap card — the map pin already shows where
+    //     the customer is meeting the tech; rendering the address
+    //     text below the pin duplicates the same fact in two places.
+    //
+    //   * No BookingSummaryCard — tech identity is built during
+    //     CONFIRMED + EN_ROUTE; resurfacing it during ARRIVED
+    //     competes with the urgency moment (the pinned countdown
+    //     in ArrivalActionCard) for no information value. The
+    //     map's own Call FAB (configured via callPhoneNumber) is
+    //     the affordance for "I can't find them outside."
+    //
+    // The screen's always-on summary slot remains suppressed for
+    // customer-ARRIVED (booking_orchestrator_screen.dart's
+    // `hideAlwaysOnSummary`), so dropping it from the body removes
+    // the summary card from ARRIVED entirely.
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+      child: SizedBox(
+        height: mapHeight,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(14),
+          child: LiveTrackingMap(
+            technicianPosition: frame == null
+                ? null
+                : LatLng(frame.latitude, frame.longitude),
+            technicianHeadingDegrees: frame?.heading,
+            lastFrameAt: frame?.frameArrivedAt,
+            destination: destination,
+            phase: TrackingPhase.arrived,
+            callPhoneNumber: callTarget.phone,
+            callTooltip: callTarget.tooltip,
           ),
         ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-          child: _AddressRecapCard(addressText: addr.addressText),
-        ),
-        // Scroll-revealed summary card. Lives at the bottom of the
-        // body so the customer can peek at "who's my tech / call them"
-        // by scrolling, but doesn't see it during the map+arrive
-        // moment unless they go looking.
-        BookingSummaryCard(booking: booking),
-        // Bottom inset so the last card doesn't bump against the
-        // pinned arrival card below.
-        const SizedBox(height: 8),
-      ],
+      ),
     );
   }
 }
@@ -645,41 +916,60 @@ class InspectingBodyStub extends StatelessWidget {
   final BookingDetail booking;
 
   @override
-  Widget build(BuildContext context) => _AnimatedBody(
-    status: BookingStatus.inspecting,
+  Widget build(BuildContext context) => _WaitingBody(
     message: booking.ui.bodyText,
+    // arrivedAt is the closest available anchor — true
+    // inspectionStartedAt isn't always serialized to the wire. The
+    // tech transitions ARRIVED → INSPECTING within seconds of tapping
+    // Start inspection, so the gap is small enough to be honest.
+    elapsedSince: booking.phaseTimestamps.arrivedAt,
+    verbPrefix: 'Inspecting',
   );
 }
 
 /// QUOTED state.
 ///
-/// **Customer view — post-arrival, face-to-face.** In this market the
-/// customer and technician are physically together from the moment the
-/// tech arrives. On QUOTED the customer is reading the line items with
-/// the tech standing right there — this is NOT a remote ticket review.
-/// The actions are:
-///   * **Approve** — verbal "OK, let's do it", tap.
-///   * **Negotiate price** — only present when there's labor on the
-///     bill (`booking.subService.isFixedPrice == false`, or
-///     `subService == null` for inspection-origin bookings). The tap
-///     is the signal that flips the quote back so the tech can edit
-///     it on their device while the customer watches. The verbal
-///     bargain happens around the tap, not through it.
-///     [SecondaryActionsSlot] owns the visibility + label rewrite.
+/// **Body is the quote card. No decorative hero.**
 ///
-/// Because both actions are taken with the tech literally next to the
-/// customer, the [BookingTechnician]-identity card has no work to do
-/// in this moment. Previously the always-on [BookingSummaryCard] sat
-/// between the quote and the action bar, wedging tech-info between
-/// what the customer is reading and what they're tapping. On
-/// customer-QUOTED the screen suppresses that always-on slot and this
-/// stub re-mounts the summary at the scroll-bottom — the call
-/// affordance stays one scroll away for the rare follow-up after the
-/// tech has left.
+/// Previously this stub rendered through `_AnimatedBody`, which
+/// stacked a 180-px receipt icon + the server's instructional
+/// bodyText sentence ABOVE the actual quote card. Two receipt
+/// visuals stacked + an "approve, decline, or ask for a revision"
+/// sentence that duplicates the action buttons below. The customer
+/// had to scroll past the decorative hero to reach the prices that
+/// they came to read.
+///
+/// The body now surfaces [QuoteSummaryCard] immediately. The action
+/// area below (Decline / Negotiate price / Approve) is the only
+/// instructional surface needed.
+///
+/// **Customer view — post-arrival, face-to-face.** In this market
+/// the customer and technician are physically together from the
+/// moment the tech arrives. The customer reads the line items with
+/// the tech standing right there. Actions:
+///   * **Approve** — primary, solid brand-blue.
+///   * **Decline** — secondary, outlined; surfaced via the
+///     destructive-filter carve-out in [SecondaryActionsSlot].
+///   * **Negotiate price** — secondary, outlined; only present when
+///     there's labor on the bill (server omits the action otherwise).
+///
+/// On customer-QUOTED the screen suppresses the always-on summary
+/// slot ([BookingOrchestratorScreen]'s `hideAlwaysOnSummary`) and
+/// this stub re-mounts the [BookingSummaryCard] at the scroll
+/// bottom — the call affordance stays one scroll away for the rare
+/// follow-up after the tech has left.
 ///
 /// **Tech view.** Tech is the quote author here, watching for the
-/// customer's decision. Tech card stays in its always-on slot above
-/// the action bar (rendered by the screen, not this stub).
+/// customer's decision. Surface the same [QuoteSummaryCard] so the
+/// tech sees what the customer is looking at — the prices they
+/// sent — at a glance. Their tech-info card stays in its always-on
+/// slot above the action bar (rendered by the screen).
+///
+/// **Null-quote fallback.** When `activeQuote` is null on QUOTED
+/// (defensive — backend always stamps a quote before this status,
+/// so this shouldn't fire), the body falls back to a slim
+/// [BodyShell] with the server's bodyText. No icon hero in either
+/// path.
 class QuotedBodyStub extends StatelessWidget {
   const QuotedBodyStub({super.key, required this.booking});
   final BookingDetail booking;
@@ -687,27 +977,58 @@ class QuotedBodyStub extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final quote = booking.activeQuote;
-    final shell = _AnimatedBody(
-      status: BookingStatus.quoted,
-      message: booking.ui.bodyText,
-      child: quote == null ? null : QuoteSummaryCard(quote: quote),
-    );
-
     final isCustomerView =
         booking.viewerRole == BookingOrchestratorRole.customer;
-    if (!isCustomerView) return shell;
 
-    // BookingSummaryCard is itself a ConsumerWidget and reads any
-    // providers it needs (ref.read on tap). This stub does not need
-    // to be a ConsumerWidget — promoting it would just allocate an
-    // extra ConsumerElement per QUOTED frame for no benefit.
+    final Widget quoteSurface = quote == null
+        ? _NullQuoteFallback(message: booking.ui.bodyText)
+        : Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: QuoteSummaryCard(quote: quote),
+          );
+
+    if (!isCustomerView) return quoteSurface;
+
+    // Customer keeps the scroll-revealed BookingSummaryCard at the
+    // bottom — the call affordance is one scroll away. The screen's
+    // always-on summary slot is suppressed for customer-QUOTED so
+    // this is the only mount point.
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        shell,
+        quoteSurface,
         BookingSummaryCard(booking: booking),
         const SizedBox(height: 8),
       ],
+    );
+  }
+}
+
+/// Defensive shell for the unlikely case where status is QUOTED but
+/// `activeQuote` is null. Renders bodyText inside a minimal
+/// [BodyShell] — no icon hero, just enough surface to make the empty
+/// state legible. Backend stamps a quote before flipping status, so
+/// this should never render in practice.
+class _NullQuoteFallback extends StatelessWidget {
+  const _NullQuoteFallback({required this.message});
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final text = message.isEmpty ? 'Your quote is being prepared.' : message;
+    return BodyShell(
+      child: Center(
+        child: Text(
+          text,
+          textAlign: TextAlign.center,
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+            color: OrchestratorPalette.inkPrimary,
+            height: 1.35,
+          ),
+        ),
+      ),
     );
   }
 }
@@ -717,9 +1038,10 @@ class InProgressBodyStub extends StatelessWidget {
   final BookingDetail booking;
 
   @override
-  Widget build(BuildContext context) => _AnimatedBody(
-    status: BookingStatus.inProgress,
+  Widget build(BuildContext context) => _WaitingBody(
     message: booking.ui.bodyText,
+    elapsedSince: booking.phaseTimestamps.workStartedAt,
+    verbPrefix: 'Working',
   );
 }
 
@@ -733,7 +1055,62 @@ class CompletedBodyStub extends StatelessWidget {
     return _AnimatedBody(
       status: BookingStatus.completed,
       message: booking.ui.bodyText,
-      child: quote == null ? null : QuoteSummaryCard(quote: quote),
+      // Inline receipt stays — users who scroll see it as before.
+      // The "View receipt" button below adds a one-tap focused entry
+      // point for the cash-paying customer who wants to screenshot
+      // the receipt for WhatsApp / records (see ReceiptSheet docstring).
+      // When activeQuote is null (inspection-only completion / edge
+      // case) both the card and the button are suppressed.
+      child: quote == null
+          ? null
+          : Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                QuoteSummaryCard(quote: quote),
+                const SizedBox(height: 12),
+                _ViewReceiptButton(quote: quote),
+              ],
+            ),
+    );
+  }
+}
+
+/// One-tap entry to [ReceiptSheet]. Lives below the inline
+/// QuoteSummaryCard in CompletedBodyStub. Visible only when there's
+/// a real quote to show — null-quote completions (e.g. inspection-
+/// only) suppress the button entirely.
+class _ViewReceiptButton extends StatelessWidget {
+  const _ViewReceiptButton({required this.quote});
+  final BookingQuote quote;
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton.icon(
+      onPressed: () => ReceiptSheet.show(context, quote),
+      icon: const Icon(
+        Icons.open_in_full_rounded,
+        size: 18,
+        color: OrchestratorPalette.brandPrimary,
+      ),
+      label: const Text(
+        'View receipt',
+        style: TextStyle(
+          fontWeight: FontWeight.w700,
+          color: OrchestratorPalette.brandPrimary,
+        ),
+      ),
+      style: OutlinedButton.styleFrom(
+        side: const BorderSide(
+          color: OrchestratorPalette.brandPrimary,
+          width: 1.4,
+        ),
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 18),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        minimumSize: const Size(0, 44),
+      ),
     );
   }
 }
@@ -889,16 +1266,24 @@ class QuoteSummaryCard extends StatelessWidget {
                           height: 1.1,
                         ),
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Revision ${quote.revisionNumber}',
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.82),
-                          fontWeight: FontWeight.w600,
-                          fontSize: 11,
-                          letterSpacing: 0.3,
+                      // Revision label hidden on the first quote — for
+                      // a first-time customer "Revision 1" reads as
+                      // jargon. Surfaces only when the tech has
+                      // re-submitted after a customer revision
+                      // request, where "Revision 2" / "Revision 3"
+                      // communicates that the quote was updated.
+                      if (quote.revisionNumber > 1) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          'Revision ${quote.revisionNumber}',
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.82),
+                            fontWeight: FontWeight.w600,
+                            fontSize: 11,
+                            letterSpacing: 0.3,
+                          ),
                         ),
-                      ),
+                      ],
                     ],
                   ),
                 ),

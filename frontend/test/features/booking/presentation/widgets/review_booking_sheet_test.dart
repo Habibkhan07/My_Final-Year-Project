@@ -124,6 +124,85 @@ void main() {
   });
 
   // ---------------------------------------------------------------------------
+  // Disabled-state explainer labels (no silent gray buttons).
+  // ---------------------------------------------------------------------------
+  group('Book button — disabled-state labels', () {
+    Widget buildWithOverrides({
+      required int? serviceId,
+      required List<CustomerAddressEntity> addresses,
+    }) {
+      return ProviderScope(
+        overrides: [
+          instantBookingProvider.overrideWith(
+            () => MockInstantBookingNotifier(const AsyncData(null)),
+          ),
+          addressesProvider.overrideWith((ref) => Future.value(addresses)),
+        ],
+        child: MaterialApp(
+          home: Scaffold(
+            body: ReviewBookingSheet(
+              technician: tTechnician,
+              selectedDate: tDate,
+              selectedSlot: tSlot,
+              serviceId: serviceId,
+              subServiceId: null,
+            ),
+          ),
+        ),
+      );
+    }
+
+    testWidgets(
+      'serviceId null → "Pick a service first" label (defense-in-depth)',
+      (tester) async {
+        await mockNetworkImagesFor(() async {
+          await tester.pumpWidget(buildWithOverrides(
+            serviceId: null,
+            addresses: const [tDefaultAddress],
+          ));
+          await tester.pumpAndSettle();
+
+          expect(find.text('Pick a service first'), findsOneWidget);
+          expect(find.text('Book'), findsNothing);
+        });
+      },
+    );
+
+    testWidgets(
+      'no default address → "Add a service address" label (remediation in place)',
+      (tester) async {
+        await mockNetworkImagesFor(() async {
+          await tester.pumpWidget(buildWithOverrides(
+            serviceId: 3,
+            addresses: const [],
+          ));
+          await tester.pumpAndSettle();
+
+          expect(find.text('Add a service address'), findsOneWidget);
+          expect(find.text('Book'), findsNothing);
+        });
+      },
+    );
+
+    testWidgets(
+      'service + address both present → "Book" label',
+      (tester) async {
+        await mockNetworkImagesFor(() async {
+          await tester.pumpWidget(buildWithOverrides(
+            serviceId: 3,
+            addresses: const [tDefaultAddress],
+          ));
+          await tester.pumpAndSettle();
+
+          expect(find.text('Book'), findsOneWidget);
+          expect(find.text('Pick a service first'), findsNothing);
+          expect(find.text('Add a service address'), findsNothing);
+        });
+      },
+    );
+  });
+
+  // ---------------------------------------------------------------------------
   // Field-level validation_error → user-friendly toast (BOOKINGS_API.md §2.2).
   // The server returns diagnostic-friendly text; the sheet maps each error
   // key to a fixed, user-friendly string via the local dictionary.

@@ -16,8 +16,8 @@ Usage:
   python scripts/fake_tech_gps.py \\
       --booking-id 42 \\
       --token <tech_drf_token> \\
-      [--start 33.6970,73.0525] \\
-      [--dest 33.6844,73.0479] \\
+      [--start 31.5230,74.3478] \\
+      [--dest 31.5097,74.3478] \\
       [--speed 1.0] \\
       [--interval 5] \\
       [--mode steady|jitter|stop_60s|drop_then_recover]
@@ -33,9 +33,9 @@ Modes:
   drop_then_recover   Post for 20s, freeze for 90s (deeper than the
                       offline threshold), then resume.
 
-Defaults match the seeder's tech-base / customer-address coords (Islamabad
-F-7), so `python scripts/fake_tech_gps.py --booking-id N --token T` works
-out of the box after `python manage.py seed_test_fixtures`.
+Defaults match the seeder's tech-base / customer-address coords (Gulberg
+III, Lahore), so `python scripts/fake_tech_gps.py --booking-id N --token T`
+works out of the box after `python manage.py seed_test_fixtures`.
 
 Stop with Ctrl+C; the script exits cleanly.
 """
@@ -53,11 +53,11 @@ import requests
 
 
 # Defaults match seed_test_fixtures.py — tech base ~1.5 km north of the
-# customer address in Islamabad F-7. Walking these at speed=1.0 lands the
-# tech at the destination in ~5 minutes.
+# customer address in Gulberg III, Lahore. Walking these at speed=1.0 lands
+# the tech at the destination in ~5 minutes.
 DEFAULT_BASE_URL = 'http://localhost:8000'
-DEFAULT_START = '33.6970,73.0525'
-DEFAULT_DEST = '33.6844,73.0479'
+DEFAULT_START = '31.5230,74.3478'
+DEFAULT_DEST = '31.5097,74.3478'
 
 # Real Android service posts every ~5 seconds (Geolocator distanceFilter=10).
 # Backend per-booking throttle is 4 seconds — staying at 5s avoids 429s.

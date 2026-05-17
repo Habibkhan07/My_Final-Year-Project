@@ -11,11 +11,18 @@ _TechnicianSkillModel _$TechnicianSkillModelFromJson(
 ) => _TechnicianSkillModel(
   name: json['name'] as String,
   iconName: json['icon_name'] as String?,
+  serviceId: (json['service_id'] as num).toInt(),
+  subServiceId: (json['sub_service_id'] as num?)?.toInt(),
 );
 
 Map<String, dynamic> _$TechnicianSkillModelToJson(
   _TechnicianSkillModel instance,
-) => <String, dynamic>{'name': instance.name, 'icon_name': instance.iconName};
+) => <String, dynamic>{
+  'name': instance.name,
+  'icon_name': instance.iconName,
+  'service_id': instance.serviceId,
+  'sub_service_id': instance.subServiceId,
+};
 
 _TechnicianReviewModel _$TechnicianReviewModelFromJson(
   Map<String, dynamic> json,

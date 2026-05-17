@@ -47,7 +47,19 @@ class SecondaryActionsSlot extends StatelessWidget {
   Widget build(BuildContext context) {
     final forwardActions = <BookingUiAction>[];
     for (final action in booking.ui.secondaryActions) {
-      if (action.style == BookingUiActionStyle.destructive) continue;
+      // Destructive-style actions are normally filtered out of the
+      // happy-path row (cancels live behind Help). The exception is
+      // /decline/: the backend tags `decline_quote` and `decline upsell`
+      // as destructive because they have material financial impact
+      // (Rs. 500 inspection fee, work refused), but they ARE the
+      // customer's expected response to the QUOTED screen — without
+      // surfacing decline the customer has no way to refuse a quote.
+      // Cancel/tech-cancel remain hidden (they exit the booking, not
+      // forward verbs).
+      final isDecline = action.endpoint.endsWith('/decline/');
+      if (action.style == BookingUiActionStyle.destructive && !isDecline) {
+        continue;
+      }
       if (action.endpoint.endsWith('/reschedule/')) continue;
       if (action.endpoint.endsWith('/request-revision/')) {
         forwardActions.add(action.copyWith(label: 'Negotiate price'));

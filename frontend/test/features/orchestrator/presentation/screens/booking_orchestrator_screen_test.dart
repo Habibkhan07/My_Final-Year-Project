@@ -102,8 +102,13 @@ void main() {
     // Settle the initial load.
     await tester.pumpAndSettle();
 
-    // App bar and the loaded body chrome.
-    expect(find.text('Booking #42'), findsOneWidget);
+    // Loaded-state smoke check: the hero header is mounted (back
+    // button is its leftmost icon). Pre-Chunk-H this test asserted
+    // the dropped "Booking #N" engineering tag; "Confirmed" now
+    // appears in BOTH the chip and the 6-phase timeline (Chunk G),
+    // so a text-match isn't unique. The back-button tooltip IS
+    // unique to the production header surface.
+    expect(find.byTooltip('Back'), findsOneWidget);
     expect(repo.callCount, 1, reason: 'initial fetch should fire once');
   });
 

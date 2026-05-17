@@ -242,7 +242,7 @@ void main() {
         });
       });
 
-      testWidgets('renders wallet balance with "Wallet:" label', (
+      testWidgets('renders wallet balance via formatRs (no "Wallet:" prefix)', (
         tester,
       ) async {
         await mockNetworkImagesFor(() async {
@@ -251,21 +251,25 @@ void main() {
           );
           await tester.pump();
 
-          expect(find.text('Wallet: Rs. 1500'), findsOneWidget);
+          expect(find.text('Rs. 1500'), findsOneWidget);
         });
       });
 
       testWidgets(
-        'renders greeting with technician firstName from auth cache',
+        'header is identity-stripped — no greeting rendered',
         (tester) async {
+          // Avatar + "Hi, {firstName}" moved to the Profile tab. The
+          // dashboard top bar is status-only now. We pin the greeting
+          // absence here; the avatar-icon absence is pinned in the
+          // header-isolation test (DashboardHeader test). Asserting it
+          // at screen scope would collide with the bottom-nav Profile
+          // tab, which legitimately uses Icons.person_outline.
           await mockNetworkImagesFor(() async {
             await tester.pumpWidget(buildScreen(AsyncData(_state())));
-            // Two pumps: one to resolve the dashboard provider, one to resolve
-            // the auth provider's async build() before the greeting renders.
             await tester.pump();
             await tester.pump();
 
-            expect(find.text('Hi, Ali'), findsOneWidget);
+            expect(find.textContaining('Hi,'), findsNothing);
           });
         },
       );

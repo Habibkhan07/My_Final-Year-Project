@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../customer/bookings/domain/entities/booking_status.dart';
-import '../../../customer/bookings/domain/entities/booking_ui_tone.dart';
 import '../../../technician/location_broadcaster/presentation/providers/foreground_location_service_controller.dart';
 import '../../domain/entities/booking_detail.dart';
 import '../../domain/entities/tech_gps_frame.dart';
@@ -146,72 +145,43 @@ class _BookingOrchestratorScreenState
     ref.watch(foregroundLocationServiceControllerProvider(widget.jobId));
 
     final detailAsync = ref.watch(bookingDetailProvider(widget.jobId));
-    // Effective tone — AWAITING is remapped from `warning` (amber) to
-    // `info` (faint blue) in the palette so the screen never flashes
-    // yellow on first load.
-    final tone = detailAsync.hasValue
-        ? OrchestratorPalette.effectiveTone(detailAsync.requireValue)
-        : BookingUiTone.neutral;
-    final theme = Theme.of(context);
 
     return Scaffold(
-      // Scaffold's own bg stays plain surface; the tint goes on an
-      // AnimatedContainer one level down so tone shifts ease over
-      // 320ms instead of cutting in one frame.
-      backgroundColor: theme.colorScheme.surface,
-      body: AnimatedContainer(
-        duration: const Duration(milliseconds: 320),
-        curve: Curves.easeOut,
-        color: _ambientSurfaceTint(theme, tone),
-        child: detailAsync.when(
-          loading: () => const OrchestratorSkeleton(),
-          error: (error, _) => Column(
-            children: [
-              _MinimalHeader(
-                jobId: widget.jobId,
-                onBack: () => Navigator.maybePop(context),
+      // Flat cool off-white shared with the pending-approval onboarding
+      // screen and the customer profile tab — identity surfaces feel
+      // of-a-piece. The previous per-status `_ambientSurfaceTint` wash
+      // shifted faintly with the tone; that signal now lives in the
+      // hero header's 4-px tone stripe (Chunk H) and the status chip,
+      // so the page bg can stay flat.
+      backgroundColor: OrchestratorPalette.pageBackground,
+      body: detailAsync.when(
+        loading: () => const OrchestratorSkeleton(),
+        error: (error, _) => Column(
+          children: [
+            _MinimalHeader(
+              jobId: widget.jobId,
+              onBack: () => Navigator.maybePop(context),
+            ),
+            Expanded(
+              child: OrchestratorErrorCard(
+                failure: error,
+                onRetry: () =>
+                    ref.invalidate(bookingDetailProvider(widget.jobId)),
               ),
-              Expanded(
-                child: OrchestratorErrorCard(
-                  failure: error,
-                  onRetry: () =>
-                      ref.invalidate(bookingDetailProvider(widget.jobId)),
-                ),
-              ),
-            ],
-          ),
-          data: (booking) => _LoadedBody(
-            booking: booking,
-            isRefreshing: detailAsync.isRefreshing,
-            isScrolled: _isScrolled,
-            scrollController: _scrollController,
-            onBack: () => Navigator.maybePop(context),
-            onHelp: () => HelpSheet.show(context, booking: booking),
-            onPullToRefresh: _onPullToRefresh,
-          ),
+            ),
+          ],
+        ),
+        data: (booking) => _LoadedBody(
+          booking: booking,
+          isRefreshing: detailAsync.isRefreshing,
+          isScrolled: _isScrolled,
+          scrollController: _scrollController,
+          onBack: () => Navigator.maybePop(context),
+          onHelp: () => HelpSheet.show(context, booking: booking),
+          onPullToRefresh: _onPullToRefresh,
         ),
       ),
     );
-  }
-
-  /// Faint tone-derived surface wash, sourced from the same
-  /// [OrchestratorToneSpec] the hero header uses — so the page
-  /// background and the hero are guaranteed to read as one toned
-  /// surface family.
-  ///
-  /// **Why this routes through the palette.** The previous mapping
-  /// reached for `colors.tertiaryContainer` / `colors.errorContainer`,
-  /// which Material 3 auto-derives from a deep-blue seed as pink and
-  /// coral. That leaked pink into the page background on AWAITING /
-  /// CANCELLED screens. The palette's `toneSpec` ships brand-cool
-  /// amber (warning) and burgundy red (negative) explicitly, bypassing
-  /// M3's derivation entirely.
-  static Color _ambientSurfaceTint(ThemeData theme, BookingUiTone tone) {
-    final spec = OrchestratorPalette.toneSpec(tone, theme.colorScheme);
-    // For neutral/unknown the palette returns plain surface — fine to
-    // alphaBlend over surface (a no-op visually); keeping the same
-    // code path simplifies the callsite.
-    return Color.alphaBlend(spec.surfaceWash, theme.colorScheme.surface);
   }
 }
 
@@ -264,6 +234,76 @@ class _LoadedBody extends StatelessWidget {
         (booking.status == BookingStatus.arrived ||
             booking.status == BookingStatus.quoted);
 
+    // Map-led statuses (customer EN_ROUTE + customer ARRIVED) skip the
+    // ShaderMask top-fade. The fade composites an offscreen `dstIn`
+    // alpha layer over every painted frame — fine over body-shell
+    // cards, expensive over a live map whose tiles repaint constantly.
+    // The map's own ClipRRect already provides edge treatment, so the
+    // fade is decoratively redundant there; removing it eliminates a
+    // per-frame composite during pan/zoom. Other statuses keep the
+    // fade because their bodies are scroll-revealed content where the
+    // soft dissolve under the curved hero is part of the visual.
+    final isMapLed = isCustomerView &&
+        (booking.status == BookingStatus.enRoute ||
+            booking.status == BookingStatus.arrived);
+
+    final scrollableBody = SingleChildScrollView(
+      controller: scrollController,
+      physics: const AlwaysScrollableScrollPhysics(),
+      // AnimatedSwitcher keyed on status — when the WS event flips
+      // the booking's status, the outgoing body fades+slides up and
+      // the incoming body fades+slides in (320ms). Map bodies have
+      // their own internal frame tween, so the only swap-time
+      // animation comes from this outer switcher.
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 320),
+        switchInCurve: Curves.easeOutCubic,
+        switchOutCurve: Curves.easeInCubic,
+        transitionBuilder: (child, animation) {
+          final slide = Tween<Offset>(
+            begin: const Offset(0, 0.08),
+            end: Offset.zero,
+          ).animate(animation);
+          return FadeTransition(
+            opacity: animation,
+            child: SlideTransition(
+              position: slide,
+              child: child,
+            ),
+          );
+        },
+        layoutBuilder: (currentChild, previousChildren) => Stack(
+          alignment: Alignment.topCenter,
+          children: <Widget>[
+            ...previousChildren,
+            ?currentChild,
+          ],
+        ),
+        child: KeyedSubtree(
+          key: ValueKey(booking.status),
+          child: BodySlot(booking: booking),
+        ),
+      ),
+    );
+
+    // Soft top fade so scrolling body content gently dissolves under
+    // the hero header instead of hard-cutting at its edge. `dstIn` +
+    // a 4%-transparent → opaque gradient produces a 24px alpha
+    // falloff at the top of the viewport regardless of scroll
+    // offset (the mask is in viewport-space, not content-space).
+    final Widget bodyChild = isMapLed
+        ? scrollableBody
+        : ShaderMask(
+            blendMode: BlendMode.dstIn,
+            shaderCallback: (rect) => const LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Colors.transparent, Colors.black, Colors.black],
+              stops: [0.0, 0.04, 1.0],
+            ).createShader(rect),
+            child: scrollableBody,
+          );
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -298,60 +338,7 @@ class _LoadedBody extends StatelessWidget {
             color: _brandBlue,
             displacement: 24,
             onRefresh: onPullToRefresh,
-            // Soft top fade so scrolling body content gently dissolves
-            // under the hero header instead of hard-cutting at its
-            // edge. `dstIn` blend mode + a 4%-transparent → opaque
-            // gradient produces a 24px alpha falloff at the top of the
-            // viewport regardless of scroll offset (the mask is in
-            // viewport-space, not content-space).
-            child: ShaderMask(
-              blendMode: BlendMode.dstIn,
-              shaderCallback: (rect) => const LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [Colors.transparent, Colors.black, Colors.black],
-                stops: [0.0, 0.04, 1.0],
-              ).createShader(rect),
-              child: SingleChildScrollView(
-                controller: scrollController,
-                physics: const AlwaysScrollableScrollPhysics(),
-                // AnimatedSwitcher keyed on status — when the WS event
-                // flips the booking's status, the outgoing body
-                // fades+slides up and the incoming body fades+slides
-                // in (320ms). Map bodies have their own internal frame
-                // tween, so the only swap-time animation comes from
-                // this outer switcher.
-                child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 320),
-                switchInCurve: Curves.easeOutCubic,
-                switchOutCurve: Curves.easeInCubic,
-                transitionBuilder: (child, animation) {
-                  final slide = Tween<Offset>(
-                    begin: const Offset(0, 0.08),
-                    end: Offset.zero,
-                  ).animate(animation);
-                  return FadeTransition(
-                    opacity: animation,
-                    child: SlideTransition(
-                      position: slide,
-                      child: child,
-                    ),
-                  );
-                },
-                layoutBuilder: (currentChild, previousChildren) => Stack(
-                  alignment: Alignment.topCenter,
-                  children: <Widget>[
-                    ...previousChildren,
-                    ?currentChild,
-                  ],
-                ),
-                  child: KeyedSubtree(
-                    key: ValueKey(booking.status),
-                    child: BodySlot(booking: booking),
-                  ),
-                ),
-              ),
-            ),
+            child: bodyChild,
           ),
         ),
         if (!hideAlwaysOnSummary) BookingSummaryCard(booking: booking),

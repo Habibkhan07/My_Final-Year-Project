@@ -194,6 +194,47 @@ void main() {
     });
 
     testWidgets(
+      'decline carve-out — destructive /decline/ still renders inline',
+      (tester) async {
+        // Per the BE wire (orchestrator_ui.py _customer_quoted), decline
+        // is tagged `style: destructive` because it has material
+        // financial impact (Rs. 500 inspection fee). But it IS the
+        // customer's expected response to a QUOTED screen — without it
+        // the customer cannot refuse a quote. The slot's destructive
+        // filter must carve /decline/ through. Cancel + tech-cancel
+        // remain hidden (they exit the booking; decline is a forward
+        // verb on the active quote).
+        final booking = _booking(
+          secondary: [
+            {
+              'label': 'Decline (Rs. 500 inspection fee)',
+              'endpoint':
+                  '/bookings/1/quotes/9/decline/',
+              'method': 'POST',
+              'style': 'destructive',
+            },
+            {
+              'label': 'Cancel',
+              'endpoint': '/bookings/1/cancel/',
+              'method': 'POST',
+              'style': 'destructive',
+            },
+          ],
+        );
+        await tester.pumpWidget(
+          ProviderScope(
+            child: MaterialApp(
+              home: Scaffold(body: SecondaryActionsSlot(booking: booking)),
+            ),
+          ),
+        );
+        // Decline survives the destructive filter; Cancel does not.
+        expect(find.text('Decline (Rs. 500 inspection fee)'), findsOneWidget);
+        expect(find.text('Cancel'), findsNothing);
+      },
+    );
+
+    testWidgets(
       'request-revision action is relabelled to "Negotiate price"',
       (tester) async {
         // Post-arrival the customer + technician are face-to-face; the

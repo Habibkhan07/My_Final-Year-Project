@@ -7,6 +7,7 @@ from .onboarding.views import (
 )
 from .dashboard.views import TechnicianDashboardView
 from .metrics.views import TechnicianMetricsView
+from .online.views import TechnicianOnlineToggleView
 from .quote_catalog.views import QuotableSubServicesView
 from .scheduled_jobs.views import (
     TechnicianScheduledJobsCountsView,
@@ -53,6 +54,16 @@ urlpatterns = [
     # technician dashboard. Returns has_profile=false for users who never
     # applied.
     path('me/status/', TechnicianStatusView.as_view(), name='tech-status'),
+
+    # User-initiated online toggle — counterpart to the ledger's
+    # auto-offline gate (wallet/services/ledger.py:213). POST with
+    # {is_online: bool}. Lockout-gated for is_online=true via the
+    # same select_for_update the ledger uses; offline always allowed.
+    path(
+        'me/online/',
+        TechnicianOnlineToggleView.as_view(),
+        name='tech-online-toggle',
+    ),
 
     # Work location — single ``GET``/``PATCH`` keyed to ``request.user``.
     # The matchmaker reads ``base_latitude`` / ``base_longitude`` directly,

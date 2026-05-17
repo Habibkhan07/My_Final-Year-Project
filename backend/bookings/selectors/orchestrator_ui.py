@@ -150,7 +150,13 @@ def _customer_display_name(booking: JobBooking) -> str:
 def _customer_awaiting(booking, viewer):
     return {
         "status_label": "Awaiting tech",
-        "body_text": f"Waiting for {_technician_display_name(booking)} to confirm…",
+        # Karigar's flow is pick-then-book, NOT marketplace search:
+        # the customer chose a specific technician in the discovery
+        # flow; the booking now waits for THAT tech to accept (the
+        # tech-accept SLA window — `project_booking_acceptance_model`
+        # memory). Copy must reflect "waiting on this tech's approval"
+        # not "looking for any tech."
+        "body_text": "Waiting for approval",
         "primary_action": None,
         "secondary_actions": [
             _customer_cancel_action(booking, "Cancel booking"),
@@ -166,7 +172,7 @@ def _customer_awaiting(booking, viewer):
 def _tech_awaiting(booking, viewer):
     return {
         "status_label": "Awaiting your reply",
-        "body_text": "A new job is waiting on your accept/decline.",
+        "body_text": "Job offer waiting",
         "primary_action": None,
         "secondary_actions": [],
         "show_tracking": False,
@@ -226,7 +232,7 @@ def _customer_en_route(booking, viewer):
 def _tech_en_route(booking, viewer):
     return {
         "status_label": "En route",
-        "body_text": "Drive safe — tap arrived when you reach the customer.",
+        "body_text": "Drive safe.",
         "primary_action": _arrived_action(booking),
         "secondary_actions": [_tech_cancel_action(booking)],
         "show_tracking": True,
@@ -282,12 +288,9 @@ def _tech_arrived(booking, viewer):
     has_acked = booking.customer_acknowledged_arrival_at is not None
     customer_name = _customer_display_name(booking)
     if has_acked:
-        body_text = f'{customer_name} is coming out to meet you.'
+        body_text = f'{customer_name} is coming out.'
     else:
-        body_text = (
-            f'You are at the address. Waiting for {customer_name} '
-            f'to walk out and meet you.'
-        )
+        body_text = f'Waiting for {customer_name}.'
     return {
         "status_label": "On site",
         "body_text": body_text,
@@ -308,7 +311,7 @@ def _tech_arrived(booking, viewer):
 def _customer_inspecting(booking, viewer):
     return {
         "status_label": "Inspection in progress",
-        "body_text": f"{_technician_display_name(booking)} is inspecting the issue.",
+        "body_text": "Tech is inspecting",
         "primary_action": None,
         # No customer cancel from EN_ROUTE onward
         # (`feedback_customer_cancel_window.md`).
@@ -323,13 +326,18 @@ def _customer_inspecting(booking, viewer):
 def _tech_inspecting(booking, viewer):
     return {
         "status_label": "Build the quote",
-        "body_text": "Add line items for the parts and labor you'll perform.",
+        "body_text": "Add what you'll charge for.",
         "primary_action": _submit_quote_action(booking),
-        # Cancel-only secondary; customer-no-show moved into the
-        # cancel-reason picker (`feedback_cancel_vs_no_show.md`).
-        "secondary_actions": [
-            _tech_cancel_action(booking),
-        ],
+        # No tech-cancel from INSPECTING onward: once the tech has
+        # tapped "Start inspection" they're physically in the
+        # customer's home and have committed to the diagnostic.
+        # Cancelling here is unfair to the customer who let them in.
+        # The tech's exit from a bad job after this point is via the
+        # decline-quote path (submit a quote the customer can refuse,
+        # ending in COMPLETED_INSPECTION_ONLY + Rs. 500 inspection
+        # fee). The Help icon still surfaces reschedule / contact
+        # support for edge cases.
+        "secondary_actions": [],
         "show_tracking": False,
         "show_quote_card": False,
         "show_dispute_button": False,
@@ -398,7 +406,9 @@ def _customer_quoted(booking, viewer):
 
     return {
         "status_label": "Quote ready",
-        "body_text": "Review the quote and approve, decline, or ask for a revision.",
+        # Empty — the QuoteSummaryCard + Decline/Approve buttons in
+        # the action bar are self-explanatory (Chunk F).
+        "body_text": "",
         "primary_action": {
             "label": "Approve quote",
             "endpoint": f"/bookings/{booking.id}/quotes/{active_quote.id}/approve/",
@@ -416,13 +426,16 @@ def _customer_quoted(booking, viewer):
 def _tech_quoted(booking, viewer):
     return {
         "status_label": "Awaiting customer decision",
-        "body_text": "The customer is reviewing your quote.",
+        # Empty — pill subtitle "Customer is reviewing" (A.1) + the
+        # QuoteSummaryCard the tech sent carry it.
+        "body_text": "",
         "primary_action": None,
-        # Cancel-only secondary; customer-no-show moved into the
-        # cancel-reason picker (`feedback_cancel_vs_no_show.md`).
-        "secondary_actions": [
-            _tech_cancel_action(booking),
-        ],
+        # No tech-cancel from QUOTED — the quote is the tech's
+        # response to the customer; cancelling unilaterally after
+        # sending it is incoherent. The customer's decline path
+        # ends the booking (COMPLETED_INSPECTION_ONLY), and the tech
+        # gets the inspection fee.
+        "secondary_actions": [],
         "show_tracking": False,
         "show_quote_card": True,
         "show_dispute_button": False,
@@ -490,7 +503,7 @@ def _customer_in_progress(booking, viewer):
 
     return {
         "status_label": "Work in progress",
-        "body_text": f"{_technician_display_name(booking)} is performing the agreed work.",
+        "body_text": "Work in progress",
         "primary_action": None,
         "secondary_actions": [],
         "show_tracking": False,
@@ -507,7 +520,7 @@ def _customer_in_progress(booking, viewer):
 def _tech_in_progress(booking, viewer):
     return {
         "status_label": "Doing the work",
-        "body_text": "Tap below once you've collected cash and finished the job.",
+        "body_text": "Collect cash when done.",
         "primary_action": _confirm_cash_action(booking),
         "secondary_actions": [
             _submit_quote_action(booking, "Add upsell"),
@@ -544,7 +557,11 @@ def _tech_completed(booking, viewer):
         "secondary_actions": [],
         "show_tracking": False,
         "show_quote_card": True,
-        "show_dispute_button": True,
+        # No tech-side dispute affordance — disputes are
+        # customer-initiated complaints about workmanship / price /
+        # behavior. The tech app has no dispute feature; escalations
+        # from the tech's side go through admin support out-of-band.
+        "show_dispute_button": False,
         "tone": "positive",
     }
 
@@ -570,7 +587,10 @@ def _tech_completed_inspection_only(booking, viewer):
         "secondary_actions": [],
         "show_tracking": False,
         "show_quote_card": True,
-        "show_dispute_button": True,
+        # Same rationale as `_tech_completed` — no tech-side dispute
+        # feature exists in this app; the button used to render
+        # nothing useful on tap.
+        "show_dispute_button": False,
         "tone": "neutral",
     }
 

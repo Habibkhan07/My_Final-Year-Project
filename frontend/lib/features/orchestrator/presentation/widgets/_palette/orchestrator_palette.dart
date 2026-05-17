@@ -61,15 +61,31 @@ class OrchestratorPalette {
 
   // ─── Ink / text ─────────────────────────────────────────────────────
 
-  /// Primary ink for headings on white surfaces. Slightly cooler than
-  /// pure black so it sits in the same hue family as the brand blue.
-  static const Color inkPrimary = Color(0xFF0A2540);
+  /// Cool charcoal — matches the literal `_titleText` used by the
+  /// customer profile screen and the pending-approval onboarding
+  /// screen. Previously the orchestrator used `#0A2540` (navy-leaning)
+  /// which read as slightly cooler-than-blue next to the rest of the
+  /// app's `#151C24`. Aligning so identity surfaces feel of-a-piece.
+  static const Color inkPrimary = Color(0xFF151C24);
 
-  /// Secondary ink (body / support text) — `inkPrimary` at 72%.
-  static Color get inkSecondary => inkPrimary.withValues(alpha: 0.72);
+  /// Body / support text — literal `#424753`, mirrors the customer
+  /// profile's `_bodyText`. Was previously `inkPrimary @ 72%`.
+  static const Color inkSecondary = Color(0xFF424753);
 
-  /// Tertiary ink (captions) — `inkPrimary` at 55%.
-  static Color get inkTertiary => inkPrimary.withValues(alpha: 0.55);
+  /// Captions / tertiary text — literal `#727785`, mirrors the
+  /// customer profile's `_mutedText`. Was previously `inkPrimary @ 55%`.
+  static const Color inkTertiary = Color(0xFF727785);
+
+  // ─── Page background ────────────────────────────────────────────────
+
+  /// Flat cool off-white used as the orchestrator screen's Scaffold
+  /// background — matches the literal `_bg` token in the pending
+  /// approval screen. Previously the screen used a per-status
+  /// tone-tinted `alphaBlend` over `theme.colorScheme.surface`; that
+  /// subtle wash is dropped in favor of visual parity with the rest
+  /// of the app. The tone signal is still carried by the hero
+  /// header's 4-px bottom stripe (post-Chunk-H) and the status chip.
+  static const Color pageBackground = Color(0xFFF6F8FC);
 
   // ─── Semantic accents ───────────────────────────────────────────────
 

@@ -248,17 +248,42 @@ def test_completed_booking_renders_dispute_slot():
 
 
 @pytest.mark.parametrize(
+    "status",
+    [
+        JobBooking.STATUS_COMPLETED,
+        JobBooking.STATUS_COMPLETED_INSPECTION_ONLY,
+    ],
+)
+def test_tech_view_never_renders_dispute_slot(status):
+    """Tech app has no dispute feature; the slot must stay False on
+    every terminal status the tech sees. Disputes are customer-
+    initiated; tech-side escalations route through admin support
+    out-of-band, not through this surface."""
+    booking = JobBookingConfirmedFactory(status=status)
+    block = resolve_orchestrator_ui(
+        booking, viewer=booking.technician.user, role="technician"
+    )
+    assert block["show_dispute_button"] is False
+
+
+@pytest.mark.parametrize(
     "status,customer_sees_cancel,tech_sees_cancel",
     [
         # Pre-EN_ROUTE: customer can cancel (free / pre-commitment).
         (JobBooking.STATUS_AWAITING_TECH_ACCEPT, True, False),
         (JobBooking.STATUS_CONFIRMED, True, True),
         # EN_ROUTE onward: customer cancel disappears (tech is moving /
-        # committed). Tech keeps theirs as an emergency exit.
+        # committed). Tech keeps theirs as an emergency exit through
+        # ARRIVED, but NOT once inspection starts.
         (JobBooking.STATUS_EN_ROUTE, False, True),
         (JobBooking.STATUS_ARRIVED, False, True),
-        (JobBooking.STATUS_INSPECTING, False, True),
-        (JobBooking.STATUS_QUOTED, False, True),
+        # INSPECTING and QUOTED: tech's cancel window CLOSES. Once
+        # they tap "Start inspection" they're physically committed
+        # in the customer's home; unilateral cancel here is unfair to
+        # the customer who let them in. The decline-quote path is the
+        # exit ramp from a bad job after this point.
+        (JobBooking.STATUS_INSPECTING, False, False),
+        (JobBooking.STATUS_QUOTED, False, False),
         # Post-cash / terminal: no cancel for either side.
         (JobBooking.STATUS_IN_PROGRESS, False, False),
         (JobBooking.STATUS_COMPLETED, False, False),
@@ -273,8 +298,9 @@ def test_cancel_visibility_matrix(status, customer_sees_cancel, tech_sees_cancel
     """Locks the cancel-visibility rule per `feedback_customer_cancel_window.md`.
 
     Customer's self-serve cancel only exists pre-EN_ROUTE; tech's
-    self-serve cancel exists through QUOTED (their emergency exit ramp
-    while they're committed to the job).
+    self-serve cancel exists through ARRIVED (their emergency exit
+    ramp before they physically commit to the diagnostic). Once
+    INSPECTING starts the tech's cancel disappears.
     """
     booking = JobBookingConfirmedFactory(status=status)
     # QUOTED needs an active quote to take the main code path. If we

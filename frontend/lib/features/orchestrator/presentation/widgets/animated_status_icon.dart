@@ -35,13 +35,37 @@ class AnimatedStatusIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return switch (status) {
-      BookingStatus.awaiting => _AwaitingHero(size: size),
+      // Defensive fallbacks for statuses whose body widgets no
+      // longer route here. AwaitingBodyStub, InspectingBodyStub,
+      // InProgressBodyStub stopped passing through AnimatedStatusIcon
+      // in Chunk D.1; QuotedBodyStub stopped in Chunk F. The cases
+      // remain for exhaustiveness — if a future caller ever passes
+      // these statuses, they get a static muted icon rather than a
+      // (now-deleted) animated hero. Visual downgrade is acceptable
+      // for a defensive path.
+      BookingStatus.awaiting => _MutedHero(
+        size: size,
+        icon: Icons.hourglass_bottom,
+        tint: const Color(0xFFE89B25),
+      ),
       BookingStatus.confirmed => _ConfirmedHero(size: size),
       BookingStatus.enRoute => _EnRouteHero(size: size),
       BookingStatus.arrived => _ArrivedHero(size: size),
-      BookingStatus.inspecting => _InspectingHero(size: size),
-      BookingStatus.quoted => _QuotedHero(size: size),
-      BookingStatus.inProgress => _InProgressHero(size: size),
+      BookingStatus.inspecting => _MutedHero(
+        size: size,
+        icon: Icons.search_rounded,
+        tint: const Color(0xFF3A6BC2),
+      ),
+      BookingStatus.quoted => _MutedHero(
+        size: size,
+        icon: Icons.receipt_long_rounded,
+        tint: const Color(0xFF3A6BC2),
+      ),
+      BookingStatus.inProgress => _MutedHero(
+        size: size,
+        icon: Icons.build_circle_rounded,
+        tint: const Color(0xFF3A6BC2),
+      ),
       BookingStatus.completed => _CompletedHero(size: size),
       BookingStatus.completedInspectionOnly => _InspectionOnlyHero(size: size),
       BookingStatus.cancelled => _MutedHero(
@@ -102,106 +126,6 @@ class _Surface extends StatelessWidget {
         ],
       ),
       child: Center(child: child),
-    );
-  }
-}
-
-// ─── AWAITING — pulsing radar around an hourglass ─────────────────────────
-
-class _AwaitingHero extends StatefulWidget {
-  const _AwaitingHero({required this.size});
-  final double size;
-
-  @override
-  State<_AwaitingHero> createState() => _AwaitingHeroState();
-}
-
-class _AwaitingHeroState extends State<_AwaitingHero>
-    with TickerProviderStateMixin {
-  late final AnimationController _pulse;
-  late final AnimationController _tilt;
-
-  @override
-  void initState() {
-    super.initState();
-    _pulse = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1800),
-    );
-    _tilt = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 2400),
-    );
-    if (shouldLoopAnimations()) {
-      _pulse.repeat();
-      _tilt.repeat(reverse: true);
-    }
-  }
-
-  @override
-  void dispose() {
-    _pulse.dispose();
-    _tilt.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    const tint = Color(0xFFE89B25); // warm amber for "pending action"
-    return SizedBox(
-      width: widget.size,
-      height: widget.size,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          // Two radar rings, staggered phase.
-          AnimatedBuilder(
-            animation: _pulse,
-            builder: (context, _) {
-              return Stack(
-                alignment: Alignment.center,
-                children: [
-                  _ring(tint, _pulse.value),
-                  _ring(tint, (_pulse.value + 0.5) % 1.0),
-                ],
-              );
-            },
-          ),
-          _Surface(
-            size: widget.size * 0.55,
-            color: tint,
-            child: AnimatedBuilder(
-              animation: _tilt,
-              builder: (context, _) {
-                final t = (_tilt.value * 2) - 1; // -1..1
-                return Transform.rotate(
-                  angle: t * 0.18,
-                  child: Icon(
-                    Icons.hourglass_bottom,
-                    size: widget.size * 0.30,
-                    color: tint,
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _ring(Color tint, double t) {
-    final size = widget.size * (0.55 + 0.45 * t);
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: Border.all(
-          color: tint.withValues(alpha: (1.0 - t) * 0.45),
-          width: 2,
-        ),
-      ),
     );
   }
 }
@@ -323,148 +247,6 @@ class _ArrivedHero extends StatelessWidget {
           ),
         );
       },
-    );
-  }
-}
-
-// ─── INSPECTING — wobbling magnifying glass ───────────────────────────────
-
-class _InspectingHero extends StatefulWidget {
-  const _InspectingHero({required this.size});
-  final double size;
-
-  @override
-  State<_InspectingHero> createState() => _InspectingHeroState();
-}
-
-class _InspectingHeroState extends State<_InspectingHero>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _wobble;
-
-  @override
-  void initState() {
-    super.initState();
-    _wobble = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1800),
-    );
-    if (shouldLoopAnimations()) _wobble.repeat(reverse: true);
-  }
-
-  @override
-  void dispose() {
-    _wobble.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    const tint = Color(0xFF3A6BC2); // attentive blue
-    return _Surface(
-      size: widget.size,
-      color: tint,
-      child: AnimatedBuilder(
-        animation: _wobble,
-        builder: (context, _) {
-          final t = (_wobble.value * 2) - 1; // -1..1
-          final dx = t * 6;
-          final dy = (1 - (t.abs())) * 4;
-          return Transform.translate(
-            offset: Offset(dx, -dy),
-            child: Transform.rotate(
-              angle: t * 0.12,
-              child: Icon(
-                Icons.search_rounded,
-                size: widget.size * 0.55,
-                color: tint,
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-// ─── QUOTED — receipt slides up ───────────────────────────────────────────
-
-class _QuotedHero extends StatelessWidget {
-  const _QuotedHero({required this.size});
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    const tint = Color(0xFF3A6BC2);
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0.0, end: 1.0),
-      duration: const Duration(milliseconds: 700),
-      curve: Curves.easeOutCubic,
-      builder: (context, value, _) {
-        final dy = (1 - value) * size * 0.4;
-        return Opacity(
-          opacity: value.clamp(0.0, 1.0),
-          child: Transform.translate(
-            offset: Offset(0, dy),
-            child: _Surface(
-              size: size,
-              color: tint,
-              child: Icon(
-                Icons.receipt_long_rounded,
-                size: size * 0.5,
-                color: tint,
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-// ─── IN_PROGRESS — rotating wrench ────────────────────────────────────────
-
-class _InProgressHero extends StatefulWidget {
-  const _InProgressHero({required this.size});
-  final double size;
-
-  @override
-  State<_InProgressHero> createState() => _InProgressHeroState();
-}
-
-class _InProgressHeroState extends State<_InProgressHero>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _rotate;
-
-  @override
-  void initState() {
-    super.initState();
-    _rotate = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 2200),
-    );
-    if (shouldLoopAnimations()) _rotate.repeat();
-  }
-
-  @override
-  void dispose() {
-    _rotate.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    const tint = Color(0xFF3A6BC2);
-    return _Surface(
-      size: widget.size,
-      color: tint,
-      child: RotationTransition(
-        turns: _rotate,
-        child: Icon(
-          Icons.build_circle_rounded,
-          size: widget.size * 0.6,
-          color: tint,
-        ),
-      ),
     );
   }
 }

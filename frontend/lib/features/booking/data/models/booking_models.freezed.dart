@@ -16,7 +16,7 @@ T _$identity<T>(T value) => value;
 mixin _$TechnicianSkillModel {
 
  String get name;// Nullable: backend sends null when SubService.icon_name is unset in Admin.
-@JsonKey(name: 'icon_name') String? get iconName;
+@JsonKey(name: 'icon_name') String? get iconName;@JsonKey(name: 'service_id') int get serviceId;@JsonKey(name: 'sub_service_id') int? get subServiceId;
 /// Create a copy of TechnicianSkillModel
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -29,16 +29,16 @@ $TechnicianSkillModelCopyWith<TechnicianSkillModel> get copyWith => _$Technician
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is TechnicianSkillModel&&(identical(other.name, name) || other.name == name)&&(identical(other.iconName, iconName) || other.iconName == iconName));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is TechnicianSkillModel&&(identical(other.name, name) || other.name == name)&&(identical(other.iconName, iconName) || other.iconName == iconName)&&(identical(other.serviceId, serviceId) || other.serviceId == serviceId)&&(identical(other.subServiceId, subServiceId) || other.subServiceId == subServiceId));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,name,iconName);
+int get hashCode => Object.hash(runtimeType,name,iconName,serviceId,subServiceId);
 
 @override
 String toString() {
-  return 'TechnicianSkillModel(name: $name, iconName: $iconName)';
+  return 'TechnicianSkillModel(name: $name, iconName: $iconName, serviceId: $serviceId, subServiceId: $subServiceId)';
 }
 
 
@@ -49,7 +49,7 @@ abstract mixin class $TechnicianSkillModelCopyWith<$Res>  {
   factory $TechnicianSkillModelCopyWith(TechnicianSkillModel value, $Res Function(TechnicianSkillModel) _then) = _$TechnicianSkillModelCopyWithImpl;
 @useResult
 $Res call({
- String name,@JsonKey(name: 'icon_name') String? iconName
+ String name,@JsonKey(name: 'icon_name') String? iconName,@JsonKey(name: 'service_id') int serviceId,@JsonKey(name: 'sub_service_id') int? subServiceId
 });
 
 
@@ -66,11 +66,13 @@ class _$TechnicianSkillModelCopyWithImpl<$Res>
 
 /// Create a copy of TechnicianSkillModel
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? name = null,Object? iconName = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? name = null,Object? iconName = freezed,Object? serviceId = null,Object? subServiceId = freezed,}) {
   return _then(_self.copyWith(
 name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,iconName: freezed == iconName ? _self.iconName : iconName // ignore: cast_nullable_to_non_nullable
-as String?,
+as String?,serviceId: null == serviceId ? _self.serviceId : serviceId // ignore: cast_nullable_to_non_nullable
+as int,subServiceId: freezed == subServiceId ? _self.subServiceId : subServiceId // ignore: cast_nullable_to_non_nullable
+as int?,
   ));
 }
 
@@ -155,10 +157,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String name, @JsonKey(name: 'icon_name')  String? iconName)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String name, @JsonKey(name: 'icon_name')  String? iconName, @JsonKey(name: 'service_id')  int serviceId, @JsonKey(name: 'sub_service_id')  int? subServiceId)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _TechnicianSkillModel() when $default != null:
-return $default(_that.name,_that.iconName);case _:
+return $default(_that.name,_that.iconName,_that.serviceId,_that.subServiceId);case _:
   return orElse();
 
 }
@@ -176,10 +178,10 @@ return $default(_that.name,_that.iconName);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String name, @JsonKey(name: 'icon_name')  String? iconName)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String name, @JsonKey(name: 'icon_name')  String? iconName, @JsonKey(name: 'service_id')  int serviceId, @JsonKey(name: 'sub_service_id')  int? subServiceId)  $default,) {final _that = this;
 switch (_that) {
 case _TechnicianSkillModel():
-return $default(_that.name,_that.iconName);case _:
+return $default(_that.name,_that.iconName,_that.serviceId,_that.subServiceId);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -196,10 +198,10 @@ return $default(_that.name,_that.iconName);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String name, @JsonKey(name: 'icon_name')  String? iconName)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String name, @JsonKey(name: 'icon_name')  String? iconName, @JsonKey(name: 'service_id')  int serviceId, @JsonKey(name: 'sub_service_id')  int? subServiceId)?  $default,) {final _that = this;
 switch (_that) {
 case _TechnicianSkillModel() when $default != null:
-return $default(_that.name,_that.iconName);case _:
+return $default(_that.name,_that.iconName,_that.serviceId,_that.subServiceId);case _:
   return null;
 
 }
@@ -211,12 +213,14 @@ return $default(_that.name,_that.iconName);case _:
 @JsonSerializable()
 
 class _TechnicianSkillModel extends TechnicianSkillModel {
-  const _TechnicianSkillModel({required this.name, @JsonKey(name: 'icon_name') required this.iconName}): super._();
+  const _TechnicianSkillModel({required this.name, @JsonKey(name: 'icon_name') required this.iconName, @JsonKey(name: 'service_id') required this.serviceId, @JsonKey(name: 'sub_service_id') this.subServiceId}): super._();
   factory _TechnicianSkillModel.fromJson(Map<String, dynamic> json) => _$TechnicianSkillModelFromJson(json);
 
 @override final  String name;
 // Nullable: backend sends null when SubService.icon_name is unset in Admin.
 @override@JsonKey(name: 'icon_name') final  String? iconName;
+@override@JsonKey(name: 'service_id') final  int serviceId;
+@override@JsonKey(name: 'sub_service_id') final  int? subServiceId;
 
 /// Create a copy of TechnicianSkillModel
 /// with the given fields replaced by the non-null parameter values.
@@ -231,16 +235,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TechnicianSkillModel&&(identical(other.name, name) || other.name == name)&&(identical(other.iconName, iconName) || other.iconName == iconName));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TechnicianSkillModel&&(identical(other.name, name) || other.name == name)&&(identical(other.iconName, iconName) || other.iconName == iconName)&&(identical(other.serviceId, serviceId) || other.serviceId == serviceId)&&(identical(other.subServiceId, subServiceId) || other.subServiceId == subServiceId));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,name,iconName);
+int get hashCode => Object.hash(runtimeType,name,iconName,serviceId,subServiceId);
 
 @override
 String toString() {
-  return 'TechnicianSkillModel(name: $name, iconName: $iconName)';
+  return 'TechnicianSkillModel(name: $name, iconName: $iconName, serviceId: $serviceId, subServiceId: $subServiceId)';
 }
 
 
@@ -251,7 +255,7 @@ abstract mixin class _$TechnicianSkillModelCopyWith<$Res> implements $Technician
   factory _$TechnicianSkillModelCopyWith(_TechnicianSkillModel value, $Res Function(_TechnicianSkillModel) _then) = __$TechnicianSkillModelCopyWithImpl;
 @override @useResult
 $Res call({
- String name,@JsonKey(name: 'icon_name') String? iconName
+ String name,@JsonKey(name: 'icon_name') String? iconName,@JsonKey(name: 'service_id') int serviceId,@JsonKey(name: 'sub_service_id') int? subServiceId
 });
 
 
@@ -268,11 +272,13 @@ class __$TechnicianSkillModelCopyWithImpl<$Res>
 
 /// Create a copy of TechnicianSkillModel
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? name = null,Object? iconName = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? name = null,Object? iconName = freezed,Object? serviceId = null,Object? subServiceId = freezed,}) {
   return _then(_TechnicianSkillModel(
 name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,iconName: freezed == iconName ? _self.iconName : iconName // ignore: cast_nullable_to_non_nullable
-as String?,
+as String?,serviceId: null == serviceId ? _self.serviceId : serviceId // ignore: cast_nullable_to_non_nullable
+as int,subServiceId: freezed == subServiceId ? _self.subServiceId : subServiceId // ignore: cast_nullable_to_non_nullable
+as int?,
   ));
 }
 

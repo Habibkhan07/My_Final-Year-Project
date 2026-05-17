@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import '../../../../../core/common/errors/http_failure.dart';
 import '../../domain/entities/technician_dashboard_entity.dart';
@@ -15,6 +16,62 @@ class TechnicianDashboardRepositoryImpl
     required this.remoteDataSource,
     required this.localDataSource,
   });
+
+  @override
+  Future<OnlineToggleResult> setOnline(bool desired) async {
+    try {
+      final result = await remoteDataSource.setOnline(desired);
+      return (
+        isOnline: result.isOnline,
+        walletBalance: result.walletBalance,
+      );
+    } on HttpFailure catch (e) {
+      // Lockout 403 carries the structured envelope from
+      // WalletLockoutError — pull balance_pkr + owed_pkr so the UI can
+      // compose remediation copy without client-side math. Falls back
+      // to zeros if the keys are absent (defensive — should never
+      // happen given the contract pinned in test_views.py).
+      if (e.statusCode == 403 && e.code == 'wallet_lockout') {
+        final balancePkr =
+            int.tryParse(_firstString(e.errors, 'balance_pkr')) ?? 0;
+        final owedPkr =
+            int.tryParse(_firstString(e.errors, 'owed_pkr')) ?? 0;
+        throw DashboardWalletLockedFailure(
+          balancePkr: balancePkr,
+          owedPkr: owedPkr,
+        );
+      }
+      if (e.statusCode == 403) {
+        throw const DashboardPermissionFailure();
+      }
+      throw DashboardServerFailure(e.message);
+    } on TimeoutException catch (_) {
+      // Treat a request timeout as a network failure for UX purposes —
+      // the snackbar copy ("Status update failed. Please try again.")
+      // covers both, and the user's mental model for "request never
+      // landed" is the same in either case.
+      throw const DashboardNetworkFailure();
+    } on SocketException catch (_) {
+      throw const DashboardNetworkFailure();
+    } on FormatException catch (_) {
+      throw const DashboardParsingFailure();
+    } catch (e) {
+      throw DashboardServerFailure('Unexpected error: ${e.toString()}');
+    }
+  }
+
+  /// Pull the first string from a `{key: [string, ...]}` errors dict.
+  /// Backend envelope shape is `errors: {field: [msg1, msg2]}`; we only
+  /// need the first element for the numeric fields the lockout error
+  /// surfaces.
+  String _firstString(Map<String, dynamic>? errors, String key) {
+    if (errors == null) return '';
+    final values = errors[key];
+    if (values is List && values.isNotEmpty) {
+      return values.first.toString();
+    }
+    return '';
+  }
 
   @override
   Future<TechnicianDashboardEntity> getDashboard() async {

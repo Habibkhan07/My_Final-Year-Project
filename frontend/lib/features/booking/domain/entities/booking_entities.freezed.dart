@@ -17,7 +17,13 @@ mixin _$TechnicianSkillEntity {
  String get name;// Nullable: SubService.icon_name is null=True in the DB; backend sends null
 // when icon is not set in Django Admin. Flutter maps non-null values to
 // assets/icons/{iconName}.svg via IconAssets.path().
- String? get iconName;
+ String? get iconName;// serviceId is the parent Service.id the customer-side booking flow
+// needs to POST to /api/bookings/instant-book/. Surfaced here so the
+// tech profile screen can offer a service-picker chip row when the
+// customer arrives without a service context (e.g. "Top Rated Near
+// You" carousel). subServiceId is the SubService.id when the skill
+// is sub-service-scoped; nullable for service-level skills.
+ int get serviceId; int? get subServiceId;
 /// Create a copy of TechnicianSkillEntity
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -28,16 +34,16 @@ $TechnicianSkillEntityCopyWith<TechnicianSkillEntity> get copyWith => _$Technici
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is TechnicianSkillEntity&&(identical(other.name, name) || other.name == name)&&(identical(other.iconName, iconName) || other.iconName == iconName));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is TechnicianSkillEntity&&(identical(other.name, name) || other.name == name)&&(identical(other.iconName, iconName) || other.iconName == iconName)&&(identical(other.serviceId, serviceId) || other.serviceId == serviceId)&&(identical(other.subServiceId, subServiceId) || other.subServiceId == subServiceId));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,name,iconName);
+int get hashCode => Object.hash(runtimeType,name,iconName,serviceId,subServiceId);
 
 @override
 String toString() {
-  return 'TechnicianSkillEntity(name: $name, iconName: $iconName)';
+  return 'TechnicianSkillEntity(name: $name, iconName: $iconName, serviceId: $serviceId, subServiceId: $subServiceId)';
 }
 
 
@@ -48,7 +54,7 @@ abstract mixin class $TechnicianSkillEntityCopyWith<$Res>  {
   factory $TechnicianSkillEntityCopyWith(TechnicianSkillEntity value, $Res Function(TechnicianSkillEntity) _then) = _$TechnicianSkillEntityCopyWithImpl;
 @useResult
 $Res call({
- String name, String? iconName
+ String name, String? iconName, int serviceId, int? subServiceId
 });
 
 
@@ -65,11 +71,13 @@ class _$TechnicianSkillEntityCopyWithImpl<$Res>
 
 /// Create a copy of TechnicianSkillEntity
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? name = null,Object? iconName = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? name = null,Object? iconName = freezed,Object? serviceId = null,Object? subServiceId = freezed,}) {
   return _then(_self.copyWith(
 name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,iconName: freezed == iconName ? _self.iconName : iconName // ignore: cast_nullable_to_non_nullable
-as String?,
+as String?,serviceId: null == serviceId ? _self.serviceId : serviceId // ignore: cast_nullable_to_non_nullable
+as int,subServiceId: freezed == subServiceId ? _self.subServiceId : subServiceId // ignore: cast_nullable_to_non_nullable
+as int?,
   ));
 }
 
@@ -154,10 +162,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String name,  String? iconName)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String name,  String? iconName,  int serviceId,  int? subServiceId)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _TechnicianSkillEntity() when $default != null:
-return $default(_that.name,_that.iconName);case _:
+return $default(_that.name,_that.iconName,_that.serviceId,_that.subServiceId);case _:
   return orElse();
 
 }
@@ -175,10 +183,10 @@ return $default(_that.name,_that.iconName);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String name,  String? iconName)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String name,  String? iconName,  int serviceId,  int? subServiceId)  $default,) {final _that = this;
 switch (_that) {
 case _TechnicianSkillEntity():
-return $default(_that.name,_that.iconName);case _:
+return $default(_that.name,_that.iconName,_that.serviceId,_that.subServiceId);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -195,10 +203,10 @@ return $default(_that.name,_that.iconName);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String name,  String? iconName)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String name,  String? iconName,  int serviceId,  int? subServiceId)?  $default,) {final _that = this;
 switch (_that) {
 case _TechnicianSkillEntity() when $default != null:
-return $default(_that.name,_that.iconName);case _:
+return $default(_that.name,_that.iconName,_that.serviceId,_that.subServiceId);case _:
   return null;
 
 }
@@ -210,7 +218,7 @@ return $default(_that.name,_that.iconName);case _:
 
 
 class _TechnicianSkillEntity implements TechnicianSkillEntity {
-  const _TechnicianSkillEntity({required this.name, required this.iconName});
+  const _TechnicianSkillEntity({required this.name, required this.iconName, required this.serviceId, this.subServiceId});
   
 
 @override final  String name;
@@ -218,6 +226,14 @@ class _TechnicianSkillEntity implements TechnicianSkillEntity {
 // when icon is not set in Django Admin. Flutter maps non-null values to
 // assets/icons/{iconName}.svg via IconAssets.path().
 @override final  String? iconName;
+// serviceId is the parent Service.id the customer-side booking flow
+// needs to POST to /api/bookings/instant-book/. Surfaced here so the
+// tech profile screen can offer a service-picker chip row when the
+// customer arrives without a service context (e.g. "Top Rated Near
+// You" carousel). subServiceId is the SubService.id when the skill
+// is sub-service-scoped; nullable for service-level skills.
+@override final  int serviceId;
+@override final  int? subServiceId;
 
 /// Create a copy of TechnicianSkillEntity
 /// with the given fields replaced by the non-null parameter values.
@@ -229,16 +245,16 @@ _$TechnicianSkillEntityCopyWith<_TechnicianSkillEntity> get copyWith => __$Techn
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TechnicianSkillEntity&&(identical(other.name, name) || other.name == name)&&(identical(other.iconName, iconName) || other.iconName == iconName));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TechnicianSkillEntity&&(identical(other.name, name) || other.name == name)&&(identical(other.iconName, iconName) || other.iconName == iconName)&&(identical(other.serviceId, serviceId) || other.serviceId == serviceId)&&(identical(other.subServiceId, subServiceId) || other.subServiceId == subServiceId));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,name,iconName);
+int get hashCode => Object.hash(runtimeType,name,iconName,serviceId,subServiceId);
 
 @override
 String toString() {
-  return 'TechnicianSkillEntity(name: $name, iconName: $iconName)';
+  return 'TechnicianSkillEntity(name: $name, iconName: $iconName, serviceId: $serviceId, subServiceId: $subServiceId)';
 }
 
 
@@ -249,7 +265,7 @@ abstract mixin class _$TechnicianSkillEntityCopyWith<$Res> implements $Technicia
   factory _$TechnicianSkillEntityCopyWith(_TechnicianSkillEntity value, $Res Function(_TechnicianSkillEntity) _then) = __$TechnicianSkillEntityCopyWithImpl;
 @override @useResult
 $Res call({
- String name, String? iconName
+ String name, String? iconName, int serviceId, int? subServiceId
 });
 
 
@@ -266,11 +282,13 @@ class __$TechnicianSkillEntityCopyWithImpl<$Res>
 
 /// Create a copy of TechnicianSkillEntity
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? name = null,Object? iconName = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? name = null,Object? iconName = freezed,Object? serviceId = null,Object? subServiceId = freezed,}) {
   return _then(_TechnicianSkillEntity(
 name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,iconName: freezed == iconName ? _self.iconName : iconName // ignore: cast_nullable_to_non_nullable
-as String?,
+as String?,serviceId: null == serviceId ? _self.serviceId : serviceId // ignore: cast_nullable_to_non_nullable
+as int,subServiceId: freezed == subServiceId ? _self.subServiceId : subServiceId // ignore: cast_nullable_to_non_nullable
+as int?,
   ));
 }
 

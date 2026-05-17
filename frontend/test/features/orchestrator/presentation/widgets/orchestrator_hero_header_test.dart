@@ -112,20 +112,11 @@ void main() {
       expect(find.text('Tracking live'), findsOneWidget);
     });
 
-    testWidgets(
-      'renders booking tag "Booking #N"',
-      (tester) async {
-        final booking = _booking();
-        await tester.pumpWidget(_wrap(
-          OrchestratorHeroHeader(
-            booking: booking,
-            onBack: () {},
-            onHelp: () {},
-          ),
-        ));
-        expect(find.text('Booking #42'), findsOneWidget);
-      },
-    );
+    // Booking tag was dropped from the production header — production
+    // tracking screens (Foodpanda / InDrive / Uber) don't show order
+    // IDs to users. The error-state `_MinimalHeader` inside the screen
+    // file still renders "Booking #N" for diagnostic purposes; that
+    // surface is tested separately.
 
     testWidgets(
       'does NOT render counterparty name (owned by BookingSummaryCard)',
@@ -264,6 +255,30 @@ void main() {
         ),
       );
       expect(iconBtn.onPressed, isNull);
+    });
+
+    // ─── Chunk H — flat header height regression guard ─────────────────
+    //
+    // Pre-H the header was 132-px min + 24-px curve = ~156 px tall. H
+    // flattens the chrome — single row, no curve, no gradient — to
+    // ~60-80 px depending on the chip's wrap behavior. This guard
+    // prevents an accidental re-introduction of the 132-px constraint.
+    testWidgets('flat header renders under 100 px', (tester) async {
+      final booking = _booking();
+      await tester.pumpWidget(_wrap(
+        OrchestratorHeroHeader(
+          booking: booking,
+          onBack: () {},
+          onHelp: () {},
+        ),
+      ));
+      final headerSize = tester.getSize(find.byType(OrchestratorHeroHeader));
+      expect(
+        headerSize.height,
+        lessThan(100),
+        reason: 'Header should be under 100 px after Chunk H flattening; '
+            'got ${headerSize.height} px',
+      );
     });
   });
 }

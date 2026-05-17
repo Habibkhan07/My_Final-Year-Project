@@ -109,4 +109,92 @@ void main() {
       expect(find.text('20% OFF'), findsOneWidget);
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // Service picker — the chip row that fixes the "Top Rated Near You" dead
+  // end. Tests cover the three states the screen has to handle:
+  //   * empty skills        → picker hidden, CTA disabled with explainer
+  //   * single skill        → auto-pick, CTA enabled with the standard label
+  //   * multiple, no route  → CTA disabled until a chip is tapped
+  // ---------------------------------------------------------------------------
+  group('service picker', () {
+    const acRepair = TechnicianSkillEntity(
+      name: 'AC Repair',
+      iconName: 'ac_repair',
+      serviceId: 3,
+      subServiceId: 17,
+    );
+    const plumbing = TechnicianSkillEntity(
+      name: 'Plumbing',
+      iconName: 'plumbing',
+      serviceId: 4,
+      subServiceId: null,
+    );
+
+    TechnicianProfileEntity profileWith(List<TechnicianSkillEntity> skills) =>
+        tProfile.copyWith(skills: skills);
+
+    testWidgets(
+      'no skills → CTA reads "Pick a service first" and is disabled',
+      (tester) async {
+        await mockNetworkImagesFor(() async {
+          await tester.pumpWidget(
+            createWidgetUnderTest(const AsyncData(tProfile)),
+          );
+          await tester.pumpAndSettle();
+
+          expect(find.text('Pick a service first'), findsOneWidget);
+          expect(find.text('Select Time'), findsNothing);
+        });
+      },
+    );
+
+    testWidgets(
+      'single skill → auto-pick, CTA enabled with "Select Time"',
+      (tester) async {
+        await mockNetworkImagesFor(() async {
+          await tester.pumpWidget(
+            createWidgetUnderTest(AsyncData(profileWith(const [acRepair]))),
+          );
+          await tester.pumpAndSettle();
+
+          expect(find.text('Select Time'), findsOneWidget);
+          expect(find.text('Pick a service first'), findsNothing);
+          // The picker chip is still rendered (so the customer can see
+          // what they've been auto-picked into) under the "SERVICE" header.
+          expect(find.text('SERVICE'), findsOneWidget);
+          expect(find.text('AC Repair'), findsOneWidget);
+        });
+      },
+    );
+
+    testWidgets(
+      'multiple skills, no route service → CTA disabled, prompt header reads '
+      '"PICK A SERVICE", enables after chip tap',
+      (tester) async {
+        await mockNetworkImagesFor(() async {
+          await tester.pumpWidget(
+            createWidgetUnderTest(
+              AsyncData(profileWith(const [acRepair, plumbing])),
+            ),
+          );
+          await tester.pumpAndSettle();
+
+          // Before any tap.
+          expect(find.text('PICK A SERVICE'), findsOneWidget);
+          expect(find.text('Pick a service first'), findsOneWidget);
+          expect(find.text('Select Time'), findsNothing);
+
+          // Tap one of the chips.
+          await tester.tap(find.text('AC Repair'));
+          await tester.pumpAndSettle();
+
+          // After tap: prompt switches to "SERVICE", CTA flips.
+          expect(find.text('SERVICE'), findsOneWidget);
+          expect(find.text('Select Time'), findsOneWidget);
+          expect(find.text('Pick a service first'), findsNothing);
+        });
+      },
+    );
+  });
 }

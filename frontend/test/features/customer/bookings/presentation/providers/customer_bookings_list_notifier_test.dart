@@ -561,9 +561,23 @@ void main() {
     );
 
     test(
-      'bookingRejected (technician_declined): negative tone + Unavailable',
+      'bookingRejected (technician_declined): invalidates and re-fetches',
       () async {
+        // Initial state: the booking is AWAITING.
         repo.queuedPages.add(_page(items: [_booking(id: 99482)]));
+        // Post-event state: BE returns the booking as REJECTED with
+        // the "Unavailable" badge (per `_resolve_ui_block` for
+        // technician_declined). The notifier's post-invalidate
+        // re-fetch consumes this.
+        repo.queuedPages.add(_page(items: [
+          _booking(
+            id: 99482,
+            status: BookingStatus.rejected,
+            tone: BookingUiTone.negative,
+            badgeText: 'Unavailable',
+            headline: 'Ahmed Khan was unavailable',
+          ),
+        ]));
         final container = _build(repo: repo, eventLocal: eventLocal);
         await container.read(customerBookingsListProvider.future);
 
@@ -577,15 +591,31 @@ void main() {
               ),
             );
 
+        // Terminal events now invalidate the provider instead of
+        // patching in place. Await the next future so the re-fetch
+        // completes.
+        await container.read(customerBookingsListProvider.future);
+
         final data = container.read(customerBookingsListProvider).requireValue;
         expect(data.items.single.status, BookingStatus.rejected);
         expect(data.items.single.ui.badgeText, 'Unavailable');
         expect(data.items.single.ui.badgeTone, BookingUiTone.negative);
+        // Sanity: the repo was called twice — initial + post-invalidate.
+        expect(repo.calls.length, 2);
       },
     );
 
-    test('bookingRejected (sla_timeout): Timed out copy', () async {
+    test('bookingRejected (sla_timeout): invalidates and re-fetches', () async {
       repo.queuedPages.add(_page(items: [_booking(id: 99482)]));
+      repo.queuedPages.add(_page(items: [
+        _booking(
+          id: 99482,
+          status: BookingStatus.rejected,
+          tone: BookingUiTone.negative,
+          badgeText: 'Timed out',
+          headline: 'Ahmed Khan did not respond in time',
+        ),
+      ]));
       final container = _build(repo: repo, eventLocal: eventLocal);
       await container.read(customerBookingsListProvider.future);
 
@@ -599,8 +629,11 @@ void main() {
             ),
           );
 
+      await container.read(customerBookingsListProvider.future);
+
       final data = container.read(customerBookingsListProvider).requireValue;
       expect(data.items.single.ui.badgeText, 'Timed out');
+      expect(repo.calls.length, 2);
     });
 
     test('event for unknown job_id is a silent no-op', () async {
@@ -671,34 +704,57 @@ void main() {
       },
     );
 
-    test('multiple events for same booking apply in order', () async {
-      repo.queuedPages.add(_page(items: [_booking(id: 99482)]));
-      final container = _build(repo: repo, eventLocal: eventLocal);
-      await container.read(customerBookingsListProvider.future);
+    test(
+      'jobAccepted patches in-place, then bookingRejected invalidates',
+      () async {
+        // Initial AWAITING page.
+        repo.queuedPages.add(_page(items: [_booking(id: 99482)]));
+        // Post-invalidate page (BE has the booking as REJECTED).
+        repo.queuedPages.add(_page(items: [
+          _booking(
+            id: 99482,
+            status: BookingStatus.rejected,
+            tone: BookingUiTone.negative,
+            badgeText: 'Timed out',
+            headline: 'Ali did not respond in time',
+          ),
+        ]));
+        final container = _build(repo: repo, eventLocal: eventLocal);
+        await container.read(customerBookingsListProvider.future);
 
-      // Realistically only one transition happens per booking, but test
-      // that the patch path is idempotent / commutative under repeated
-      // arrivals (e.g. dedup-window edge case).
-      container
-          .read(systemEventProvider.notifier)
-          .processEvent(
-            _jobAcceptedEvent(id: 'a-1', jobId: 99482, techName: 'Ali'),
-          );
-      container
-          .read(systemEventProvider.notifier)
-          .processEvent(
-            _bookingRejectedEvent(
-              id: 'r-1',
-              jobId: 99482,
-              reason: 'sla_timeout',
-            ),
-          );
+        // jobAccepted is an intermediate in-Upcoming transition —
+        // still patches in place (badge flips to "Confirmed"). No
+        // re-fetch yet.
+        container
+            .read(systemEventProvider.notifier)
+            .processEvent(
+              _jobAcceptedEvent(id: 'a-1', jobId: 99482, techName: 'Ali'),
+            );
+        expect(
+          container.read(customerBookingsListProvider).requireValue
+              .items.single.status,
+          BookingStatus.confirmed,
+        );
+        expect(repo.calls.length, 1);
 
-      // Last event wins — the booking is now in rejected state with
-      // Timed-out copy.
-      final data = container.read(customerBookingsListProvider).requireValue;
-      expect(data.items.single.status, BookingStatus.rejected);
-      expect(data.items.single.ui.badgeText, 'Timed out');
-    });
+        // bookingRejected is a terminal cross-segment event — triggers
+        // invalidateSelf and re-fetches from the network.
+        container
+            .read(systemEventProvider.notifier)
+            .processEvent(
+              _bookingRejectedEvent(
+                id: 'r-1',
+                jobId: 99482,
+                reason: 'sla_timeout',
+              ),
+            );
+        await container.read(customerBookingsListProvider.future);
+
+        final data = container.read(customerBookingsListProvider).requireValue;
+        expect(data.items.single.status, BookingStatus.rejected);
+        expect(data.items.single.ui.badgeText, 'Timed out');
+        expect(repo.calls.length, 2);
+      },
+    );
   });
 }

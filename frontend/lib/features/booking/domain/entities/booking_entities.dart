@@ -17,6 +17,14 @@ abstract class TechnicianSkillEntity with _$TechnicianSkillEntity {
     // when icon is not set in Django Admin. Flutter maps non-null values to
     // assets/icons/{iconName}.svg via IconAssets.path().
     required String? iconName,
+    // serviceId is the parent Service.id the customer-side booking flow
+    // needs to POST to /api/bookings/instant-book/. Surfaced here so the
+    // tech profile screen can offer a service-picker chip row when the
+    // customer arrives without a service context (e.g. "Top Rated Near
+    // You" carousel). subServiceId is the SubService.id when the skill
+    // is sub-service-scoped; nullable for service-level skills.
+    required int serviceId,
+    int? subServiceId,
   }) = _TechnicianSkillEntity;
 }
 

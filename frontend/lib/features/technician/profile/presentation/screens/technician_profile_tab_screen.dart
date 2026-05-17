@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -7,6 +8,7 @@ import '../../../../auth/presentation/providers/auth_notifier.dart';
 import '../../../../customer/profile/domain/entities/customer_profile_entity.dart';
 import '../../../../customer/profile/domain/failures/profile_failure.dart';
 import '../../../../customer/profile/presentation/providers/profile_notifier.dart';
+import '../../../dashboard/presentation/notifiers/technician_dashboard_notifier.dart';
 import '../providers/skills_notifier.dart';
 
 /// The technician profile tab — pushed when the bottom-nav Profile
@@ -71,6 +73,18 @@ class _ProfileBody extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Profile picture is owned by the technician dashboard payload — the
+    // /me endpoint is role-agnostic and doesn't surface it. The dashboard
+    // notifier is keepAlive + boot-warmed for techs, so reading it here is
+    // a synchronous cache hit in practice. Null while the dashboard hasn't
+    // resolved yet (or for techs with no uploaded picture) → fall back to
+    // initials, matching the customer profile screen's default avatar.
+    final profilePictureUrl = ref.watch(
+      technicianDashboardProvider.select(
+        (async) => async.value?.dashboard.profilePicture,
+      ),
+    );
+
     return RefreshIndicator(
       color: TechnicianProfileTabScreen._brandBlue,
       onRefresh: () => ref.read(profileProvider.notifier).refresh(),
@@ -80,7 +94,7 @@ class _ProfileBody extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _HeaderCard(profile: profile),
+            _HeaderCard(profile: profile, profilePictureUrl: profilePictureUrl),
             const SizedBox(height: 28),
             const _SectionHeader('Account'),
             const SizedBox(height: 12),
@@ -150,9 +164,10 @@ class _ProfileBody extends ConsumerWidget {
 // ---------------------------------------------------------------------------
 
 class _HeaderCard extends StatelessWidget {
-  const _HeaderCard({required this.profile});
+  const _HeaderCard({required this.profile, this.profilePictureUrl});
 
   final CustomerProfileEntity profile;
+  final String? profilePictureUrl;
 
   String get _fullName {
     final first = profile.firstName?.trim() ?? '';
@@ -193,23 +208,9 @@ class _HeaderCard extends StatelessWidget {
           ),
           child: Row(
             children: [
-              Container(
-                width: 56,
-                height: 56,
-                decoration: const BoxDecoration(
-                  color: TechnicianProfileTabScreen._brandBlue,
-                  shape: BoxShape.circle,
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  _initials,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.5,
-                  ),
-                ),
+              _Avatar(
+                profilePictureUrl: profilePictureUrl,
+                initials: _initials,
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -272,6 +273,56 @@ class _HeaderCard extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Circular avatar used inside the profile header card. Prefers the
+/// uploaded profile picture (sourced from the technician dashboard
+/// payload — see `_ProfileBody.build`) and falls back to a brand-blue
+/// initials circle when the URL is null / loads fail / dashboard
+/// hasn't resolved yet. The two states share the same 56px geometry
+/// so the header doesn't reflow during the network swap.
+class _Avatar extends StatelessWidget {
+  const _Avatar({this.profilePictureUrl, required this.initials});
+
+  final String? profilePictureUrl;
+  final String initials;
+
+  static const double _size = 56;
+
+  @override
+  Widget build(BuildContext context) {
+    final url = profilePictureUrl;
+    if (url == null || url.isEmpty) return _fallback();
+    return ClipOval(
+      child: CachedNetworkImage(
+        imageUrl: url,
+        width: _size,
+        height: _size,
+        fit: BoxFit.cover,
+        placeholder: (_, _) => _fallback(),
+        errorWidget: (_, _, _) => _fallback(),
+      ),
+    );
+  }
+
+  Widget _fallback() => Container(
+    width: _size,
+    height: _size,
+    decoration: const BoxDecoration(
+      color: TechnicianProfileTabScreen._brandBlue,
+      shape: BoxShape.circle,
+    ),
+    alignment: Alignment.center,
+    child: Text(
+      initials,
+      style: const TextStyle(
+        color: Colors.white,
+        fontSize: 20,
+        fontWeight: FontWeight.w800,
+        letterSpacing: 0.5,
+      ),
+    ),
+  );
 }
 
 // ---------------------------------------------------------------------------

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../../../../../core/widgets/brand_chip.dart';
 import '../../../../../core/widgets/map/app_map_state_views.dart';
 import '../../../../../core/widgets/map/location_picker.dart';
 import '../../domain/entities/address_entity.dart';
@@ -431,64 +432,28 @@ class _BottomCard extends ConsumerWidget {
                   ),
                 ),
                 const SizedBox(height: 12),
+                // Equal-width chips so the row never overflows on narrow
+                // phones (~360dp). The label set is fixed at 3 — using
+                // `Expanded` is the standard pattern for a fixed picker
+                // (Foodpanda / InDrive). Gaps are explicit `SizedBox`es
+                // so the last chip has no trailing padding.
                 Row(
-                  children: _labels.map((item) {
-                    final label = item.$1;
-                    final icon = item.$2;
-                    final isSelected = label == state.selectedLabel;
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 12),
-                      child: GestureDetector(
-                        onTap: () {
-                          HapticFeedback.selectionClick();
-                          notifier.setLabel(label);
-                        },
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          curve: Curves.easeInOut,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 10,
-                          ),
-                          decoration: BoxDecoration(
-                            color: isSelected
-                                ? const Color(0xFF0051AE)
-                                : const Color(0xFF0051AE).withOpacity(0.05),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: isSelected
-                                  ? const Color(0xFF0051AE)
-                                  : Colors.transparent,
-                              width: 1.5,
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                icon,
-                                size: 16,
-                                color: isSelected
-                                    ? Colors.white
-                                    : const Color(0xFF0051AE),
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                label,
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.bold,
-                                  color: isSelected
-                                      ? Colors.white
-                                      : const Color(0xFF151C24),
-                                ),
-                              ),
-                            ],
-                          ),
+                  children: [
+                    for (var i = 0; i < _labels.length; i++) ...[
+                      if (i > 0) const SizedBox(width: 12),
+                      Expanded(
+                        child: BrandChip(
+                          label: _labels[i].$1,
+                          icon: _labels[i].$2,
+                          isSelected: _labels[i].$1 == state.selectedLabel,
+                          onTap: () {
+                            HapticFeedback.selectionClick();
+                            notifier.setLabel(_labels[i].$1);
+                          },
                         ),
                       ),
-                    );
-                  }).toList(),
+                    ],
+                  ],
                 ),
                 const SizedBox(height: 16),
 

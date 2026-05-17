@@ -110,10 +110,10 @@ class HelpSheet extends ConsumerWidget {
                   Navigator.of(context).pop();
                   BookingActionPendingSheet.show(
                     context,
-                    title: 'Reschedule coming soon',
+                    title: 'Rescheduling coming soon',
                     body:
-                        'Reschedule with a date/time picker ships in session 6. '
-                        'For now you can cancel and rebook from the home screen.',
+                        "Rescheduling isn't available yet. To change the "
+                        'time, cancel and rebook from the home screen.',
                   );
                 },
               ),

@@ -30,9 +30,10 @@ import 'sheets/quote_builder_sheet.dart';
 ///   * **Pending sheet** — cancel, tech-cancel, reschedule, no-show,
 ///     submit-quote, dispute-open: open the shared pending sheet.
 ///     Cancel + tech-cancel still POST a default reason so the demo
-///     walks; the others show a "ships in session 5/6" explainer.
+///     walks; reschedule / no-show / dispute open a "coming soon"
+///     explainer pending their dedicated flows.
 ///
-/// Sessions 5/6 will replace the pending-sheet branch with rich flows
+/// Future work replaces the pending-sheet branch with rich flows
 /// (rich cancel form, reschedule date picker, quote builder, etc.).
 ///
 /// **`/request-revision/` is intentionally a direct POST.** In this
@@ -134,12 +135,27 @@ class _BookingOrchestratorActionButtonState
       );
     }
 
-    return TextButton(
+    // Secondary actions render as OutlinedButtons rather than bare
+    // TextButtons. The previous TextButton recipe — no border, no
+    // fill — read as a tertiary link, making material secondary
+    // verbs (Decline, Negotiate price, Add upsell) visually
+    // indistinguishable from copy. An outlined chrome with the
+    // brand-blue (or error) border surfaces them as real actions
+    // peer to the primary CTA without competing with its solid
+    // gradient.
+    final outlineColor = isDestructive
+        ? theme.colorScheme.error
+        : OrchestratorPalette.brandPrimary;
+    return OutlinedButton(
       onPressed: _busy ? null : () => _onTap(classification),
-      style: TextButton.styleFrom(
-        foregroundColor: isDestructive
-            ? theme.colorScheme.error
-            : OrchestratorPalette.brandPrimary,
+      style: OutlinedButton.styleFrom(
+        foregroundColor: outlineColor,
+        side: BorderSide(color: outlineColor, width: 1.4),
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 18),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        minimumSize: const Size(0, 44),
       ),
       child: _busy
           ? const SizedBox(
@@ -149,7 +165,7 @@ class _BookingOrchestratorActionButtonState
             )
           : Text(
               action.label,
-              style: const TextStyle(fontWeight: FontWeight.bold),
+              style: const TextStyle(fontWeight: FontWeight.w700),
             ),
     );
   }
@@ -173,23 +189,23 @@ class _BookingOrchestratorActionButtonState
         await _runPendingSheetTechCancel();
       case _ActionClassification.pendingSheetReschedule:
         await _runPendingSheetExplainer(
-          title: 'Reschedule coming soon',
+          title: 'Rescheduling coming soon',
           body:
-              'Reschedule with a date/time picker ships in session 6. For now you can ask the customer to cancel and rebook.',
+              "Rescheduling isn't available yet. To change the time, cancel this booking and rebook.",
         );
       case _ActionClassification.pendingSheetNoShow:
         await _runPendingSheetExplainer(
-          title: 'Single-tap no-show coming soon',
+          title: 'No-show reporting coming soon',
           body:
-              'A single-tap confirmation ships in session 6. For now please use the in-app dispute path if the counterparty did not show.',
+              "Single-tap no-show is coming soon. Use the dispute option if the customer didn't arrive.",
         );
       case _ActionClassification.pendingSheetQuote:
         await _runQuoteBuilder();
       case _ActionClassification.pendingSheetDispute:
         await _runPendingSheetExplainer(
-          title: 'Dispute form coming soon',
+          title: 'Dispute reporting coming soon',
           body:
-              'The full dispute form (intake reason + optional photo upload) ships in session 6.',
+              'Detailed dispute reporting is coming soon. Tap Help to contact support for now.',
         );
       case _ActionClassification.pendingSheetCash:
         await _runPendingSheetCash();
@@ -199,7 +215,7 @@ class _BookingOrchestratorActionButtonState
   }
 
   /// Cash-collection confirm sheet. The tech taps "Cash collected: Rs. X",
-  /// the sheet renders "Confirm you received Rs. X from <customer>",
+  /// the sheet renders "Confirm you received Rs. X from `customer`",
   /// and only on confirm does the actual POST fire. Before this sheet
   /// existed the cash button was a one-tap terminal POST — a mis-tap
   /// closed the booking and stamped a cash row.
@@ -213,7 +229,7 @@ class _BookingOrchestratorActionButtonState
       title: 'Confirm cash received?',
       body:
           'You should have received Rs. $amount in cash from $customerName. '
-          'Confirming closes the booking.', // ignore: html_in_doc_comment
+          'Confirming closes the booking.',
       confirmLabel: 'Yes, received Rs. $amount',
       confirmIsDestructive: false,
       onConfirm: () => ref
@@ -318,8 +334,7 @@ class _BookingOrchestratorActionButtonState
     final result = await BookingActionPendingSheet.show(
       context,
       title: 'Cancel booking?',
-      body:
-          'A richer cancel flow with timing-aware copy + reason picker ships in session 6. Tapping confirm will cancel with the default reason.',
+      body: 'This will end the booking. The technician will be notified.',
       confirmLabel: 'Cancel booking',
       confirmIsDestructive: true,
       onConfirm: () => ref
@@ -344,8 +359,7 @@ class _BookingOrchestratorActionButtonState
     final result = await BookingActionPendingSheet.show(
       context,
       title: 'Cancel this job?',
-      body:
-          'Cancelling counts against your reliability score. The full cancel form ships in session 6; tapping confirm cancels with the default reason.',
+      body: 'Cancelling this job affects your reliability score.',
       confirmLabel: 'Cancel job',
       confirmIsDestructive: true,
       onConfirm: () => ref

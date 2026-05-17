@@ -274,6 +274,29 @@ class TestTechnicianProfileDetailView:
         assert data['skills'][0]['name'] == 'Gas Refill'
         assert data['skills'][0]['icon_name'] == 'ac_repair'
 
+    def test_skill_carries_service_id_and_sub_service_id(self):
+        """
+        The customer-side service picker on the technician profile screen
+        needs `service_id` to POST to /api/bookings/instant-book/, and
+        `sub_service_id` when the skill is sub-service-scoped.
+
+        Regression guard: an earlier rev shipped `sub_service_id` with a
+        redundant `source='sub_service_id'` kwarg, which DRF rejects at
+        endpoint-hit time with an AssertionError 500. The wire-shape
+        assertions here would have caught that during test, not in
+        production.
+        """
+        service = ServiceFactory()
+        sub = SubServiceFactory(service=service, name="AC Repair", icon_name="ac_repair")
+        tech = TechnicianProfileFactory(status='APPROVED')
+        TechnicianSkillFactory(technician=tech, sub_service=sub)
+
+        data = self.client.get(self._url(tech.id)).json()
+
+        skill = data['skills'][0]
+        assert skill['service_id'] == service.id
+        assert skill['sub_service_id'] == sub.id
+
     def test_recent_reviews_serialized_correctly(self):
         tech = TechnicianProfileFactory(status='APPROVED')
         reviewer = UserFactory(first_name="Sara", last_name="Khan")

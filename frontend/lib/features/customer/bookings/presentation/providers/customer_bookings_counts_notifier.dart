@@ -50,12 +50,18 @@ class CustomerBookingsCounts extends _$CustomerBookingsCounts {
         // quoted) keep the row in Upcoming so counts don't move — they
         // are deliberately absent here. The list-side patcher still
         // updates the card's badge.
+        //
+        // `paymentReceived` and `jobCompleted` both fire from the same
+        // backend handler (`mark_complete_with_cash`); listing both is
+        // defensive — if one event is ever dropped/missed, counts still
+        // refresh.
         case SystemEventType.jobAccepted:
         case SystemEventType.bookingRejected:
         case SystemEventType.bookingCancelled:
         case SystemEventType.bookingNoShow:
         case SystemEventType.quoteDeclined:
         case SystemEventType.jobCompleted:
+        case SystemEventType.paymentReceived:
         case SystemEventType.bookingRescheduled:
           _scheduleRefresh();
           break;

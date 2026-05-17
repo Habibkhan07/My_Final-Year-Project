@@ -30,3 +30,23 @@ class DashboardParsingFailure extends TechnicianDashboardFailure {
     super.message = "Failed to parse dashboard data.",
   ]);
 }
+
+/// Thrown by [TechnicianDashboardRepository.setOnline] when the tech taps
+/// online while their wallet balance is strictly negative. Mirrors the
+/// backend's 403 `wallet_lockout` envelope (the same one returned by
+/// `accept_job_booking` — single shared FE handler).
+///
+/// Carries the signed balance and the owed-amount so the UI can compose
+/// short remediation copy ("Top up Rs. 101 to come online") without
+/// client-side math. Both values are PKR integers.
+///
+/// Going OFFLINE while locked is always allowed and NEVER raises this.
+class DashboardWalletLockedFailure extends TechnicianDashboardFailure {
+  final int balancePkr;
+  final int owedPkr;
+
+  const DashboardWalletLockedFailure({
+    required this.balancePkr,
+    required this.owedPkr,
+  }) : super('Wallet locked due to negative balance.');
+}

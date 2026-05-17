@@ -22,16 +22,28 @@ class SkillSummarySerializer(serializers.ModelSerializer):
     """
     Represents a single skill chip on the profile page.
     icon_name maps to assets/icons/{icon_name}.svg on the Flutter side.
+
+    `service_id` + `sub_service_id` are surfaced so the customer-side
+    booking flow can pick a service from the technician's profile
+    chip row (instead of dead-ending at the gray Book button when the
+    customer arrived via "Top Rated Near You" with no service context).
+    POST /api/bookings/instant-book/ requires `service_id`; sub-service
+    is optional but populated when the skill is sub-service-scoped.
     """
     name = serializers.CharField(source='sub_service.name', read_only=True)
     # allow_null=True: SubService.icon_name is null=True in the DB. Flutter
     # maps non-null values to assets/icons/{icon_name}.svg; treats null as
     # "no icon" and falls back to a generic placeholder.
     icon_name = serializers.CharField(source='sub_service.icon_name', read_only=True, allow_null=True)
+    service_id = serializers.IntegerField(source='sub_service.service_id', read_only=True)
+    # No `source=` — DRF asserts redundant when it matches the field
+    # name. The column lives directly on TechnicianSkill so it's
+    # auto-discovered by ModelSerializer.
+    sub_service_id = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = TechnicianSkill
-        fields = ['name', 'icon_name']
+        fields = ['name', 'icon_name', 'service_id', 'sub_service_id']
 
 
 class TechnicianProfileDetailSerializer(serializers.ModelSerializer):

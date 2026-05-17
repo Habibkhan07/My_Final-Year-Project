@@ -257,7 +257,7 @@ void main() {
     );
     await tester.tap(find.text('Reschedule'));
     await tester.pumpAndSettle();
-    expect(find.text('Reschedule coming soon'), findsOneWidget);
+    expect(find.text('Rescheduling coming soon'), findsOneWidget);
   });
 
   testWidgets('disputes endpoint shows the dispute pending sheet', (
@@ -272,6 +272,6 @@ void main() {
     );
     await tester.tap(find.text('Open dispute'));
     await tester.pumpAndSettle();
-    expect(find.text('Dispute form coming soon'), findsOneWidget);
+    expect(find.text('Dispute reporting coming soon'), findsOneWidget);
   });
 }

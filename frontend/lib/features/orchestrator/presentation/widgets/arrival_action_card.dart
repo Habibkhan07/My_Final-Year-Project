@@ -118,7 +118,13 @@ class ArrivalActionCard extends StatelessWidget {
                           color: OrchestratorPalette.inkPrimary,
                           height: 1.2,
                         ),
-                        maxLines: 2,
+                        // 3 lines absorbs the longer server-resolved
+                        // arrival messages (e.g. "Test Technician is
+                        // parked at your address. Please walk out to
+                        // meet them.") without cutting mid-word. The
+                        // map above adapts to whatever height this
+                        // card takes.
+                        maxLines: 3,
                         overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 3),

@@ -73,7 +73,10 @@ Future<void> _pump(WidgetTester tester, BookingDetail b) async {
 void main() {
   group('current dot per status', () {
     final cases = <(BookingStatus, String)>[
-      (BookingStatus.awaiting, 'Confirmed'),
+      // AWAITING relabels phase 0 to "Booked" — the booking exists but
+      // the tech hasn't accepted yet, so "Confirmed" would lie about
+      // the state (timeline_slot.dart `_phases`).
+      (BookingStatus.awaiting, 'Booked'),
       (BookingStatus.confirmed, 'Confirmed'),
       (BookingStatus.enRoute, 'On the way'),
       (BookingStatus.arrived, 'Arrived'),
@@ -113,12 +116,44 @@ void main() {
     }
   });
 
-  testWidgets('renders all five phase labels', (tester) async {
+  testWidgets('renders all six phase labels', (tester) async {
     await _pump(tester, _booking(BookingStatus.confirmed));
+    expect(find.text('Booked'), findsOneWidget);
     expect(find.text('Confirmed'), findsOneWidget);
     expect(find.text('On the way'), findsOneWidget);
     expect(find.text('Arrived'), findsOneWidget);
     expect(find.text('Quote'), findsOneWidget);
     expect(find.text('Done'), findsOneWidget);
   });
+
+  // ─── Chunk G — 6-phase split (Booked ≠ Confirmed) ─────────────────────
+  //
+  // AWAITING and CONFIRMED now occupy SEPARATE phase indices. Chunk A.2
+  // patched the label only; G splits the dots themselves so an AWAITING
+  // booking shows phase 0 as current with phase 1 ("Confirmed") still
+  // idle, rather than both AWAITING and CONFIRMED visually overlapping
+  // on the same dot.
+  testWidgets(
+    'AWAITING → "Confirmed" is idle (not current, not done)',
+    (tester) async {
+      await _pump(tester, _booking(BookingStatus.awaiting));
+      // "Booked" is the current label (already asserted by the
+      // parametric table above). "Confirmed" must be present in the
+      // tree, but not as the current (bold w700) marker — that role
+      // belongs to "Booked".
+      expect(find.text('Confirmed'), findsOneWidget);
+      expect(_currentPhaseLabel(tester), 'Booked');
+    },
+  );
+
+  testWidgets(
+    'CONFIRMED → "Booked" is done (a prior phase, not current)',
+    (tester) async {
+      await _pump(tester, _booking(BookingStatus.confirmed));
+      // "Confirmed" is the current label (parametric table). "Booked"
+      // must still render but not as current.
+      expect(find.text('Booked'), findsOneWidget);
+      expect(_currentPhaseLabel(tester), 'Confirmed');
+    },
+  );
 }

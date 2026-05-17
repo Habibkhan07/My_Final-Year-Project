@@ -41,14 +41,16 @@ User = get_user_model()
 CUSTOMER_PHONE = '+923002222222'
 TECH_PHONE = '+923001111111'
 
-# Islamabad F-7 area — close enough to trigger the auto-transition geofence
-# when the fake_tech_gps script feeds frames toward this point.
-CUSTOMER_LAT = Decimal('33.6844')
-CUSTOMER_LNG = Decimal('73.0479')
-# Tech base ~1.5 km north so a steady-route fake_tech_gps run flips
-# CONFIRMED → EN_ROUTE → ARRIVED on its own when --geofence is set.
-TECH_BASE_LAT = 33.6970
-TECH_BASE_LNG = 73.0525
+# Gulberg III, Lahore (around Liberty Market) — close enough to trigger
+# the auto-transition geofence when the fake_tech_gps script feeds frames
+# toward this point.
+CUSTOMER_LAT = Decimal('31.5097')
+CUSTOMER_LNG = Decimal('74.3478')
+# Tech base ~1.5 km north (Gulberg II area, same longitude) so a steady-route
+# fake_tech_gps run flips CONFIRMED → EN_ROUTE → ARRIVED on its own when
+# --geofence is set.
+TECH_BASE_LAT = 31.5230
+TECH_BASE_LNG = 74.3478
 
 
 class Command(BaseCommand):
@@ -146,19 +148,29 @@ class Command(BaseCommand):
             defaults={'phone': CUSTOMER_PHONE, 'is_technician': False},
         )
         profile, _ = CustomerProfile.objects.get_or_create(user=user)
-        address, _ = CustomerAddress.objects.get_or_create(
-            customer=profile,
-            label='Home',
-            defaults={
-                'street_address': 'F-7 Markaz, Islamabad',
-                'latitude': CUSTOMER_LAT,
-                'longitude': CUSTOMER_LNG,
-                'is_default': True,
-                'city': 'Islamabad',
-                'country': 'PK',
-                'locality_label': 'F-7 Markaz, Islamabad',
-            },
+        # Resilient to duplicate-label state. ``get_or_create`` raises
+        # MultipleObjectsReturned on dev DBs that accumulated repeat
+        # addresses across earlier test runs (the model doesn't enforce
+        # uniqueness on label, only on (customer, primary_key)). Prefer
+        # the most-recent matching row; only create if none exist.
+        address = (
+            CustomerAddress.objects
+            .filter(customer=profile, label='Home')
+            .order_by('-id')
+            .first()
         )
+        if address is None:
+            address = CustomerAddress.objects.create(
+                customer=profile,
+                label='Home',
+                street_address='Liberty Market, Gulberg III, Lahore',
+                latitude=CUSTOMER_LAT,
+                longitude=CUSTOMER_LNG,
+                is_default=True,
+                city='Lahore',
+                country='PK',
+                locality_label='Gulberg III, Lahore',
+            )
         token, _ = Token.objects.get_or_create(user=user)
         return user, token, address
 

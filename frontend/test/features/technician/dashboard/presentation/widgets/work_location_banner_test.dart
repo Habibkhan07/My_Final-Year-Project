@@ -9,10 +9,11 @@ import 'package:frontend/features/technician/dashboard/presentation/widgets/work
 /// * `hasWorkLocation == false` renders the call-to-action card with the
 ///   "Set your work area" headline so an unset tech is nudged to fix the
 ///   discovery hole their profile creates.
-/// * `hasWorkLocation == true` renders the quiet summary row with the
-///   stored label as a re-edit affordance — never disappears once set,
-///   because the tech still needs a way to update it.
-/// * Either variant taps to ``/technician/work-location``.
+/// * `hasWorkLocation == true` renders NOTHING — once the work area is
+///   set, the dashboard hides the banner entirely and the tech edits via
+///   Profile → Work Location. The dashboard's job is jobs + status, not
+///   surfacing the same affordance twice.
+/// * The unset CTA taps through to `/technician/work-location`.
 void main() {
   Widget wrap(Widget child) {
     final router = GoRouter(
@@ -45,34 +46,18 @@ void main() {
   );
 
   testWidgets(
-    'set renders the summary row with the saved label',
-    (tester) async {
-      await tester.pumpWidget(
-        wrap(
-          const WorkLocationBanner(
-            hasWorkLocation: true,
-            workAddressLabel: 'Gulberg, Lahore',
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.text('YOUR WORK AREA'), findsOneWidget);
-      expect(find.text('Gulberg, Lahore'), findsOneWidget);
-      // Call-to-action copy should NOT appear once set.
-      expect(find.text('Set your work area'), findsNothing);
-    },
-  );
-
-  testWidgets(
-    'set with null label falls back to "Location set"',
+    'set renders nothing — banner is hidden once work area exists',
     (tester) async {
       await tester.pumpWidget(
         wrap(const WorkLocationBanner(hasWorkLocation: true)),
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Location set'), findsOneWidget);
+      // Both halves of the prior summary tile must not appear.
+      expect(find.text('YOUR WORK AREA'), findsNothing);
+      expect(find.text('Location set'), findsNothing);
+      // The unset CTA copy must also not bleed through.
+      expect(find.text('Set your work area'), findsNothing);
     },
   );
 
@@ -85,26 +70,6 @@ void main() {
       await tester.pumpAndSettle();
 
       await tester.tap(find.text('Set your work area'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('picker-screen'), findsOneWidget);
-    },
-  );
-
-  testWidgets(
-    'tap navigates to the picker route (set variant)',
-    (tester) async {
-      await tester.pumpWidget(
-        wrap(
-          const WorkLocationBanner(
-            hasWorkLocation: true,
-            workAddressLabel: 'Gulberg, Lahore',
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.text('Gulberg, Lahore'));
       await tester.pumpAndSettle();
 
       expect(find.text('picker-screen'), findsOneWidget);

@@ -10,8 +10,9 @@ import '../../../domain/entities/booking_detail.dart';
 /// pulses to convey "you are here", terminal states collapse to a
 /// "Booking ended" pill instead of the dot row.
 ///
-/// **Phase model (5 dots).**
-///   * Confirmed (Confirmed)
+/// **Phase model (6 dots).**
+///   * Booked (Awaiting tech accept — the booking exists, no acceptance yet)
+///   * Confirmed (Tech accepted)
 ///   * On the way (En route)
 ///   * Arrived (Arrived)
 ///   * Quote (Inspecting + Quoted both map here — the tech is at the
@@ -121,8 +122,8 @@ class TimelineSlot extends StatelessWidget {
     );
   }
 
-  /// Build the five-phase view for the current booking. Index 0 = first
-  /// (Confirmed); index 4 = last (Done). The `current` marker is derived
+  /// Build the six-phase view for the current booking. Index 0 = first
+  /// (Booked); index 5 = last (Done). The `current` marker is derived
   /// from status, not from timestamp presence — see class doc.
   List<_PhaseSpec> _phases() {
     final ts = booking.phaseTimestamps;
@@ -139,31 +140,48 @@ class TimelineSlot extends StatelessWidget {
 
     return [
       _PhaseSpec(
+        // Phase 0 — the booking exists, tech hasn't accepted yet.
+        // BookingDetail does not expose `created_at` on the wire, so
+        // the timestamp caption stays empty. The dot's presence is
+        // the message.
+        label: 'Booked',
+        state: stateFor(index: 0, timestampSet: false),
+        timestamp: null,
+      ),
+      _PhaseSpec(
         label: 'Confirmed',
-        state: stateFor(index: 0, timestampSet: ts.acceptedAt != null),
+        state: stateFor(index: 1, timestampSet: ts.acceptedAt != null),
         timestamp: ts.acceptedAt,
       ),
       _PhaseSpec(
         label: 'On the way',
-        state: stateFor(index: 1, timestampSet: ts.enRouteStartedAt != null),
+        state: stateFor(index: 2, timestampSet: ts.enRouteStartedAt != null),
         timestamp: ts.enRouteStartedAt,
       ),
       _PhaseSpec(
         label: 'Arrived',
-        state: stateFor(index: 2, timestampSet: ts.arrivedAt != null),
+        state: stateFor(index: 3, timestampSet: ts.arrivedAt != null),
         timestamp: ts.arrivedAt,
       ),
       _PhaseSpec(
+        // INSPECTING + QUOTED collapse to one phase here — both are
+        // "the tech is preparing / has prepared the quote" from the
+        // customer's mental model. Splitting them would inflate the
+        // dot count without adding user value.
         label: 'Quote',
         state: stateFor(
-          index: 3,
+          index: 4,
           timestampSet: ts.quoteFirstSubmittedAt != null,
         ),
         timestamp: ts.quoteFirstSubmittedAt,
       ),
       _PhaseSpec(
+        // IN_PROGRESS + COMPLETED + COMPLETED_INSPECTION_ONLY collapse
+        // to the final phase — all three are "the work moment" from
+        // the customer's perspective. The hero pill carries the
+        // distinction (in-progress vs completed) at status granularity.
         label: 'Done',
-        state: stateFor(index: 4, timestampSet: ts.completedAt != null),
+        state: stateFor(index: 5, timestampSet: ts.completedAt != null),
         timestamp: ts.completedAt,
       ),
     ];
@@ -171,16 +189,20 @@ class TimelineSlot extends StatelessWidget {
 
   /// Map each [BookingStatus] to the phase index it represents.
   /// Returns -1 for terminal/unknown states (handled by [_terminalLabel]).
+  ///
+  /// Six-phase model: Booked (0), Confirmed (1), On the way (2),
+  /// Arrived (3), Quote (4 — INSPECTING + QUOTED), Done (5 —
+  /// IN_PROGRESS + COMPLETED + COMPLETED_INSPECTION_ONLY).
   int _phaseIndexForStatus(BookingStatus status) => switch (status) {
     BookingStatus.awaiting => 0,
-    BookingStatus.confirmed => 0,
-    BookingStatus.enRoute => 1,
-    BookingStatus.arrived => 2,
-    BookingStatus.inspecting => 3,
-    BookingStatus.quoted => 3,
-    BookingStatus.inProgress => 4,
-    BookingStatus.completed => 4,
-    BookingStatus.completedInspectionOnly => 4,
+    BookingStatus.confirmed => 1,
+    BookingStatus.enRoute => 2,
+    BookingStatus.arrived => 3,
+    BookingStatus.inspecting => 4,
+    BookingStatus.quoted => 4,
+    BookingStatus.inProgress => 5,
+    BookingStatus.completed => 5,
+    BookingStatus.completedInspectionOnly => 5,
     BookingStatus.cancelled ||
     BookingStatus.rejected ||
     BookingStatus.noShow ||

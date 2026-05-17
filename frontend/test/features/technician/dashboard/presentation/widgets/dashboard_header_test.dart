@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:network_image_mock/network_image_mock.dart';
 
 import 'package:frontend/features/technician/dashboard/domain/entities/technician_dashboard_entity.dart';
 import 'package:frontend/features/technician/dashboard/presentation/widgets/dashboard_header.dart';
@@ -14,11 +13,10 @@ import '../../_helpers/test_overrides.dart';
 TechnicianDashboardEntity _entity({
   bool isOnline = true,
   double walletBalance = 1500.0,
-  String? profilePicture,
 }) => TechnicianDashboardEntity(
   walletBalance: walletBalance,
   isOnline: isOnline,
-  profilePicture: profilePicture,
+  profilePicture: null,
   upNextJob: null,
   laterTodayJobs: const [],
 );
@@ -46,13 +44,22 @@ Widget buildHeader({
 void main() {
   group('DashboardHeader', () {
     // -----------------------------------------------------------------------
-    group('greeting', () {
-      testWidgets('renders "Hi, {firstName}" from authProvider', (
+    group('identity stripped from header', () {
+      // Avatar and "Hi, {firstName}" moved to the Profile tab; the dashboard
+      // top bar is now status-only. These finders pin that contract so a
+      // future refactor doesn't accidentally restore the identity row.
+      testWidgets('does not render a greeting', (tester) async {
+        await tester.pumpWidget(buildHeader(dashboard: _entity()));
+        await tester.pump();
+        expect(find.textContaining('Hi,'), findsNothing);
+      });
+
+      testWidgets('does not render the avatar fallback person icon', (
         tester,
       ) async {
         await tester.pumpWidget(buildHeader(dashboard: _entity()));
         await tester.pump();
-        expect(find.text('Hi, Ali'), findsOneWidget);
+        expect(find.byIcon(Icons.person_outline), findsNothing);
       });
 
       testWidgets('does not render legacy "FIELD_OPS v1.0" branding', (
@@ -162,52 +169,51 @@ void main() {
 
     // -----------------------------------------------------------------------
     group('wallet pill', () {
-      testWidgets('displays balance as "Wallet: Rs. {amount}"', (tester) async {
+      // The wallet pill now uses the wallet icon + amount (no "Wallet:"
+      // prefix). Icon + amount is the standard fintech pattern; the
+      // route destination (/wallet) makes the noun self-evident.
+      testWidgets('displays balance as "Rs. {amount}" without prefix', (
+        tester,
+      ) async {
         await tester.pumpWidget(
           buildHeader(dashboard: _entity(walletBalance: 750)),
         );
         await tester.pump();
-        expect(find.text('Wallet: Rs. 750'), findsOneWidget);
+        expect(find.text('Rs. 750'), findsOneWidget);
+        expect(find.textContaining('Wallet:'), findsNothing);
       });
 
-      testWidgets('formats integer balance without decimals', (tester) async {
-        await tester.pumpWidget(
-          buildHeader(dashboard: _entity(walletBalance: 2000.0)),
-        );
-        await tester.pump();
-        expect(find.text('Wallet: Rs. 2000'), findsOneWidget);
-      });
-    });
-
-    // -----------------------------------------------------------------------
-    group('avatar', () {
       testWidgets(
-        'shows fallback person_outline icon when profilePicture is null',
+        'whole-rupee balance renders without trailing ".00" (formatRs contract)',
         (tester) async {
           await tester.pumpWidget(
-            buildHeader(dashboard: _entity(profilePicture: null)),
+            buildHeader(dashboard: _entity(walletBalance: 2000.0)),
           );
           await tester.pump();
-          expect(find.byIcon(Icons.person_outline), findsOneWidget);
+          expect(find.text('Rs. 2000'), findsOneWidget);
         },
       );
 
-      testWidgets('renders no fallback icon when profilePicture is set', (
-        tester,
-      ) async {
-        await mockNetworkImagesFor(() async {
+      testWidgets(
+        'fractional balance shows 2dp (formatRs contract)',
+        (tester) async {
           await tester.pumpWidget(
-            buildHeader(
-              dashboard: _entity(profilePicture: 'https://example.com/pic.jpg'),
-            ),
+            buildHeader(dashboard: _entity(walletBalance: 1234.5)),
           );
           await tester.pump();
-          // Avatar uses CachedNetworkImage in a ClipOval; the fallback icon
-          // should not be rendered when an image URL is provided. The image
-          // itself may not have loaded under mock — that's fine, the test
-          // is about absence of fallback.
-          expect(find.byIcon(Icons.person_outline), findsNothing);
-        });
+          expect(find.text('Rs. 1234.50'), findsOneWidget);
+        },
+      );
+
+      testWidgets('renders the wallet icon as the leading affordance', (
+        tester,
+      ) async {
+        await tester.pumpWidget(buildHeader(dashboard: _entity()));
+        await tester.pump();
+        expect(
+          find.byIcon(Icons.account_balance_wallet_outlined),
+          findsOneWidget,
+        );
       });
     });
 
