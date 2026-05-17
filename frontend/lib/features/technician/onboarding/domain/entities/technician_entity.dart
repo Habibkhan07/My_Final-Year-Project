@@ -11,6 +11,5 @@ abstract class TechnicianEntity with _$TechnicianEntity {
     required String status,
     required String fullName,
     required String joinedDate,
-    required int experienceYears,
   }) = _TechnicianEntity;
 }

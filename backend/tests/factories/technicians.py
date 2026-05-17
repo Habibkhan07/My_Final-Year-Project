@@ -49,8 +49,6 @@ class TechnicianSkillFactory(factory.django.DjangoModelFactory):
 
     technician = factory.SubFactory(TechnicianProfileFactory)
     sub_service = factory.SubFactory(SubServiceFactory)
-    years_of_experience = 2
-    labor_rate = 1000.00
 
 
 class TechnicianServiceLicenseFactory(factory.django.DjangoModelFactory):

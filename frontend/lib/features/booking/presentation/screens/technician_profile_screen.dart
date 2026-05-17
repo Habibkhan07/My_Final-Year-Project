@@ -292,7 +292,7 @@ class _ProfileContent extends StatelessWidget {
                         ),
                       ),
 
-                      const SizedBox(height: 40),
+                      const SizedBox(height: 32),
 
                       // Info List
                       Padding(
@@ -308,29 +308,68 @@ class _ProfileContent extends StatelessWidget {
                               icon: Icons.verified_outlined,
                               label: 'Skills & Licenses',
                             ),
-                            const SizedBox(height: 16),
-                            _InfoListTile(
-                              icon: Icons.person_outline,
-                              label: 'About Me',
-                            ),
                           ],
                         ),
                       ),
 
-                      const SizedBox(height: 32),
-
-                      // Bio
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 32.0),
-                        child: Text(
-                          profile.bio,
-                          style: const TextStyle(
-                            color: Color(0xFF424753),
-                            fontSize: 14,
-                            height: 1.6,
+                      // Services this tech offers — fills the space the bio
+                      // block used to occupy. The "About Me" / free-text bio
+                      // was dropped in the 2026-05-17 onboarding refactor;
+                      // the skill list is more honest about what the
+                      // customer is actually booking.
+                      if (profile.skills.isNotEmpty) ...[
+                        const SizedBox(height: 28),
+                        Padding(
+                          padding:
+                              const EdgeInsets.symmetric(horizontal: 32.0),
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              'Services offered',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 1.1,
+                                color: const Color(0xFF6B7280),
+                              ),
+                            ),
                           ),
                         ),
-                      ),
+                        const SizedBox(height: 12),
+                        Padding(
+                          padding:
+                              const EdgeInsets.symmetric(horizontal: 28.0),
+                          child: Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: profile.skills
+                                .map(
+                                  (s) => Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 14,
+                                      vertical: 8,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFEFF4FB),
+                                      borderRadius: BorderRadius.circular(20),
+                                      border: Border.all(
+                                        color: const Color(0xFFDDE6F2),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      s.name,
+                                      style: const TextStyle(
+                                        fontSize: 12.5,
+                                        fontWeight: FontWeight.w600,
+                                        color: Color(0xFF0051AE),
+                                      ),
+                                    ),
+                                  ),
+                                )
+                                .toList(),
+                          ),
+                        ),
+                      ],
 
                       // Padding for sticky bottom bar
                       const SizedBox(height: 120),

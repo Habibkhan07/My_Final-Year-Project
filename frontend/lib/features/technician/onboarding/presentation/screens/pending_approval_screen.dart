@@ -2,53 +2,85 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../auth/presentation/providers/auth_notifier.dart';
 import '../../domain/entities/technician_status.dart';
 import '../../domain/failures/tech_status_failure.dart';
 import '../providers/technician_status_provider.dart';
 
-/// Holding screen for technicians whose application is either still
-/// pending admin review or was rejected. Owns its own state by watching
-/// [technicianStatusProvider] directly — the router routes to this screen
-/// for PENDING / REJECTED *and* for the still-loading / error states.
+/// Single status-screen shown to a tech who has applied but isn't APPROVED
+/// yet. Replaces the prior split between RegistrationSuccessScreen (the
+/// "you just submitted" landing) and the older PendingApprovalScreen (the
+/// "come back later" view) — both `/technician/success` and
+/// `/technician/pending` route here now.
 ///
-/// Variants rendered:
-/// * `AsyncLoading` → centred spinner.
-/// * `AsyncError` → "couldn't reach server" + retry button.
-/// * `TechnicianStatusPending` → amber hourglass + "under review" copy.
-/// * `TechnicianStatusRejected` → red cancel icon + reason block.
-/// * `TechnicianStatusApproved` / `TechnicianStatusNoProfile` → blank
-///   transition state — the router redirect will pop the user out on
-///   the next frame, so we briefly show a spinner to avoid a flash of
-///   misleading "rejected" or "pending" copy.
+/// Renders variants by reading [technicianStatusProvider] directly:
+///   * `AsyncLoading` → slim skeleton.
+///   * `AsyncError`   → minimal "couldn't reach server" + Try-again.
+///   * `Pending`      → brand-blue hero. No CTA — the RefreshIndicator
+///                      on the parent owns the refresh affordance via
+///                      pull-to-refresh; a redundant button would just
+///                      add noise.
+///   * `Rejected`     → red hero + compact reason card + Re-apply CTA.
+///   * `Approved` / `NoProfile` → loading shim (the router redirect will
+///                                bounce them out on the next frame).
 ///
-/// Refresh paths:
-/// * Pull-to-refresh on the scroll view.
-/// * "Check again" text button — same effect, for platforms (web/desktop)
-///   where pull-to-refresh isn't discoverable.
+/// Exit affordance: the AppBar back arrow exits to ``/home`` (the
+/// customer surface) via ``context.go`` — a hard nav rather than a pop
+/// since this screen can be the root after onboarding finalize, with
+/// no underlying stack to peel back.
 class PendingApprovalScreen extends ConsumerWidget {
-  const PendingApprovalScreen({super.key});
+  /// True when the screen was reached straight from a successful
+  /// onboarding finalize (router serves this view at /technician/success
+  /// in that case). Drives the "Submitted just now ✓" banner so a fresh
+  /// applicant gets emotional closure without re-introducing a separate
+  /// success screen.
+  final bool justSubmitted;
 
-  static const Color _brandBlue = Color(0xFF0051AE);
+  const PendingApprovalScreen({super.key, this.justSubmitted = false});
+
+  static const _brand = Color(0xFF0051AE);
+  static const _bg = Color(0xFFF6F8FC);
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final statusAsync = ref.watch(technicianStatusProvider);
 
     return Scaffold(
+      backgroundColor: _bg,
+      // Slim top bar with a single back affordance that exits to the
+      // customer home. The screen is reachable both as the holding view
+      // after an admin re-routes a PENDING tech here AND as the
+      // post-submit landing from the wizard, so a hard ``context.go``
+      // is correct: there may be no underlying route stack to peel.
+      appBar: AppBar(
+        backgroundColor: _bg,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new, size: 18),
+          color: const Color(0xFF151C24),
+          onPressed: () => context.go('/home'),
+          tooltip: 'Back to Karigar',
+        ),
+      ),
       body: SafeArea(
+        top: false,
         child: RefreshIndicator(
+          color: _brand,
+          // Bug fix (audit #2): the previous implementation swallowed
+          // refresh errors via ``.catchError((_) => NoProfile)``, which
+          // left the screen stuck on a loading shim with no error UI.
+          // Now: invalidate, wait for the new fetch, and let any
+          // exception propagate so the AsyncError branch of
+          // ``statusAsync.when`` renders the error body.
           onRefresh: () async {
             ref.invalidate(technicianStatusProvider);
-            // Wait for the new fetch to land so the spinner stays on
-            // screen long enough to feel responsive. `future` resolves
-            // once the new fetch completes (success or error).
-            await ref.read(technicianStatusProvider.future).catchError(
-              (_) => const TechnicianStatusNoProfile(),
-            );
+            await ref.read(technicianStatusProvider.future);
           },
           child: statusAsync.when(
-            data: (status) => _StatusBody(status: status),
+            data: (status) => _StatusBody(
+              status: status,
+              justSubmitted: justSubmitted,
+            ),
             loading: () => const _LoadingBody(),
             error: (err, _) => _ErrorBody(failure: err),
           ),
@@ -58,125 +90,113 @@ class PendingApprovalScreen extends ConsumerWidget {
   }
 }
 
-// --- Body variants -----------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Status variants
+// ---------------------------------------------------------------------------
 
-class _StatusBody extends ConsumerWidget {
+class _StatusBody extends StatelessWidget {
   final TechnicianStatus status;
-  const _StatusBody({required this.status});
+  final bool justSubmitted;
+  const _StatusBody({required this.status, required this.justSubmitted});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
+    // APPROVED / NoProfile arrive here only during the brief frame between
+    // the status resolving and the router redirect firing. Show the slim
+    // skeleton so the user never sees stale copy.
+    final isTransient = status is TechnicianStatusApproved ||
+        status is TechnicianStatusNoProfile;
+    if (isTransient) return const _LoadingBody();
+
     final isRejected = status is TechnicianStatusRejected;
     final reason = status is TechnicianStatusRejected
         ? (status as TechnicianStatusRejected).reason
         : null;
-    // APPROVED / NoProfile arrive here only during the brief frame
-    // between the status resolving and the router redirect firing.
-    // Show a spinner so the user never sees stale pending/rejected copy.
-    final isTransient = status is TechnicianStatusApproved ||
-        status is TechnicianStatusNoProfile;
 
-    if (isTransient) {
-      return const _LoadingBody();
-    }
-
-    return _Scaffolded(
+    return _Shell(
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const SizedBox(height: 48),
-          _StatusIcon(isRejected: isRejected),
-          const SizedBox(height: 32),
-          Text(
-            isRejected
-                ? 'Application Not Approved'
-                : 'Application Under Review',
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
-                ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 12),
-          Text(
-            isRejected
-                ? "We weren't able to approve your application at this time."
-                : "Thanks for applying. Our team is reviewing your documents — we'll let you know as soon as you're approved.",
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Colors.grey[700],
-                ),
-            textAlign: TextAlign.center,
-          ),
-          if (isRejected && reason != null && reason.isNotEmpty) ...[
-            const SizedBox(height: 24),
-            _ReasonBlock(reason: reason),
+          if (justSubmitted && !isRejected) ...[
+            const SizedBox(height: 8),
+            const _JustSubmittedBanner(),
           ],
           const SizedBox(height: 32),
-          _ContactSupportNote(isRejected: isRejected),
-          const SizedBox(height: 48),
-          if (isRejected) ...[
-            // Re-apply CTA: the backend service resets the existing
-            // REJECTED row in place when finalize is hit again, so the
-            // user keeps their profile id + history. The router redirect
-            // explicitly allows REJECTED users through /technician/onboarding.
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: PendingApprovalScreen._brandBlue,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                onPressed: () => context.go('/technician/onboarding'),
-                child: const Text(
-                  'Submit a new application',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            _CheckAgainLink(onTap: () {
-              ref.invalidate(technicianStatusProvider);
-            }),
-            const SizedBox(height: 4),
-            TextButton(
-              onPressed: () => ref.read(authProvider.notifier).logout(),
-              child: const Text('Log out'),
-            ),
-          ] else ...[
-            _CheckAgainLink(onTap: () {
-              ref.invalidate(technicianStatusProvider);
-            }),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: PendingApprovalScreen._brandBlue,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                onPressed: () => ref.read(authProvider.notifier).logout(),
-                child: const Text(
-                  'Logout',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ),
-          ],
+          _Hero(isRejected: isRejected),
           const SizedBox(height: 24),
+          _Headline(text: isRejected ? 'Not approved' : 'Under review'),
+          const SizedBox(height: 8),
+          _Subtitle(
+            text: isRejected
+                ? 'Submit again to try once more.'
+                : 'Usually approved within 1–2 days.',
+          ),
+          const SizedBox(height: 20),
+          _StatusPill(isRejected: isRejected),
+          if (isRejected && reason != null && reason.trim().isNotEmpty) ...[
+            const SizedBox(height: 20),
+            _ReasonCard(reason: reason),
+          ],
+          const Spacer(),
+          // Pending: no button — the RefreshIndicator on the parent
+          // owns the refresh affordance via swipe-down. Rejected keeps
+          // the re-apply CTA because it routes to a different surface
+          // (the wizard) which pull-to-refresh cannot reach.
+          if (isRejected)
+            _PrimaryButton(
+              label: 'Submit a new application',
+              icon: Icons.refresh,
+              // push (not go) so the rejected screen stays in the stack
+              // and the wizard's back arrow on step 0 returns here. With
+              // ``go`` the wizard becomes the new stack root and back is
+              // a dead-end. From the wizard's back arrow → here → AppBar
+              // back → /home, which matches the user's exit expectations.
+              onPressed: () => context.push('/technician/onboarding'),
+            ),
+          const SizedBox(height: 16),
         ],
+      ),
+    );
+  }
+}
+
+/// Brand-blue pill rendered above the hero when the user just submitted.
+/// Closes the emotional loop without re-introducing a second screen.
+class _JustSubmittedBanner extends StatelessWidget {
+  const _JustSubmittedBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: const Color(0xFFEFF4FB),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: PendingApprovalScreen._brand.withValues(alpha: 0.2),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: const [
+            Icon(
+              Icons.check_circle,
+              size: 16,
+              color: PendingApprovalScreen._brand,
+            ),
+            SizedBox(width: 8),
+            Text(
+              'Application sent',
+              style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w700,
+                color: PendingApprovalScreen._brand,
+                letterSpacing: 0.2,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -187,20 +207,11 @@ class _LoadingBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _Scaffolded(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const SizedBox(height: 200),
-          const Center(child: CircularProgressIndicator()),
-          const SizedBox(height: 16),
-          Text(
-            'Checking your application status…',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Colors.grey[600],
-                ),
-          ),
-        ],
+    return _Shell(
+      child: const Center(
+        child: CircularProgressIndicator(
+          color: PendingApprovalScreen._brand,
+        ),
       ),
     );
   }
@@ -217,80 +228,53 @@ class _ErrorBody extends ConsumerWidget {
     if (failure is TechStatusUnauthorized) {
       return 'Your session expired. Please log in again.';
     }
-    return "We couldn't reach the server. Please try again.";
+    return "We couldn't reach the server.";
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return _Scaffolded(
+    return _Shell(
       child: Column(
         children: [
           const SizedBox(height: 64),
           Container(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: Colors.grey.shade100,
+              color: const Color(0xFFEFF4FB),
               shape: BoxShape.circle,
             ),
-            child: Icon(
+            child: const Icon(
               Icons.cloud_off_rounded,
-              color: Colors.grey.shade600,
-              size: 64,
+              color: PendingApprovalScreen._brand,
+              size: 44,
             ),
           ),
-          const SizedBox(height: 24),
-          Text(
-            'Connection problem',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-          ),
+          const SizedBox(height: 20),
+          const _Headline(text: 'Connection problem'),
           const SizedBox(height: 8),
-          Text(
-            _message(),
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Colors.grey[700],
-                ),
+          _Subtitle(text: _message()),
+          const Spacer(),
+          _PrimaryButton(
+            label: 'Try again',
+            icon: Icons.refresh,
+            onPressed: () => ref.invalidate(technicianStatusProvider),
           ),
-          const SizedBox(height: 32),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: PendingApprovalScreen._brandBlue,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              onPressed: () => ref.invalidate(technicianStatusProvider),
-              child: const Text(
-                'Try again',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          TextButton(
-            onPressed: () => ref.read(authProvider.notifier).logout(),
-            child: const Text('Log out'),
-          ),
+          const SizedBox(height: 16),
         ],
       ),
     );
   }
 }
 
-// --- Shared bits -------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Shared building blocks
+// ---------------------------------------------------------------------------
 
-/// Wraps body content in a vertically-scrollable column so
-/// [RefreshIndicator] always has something to pull on, even when the
-/// content fits the screen.
-class _Scaffolded extends StatelessWidget {
+/// Pull-to-refresh requires a scrollable child; LayoutBuilder pins the
+/// content to a min-height of the viewport so pulls always register.
+class _Shell extends StatelessWidget {
   final Widget child;
-  const _Scaffolded({required this.child});
+  const _Shell({required this.child});
 
   @override
   Widget build(BuildContext context) {
@@ -300,8 +284,11 @@ class _Scaffolded extends StatelessWidget {
         child: ConstrainedBox(
           constraints: BoxConstraints(minHeight: constraints.maxHeight),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: child,
+            padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+            child: SizedBox(
+              height: constraints.maxHeight - 24,
+              child: child,
+            ),
           ),
         ),
       ),
@@ -309,58 +296,49 @@ class _Scaffolded extends StatelessWidget {
   }
 }
 
-class _StatusIcon extends StatelessWidget {
+class _Hero extends StatelessWidget {
   final bool isRejected;
-  const _StatusIcon({required this.isRejected});
+  const _Hero({required this.isRejected});
 
   @override
   Widget build(BuildContext context) {
-    final color = isRejected ? Colors.red.shade600 : Colors.amber.shade700;
-    final bg = isRejected ? Colors.red.shade50 : Colors.amber.shade50;
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(color: bg, shape: BoxShape.circle),
-      child: Icon(
-        isRejected ? Icons.cancel_outlined : Icons.hourglass_top_rounded,
-        color: color,
-        size: 72,
-      ),
-    );
-  }
-}
-
-class _ReasonBlock extends StatelessWidget {
-  final String reason;
-  const _ReasonBlock({required this.reason});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.red.shade50,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.red.shade100),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    final color = isRejected
+        ? const Color(0xFFE11D48)
+        : PendingApprovalScreen._brand;
+    final tint = isRejected
+        ? const Color(0xFFFFE4E6)
+        : const Color(0xFFEFF4FB);
+    return Center(
+      child: Stack(
+        alignment: Alignment.center,
         children: [
-          Text(
-            'Reason',
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: Colors.red.shade700,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0.5,
-                ),
+          Container(
+            width: 140,
+            height: 140,
+            decoration: BoxDecoration(
+              color: tint,
+              shape: BoxShape.circle,
+            ),
           ),
-          const SizedBox(height: 6),
-          Text(
-            reason,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Colors.black87,
-                  height: 1.4,
+          Container(
+            width: 96,
+            height: 96,
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: color.withValues(alpha: 0.35),
+                  blurRadius: 24,
+                  offset: const Offset(0, 10),
                 ),
+              ],
+            ),
+            child: Icon(
+              isRejected ? Icons.close_rounded : Icons.hourglass_top_rounded,
+              size: 44,
+              color: Colors.white,
+            ),
           ),
         ],
       ),
@@ -368,34 +346,169 @@ class _ReasonBlock extends StatelessWidget {
   }
 }
 
-class _ContactSupportNote extends StatelessWidget {
-  final bool isRejected;
-  const _ContactSupportNote({required this.isRejected});
+class _Headline extends StatelessWidget {
+  final String text;
+  const _Headline({required this.text});
 
   @override
   Widget build(BuildContext context) {
     return Text(
-      isRejected
-          ? 'If you believe this was a mistake, please contact support.'
-          : 'Most applications are reviewed within 1–2 business days.',
-      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: Colors.grey[600],
-          ),
+      text,
       textAlign: TextAlign.center,
+      style: const TextStyle(
+        fontSize: 22,
+        fontWeight: FontWeight.w800,
+        color: Color(0xFF151C24),
+        height: 1.2,
+      ),
     );
   }
 }
 
-class _CheckAgainLink extends StatelessWidget {
-  final VoidCallback onTap;
-  const _CheckAgainLink({required this.onTap});
+class _Subtitle extends StatelessWidget {
+  final String text;
+  const _Subtitle({required this.text});
 
   @override
   Widget build(BuildContext context) {
-    return TextButton.icon(
-      onPressed: onTap,
-      icon: const Icon(Icons.refresh, size: 18),
-      label: const Text('Check status again'),
+    return Text(
+      text,
+      textAlign: TextAlign.center,
+      style: const TextStyle(
+        fontSize: 14,
+        color: Color(0xFF6B7280),
+        height: 1.45,
+      ),
     );
   }
 }
+
+class _StatusPill extends StatelessWidget {
+  final bool isRejected;
+  const _StatusPill({required this.isRejected});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = isRejected
+        ? const Color(0xFFE11D48)
+        : PendingApprovalScreen._brand;
+    final tint = isRejected
+        ? const Color(0xFFFFE4E6)
+        : const Color(0xFFEFF4FB);
+    final label = isRejected ? 'Rejected' : 'Pending';
+
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: tint,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 7,
+              height: 7,
+              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.3,
+                color: color,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ReasonCard extends StatelessWidget {
+  final String reason;
+  const _ReasonCard({required this.reason});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF1F2),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFFECDD3)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(
+            Icons.info_outline,
+            color: Color(0xFFE11D48),
+            size: 18,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              reason,
+              style: const TextStyle(
+                fontSize: 13,
+                color: Color(0xFF151C24),
+                height: 1.4,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PrimaryButton extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final VoidCallback onPressed;
+  const _PrimaryButton({
+    required this.label,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      height: 52,
+      child: ElevatedButton(
+        onPressed: onPressed,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: PendingApprovalScreen._brand,
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+          elevation: 4,
+          shadowColor: const Color(0x660051AE),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Icon(icon, size: 18),
+          ],
+        ),
+      ),
+    );
+  }
+}
+

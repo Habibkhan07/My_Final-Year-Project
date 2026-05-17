@@ -193,12 +193,15 @@ def test_verify_no_otp_record_returns_400(client, verify_url):
 
 @pytest.mark.django_db
 def test_verify_already_used_otp_returns_400(client, verify_url):
-    """Replay attack: a used OTPRecord must not be accepted again."""
+    """Replay attack: a used OTPRecord with no associated user (i.e.
+    the first verify never landed a user — likely a contrived state,
+    but the security invariant must hold) must not be accepted again.
+    """
     OTPRecordFactory(phone='+923001234567', code='123456', is_used=True)
     response = client.post(verify_url, {'phone': '+923001234567', 'otp': '123456'})
 
     assert response.status_code == 400
-    assert 'No OTP found' in response.data['message']
+    assert 'already been used' in response.data['message']
 
 
 @pytest.mark.django_db

@@ -162,11 +162,62 @@ def test_verify_no_record_raises():
 
 @pytest.mark.django_db
 def test_verify_used_otp_raises():
-    """Replay attack: a previously used OTPRecord must be rejected."""
+    """Replay attack: a previously used OTPRecord must be rejected when
+    there is no matching user (which there wouldn't be for a stale
+    OTP that was never followed up with a successful first verify).
+    """
     OTPRecordFactory(phone='+923001234567', code='123456', is_used=True)
 
-    with pytest.raises(ValueError, match='No OTP found'):
+    with pytest.raises(ValueError, match='already been used'):
         auth_service.process_otp_verification(phone='+923001234567', otp_input='123456')
+
+
+@pytest.mark.django_db
+def test_verify_used_otp_outside_grace_window_raises():
+    """Replay attack with the user already in the DB but the OTP record
+    consumed > 60s ago: must reject. The idempotent retry path is gated
+    on a short grace window — anything older is a stale replay.
+    """
+    from django.utils import timezone
+    from django.contrib.auth.models import User
+
+    User.objects.create_user(username='+923001234567')
+    record = OTPRecordFactory(
+        phone='+923001234567', code='123456', is_used=True,
+    )
+    # Backdate so the grace check fails.
+    OTPRecord.objects.filter(pk=record.pk).update(
+        created_at=timezone.now() - timezone.timedelta(minutes=5),
+    )
+
+    with pytest.raises(ValueError, match='already been used'):
+        auth_service.process_otp_verification(phone='+923001234567', otp_input='123456')
+
+
+@pytest.mark.django_db
+def test_verify_used_otp_within_grace_returns_same_token():
+    """Idempotent retry (audit S-12): a duplicate verify within the
+    grace window must return the SAME token instead of 400, so the FE
+    auto-submit + manual-button race doesn't dislodge a just-acquired
+    session.
+    """
+    from rest_framework.authtoken.models import Token
+    from django.contrib.auth.models import User
+    from accounts.models import UserProfile
+
+    user = User.objects.create_user(username='+923001234567')
+    UserProfile.objects.create(user=user, phone='+923001234567')
+    original_token = Token.objects.create(user=user)
+    # Used record, just consumed (within grace window).
+    OTPRecordFactory(phone='+923001234567', code='123456', is_used=True)
+
+    result = auth_service.process_otp_verification(
+        phone='+923001234567', otp_input='123456',
+    )
+
+    assert result['token'] == original_token.key
+    assert result['user_id'] == user.id
+    assert result['new_user'] is False
 
 
 @pytest.mark.django_db

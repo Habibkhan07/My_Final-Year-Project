@@ -182,8 +182,6 @@ class Command(BaseCommand):
             defaults={
                 'city': 'ISL',
                 'cnic_number': '35202-1111111-1',
-                'experience_years': 5,
-                'bio': 'Test technician fixture for the Chrome runbook.',
                 'status': 'APPROVED',
                 'base_latitude': TECH_BASE_LAT,
                 'base_longitude': TECH_BASE_LNG,
@@ -204,7 +202,6 @@ class Command(BaseCommand):
         TechnicianSkill.objects.get_or_create(
             technician=profile,
             sub_service=sub_service,
-            defaults={'years_of_experience': 5},
         )
         # Tech is also qualified for the labor companion item so
         # `drive_booking quote` can attach it on any booking.
@@ -214,7 +211,6 @@ class Command(BaseCommand):
             TechnicianSkill.objects.get_or_create(
                 technician=profile,
                 sub_service=labor_sub,
-                defaults={'years_of_experience': 5},
             )
 
         token, _ = Token.objects.get_or_create(user=user)

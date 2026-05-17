@@ -94,20 +94,24 @@ def resolve_booking_intent(
 
     * **A — Fixed-Price Gig** (``sub_service.is_fixed_price=True``):
       promo firewalled to ``None``; promotion FK also nulled.
-    * **B — Labor Gig** (``sub_service.is_fixed_price=False``): price
-      is the technician's ``TechnicianSkill.labor_rate``; falls back to
-      the sub-service's platform base price when the technician hasn't
-      set a custom rate.
+    * **B — Labor Gig** (``sub_service.is_fixed_price=False``): the
+      platform sets the figure now. ``primary_amount`` (the column
+      stamped onto ``JobBooking.price_amount``) is
+      ``sub_service.base_price``. The display string is a band
+      ``Rs. base – max`` when the catalog declares an upper bound,
+      otherwise a single ``Rs. base``. The technician renegotiates at
+      quote-build time — the band is honest discovery copy, not a
+      hard cap on the final invoice.
     * **C — Category / Promo on parent service** (only ``service``
       provided): price is the service's inspection fee.
 
     A "Rs. 500 / Inspection Fee / no promo" fallback is returned when
     neither ``service`` nor ``sub_service`` is in context.
 
-    Performance contract: at most ONE DB hit — the
-    ``TechnicianSkill`` fallback lookup in Scenario B when
-    ``technician.prefetched_skill`` is empty. Production matchmaking
-    selectors prefetch this; the lookup is a safety net.
+    Performance contract: zero DB hits — every catalog reference is
+    already loaded by the matchmaker / detail selector. The earlier
+    ``TechnicianSkill`` fallback lookup was removed when migration
+    0014 dropped per-tech labor_rate.
     """
     # SECURITY: pure read; consumes already-validated catalog instances
     # resolved upstream by ``resolve_discovery_intent``. No client-
@@ -134,21 +138,29 @@ def resolve_booking_intent(
 
     # --- Scenario B: Labor Gig ----------------------------------------
     if sub_service is not None:
-        prefetched = getattr(technician, "prefetched_skill", []) or []
-        tech_skill = (
-            prefetched[0]
-            if prefetched
-            else technician.technicianskill_set.filter(sub_service=sub_service).first()
-        )
+        # The platform sets the labor figure now, not the technician.
+        # Migration 0014 (2026-05-17 onboarding refactor) dropped
+        # ``TechnicianSkill.labor_rate`` — the booking write path stamps
+        # ``sub_service.base_price`` onto ``JobBooking.price_amount``,
+        # and discovery shows a Rs.<base>–<max> band when the catalog
+        # declares an upper bound. Tech can still negotiate the figure
+        # up at quote-build time; the band is the platform-level honest
+        # display, not a hard cap on the final invoice.
+        primary_amount = Decimal(sub_service.base_price)
+        primary_price_raw = str(sub_service.base_price)
 
-        if tech_skill is not None and tech_skill.labor_rate:
-            primary_amount = Decimal(tech_skill.labor_rate)
-            primary_price_raw = str(tech_skill.labor_rate)
+        # Range vs. single-figure display. ``max_price`` is non-null
+        # only when the catalog row models a labor band (the
+        # ``is_fixed_price`` flag and ``max_price`` are mutually
+        # exclusive by catalog convention — fixed gigs leave max
+        # blank). We re-check for safety: a malformed catalog row
+        # with both set falls through to the band display.
+        if sub_service.max_price is not None:
+            primary_price_display = (
+                f"Rs. {int(sub_service.base_price):,} – {int(sub_service.max_price):,}"
+            )
         else:
-            # Tech hasn't set a custom rate — fall back to the platform
-            # per-sub-service default.
-            primary_amount = Decimal(sub_service.base_price)
-            primary_price_raw = str(sub_service.base_price)
+            primary_price_display = f"Rs. {int(primary_amount):,}"
 
         return ResolvedIntent(
             service=service or sub_service.service,
@@ -156,7 +168,7 @@ def resolve_booking_intent(
             promotion=promotion,
             booking_type=BOOKING_TYPE_LABOR_GIG,
             primary_amount=primary_amount,
-            primary_price=f"Rs. {int(primary_amount):,}",
+            primary_price=primary_price_display,
             primary_price_raw=primary_price_raw,
             price_context_label="Labor Fee",
             promo_tag_firewalled=promotion.ui_description if promotion else None,

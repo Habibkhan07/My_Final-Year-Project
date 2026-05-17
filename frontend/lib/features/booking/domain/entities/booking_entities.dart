@@ -38,8 +38,6 @@ abstract class TechnicianProfileEntity with _$TechnicianProfileEntity {
     required String? profilePicture,
     required double ratingAverage,
     required int reviewCount,
-    required int experienceYears,
-    required String bio,
     required double? distanceKm,
     required double? bayesianScore,
     required bool isActive,

@@ -17,11 +17,12 @@ class RegisterTechnicianUseCase {
     required String city,
     required String cnicNumber,
     required String cnicPictureUuid,
-    required String bio,
-    required int experienceYears,
-    required List<SkillSelectionEntity> skills, // Fixed syntax
-    required List<CategoryLicenseEntity>
-    categoryLicenses, // REPLACED MAP WITH ENTITY
+    required List<SkillSelectionEntity> skills,
+    required List<CategoryLicenseEntity> categoryLicenses,
+    double? baseLatitude,
+    double? baseLongitude,
+    int? maxTravelRadiusKm,
+    String? workAddressLabel,
   }) {
     return repository.finalizeRegistration(
       token: token,
@@ -29,13 +30,14 @@ class RegisterTechnicianUseCase {
       lastName: lastName,
       city: city,
       cnicNumber: cnicNumber,
-      bio: bio,
       profilePictureUuid: profilePictureUuid,
       cnicPictureUuid: cnicPictureUuid,
-      experienceYears: experienceYears,
-      skills:
-          skills, // This will error until you update the Repository interface
+      skills: skills,
       categoryLicenses: categoryLicenses,
+      baseLatitude: baseLatitude,
+      baseLongitude: baseLongitude,
+      maxTravelRadiusKm: maxTravelRadiusKm,
+      workAddressLabel: workAddressLabel,
     );
   }
 }

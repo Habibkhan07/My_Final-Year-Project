@@ -26,10 +26,7 @@ class TechnicianProfile(models.Model):
     city = models.CharField(max_length=3, choices=CITY_CHOICES)
     cnic_number = models.CharField(max_length=15, unique=True)
     cnic_front_image = models.ImageField(upload_to='tech_docs/cnic/')
-    
-    # Acceptance Criteria: Profile Metadata
-    experience_years = models.PositiveIntegerField(default=0)
-    bio = models.TextField(help_text="Details about qualifications and expertise.")
+
     profile_picture = models.ImageField(upload_to='tech_profiles/')
     
     # Acceptance Criteria: Approval Status
@@ -102,16 +99,19 @@ class TechnicianProfile(models.Model):
         return f"{self.user.get_full_name()} - {self.status}"
 
 class TechnicianSkill(models.Model):
-    """Custom Junction Table for Skill-Specific Licenses"""
+    """Bridge row: which sub-services this technician offers.
+
+    Pure membership table. Earlier iterations carried ``years_of_experience``
+    and a per-technician ``labor_rate`` on this row; both were dropped in
+    migrations 0013/0014 when onboarding was trimmed (experience copy
+    didn't influence ranking; labor_rate was replaced by the platform's
+    catalog price band — see ``catalog.SubService.base_price`` and
+    ``max_price`` and ``bookings.selectors.pricing_selector``). The
+    booking write path now stamps ``JobBooking.price_amount`` from
+    ``sub_service.base_price`` for LABOR_GIGs.
+    """
     technician = models.ForeignKey(TechnicianProfile, on_delete=models.CASCADE)
     sub_service = models.ForeignKey(SubService, on_delete=models.CASCADE)
-    
-    # Added detail for specialized verification
-    years_of_experience = models.PositiveIntegerField(default=0)
-    
-    # Technician's labor rate for this skill (Scenario B labor gigs).
-    # Single value; the booking write path enforces exact equality.
-    labor_rate = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
 
     class Meta:
         unique_together = ('technician', 'sub_service')

@@ -67,6 +67,12 @@ class TechnicianProfileDetailSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = TechnicianProfile
+        # ``experience_years`` and ``bio`` were dropped in the 2026-05-17
+        # onboarding refactor (migration 0013_drop_profile_metadata).
+        # The customer-facing surfaces that used to render them — the
+        # booking-checkout technician profile screen — were updated to
+        # remove the bio block; the experience years field had never
+        # been rendered in production.
         fields = [
             'id',
             'full_name',
@@ -74,8 +80,6 @@ class TechnicianProfileDetailSerializer(serializers.ModelSerializer):
             'profile_picture',
             'rating_average',
             'review_count',
-            'experience_years',
-            'bio',
             'distance_km',
             'bayesian_score',
             'is_active',

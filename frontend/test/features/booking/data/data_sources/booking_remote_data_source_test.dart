@@ -41,8 +41,6 @@ void main() {
       'profile_picture': 'https://example.com/pic.jpg',
       'rating_average': 4.9,
       'review_count': 120,
-      'experience_years': 5,
-      'bio': 'Test bio',
       'distance_km': 2.4,
       'bayesian_score': 4.8,
       'is_active': true,

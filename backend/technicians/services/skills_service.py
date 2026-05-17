@@ -11,10 +11,10 @@ Add-flow rules:
     for it). Fires BEFORE the duplicate check; raises
     ``ServiceCategoryNotAllowedError`` (HTTP 403,
     ``category_not_allowed``).
-  * ``years_of_experience`` defaults to 0; the UI does not collect it.
-  * ``labor_rate`` is written as NULL. The column stays on the model
-    for back-compat with bookings/pricing; the onboarding refactor
-    session will decide whether to drop it or move it to per-quote.
+  * The bridge row is pure membership — ``years_of_experience`` and
+    ``labor_rate`` were dropped in migrations 0013/0014 (2026-05-17
+    onboarding refactor). Pricing comes from
+    ``catalog.SubService.base_price`` now.
   * Duplicate ``(technician, sub_service)`` raises
     ``DuplicateSkillError`` (HTTP 409, ``duplicate_skill``).
 
@@ -115,8 +115,6 @@ def add_skill(
             skill = TechnicianSkill.objects.create(
                 technician=technician,
                 sub_service=sub_service,
-                years_of_experience=0,
-                labor_rate=None,
             )
         except IntegrityError:
             # The ``unique_together`` index would surface as an

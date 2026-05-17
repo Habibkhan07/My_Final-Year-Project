@@ -4,12 +4,10 @@ The technician's profile-tab "My Skills" surface reads from here.
 All queries are scoped to the calling technician — the views never
 accept a ``technician_id`` param, so IDOR is structurally impossible.
 
-Pricing column ``TechnicianSkill.labor_rate`` is not surfaced through
-these selectors. New rows added via the CRUD endpoint write NULL;
-existing rows (seeded via the onboarding finalize path) keep their
-value until the onboarding refactor decides on the migration. Either
-way the labor-rate read/write contract is owned by bookings/pricing,
-not by this selector — see ``bookings/selectors/pricing_selector.py``.
+After migrations 0013/0014 the bridge row is pure membership — no
+pricing or experience columns to surface. The pricing display read-
+path is owned by ``bookings/selectors/pricing_selector.py``, which
+derives labor figures from ``catalog.SubService.base_price``.
 """
 from __future__ import annotations
 

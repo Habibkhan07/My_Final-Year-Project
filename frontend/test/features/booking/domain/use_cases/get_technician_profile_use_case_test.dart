@@ -23,8 +23,6 @@ void main() {
     profilePicture: null,
     ratingAverage: 4.9,
     reviewCount: 120,
-    experienceYears: 5,
-    bio: 'bio',
     distanceKm: null,
     bayesianScore: null,
     isActive: true,

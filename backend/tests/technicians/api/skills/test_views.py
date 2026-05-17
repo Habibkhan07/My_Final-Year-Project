@@ -144,9 +144,10 @@ class TestMySkillsCreateView:
         response = self.client.post(self.url, data={'sub_service_id': 1}, format='json')
         assert response.status_code == 403
 
-    def test_post_creates_skill_with_null_labor_rate_and_zero_years(self):
-        """Contract: the add endpoint never collects labor_rate or years.
-        Both must be set to safe defaults by the service."""
+    def test_post_creates_membership_row(self):
+        """Contract: bridge row is pure membership after the 2026-05-17
+        refactor — wire payload is just ``sub_service_id``; the row that
+        lands carries no pricing/experience metadata."""
         tech = TechnicianProfileFactory()
         sub = SubServiceFactory()
         _enable_category(tech, sub)
@@ -164,9 +165,9 @@ class TestMySkillsCreateView:
         body = response.json()
         assert body['sub_service']['id'] == sub.id
 
-        row = TechnicianSkill.objects.get(technician=tech, sub_service=sub)
-        assert row.labor_rate is None
-        assert row.years_of_experience == 0
+        assert TechnicianSkill.objects.filter(
+            technician=tech, sub_service=sub,
+        ).exists()
 
     def test_post_duplicate_returns_409(self):
         tech = TechnicianProfileFactory()

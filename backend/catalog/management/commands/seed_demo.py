@@ -375,13 +375,14 @@ class Command(BaseCommand):
             lat = base_lat + t['jitter'][0]
             lng = base_lng + t['jitter'][1]
 
+            # Note: ``t['exp']`` and ``t['bio']`` are now unused — both
+            # columns were dropped in migrations 0013/0014. The dict
+            # entries stay for review-template generation downstream.
             profile, _ = TechnicianProfile.objects.update_or_create(
                 user=user,
                 defaults={
                     'city': t['city'],
                     'cnic_number': f'35202-{cnic_seq:07d}-1',
-                    'experience_years': t['exp'],
-                    'bio': t['bio'],
                     'status': 'APPROVED',
                     'base_latitude': lat,
                     'base_longitude': lng,
@@ -413,11 +414,11 @@ class Command(BaseCommand):
                     _generate_dummy_image('gray', f'{slug}_cnic.jpg'),
                 )
 
-            # Skill linking tech to their gig
+            # Skill linking tech to their gig. Bridge row is now pure
+            # membership — ``years_of_experience`` was dropped in 0014.
             gig = gig_objs[t['gig']]
-            TechnicianSkill.objects.update_or_create(
+            TechnicianSkill.objects.get_or_create(
                 technician=profile, sub_service=gig,
-                defaults={'years_of_experience': t['exp']},
             )
 
             # Service license

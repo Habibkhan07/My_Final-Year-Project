@@ -112,13 +112,13 @@ def finalize_registration(*, user, validated_data):
 
         profile.save()
 
-        # SubService-level skill rows.
+        # SubService-level skill rows. Bridge table is now pure
+        # membership — ``years_of_experience`` and ``labor_rate`` were
+        # dropped in migrations 0013/0014 (the 2026-05-17 refactor).
         for skill in skills_data:
             TechnicianSkill.objects.create(
                 technician=profile,
                 sub_service_id=skill['sub_service_id'],
-                years_of_experience=skill['years_of_experience'],
-                labor_rate=skill.get('labor_rate'),
             )
 
         # Category-level licenses — the source of truth for "which

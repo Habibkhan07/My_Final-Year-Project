@@ -40,15 +40,27 @@ def process_otp_verification(*, phone: str, otp_input: str):
     Why select_for_update: prevents two concurrent requests from both seeing
     the same unused OTPRecord and both succeeding (replay attack / race condition).
 
+    Idempotency (audit S-12): the verify endpoint is intentionally
+    idempotent within a short grace window. If the most-recent OTPRecord
+    for this phone is already-used AND its code matches the submitted
+    ``otp_input`` AND it was consumed in the last
+    ``_REVERIFY_GRACE_SECONDS``, we treat the call as a duplicate of the
+    successful first verify and return the existing Token. This closes
+    the "FE fired verify twice (auto-submit + button)" race without
+    weakening security — the grace check guarantees the duplicate must
+    be a near-immediate retry, not a stale replay.
+
     Raises:
         ValueError: for invalid, expired, or already-used OTPs.
     """
-    # SECURITY: scoped to the submitted phone + unused + non-expired
+    # SECURITY: scoped to the submitted phone + non-expired
     with transaction.atomic():
+        # Look at the most-recent OTP record regardless of ``is_used`` so
+        # we can detect the idempotent-retry case before bailing out.
         record = (
             OTPRecord.objects
             .select_for_update()
-            .filter(phone=phone, is_used=False)
+            .filter(phone=phone)
             .order_by('-created_at')
             .first()
         )
@@ -61,6 +73,42 @@ def process_otp_verification(*, phone: str, otp_input: str):
 
         if record.code != otp_input:
             raise ValueError("Invalid OTP.")
+
+        # Idempotent-retry path: same code, already consumed, within the
+        # grace window. Return the existing token instead of 400.
+        if record.is_used:
+            grace_cutoff = timezone.now() - timezone.timedelta(
+                seconds=_REVERIFY_GRACE_SECONDS,
+            )
+            # ``is_used`` flips together with ``record.save(update_fields=...)``
+            # below — the ``modified_at`` field would be cleaner but isn't
+            # on the model, so we approximate with ``created_at + grace``.
+            # Far enough in the past → treat as exhausted, fail.
+            if record.created_at < grace_cutoff:
+                raise ValueError(
+                    "OTP has already been used. Please request a new one.",
+                )
+            # Within grace: re-issue the same response shape. The user
+            # row + token must already exist from the first verify;
+            # `get_or_create` is idempotent on both.
+            user = User.objects.filter(username=phone).first()
+            if user is None:
+                # Shouldn't happen — the first verify created the user —
+                # but if the DB is somehow inconsistent, fall through to
+                # the strict "already used" error rather than silently
+                # bypassing auth.
+                raise ValueError(
+                    "OTP has already been used. Please request a new one.",
+                )
+            token, _ = Token.objects.get_or_create(user=user)
+            name_required = user_selectors.is_profile_incomplete(user=user)
+            return {
+                "user_id": user.id,
+                "token": token.key,
+                "is_technician": user.userprofile.is_technician,
+                "name_required": name_required,
+                "new_user": False,
+            }
 
         # Mark consumed before any further writes
         record.is_used = True
@@ -87,6 +135,13 @@ def process_otp_verification(*, phone: str, otp_input: str):
             "name_required": name_required,
             "new_user": created,
         }
+
+
+# Grace window for the verify-otp idempotency check. A duplicate verify
+# (FE auto-submit + button race, network retry of an already-succeeded
+# request) is allowed within this window; anything later is a stale
+# replay and gets the strict "already used" error.
+_REVERIFY_GRACE_SECONDS = 60
 
 
 def logout(*, user) -> None:

@@ -93,7 +93,8 @@ class Command(BaseCommand):
         )
 
         # Labor gig (Scenario B pricing on profile — is_fixed_price=False)
-        # Technician sets their own labor_rate on the TechnicianSkill row.
+        # Platform sets the figure via ``base_price`` (catalog) after
+        # migration 0014 dropped per-tech ``TechnicianSkill.labor_rate``.
         plumbing_labor_gig, _ = SubService.objects.get_or_create(
             service=plumbing_service,
             name='General Plumbing Repair',
@@ -206,9 +207,6 @@ class Command(BaseCommand):
                 user=user,
                 city='LHR',
                 cnic_number=f'35202-222222{i}-1',
-                experience_years=5,
-                bio=f'Experienced professional specializing in {data["service"].name}. '
-                    f'Reliable, punctual, and fully certified. Test data for {data["name"]}.',
                 status='APPROVED' if data['active'] else 'PENDING',
                 base_latitude=data['lat'],
                 base_longitude=data['lng'],
@@ -223,7 +221,6 @@ class Command(BaseCommand):
             TechnicianSkill.objects.create(
                 technician=profile,
                 sub_service=data['gig'],
-                years_of_experience=5,
             )
 
             license_obj = TechnicianServiceLicense.objects.create(technician=profile, service=data['service'])
@@ -275,13 +272,12 @@ class Command(BaseCommand):
         self.stdout.write('-> Adding labor skill to TechD_Plumber...')
         tech_d = created_profiles.get('TechD_Plumber')
         if tech_d:
+            # Bridge row is pure membership after migration 0014.
+            # The labor-gig figure now comes from the catalog row's
+            # ``base_price``/``max_price`` band.
             TechnicianSkill.objects.get_or_create(
                 technician=tech_d,
                 sub_service=plumbing_labor_gig,
-                defaults={
-                    'years_of_experience': 7,
-                    'labor_rate': 1500.00,  # technician's labor rate
-                },
             )
 
         # ==========================================

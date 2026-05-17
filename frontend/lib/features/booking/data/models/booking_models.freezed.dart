@@ -552,7 +552,7 @@ as String,
 /// @nodoc
 mixin _$TechnicianProfileModel {
 
- int get id;@JsonKey(name: 'full_name') String get fullName; String get city;@JsonKey(name: 'profile_picture') String? get profilePicture;@JsonKey(name: 'rating_average') double get ratingAverage;@JsonKey(name: 'review_count') int get reviewCount;@JsonKey(name: 'experience_years') int get experienceYears; String get bio;@JsonKey(name: 'distance_km') double? get distanceKm;@JsonKey(name: 'bayesian_score') double? get bayesianScore;@JsonKey(name: 'is_active') bool get isActive;@JsonKey(name: 'ui_rating_text') String get uiRatingText;@JsonKey(name: 'primary_price') String get primaryPrice;@JsonKey(name: 'primary_price_raw') String get primaryPriceRaw;@JsonKey(name: 'price_context') String get priceContext;@JsonKey(name: 'promo_tag') String? get promoTag; List<TechnicianSkillModel> get skills;@JsonKey(name: 'recent_reviews') List<TechnicianReviewModel> get recentReviews;
+ int get id;@JsonKey(name: 'full_name') String get fullName; String get city;@JsonKey(name: 'profile_picture') String? get profilePicture;@JsonKey(name: 'rating_average') double get ratingAverage;@JsonKey(name: 'review_count') int get reviewCount;@JsonKey(name: 'distance_km') double? get distanceKm;@JsonKey(name: 'bayesian_score') double? get bayesianScore;@JsonKey(name: 'is_active') bool get isActive;@JsonKey(name: 'ui_rating_text') String get uiRatingText;@JsonKey(name: 'primary_price') String get primaryPrice;@JsonKey(name: 'primary_price_raw') String get primaryPriceRaw;@JsonKey(name: 'price_context') String get priceContext;@JsonKey(name: 'promo_tag') String? get promoTag; List<TechnicianSkillModel> get skills;@JsonKey(name: 'recent_reviews') List<TechnicianReviewModel> get recentReviews;
 /// Create a copy of TechnicianProfileModel
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -565,16 +565,16 @@ $TechnicianProfileModelCopyWith<TechnicianProfileModel> get copyWith => _$Techni
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is TechnicianProfileModel&&(identical(other.id, id) || other.id == id)&&(identical(other.fullName, fullName) || other.fullName == fullName)&&(identical(other.city, city) || other.city == city)&&(identical(other.profilePicture, profilePicture) || other.profilePicture == profilePicture)&&(identical(other.ratingAverage, ratingAverage) || other.ratingAverage == ratingAverage)&&(identical(other.reviewCount, reviewCount) || other.reviewCount == reviewCount)&&(identical(other.experienceYears, experienceYears) || other.experienceYears == experienceYears)&&(identical(other.bio, bio) || other.bio == bio)&&(identical(other.distanceKm, distanceKm) || other.distanceKm == distanceKm)&&(identical(other.bayesianScore, bayesianScore) || other.bayesianScore == bayesianScore)&&(identical(other.isActive, isActive) || other.isActive == isActive)&&(identical(other.uiRatingText, uiRatingText) || other.uiRatingText == uiRatingText)&&(identical(other.primaryPrice, primaryPrice) || other.primaryPrice == primaryPrice)&&(identical(other.primaryPriceRaw, primaryPriceRaw) || other.primaryPriceRaw == primaryPriceRaw)&&(identical(other.priceContext, priceContext) || other.priceContext == priceContext)&&(identical(other.promoTag, promoTag) || other.promoTag == promoTag)&&const DeepCollectionEquality().equals(other.skills, skills)&&const DeepCollectionEquality().equals(other.recentReviews, recentReviews));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is TechnicianProfileModel&&(identical(other.id, id) || other.id == id)&&(identical(other.fullName, fullName) || other.fullName == fullName)&&(identical(other.city, city) || other.city == city)&&(identical(other.profilePicture, profilePicture) || other.profilePicture == profilePicture)&&(identical(other.ratingAverage, ratingAverage) || other.ratingAverage == ratingAverage)&&(identical(other.reviewCount, reviewCount) || other.reviewCount == reviewCount)&&(identical(other.distanceKm, distanceKm) || other.distanceKm == distanceKm)&&(identical(other.bayesianScore, bayesianScore) || other.bayesianScore == bayesianScore)&&(identical(other.isActive, isActive) || other.isActive == isActive)&&(identical(other.uiRatingText, uiRatingText) || other.uiRatingText == uiRatingText)&&(identical(other.primaryPrice, primaryPrice) || other.primaryPrice == primaryPrice)&&(identical(other.primaryPriceRaw, primaryPriceRaw) || other.primaryPriceRaw == primaryPriceRaw)&&(identical(other.priceContext, priceContext) || other.priceContext == priceContext)&&(identical(other.promoTag, promoTag) || other.promoTag == promoTag)&&const DeepCollectionEquality().equals(other.skills, skills)&&const DeepCollectionEquality().equals(other.recentReviews, recentReviews));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,fullName,city,profilePicture,ratingAverage,reviewCount,experienceYears,bio,distanceKm,bayesianScore,isActive,uiRatingText,primaryPrice,primaryPriceRaw,priceContext,promoTag,const DeepCollectionEquality().hash(skills),const DeepCollectionEquality().hash(recentReviews));
+int get hashCode => Object.hash(runtimeType,id,fullName,city,profilePicture,ratingAverage,reviewCount,distanceKm,bayesianScore,isActive,uiRatingText,primaryPrice,primaryPriceRaw,priceContext,promoTag,const DeepCollectionEquality().hash(skills),const DeepCollectionEquality().hash(recentReviews));
 
 @override
 String toString() {
-  return 'TechnicianProfileModel(id: $id, fullName: $fullName, city: $city, profilePicture: $profilePicture, ratingAverage: $ratingAverage, reviewCount: $reviewCount, experienceYears: $experienceYears, bio: $bio, distanceKm: $distanceKm, bayesianScore: $bayesianScore, isActive: $isActive, uiRatingText: $uiRatingText, primaryPrice: $primaryPrice, primaryPriceRaw: $primaryPriceRaw, priceContext: $priceContext, promoTag: $promoTag, skills: $skills, recentReviews: $recentReviews)';
+  return 'TechnicianProfileModel(id: $id, fullName: $fullName, city: $city, profilePicture: $profilePicture, ratingAverage: $ratingAverage, reviewCount: $reviewCount, distanceKm: $distanceKm, bayesianScore: $bayesianScore, isActive: $isActive, uiRatingText: $uiRatingText, primaryPrice: $primaryPrice, primaryPriceRaw: $primaryPriceRaw, priceContext: $priceContext, promoTag: $promoTag, skills: $skills, recentReviews: $recentReviews)';
 }
 
 
@@ -585,7 +585,7 @@ abstract mixin class $TechnicianProfileModelCopyWith<$Res>  {
   factory $TechnicianProfileModelCopyWith(TechnicianProfileModel value, $Res Function(TechnicianProfileModel) _then) = _$TechnicianProfileModelCopyWithImpl;
 @useResult
 $Res call({
- int id,@JsonKey(name: 'full_name') String fullName, String city,@JsonKey(name: 'profile_picture') String? profilePicture,@JsonKey(name: 'rating_average') double ratingAverage,@JsonKey(name: 'review_count') int reviewCount,@JsonKey(name: 'experience_years') int experienceYears, String bio,@JsonKey(name: 'distance_km') double? distanceKm,@JsonKey(name: 'bayesian_score') double? bayesianScore,@JsonKey(name: 'is_active') bool isActive,@JsonKey(name: 'ui_rating_text') String uiRatingText,@JsonKey(name: 'primary_price') String primaryPrice,@JsonKey(name: 'primary_price_raw') String primaryPriceRaw,@JsonKey(name: 'price_context') String priceContext,@JsonKey(name: 'promo_tag') String? promoTag, List<TechnicianSkillModel> skills,@JsonKey(name: 'recent_reviews') List<TechnicianReviewModel> recentReviews
+ int id,@JsonKey(name: 'full_name') String fullName, String city,@JsonKey(name: 'profile_picture') String? profilePicture,@JsonKey(name: 'rating_average') double ratingAverage,@JsonKey(name: 'review_count') int reviewCount,@JsonKey(name: 'distance_km') double? distanceKm,@JsonKey(name: 'bayesian_score') double? bayesianScore,@JsonKey(name: 'is_active') bool isActive,@JsonKey(name: 'ui_rating_text') String uiRatingText,@JsonKey(name: 'primary_price') String primaryPrice,@JsonKey(name: 'primary_price_raw') String primaryPriceRaw,@JsonKey(name: 'price_context') String priceContext,@JsonKey(name: 'promo_tag') String? promoTag, List<TechnicianSkillModel> skills,@JsonKey(name: 'recent_reviews') List<TechnicianReviewModel> recentReviews
 });
 
 
@@ -602,7 +602,7 @@ class _$TechnicianProfileModelCopyWithImpl<$Res>
 
 /// Create a copy of TechnicianProfileModel
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? fullName = null,Object? city = null,Object? profilePicture = freezed,Object? ratingAverage = null,Object? reviewCount = null,Object? experienceYears = null,Object? bio = null,Object? distanceKm = freezed,Object? bayesianScore = freezed,Object? isActive = null,Object? uiRatingText = null,Object? primaryPrice = null,Object? primaryPriceRaw = null,Object? priceContext = null,Object? promoTag = freezed,Object? skills = null,Object? recentReviews = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? fullName = null,Object? city = null,Object? profilePicture = freezed,Object? ratingAverage = null,Object? reviewCount = null,Object? distanceKm = freezed,Object? bayesianScore = freezed,Object? isActive = null,Object? uiRatingText = null,Object? primaryPrice = null,Object? primaryPriceRaw = null,Object? priceContext = null,Object? promoTag = freezed,Object? skills = null,Object? recentReviews = null,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as int,fullName: null == fullName ? _self.fullName : fullName // ignore: cast_nullable_to_non_nullable
@@ -610,9 +610,7 @@ as String,city: null == city ? _self.city : city // ignore: cast_nullable_to_non
 as String,profilePicture: freezed == profilePicture ? _self.profilePicture : profilePicture // ignore: cast_nullable_to_non_nullable
 as String?,ratingAverage: null == ratingAverage ? _self.ratingAverage : ratingAverage // ignore: cast_nullable_to_non_nullable
 as double,reviewCount: null == reviewCount ? _self.reviewCount : reviewCount // ignore: cast_nullable_to_non_nullable
-as int,experienceYears: null == experienceYears ? _self.experienceYears : experienceYears // ignore: cast_nullable_to_non_nullable
-as int,bio: null == bio ? _self.bio : bio // ignore: cast_nullable_to_non_nullable
-as String,distanceKm: freezed == distanceKm ? _self.distanceKm : distanceKm // ignore: cast_nullable_to_non_nullable
+as int,distanceKm: freezed == distanceKm ? _self.distanceKm : distanceKm // ignore: cast_nullable_to_non_nullable
 as double?,bayesianScore: freezed == bayesianScore ? _self.bayesianScore : bayesianScore // ignore: cast_nullable_to_non_nullable
 as double?,isActive: null == isActive ? _self.isActive : isActive // ignore: cast_nullable_to_non_nullable
 as bool,uiRatingText: null == uiRatingText ? _self.uiRatingText : uiRatingText // ignore: cast_nullable_to_non_nullable
@@ -707,10 +705,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int id, @JsonKey(name: 'full_name')  String fullName,  String city, @JsonKey(name: 'profile_picture')  String? profilePicture, @JsonKey(name: 'rating_average')  double ratingAverage, @JsonKey(name: 'review_count')  int reviewCount, @JsonKey(name: 'experience_years')  int experienceYears,  String bio, @JsonKey(name: 'distance_km')  double? distanceKm, @JsonKey(name: 'bayesian_score')  double? bayesianScore, @JsonKey(name: 'is_active')  bool isActive, @JsonKey(name: 'ui_rating_text')  String uiRatingText, @JsonKey(name: 'primary_price')  String primaryPrice, @JsonKey(name: 'primary_price_raw')  String primaryPriceRaw, @JsonKey(name: 'price_context')  String priceContext, @JsonKey(name: 'promo_tag')  String? promoTag,  List<TechnicianSkillModel> skills, @JsonKey(name: 'recent_reviews')  List<TechnicianReviewModel> recentReviews)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int id, @JsonKey(name: 'full_name')  String fullName,  String city, @JsonKey(name: 'profile_picture')  String? profilePicture, @JsonKey(name: 'rating_average')  double ratingAverage, @JsonKey(name: 'review_count')  int reviewCount, @JsonKey(name: 'distance_km')  double? distanceKm, @JsonKey(name: 'bayesian_score')  double? bayesianScore, @JsonKey(name: 'is_active')  bool isActive, @JsonKey(name: 'ui_rating_text')  String uiRatingText, @JsonKey(name: 'primary_price')  String primaryPrice, @JsonKey(name: 'primary_price_raw')  String primaryPriceRaw, @JsonKey(name: 'price_context')  String priceContext, @JsonKey(name: 'promo_tag')  String? promoTag,  List<TechnicianSkillModel> skills, @JsonKey(name: 'recent_reviews')  List<TechnicianReviewModel> recentReviews)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _TechnicianProfileModel() when $default != null:
-return $default(_that.id,_that.fullName,_that.city,_that.profilePicture,_that.ratingAverage,_that.reviewCount,_that.experienceYears,_that.bio,_that.distanceKm,_that.bayesianScore,_that.isActive,_that.uiRatingText,_that.primaryPrice,_that.primaryPriceRaw,_that.priceContext,_that.promoTag,_that.skills,_that.recentReviews);case _:
+return $default(_that.id,_that.fullName,_that.city,_that.profilePicture,_that.ratingAverage,_that.reviewCount,_that.distanceKm,_that.bayesianScore,_that.isActive,_that.uiRatingText,_that.primaryPrice,_that.primaryPriceRaw,_that.priceContext,_that.promoTag,_that.skills,_that.recentReviews);case _:
   return orElse();
 
 }
@@ -728,10 +726,10 @@ return $default(_that.id,_that.fullName,_that.city,_that.profilePicture,_that.ra
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int id, @JsonKey(name: 'full_name')  String fullName,  String city, @JsonKey(name: 'profile_picture')  String? profilePicture, @JsonKey(name: 'rating_average')  double ratingAverage, @JsonKey(name: 'review_count')  int reviewCount, @JsonKey(name: 'experience_years')  int experienceYears,  String bio, @JsonKey(name: 'distance_km')  double? distanceKm, @JsonKey(name: 'bayesian_score')  double? bayesianScore, @JsonKey(name: 'is_active')  bool isActive, @JsonKey(name: 'ui_rating_text')  String uiRatingText, @JsonKey(name: 'primary_price')  String primaryPrice, @JsonKey(name: 'primary_price_raw')  String primaryPriceRaw, @JsonKey(name: 'price_context')  String priceContext, @JsonKey(name: 'promo_tag')  String? promoTag,  List<TechnicianSkillModel> skills, @JsonKey(name: 'recent_reviews')  List<TechnicianReviewModel> recentReviews)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int id, @JsonKey(name: 'full_name')  String fullName,  String city, @JsonKey(name: 'profile_picture')  String? profilePicture, @JsonKey(name: 'rating_average')  double ratingAverage, @JsonKey(name: 'review_count')  int reviewCount, @JsonKey(name: 'distance_km')  double? distanceKm, @JsonKey(name: 'bayesian_score')  double? bayesianScore, @JsonKey(name: 'is_active')  bool isActive, @JsonKey(name: 'ui_rating_text')  String uiRatingText, @JsonKey(name: 'primary_price')  String primaryPrice, @JsonKey(name: 'primary_price_raw')  String primaryPriceRaw, @JsonKey(name: 'price_context')  String priceContext, @JsonKey(name: 'promo_tag')  String? promoTag,  List<TechnicianSkillModel> skills, @JsonKey(name: 'recent_reviews')  List<TechnicianReviewModel> recentReviews)  $default,) {final _that = this;
 switch (_that) {
 case _TechnicianProfileModel():
-return $default(_that.id,_that.fullName,_that.city,_that.profilePicture,_that.ratingAverage,_that.reviewCount,_that.experienceYears,_that.bio,_that.distanceKm,_that.bayesianScore,_that.isActive,_that.uiRatingText,_that.primaryPrice,_that.primaryPriceRaw,_that.priceContext,_that.promoTag,_that.skills,_that.recentReviews);case _:
+return $default(_that.id,_that.fullName,_that.city,_that.profilePicture,_that.ratingAverage,_that.reviewCount,_that.distanceKm,_that.bayesianScore,_that.isActive,_that.uiRatingText,_that.primaryPrice,_that.primaryPriceRaw,_that.priceContext,_that.promoTag,_that.skills,_that.recentReviews);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -748,10 +746,10 @@ return $default(_that.id,_that.fullName,_that.city,_that.profilePicture,_that.ra
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int id, @JsonKey(name: 'full_name')  String fullName,  String city, @JsonKey(name: 'profile_picture')  String? profilePicture, @JsonKey(name: 'rating_average')  double ratingAverage, @JsonKey(name: 'review_count')  int reviewCount, @JsonKey(name: 'experience_years')  int experienceYears,  String bio, @JsonKey(name: 'distance_km')  double? distanceKm, @JsonKey(name: 'bayesian_score')  double? bayesianScore, @JsonKey(name: 'is_active')  bool isActive, @JsonKey(name: 'ui_rating_text')  String uiRatingText, @JsonKey(name: 'primary_price')  String primaryPrice, @JsonKey(name: 'primary_price_raw')  String primaryPriceRaw, @JsonKey(name: 'price_context')  String priceContext, @JsonKey(name: 'promo_tag')  String? promoTag,  List<TechnicianSkillModel> skills, @JsonKey(name: 'recent_reviews')  List<TechnicianReviewModel> recentReviews)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int id, @JsonKey(name: 'full_name')  String fullName,  String city, @JsonKey(name: 'profile_picture')  String? profilePicture, @JsonKey(name: 'rating_average')  double ratingAverage, @JsonKey(name: 'review_count')  int reviewCount, @JsonKey(name: 'distance_km')  double? distanceKm, @JsonKey(name: 'bayesian_score')  double? bayesianScore, @JsonKey(name: 'is_active')  bool isActive, @JsonKey(name: 'ui_rating_text')  String uiRatingText, @JsonKey(name: 'primary_price')  String primaryPrice, @JsonKey(name: 'primary_price_raw')  String primaryPriceRaw, @JsonKey(name: 'price_context')  String priceContext, @JsonKey(name: 'promo_tag')  String? promoTag,  List<TechnicianSkillModel> skills, @JsonKey(name: 'recent_reviews')  List<TechnicianReviewModel> recentReviews)?  $default,) {final _that = this;
 switch (_that) {
 case _TechnicianProfileModel() when $default != null:
-return $default(_that.id,_that.fullName,_that.city,_that.profilePicture,_that.ratingAverage,_that.reviewCount,_that.experienceYears,_that.bio,_that.distanceKm,_that.bayesianScore,_that.isActive,_that.uiRatingText,_that.primaryPrice,_that.primaryPriceRaw,_that.priceContext,_that.promoTag,_that.skills,_that.recentReviews);case _:
+return $default(_that.id,_that.fullName,_that.city,_that.profilePicture,_that.ratingAverage,_that.reviewCount,_that.distanceKm,_that.bayesianScore,_that.isActive,_that.uiRatingText,_that.primaryPrice,_that.primaryPriceRaw,_that.priceContext,_that.promoTag,_that.skills,_that.recentReviews);case _:
   return null;
 
 }
@@ -763,7 +761,7 @@ return $default(_that.id,_that.fullName,_that.city,_that.profilePicture,_that.ra
 @JsonSerializable()
 
 class _TechnicianProfileModel extends TechnicianProfileModel {
-  const _TechnicianProfileModel({required this.id, @JsonKey(name: 'full_name') required this.fullName, required this.city, @JsonKey(name: 'profile_picture') required this.profilePicture, @JsonKey(name: 'rating_average') required this.ratingAverage, @JsonKey(name: 'review_count') required this.reviewCount, @JsonKey(name: 'experience_years') required this.experienceYears, required this.bio, @JsonKey(name: 'distance_km') this.distanceKm, @JsonKey(name: 'bayesian_score') this.bayesianScore, @JsonKey(name: 'is_active') required this.isActive, @JsonKey(name: 'ui_rating_text') required this.uiRatingText, @JsonKey(name: 'primary_price') required this.primaryPrice, @JsonKey(name: 'primary_price_raw') required this.primaryPriceRaw, @JsonKey(name: 'price_context') required this.priceContext, @JsonKey(name: 'promo_tag') this.promoTag, required final  List<TechnicianSkillModel> skills, @JsonKey(name: 'recent_reviews') required final  List<TechnicianReviewModel> recentReviews}): _skills = skills,_recentReviews = recentReviews,super._();
+  const _TechnicianProfileModel({required this.id, @JsonKey(name: 'full_name') required this.fullName, required this.city, @JsonKey(name: 'profile_picture') required this.profilePicture, @JsonKey(name: 'rating_average') required this.ratingAverage, @JsonKey(name: 'review_count') required this.reviewCount, @JsonKey(name: 'distance_km') this.distanceKm, @JsonKey(name: 'bayesian_score') this.bayesianScore, @JsonKey(name: 'is_active') required this.isActive, @JsonKey(name: 'ui_rating_text') required this.uiRatingText, @JsonKey(name: 'primary_price') required this.primaryPrice, @JsonKey(name: 'primary_price_raw') required this.primaryPriceRaw, @JsonKey(name: 'price_context') required this.priceContext, @JsonKey(name: 'promo_tag') this.promoTag, required final  List<TechnicianSkillModel> skills, @JsonKey(name: 'recent_reviews') required final  List<TechnicianReviewModel> recentReviews}): _skills = skills,_recentReviews = recentReviews,super._();
   factory _TechnicianProfileModel.fromJson(Map<String, dynamic> json) => _$TechnicianProfileModelFromJson(json);
 
 @override final  int id;
@@ -772,8 +770,6 @@ class _TechnicianProfileModel extends TechnicianProfileModel {
 @override@JsonKey(name: 'profile_picture') final  String? profilePicture;
 @override@JsonKey(name: 'rating_average') final  double ratingAverage;
 @override@JsonKey(name: 'review_count') final  int reviewCount;
-@override@JsonKey(name: 'experience_years') final  int experienceYears;
-@override final  String bio;
 @override@JsonKey(name: 'distance_km') final  double? distanceKm;
 @override@JsonKey(name: 'bayesian_score') final  double? bayesianScore;
 @override@JsonKey(name: 'is_active') final  bool isActive;
@@ -810,16 +806,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TechnicianProfileModel&&(identical(other.id, id) || other.id == id)&&(identical(other.fullName, fullName) || other.fullName == fullName)&&(identical(other.city, city) || other.city == city)&&(identical(other.profilePicture, profilePicture) || other.profilePicture == profilePicture)&&(identical(other.ratingAverage, ratingAverage) || other.ratingAverage == ratingAverage)&&(identical(other.reviewCount, reviewCount) || other.reviewCount == reviewCount)&&(identical(other.experienceYears, experienceYears) || other.experienceYears == experienceYears)&&(identical(other.bio, bio) || other.bio == bio)&&(identical(other.distanceKm, distanceKm) || other.distanceKm == distanceKm)&&(identical(other.bayesianScore, bayesianScore) || other.bayesianScore == bayesianScore)&&(identical(other.isActive, isActive) || other.isActive == isActive)&&(identical(other.uiRatingText, uiRatingText) || other.uiRatingText == uiRatingText)&&(identical(other.primaryPrice, primaryPrice) || other.primaryPrice == primaryPrice)&&(identical(other.primaryPriceRaw, primaryPriceRaw) || other.primaryPriceRaw == primaryPriceRaw)&&(identical(other.priceContext, priceContext) || other.priceContext == priceContext)&&(identical(other.promoTag, promoTag) || other.promoTag == promoTag)&&const DeepCollectionEquality().equals(other._skills, _skills)&&const DeepCollectionEquality().equals(other._recentReviews, _recentReviews));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TechnicianProfileModel&&(identical(other.id, id) || other.id == id)&&(identical(other.fullName, fullName) || other.fullName == fullName)&&(identical(other.city, city) || other.city == city)&&(identical(other.profilePicture, profilePicture) || other.profilePicture == profilePicture)&&(identical(other.ratingAverage, ratingAverage) || other.ratingAverage == ratingAverage)&&(identical(other.reviewCount, reviewCount) || other.reviewCount == reviewCount)&&(identical(other.distanceKm, distanceKm) || other.distanceKm == distanceKm)&&(identical(other.bayesianScore, bayesianScore) || other.bayesianScore == bayesianScore)&&(identical(other.isActive, isActive) || other.isActive == isActive)&&(identical(other.uiRatingText, uiRatingText) || other.uiRatingText == uiRatingText)&&(identical(other.primaryPrice, primaryPrice) || other.primaryPrice == primaryPrice)&&(identical(other.primaryPriceRaw, primaryPriceRaw) || other.primaryPriceRaw == primaryPriceRaw)&&(identical(other.priceContext, priceContext) || other.priceContext == priceContext)&&(identical(other.promoTag, promoTag) || other.promoTag == promoTag)&&const DeepCollectionEquality().equals(other._skills, _skills)&&const DeepCollectionEquality().equals(other._recentReviews, _recentReviews));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,fullName,city,profilePicture,ratingAverage,reviewCount,experienceYears,bio,distanceKm,bayesianScore,isActive,uiRatingText,primaryPrice,primaryPriceRaw,priceContext,promoTag,const DeepCollectionEquality().hash(_skills),const DeepCollectionEquality().hash(_recentReviews));
+int get hashCode => Object.hash(runtimeType,id,fullName,city,profilePicture,ratingAverage,reviewCount,distanceKm,bayesianScore,isActive,uiRatingText,primaryPrice,primaryPriceRaw,priceContext,promoTag,const DeepCollectionEquality().hash(_skills),const DeepCollectionEquality().hash(_recentReviews));
 
 @override
 String toString() {
-  return 'TechnicianProfileModel(id: $id, fullName: $fullName, city: $city, profilePicture: $profilePicture, ratingAverage: $ratingAverage, reviewCount: $reviewCount, experienceYears: $experienceYears, bio: $bio, distanceKm: $distanceKm, bayesianScore: $bayesianScore, isActive: $isActive, uiRatingText: $uiRatingText, primaryPrice: $primaryPrice, primaryPriceRaw: $primaryPriceRaw, priceContext: $priceContext, promoTag: $promoTag, skills: $skills, recentReviews: $recentReviews)';
+  return 'TechnicianProfileModel(id: $id, fullName: $fullName, city: $city, profilePicture: $profilePicture, ratingAverage: $ratingAverage, reviewCount: $reviewCount, distanceKm: $distanceKm, bayesianScore: $bayesianScore, isActive: $isActive, uiRatingText: $uiRatingText, primaryPrice: $primaryPrice, primaryPriceRaw: $primaryPriceRaw, priceContext: $priceContext, promoTag: $promoTag, skills: $skills, recentReviews: $recentReviews)';
 }
 
 
@@ -830,7 +826,7 @@ abstract mixin class _$TechnicianProfileModelCopyWith<$Res> implements $Technici
   factory _$TechnicianProfileModelCopyWith(_TechnicianProfileModel value, $Res Function(_TechnicianProfileModel) _then) = __$TechnicianProfileModelCopyWithImpl;
 @override @useResult
 $Res call({
- int id,@JsonKey(name: 'full_name') String fullName, String city,@JsonKey(name: 'profile_picture') String? profilePicture,@JsonKey(name: 'rating_average') double ratingAverage,@JsonKey(name: 'review_count') int reviewCount,@JsonKey(name: 'experience_years') int experienceYears, String bio,@JsonKey(name: 'distance_km') double? distanceKm,@JsonKey(name: 'bayesian_score') double? bayesianScore,@JsonKey(name: 'is_active') bool isActive,@JsonKey(name: 'ui_rating_text') String uiRatingText,@JsonKey(name: 'primary_price') String primaryPrice,@JsonKey(name: 'primary_price_raw') String primaryPriceRaw,@JsonKey(name: 'price_context') String priceContext,@JsonKey(name: 'promo_tag') String? promoTag, List<TechnicianSkillModel> skills,@JsonKey(name: 'recent_reviews') List<TechnicianReviewModel> recentReviews
+ int id,@JsonKey(name: 'full_name') String fullName, String city,@JsonKey(name: 'profile_picture') String? profilePicture,@JsonKey(name: 'rating_average') double ratingAverage,@JsonKey(name: 'review_count') int reviewCount,@JsonKey(name: 'distance_km') double? distanceKm,@JsonKey(name: 'bayesian_score') double? bayesianScore,@JsonKey(name: 'is_active') bool isActive,@JsonKey(name: 'ui_rating_text') String uiRatingText,@JsonKey(name: 'primary_price') String primaryPrice,@JsonKey(name: 'primary_price_raw') String primaryPriceRaw,@JsonKey(name: 'price_context') String priceContext,@JsonKey(name: 'promo_tag') String? promoTag, List<TechnicianSkillModel> skills,@JsonKey(name: 'recent_reviews') List<TechnicianReviewModel> recentReviews
 });
 
 
@@ -847,7 +843,7 @@ class __$TechnicianProfileModelCopyWithImpl<$Res>
 
 /// Create a copy of TechnicianProfileModel
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? fullName = null,Object? city = null,Object? profilePicture = freezed,Object? ratingAverage = null,Object? reviewCount = null,Object? experienceYears = null,Object? bio = null,Object? distanceKm = freezed,Object? bayesianScore = freezed,Object? isActive = null,Object? uiRatingText = null,Object? primaryPrice = null,Object? primaryPriceRaw = null,Object? priceContext = null,Object? promoTag = freezed,Object? skills = null,Object? recentReviews = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? fullName = null,Object? city = null,Object? profilePicture = freezed,Object? ratingAverage = null,Object? reviewCount = null,Object? distanceKm = freezed,Object? bayesianScore = freezed,Object? isActive = null,Object? uiRatingText = null,Object? primaryPrice = null,Object? primaryPriceRaw = null,Object? priceContext = null,Object? promoTag = freezed,Object? skills = null,Object? recentReviews = null,}) {
   return _then(_TechnicianProfileModel(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as int,fullName: null == fullName ? _self.fullName : fullName // ignore: cast_nullable_to_non_nullable
@@ -855,9 +851,7 @@ as String,city: null == city ? _self.city : city // ignore: cast_nullable_to_non
 as String,profilePicture: freezed == profilePicture ? _self.profilePicture : profilePicture // ignore: cast_nullable_to_non_nullable
 as String?,ratingAverage: null == ratingAverage ? _self.ratingAverage : ratingAverage // ignore: cast_nullable_to_non_nullable
 as double,reviewCount: null == reviewCount ? _self.reviewCount : reviewCount // ignore: cast_nullable_to_non_nullable
-as int,experienceYears: null == experienceYears ? _self.experienceYears : experienceYears // ignore: cast_nullable_to_non_nullable
-as int,bio: null == bio ? _self.bio : bio // ignore: cast_nullable_to_non_nullable
-as String,distanceKm: freezed == distanceKm ? _self.distanceKm : distanceKm // ignore: cast_nullable_to_non_nullable
+as int,distanceKm: freezed == distanceKm ? _self.distanceKm : distanceKm // ignore: cast_nullable_to_non_nullable
 as double?,bayesianScore: freezed == bayesianScore ? _self.bayesianScore : bayesianScore // ignore: cast_nullable_to_non_nullable
 as double?,isActive: null == isActive ? _self.isActive : isActive // ignore: cast_nullable_to_non_nullable
 as bool,uiRatingText: null == uiRatingText ? _self.uiRatingText : uiRatingText // ignore: cast_nullable_to_non_nullable

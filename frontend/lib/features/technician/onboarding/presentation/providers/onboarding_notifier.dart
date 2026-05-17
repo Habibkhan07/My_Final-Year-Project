@@ -54,68 +54,98 @@ class OnboardingNotifier extends _$OnboardingNotifier {
     });
   }
 
-  // --- STEP 0: PERSONAL INFO ---
+  // --- BASIC INFO + IDENTITY ---
   void updatePersonalInfo({
     String? firstName,
     String? lastName,
     String? city,
-    String? bio,
-    int? experienceYears,
     String? cnic,
   }) {
-    // requireValue is safer than value! because it guarantees data exists
     final current = state.requireValue;
     state = AsyncData(
       current.copyWith(
         firstName: firstName ?? current.firstName,
         lastName: lastName ?? current.lastName,
         city: city ?? current.city,
-        bio: bio ?? current.bio,
-        experienceYears: experienceYears ?? current.experienceYears,
         cnicNumber: cnic ?? current.cnicNumber,
       ),
     );
   }
 
+  // --- WORK LOCATION ---
+  void updateWorkLocation({
+    required double latitude,
+    required double longitude,
+    String? addressLabel,
+    int? radiusKm,
+  }) {
+    final current = state.requireValue;
+    state = AsyncData(
+      current.copyWith(
+        baseLatitude: latitude,
+        baseLongitude: longitude,
+        workAddressLabel: addressLabel ?? current.workAddressLabel,
+        maxTravelRadiusKm: radiusKm ?? current.maxTravelRadiusKm,
+      ),
+    );
+  }
+
   // --- PHASE 1: MEDIA UPLOAD (Modern Riverpod v3 Pattern) ---
+  //
+  // Stores both the backend UUID (wire payload) AND the local file path
+  // (in-wizard preview thumbnail). The local path lets the user see
+  // what they captured and decide whether to retake.
+  //
+  // Concurrency: when applying the upload result we re-read
+  // ``state.value`` instead of relying on the ``currentData`` captured
+  // at function entry — that closes a race window where two concurrent
+  // uploads (e.g. profile then CNIC) would have their second result
+  // overwrite the first because the second closure's snapshot is older.
   Future<void> uploadDocument(XFile file, String type, {int? serviceId}) async {
-    final currentData = state.requireValue;
+    final token = ref.read(authenticatedUserProvider)?.token;
+    if (token == null) {
+      throw const OnboardingUnauthorized(
+        "Session expired. Please log in again.",
+      );
+    }
 
-    // AsyncValue.guard automatically preserves currentData during loading!
     state = await AsyncValue.guard(() async {
-      final token = ref.read(authenticatedUserProvider)?.token;
-
-      if (token == null) {
-        throw const OnboardingUnauthorized(
-          "Session expired. Please log in again.",
-        );
-      }
-
       final uuid = await ref
           .read(uploadMediaUseCaseProvider)
           .execute(file, token);
 
+      // Re-read state HERE — a concurrent upload may have shipped a
+      // newer state between the function's entry and this point.
+      final latest = state.value ?? state.requireValue;
+
       if (type == 'license' && serviceId != null) {
-        final updatedLicenses = currentData.categoryLicenses
+        final updatedLicenses = latest.categoryLicenses
             .where((l) => l.serviceId != serviceId)
             .toList();
         updatedLicenses.add(
           CategoryLicenseEntity(serviceId: serviceId, mediaUuid: uuid),
         );
-
-        return currentData.copyWith(categoryLicenses: updatedLicenses);
+        final updatedPaths = Map<int, String>.from(latest.categoryLicensePaths)
+          ..[serviceId] = file.path;
+        return latest.copyWith(
+          categoryLicenses: updatedLicenses,
+          categoryLicensePaths: updatedPaths,
+        );
       }
 
-      return currentData.copyWith(
-        profilePictureUuid: type == 'profile'
-            ? uuid
-            : currentData.profilePictureUuid,
-        cnicPictureUuid: type == 'cnic' ? uuid : currentData.cnicPictureUuid,
+      return latest.copyWith(
+        profilePictureUuid:
+            type == 'profile' ? uuid : latest.profilePictureUuid,
+        profilePicturePath:
+            type == 'profile' ? file.path : latest.profilePicturePath,
+        cnicPictureUuid: type == 'cnic' ? uuid : latest.cnicPictureUuid,
+        cnicPicturePath:
+            type == 'cnic' ? file.path : latest.cnicPicturePath,
       );
     });
   }
 
-  // --- STEP 2: SKILL MANAGEMENT ---
+  // --- TRADE SELECTION ---
   void toggleSkill(int subServiceId) {
     final current = state.requireValue;
     final skills = List<SkillSelectionEntity>.from(current.selectedSkills);
@@ -124,43 +154,9 @@ class OnboardingNotifier extends _$OnboardingNotifier {
     if (index != -1) {
       skills.removeAt(index);
     } else {
-      skills.add(
-        SkillSelectionEntity(subServiceId: subServiceId, yearsOfExperience: 0),
-      );
+      skills.add(SkillSelectionEntity(subServiceId: subServiceId));
     }
     state = AsyncData(current.copyWith(selectedSkills: skills));
-  }
-
-  void updateSkillExperience(int subServiceId, int years) {
-    final current = state.requireValue;
-    final updated = current.selectedSkills
-        .map(
-          (s) => s.subServiceId == subServiceId
-              ? SkillSelectionEntity(
-                  subServiceId: s.subServiceId,
-                  yearsOfExperience: years,
-                  laborRate: s.laborRate,
-                )
-              : s,
-        )
-        .toList();
-    state = AsyncData(current.copyWith(selectedSkills: updated));
-  }
-
-  void updateSkillRate(int subServiceId, {String? laborRate}) {
-    final current = state.requireValue;
-    final updated = current.selectedSkills
-        .map(
-          (s) => s.subServiceId == subServiceId
-              ? SkillSelectionEntity(
-                  subServiceId: s.subServiceId,
-                  yearsOfExperience: s.yearsOfExperience,
-                  laborRate: laborRate ?? s.laborRate,
-                )
-              : s,
-        )
-        .toList();
-    state = AsyncData(current.copyWith(selectedSkills: updated));
   }
 
   // --- NAVIGATION ---
@@ -211,10 +207,12 @@ class OnboardingNotifier extends _$OnboardingNotifier {
             city: s.city,
             cnicNumber: s.cnicNumber,
             cnicPictureUuid: s.cnicPictureUuid!,
-            bio: s.bio,
-            experienceYears: s.experienceYears,
             categoryLicenses: s.categoryLicenses,
             skills: s.selectedSkills,
+            baseLatitude: s.baseLatitude,
+            baseLongitude: s.baseLongitude,
+            maxTravelRadiusKm: s.maxTravelRadiusKm,
+            workAddressLabel: s.workAddressLabel.isEmpty ? null : s.workAddressLabel,
           );
 
       // 3. THE RIVERPOD 3 FIX: Explicit Domain Mutation

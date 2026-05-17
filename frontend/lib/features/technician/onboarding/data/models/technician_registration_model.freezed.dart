@@ -15,7 +15,10 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$TechnicianRegistrationModel {
 
-@JsonKey(name: 'first_name') String get firstName;@JsonKey(name: 'last_name') String get lastName; String get city;@JsonKey(name: 'cnic_number') String get cnicNumber;@JsonKey(name: 'experience_years') int get experienceYears; String get bio;@JsonKey(name: 'profile_picture_uuid') String get profilePictureUuid;@JsonKey(name: 'cnic_picture_uuid') String get cnicPictureUuid;@JsonKey(name: 'category_licenses') List<CategoryLicenseInputModel> get categoryLicenses; List<SkillInputModel> get skills;
+@JsonKey(name: 'first_name') String get firstName;@JsonKey(name: 'last_name') String get lastName; String get city;@JsonKey(name: 'cnic_number') String get cnicNumber;@JsonKey(name: 'profile_picture_uuid') String get profilePictureUuid;@JsonKey(name: 'cnic_picture_uuid') String get cnicPictureUuid;@JsonKey(name: 'category_licenses') List<CategoryLicenseInputModel> get categoryLicenses; List<SkillInputModel> get skills;// Work-location captured in the final wizard step. Optional on the
+// wire — older clients that don't yet send these fall back to the
+// dashboard banner for capture.
+@JsonKey(name: 'base_latitude') double? get baseLatitude;@JsonKey(name: 'base_longitude') double? get baseLongitude;@JsonKey(name: 'max_travel_radius_km') int? get maxTravelRadiusKm;@JsonKey(name: 'work_address_label') String? get workAddressLabel;
 /// Create a copy of TechnicianRegistrationModel
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -28,16 +31,16 @@ $TechnicianRegistrationModelCopyWith<TechnicianRegistrationModel> get copyWith =
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is TechnicianRegistrationModel&&(identical(other.firstName, firstName) || other.firstName == firstName)&&(identical(other.lastName, lastName) || other.lastName == lastName)&&(identical(other.city, city) || other.city == city)&&(identical(other.cnicNumber, cnicNumber) || other.cnicNumber == cnicNumber)&&(identical(other.experienceYears, experienceYears) || other.experienceYears == experienceYears)&&(identical(other.bio, bio) || other.bio == bio)&&(identical(other.profilePictureUuid, profilePictureUuid) || other.profilePictureUuid == profilePictureUuid)&&(identical(other.cnicPictureUuid, cnicPictureUuid) || other.cnicPictureUuid == cnicPictureUuid)&&const DeepCollectionEquality().equals(other.categoryLicenses, categoryLicenses)&&const DeepCollectionEquality().equals(other.skills, skills));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is TechnicianRegistrationModel&&(identical(other.firstName, firstName) || other.firstName == firstName)&&(identical(other.lastName, lastName) || other.lastName == lastName)&&(identical(other.city, city) || other.city == city)&&(identical(other.cnicNumber, cnicNumber) || other.cnicNumber == cnicNumber)&&(identical(other.profilePictureUuid, profilePictureUuid) || other.profilePictureUuid == profilePictureUuid)&&(identical(other.cnicPictureUuid, cnicPictureUuid) || other.cnicPictureUuid == cnicPictureUuid)&&const DeepCollectionEquality().equals(other.categoryLicenses, categoryLicenses)&&const DeepCollectionEquality().equals(other.skills, skills)&&(identical(other.baseLatitude, baseLatitude) || other.baseLatitude == baseLatitude)&&(identical(other.baseLongitude, baseLongitude) || other.baseLongitude == baseLongitude)&&(identical(other.maxTravelRadiusKm, maxTravelRadiusKm) || other.maxTravelRadiusKm == maxTravelRadiusKm)&&(identical(other.workAddressLabel, workAddressLabel) || other.workAddressLabel == workAddressLabel));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,firstName,lastName,city,cnicNumber,experienceYears,bio,profilePictureUuid,cnicPictureUuid,const DeepCollectionEquality().hash(categoryLicenses),const DeepCollectionEquality().hash(skills));
+int get hashCode => Object.hash(runtimeType,firstName,lastName,city,cnicNumber,profilePictureUuid,cnicPictureUuid,const DeepCollectionEquality().hash(categoryLicenses),const DeepCollectionEquality().hash(skills),baseLatitude,baseLongitude,maxTravelRadiusKm,workAddressLabel);
 
 @override
 String toString() {
-  return 'TechnicianRegistrationModel(firstName: $firstName, lastName: $lastName, city: $city, cnicNumber: $cnicNumber, experienceYears: $experienceYears, bio: $bio, profilePictureUuid: $profilePictureUuid, cnicPictureUuid: $cnicPictureUuid, categoryLicenses: $categoryLicenses, skills: $skills)';
+  return 'TechnicianRegistrationModel(firstName: $firstName, lastName: $lastName, city: $city, cnicNumber: $cnicNumber, profilePictureUuid: $profilePictureUuid, cnicPictureUuid: $cnicPictureUuid, categoryLicenses: $categoryLicenses, skills: $skills, baseLatitude: $baseLatitude, baseLongitude: $baseLongitude, maxTravelRadiusKm: $maxTravelRadiusKm, workAddressLabel: $workAddressLabel)';
 }
 
 
@@ -48,7 +51,7 @@ abstract mixin class $TechnicianRegistrationModelCopyWith<$Res>  {
   factory $TechnicianRegistrationModelCopyWith(TechnicianRegistrationModel value, $Res Function(TechnicianRegistrationModel) _then) = _$TechnicianRegistrationModelCopyWithImpl;
 @useResult
 $Res call({
-@JsonKey(name: 'first_name') String firstName,@JsonKey(name: 'last_name') String lastName, String city,@JsonKey(name: 'cnic_number') String cnicNumber,@JsonKey(name: 'experience_years') int experienceYears, String bio,@JsonKey(name: 'profile_picture_uuid') String profilePictureUuid,@JsonKey(name: 'cnic_picture_uuid') String cnicPictureUuid,@JsonKey(name: 'category_licenses') List<CategoryLicenseInputModel> categoryLicenses, List<SkillInputModel> skills
+@JsonKey(name: 'first_name') String firstName,@JsonKey(name: 'last_name') String lastName, String city,@JsonKey(name: 'cnic_number') String cnicNumber,@JsonKey(name: 'profile_picture_uuid') String profilePictureUuid,@JsonKey(name: 'cnic_picture_uuid') String cnicPictureUuid,@JsonKey(name: 'category_licenses') List<CategoryLicenseInputModel> categoryLicenses, List<SkillInputModel> skills,@JsonKey(name: 'base_latitude') double? baseLatitude,@JsonKey(name: 'base_longitude') double? baseLongitude,@JsonKey(name: 'max_travel_radius_km') int? maxTravelRadiusKm,@JsonKey(name: 'work_address_label') String? workAddressLabel
 });
 
 
@@ -65,19 +68,21 @@ class _$TechnicianRegistrationModelCopyWithImpl<$Res>
 
 /// Create a copy of TechnicianRegistrationModel
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? firstName = null,Object? lastName = null,Object? city = null,Object? cnicNumber = null,Object? experienceYears = null,Object? bio = null,Object? profilePictureUuid = null,Object? cnicPictureUuid = null,Object? categoryLicenses = null,Object? skills = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? firstName = null,Object? lastName = null,Object? city = null,Object? cnicNumber = null,Object? profilePictureUuid = null,Object? cnicPictureUuid = null,Object? categoryLicenses = null,Object? skills = null,Object? baseLatitude = freezed,Object? baseLongitude = freezed,Object? maxTravelRadiusKm = freezed,Object? workAddressLabel = freezed,}) {
   return _then(_self.copyWith(
 firstName: null == firstName ? _self.firstName : firstName // ignore: cast_nullable_to_non_nullable
 as String,lastName: null == lastName ? _self.lastName : lastName // ignore: cast_nullable_to_non_nullable
 as String,city: null == city ? _self.city : city // ignore: cast_nullable_to_non_nullable
 as String,cnicNumber: null == cnicNumber ? _self.cnicNumber : cnicNumber // ignore: cast_nullable_to_non_nullable
-as String,experienceYears: null == experienceYears ? _self.experienceYears : experienceYears // ignore: cast_nullable_to_non_nullable
-as int,bio: null == bio ? _self.bio : bio // ignore: cast_nullable_to_non_nullable
 as String,profilePictureUuid: null == profilePictureUuid ? _self.profilePictureUuid : profilePictureUuid // ignore: cast_nullable_to_non_nullable
 as String,cnicPictureUuid: null == cnicPictureUuid ? _self.cnicPictureUuid : cnicPictureUuid // ignore: cast_nullable_to_non_nullable
 as String,categoryLicenses: null == categoryLicenses ? _self.categoryLicenses : categoryLicenses // ignore: cast_nullable_to_non_nullable
 as List<CategoryLicenseInputModel>,skills: null == skills ? _self.skills : skills // ignore: cast_nullable_to_non_nullable
-as List<SkillInputModel>,
+as List<SkillInputModel>,baseLatitude: freezed == baseLatitude ? _self.baseLatitude : baseLatitude // ignore: cast_nullable_to_non_nullable
+as double?,baseLongitude: freezed == baseLongitude ? _self.baseLongitude : baseLongitude // ignore: cast_nullable_to_non_nullable
+as double?,maxTravelRadiusKm: freezed == maxTravelRadiusKm ? _self.maxTravelRadiusKm : maxTravelRadiusKm // ignore: cast_nullable_to_non_nullable
+as int?,workAddressLabel: freezed == workAddressLabel ? _self.workAddressLabel : workAddressLabel // ignore: cast_nullable_to_non_nullable
+as String?,
   ));
 }
 
@@ -162,10 +167,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(name: 'first_name')  String firstName, @JsonKey(name: 'last_name')  String lastName,  String city, @JsonKey(name: 'cnic_number')  String cnicNumber, @JsonKey(name: 'experience_years')  int experienceYears,  String bio, @JsonKey(name: 'profile_picture_uuid')  String profilePictureUuid, @JsonKey(name: 'cnic_picture_uuid')  String cnicPictureUuid, @JsonKey(name: 'category_licenses')  List<CategoryLicenseInputModel> categoryLicenses,  List<SkillInputModel> skills)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(name: 'first_name')  String firstName, @JsonKey(name: 'last_name')  String lastName,  String city, @JsonKey(name: 'cnic_number')  String cnicNumber, @JsonKey(name: 'profile_picture_uuid')  String profilePictureUuid, @JsonKey(name: 'cnic_picture_uuid')  String cnicPictureUuid, @JsonKey(name: 'category_licenses')  List<CategoryLicenseInputModel> categoryLicenses,  List<SkillInputModel> skills, @JsonKey(name: 'base_latitude')  double? baseLatitude, @JsonKey(name: 'base_longitude')  double? baseLongitude, @JsonKey(name: 'max_travel_radius_km')  int? maxTravelRadiusKm, @JsonKey(name: 'work_address_label')  String? workAddressLabel)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _TechnicianRegistrationModel() when $default != null:
-return $default(_that.firstName,_that.lastName,_that.city,_that.cnicNumber,_that.experienceYears,_that.bio,_that.profilePictureUuid,_that.cnicPictureUuid,_that.categoryLicenses,_that.skills);case _:
+return $default(_that.firstName,_that.lastName,_that.city,_that.cnicNumber,_that.profilePictureUuid,_that.cnicPictureUuid,_that.categoryLicenses,_that.skills,_that.baseLatitude,_that.baseLongitude,_that.maxTravelRadiusKm,_that.workAddressLabel);case _:
   return orElse();
 
 }
@@ -183,10 +188,10 @@ return $default(_that.firstName,_that.lastName,_that.city,_that.cnicNumber,_that
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(name: 'first_name')  String firstName, @JsonKey(name: 'last_name')  String lastName,  String city, @JsonKey(name: 'cnic_number')  String cnicNumber, @JsonKey(name: 'experience_years')  int experienceYears,  String bio, @JsonKey(name: 'profile_picture_uuid')  String profilePictureUuid, @JsonKey(name: 'cnic_picture_uuid')  String cnicPictureUuid, @JsonKey(name: 'category_licenses')  List<CategoryLicenseInputModel> categoryLicenses,  List<SkillInputModel> skills)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(name: 'first_name')  String firstName, @JsonKey(name: 'last_name')  String lastName,  String city, @JsonKey(name: 'cnic_number')  String cnicNumber, @JsonKey(name: 'profile_picture_uuid')  String profilePictureUuid, @JsonKey(name: 'cnic_picture_uuid')  String cnicPictureUuid, @JsonKey(name: 'category_licenses')  List<CategoryLicenseInputModel> categoryLicenses,  List<SkillInputModel> skills, @JsonKey(name: 'base_latitude')  double? baseLatitude, @JsonKey(name: 'base_longitude')  double? baseLongitude, @JsonKey(name: 'max_travel_radius_km')  int? maxTravelRadiusKm, @JsonKey(name: 'work_address_label')  String? workAddressLabel)  $default,) {final _that = this;
 switch (_that) {
 case _TechnicianRegistrationModel():
-return $default(_that.firstName,_that.lastName,_that.city,_that.cnicNumber,_that.experienceYears,_that.bio,_that.profilePictureUuid,_that.cnicPictureUuid,_that.categoryLicenses,_that.skills);case _:
+return $default(_that.firstName,_that.lastName,_that.city,_that.cnicNumber,_that.profilePictureUuid,_that.cnicPictureUuid,_that.categoryLicenses,_that.skills,_that.baseLatitude,_that.baseLongitude,_that.maxTravelRadiusKm,_that.workAddressLabel);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -203,10 +208,10 @@ return $default(_that.firstName,_that.lastName,_that.city,_that.cnicNumber,_that
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(name: 'first_name')  String firstName, @JsonKey(name: 'last_name')  String lastName,  String city, @JsonKey(name: 'cnic_number')  String cnicNumber, @JsonKey(name: 'experience_years')  int experienceYears,  String bio, @JsonKey(name: 'profile_picture_uuid')  String profilePictureUuid, @JsonKey(name: 'cnic_picture_uuid')  String cnicPictureUuid, @JsonKey(name: 'category_licenses')  List<CategoryLicenseInputModel> categoryLicenses,  List<SkillInputModel> skills)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(name: 'first_name')  String firstName, @JsonKey(name: 'last_name')  String lastName,  String city, @JsonKey(name: 'cnic_number')  String cnicNumber, @JsonKey(name: 'profile_picture_uuid')  String profilePictureUuid, @JsonKey(name: 'cnic_picture_uuid')  String cnicPictureUuid, @JsonKey(name: 'category_licenses')  List<CategoryLicenseInputModel> categoryLicenses,  List<SkillInputModel> skills, @JsonKey(name: 'base_latitude')  double? baseLatitude, @JsonKey(name: 'base_longitude')  double? baseLongitude, @JsonKey(name: 'max_travel_radius_km')  int? maxTravelRadiusKm, @JsonKey(name: 'work_address_label')  String? workAddressLabel)?  $default,) {final _that = this;
 switch (_that) {
 case _TechnicianRegistrationModel() when $default != null:
-return $default(_that.firstName,_that.lastName,_that.city,_that.cnicNumber,_that.experienceYears,_that.bio,_that.profilePictureUuid,_that.cnicPictureUuid,_that.categoryLicenses,_that.skills);case _:
+return $default(_that.firstName,_that.lastName,_that.city,_that.cnicNumber,_that.profilePictureUuid,_that.cnicPictureUuid,_that.categoryLicenses,_that.skills,_that.baseLatitude,_that.baseLongitude,_that.maxTravelRadiusKm,_that.workAddressLabel);case _:
   return null;
 
 }
@@ -218,15 +223,13 @@ return $default(_that.firstName,_that.lastName,_that.city,_that.cnicNumber,_that
 @JsonSerializable()
 
 class _TechnicianRegistrationModel implements TechnicianRegistrationModel {
-  const _TechnicianRegistrationModel({@JsonKey(name: 'first_name') required this.firstName, @JsonKey(name: 'last_name') required this.lastName, required this.city, @JsonKey(name: 'cnic_number') required this.cnicNumber, @JsonKey(name: 'experience_years') required this.experienceYears, required this.bio, @JsonKey(name: 'profile_picture_uuid') required this.profilePictureUuid, @JsonKey(name: 'cnic_picture_uuid') required this.cnicPictureUuid, @JsonKey(name: 'category_licenses') required final  List<CategoryLicenseInputModel> categoryLicenses, required final  List<SkillInputModel> skills}): _categoryLicenses = categoryLicenses,_skills = skills;
+  const _TechnicianRegistrationModel({@JsonKey(name: 'first_name') required this.firstName, @JsonKey(name: 'last_name') required this.lastName, required this.city, @JsonKey(name: 'cnic_number') required this.cnicNumber, @JsonKey(name: 'profile_picture_uuid') required this.profilePictureUuid, @JsonKey(name: 'cnic_picture_uuid') required this.cnicPictureUuid, @JsonKey(name: 'category_licenses') required final  List<CategoryLicenseInputModel> categoryLicenses, required final  List<SkillInputModel> skills, @JsonKey(name: 'base_latitude') this.baseLatitude, @JsonKey(name: 'base_longitude') this.baseLongitude, @JsonKey(name: 'max_travel_radius_km') this.maxTravelRadiusKm, @JsonKey(name: 'work_address_label') this.workAddressLabel}): _categoryLicenses = categoryLicenses,_skills = skills;
   factory _TechnicianRegistrationModel.fromJson(Map<String, dynamic> json) => _$TechnicianRegistrationModelFromJson(json);
 
 @override@JsonKey(name: 'first_name') final  String firstName;
 @override@JsonKey(name: 'last_name') final  String lastName;
 @override final  String city;
 @override@JsonKey(name: 'cnic_number') final  String cnicNumber;
-@override@JsonKey(name: 'experience_years') final  int experienceYears;
-@override final  String bio;
 @override@JsonKey(name: 'profile_picture_uuid') final  String profilePictureUuid;
 @override@JsonKey(name: 'cnic_picture_uuid') final  String cnicPictureUuid;
  final  List<CategoryLicenseInputModel> _categoryLicenses;
@@ -243,6 +246,13 @@ class _TechnicianRegistrationModel implements TechnicianRegistrationModel {
   return EqualUnmodifiableListView(_skills);
 }
 
+// Work-location captured in the final wizard step. Optional on the
+// wire — older clients that don't yet send these fall back to the
+// dashboard banner for capture.
+@override@JsonKey(name: 'base_latitude') final  double? baseLatitude;
+@override@JsonKey(name: 'base_longitude') final  double? baseLongitude;
+@override@JsonKey(name: 'max_travel_radius_km') final  int? maxTravelRadiusKm;
+@override@JsonKey(name: 'work_address_label') final  String? workAddressLabel;
 
 /// Create a copy of TechnicianRegistrationModel
 /// with the given fields replaced by the non-null parameter values.
@@ -257,16 +267,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TechnicianRegistrationModel&&(identical(other.firstName, firstName) || other.firstName == firstName)&&(identical(other.lastName, lastName) || other.lastName == lastName)&&(identical(other.city, city) || other.city == city)&&(identical(other.cnicNumber, cnicNumber) || other.cnicNumber == cnicNumber)&&(identical(other.experienceYears, experienceYears) || other.experienceYears == experienceYears)&&(identical(other.bio, bio) || other.bio == bio)&&(identical(other.profilePictureUuid, profilePictureUuid) || other.profilePictureUuid == profilePictureUuid)&&(identical(other.cnicPictureUuid, cnicPictureUuid) || other.cnicPictureUuid == cnicPictureUuid)&&const DeepCollectionEquality().equals(other._categoryLicenses, _categoryLicenses)&&const DeepCollectionEquality().equals(other._skills, _skills));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TechnicianRegistrationModel&&(identical(other.firstName, firstName) || other.firstName == firstName)&&(identical(other.lastName, lastName) || other.lastName == lastName)&&(identical(other.city, city) || other.city == city)&&(identical(other.cnicNumber, cnicNumber) || other.cnicNumber == cnicNumber)&&(identical(other.profilePictureUuid, profilePictureUuid) || other.profilePictureUuid == profilePictureUuid)&&(identical(other.cnicPictureUuid, cnicPictureUuid) || other.cnicPictureUuid == cnicPictureUuid)&&const DeepCollectionEquality().equals(other._categoryLicenses, _categoryLicenses)&&const DeepCollectionEquality().equals(other._skills, _skills)&&(identical(other.baseLatitude, baseLatitude) || other.baseLatitude == baseLatitude)&&(identical(other.baseLongitude, baseLongitude) || other.baseLongitude == baseLongitude)&&(identical(other.maxTravelRadiusKm, maxTravelRadiusKm) || other.maxTravelRadiusKm == maxTravelRadiusKm)&&(identical(other.workAddressLabel, workAddressLabel) || other.workAddressLabel == workAddressLabel));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,firstName,lastName,city,cnicNumber,experienceYears,bio,profilePictureUuid,cnicPictureUuid,const DeepCollectionEquality().hash(_categoryLicenses),const DeepCollectionEquality().hash(_skills));
+int get hashCode => Object.hash(runtimeType,firstName,lastName,city,cnicNumber,profilePictureUuid,cnicPictureUuid,const DeepCollectionEquality().hash(_categoryLicenses),const DeepCollectionEquality().hash(_skills),baseLatitude,baseLongitude,maxTravelRadiusKm,workAddressLabel);
 
 @override
 String toString() {
-  return 'TechnicianRegistrationModel(firstName: $firstName, lastName: $lastName, city: $city, cnicNumber: $cnicNumber, experienceYears: $experienceYears, bio: $bio, profilePictureUuid: $profilePictureUuid, cnicPictureUuid: $cnicPictureUuid, categoryLicenses: $categoryLicenses, skills: $skills)';
+  return 'TechnicianRegistrationModel(firstName: $firstName, lastName: $lastName, city: $city, cnicNumber: $cnicNumber, profilePictureUuid: $profilePictureUuid, cnicPictureUuid: $cnicPictureUuid, categoryLicenses: $categoryLicenses, skills: $skills, baseLatitude: $baseLatitude, baseLongitude: $baseLongitude, maxTravelRadiusKm: $maxTravelRadiusKm, workAddressLabel: $workAddressLabel)';
 }
 
 
@@ -277,7 +287,7 @@ abstract mixin class _$TechnicianRegistrationModelCopyWith<$Res> implements $Tec
   factory _$TechnicianRegistrationModelCopyWith(_TechnicianRegistrationModel value, $Res Function(_TechnicianRegistrationModel) _then) = __$TechnicianRegistrationModelCopyWithImpl;
 @override @useResult
 $Res call({
-@JsonKey(name: 'first_name') String firstName,@JsonKey(name: 'last_name') String lastName, String city,@JsonKey(name: 'cnic_number') String cnicNumber,@JsonKey(name: 'experience_years') int experienceYears, String bio,@JsonKey(name: 'profile_picture_uuid') String profilePictureUuid,@JsonKey(name: 'cnic_picture_uuid') String cnicPictureUuid,@JsonKey(name: 'category_licenses') List<CategoryLicenseInputModel> categoryLicenses, List<SkillInputModel> skills
+@JsonKey(name: 'first_name') String firstName,@JsonKey(name: 'last_name') String lastName, String city,@JsonKey(name: 'cnic_number') String cnicNumber,@JsonKey(name: 'profile_picture_uuid') String profilePictureUuid,@JsonKey(name: 'cnic_picture_uuid') String cnicPictureUuid,@JsonKey(name: 'category_licenses') List<CategoryLicenseInputModel> categoryLicenses, List<SkillInputModel> skills,@JsonKey(name: 'base_latitude') double? baseLatitude,@JsonKey(name: 'base_longitude') double? baseLongitude,@JsonKey(name: 'max_travel_radius_km') int? maxTravelRadiusKm,@JsonKey(name: 'work_address_label') String? workAddressLabel
 });
 
 
@@ -294,19 +304,21 @@ class __$TechnicianRegistrationModelCopyWithImpl<$Res>
 
 /// Create a copy of TechnicianRegistrationModel
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? firstName = null,Object? lastName = null,Object? city = null,Object? cnicNumber = null,Object? experienceYears = null,Object? bio = null,Object? profilePictureUuid = null,Object? cnicPictureUuid = null,Object? categoryLicenses = null,Object? skills = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? firstName = null,Object? lastName = null,Object? city = null,Object? cnicNumber = null,Object? profilePictureUuid = null,Object? cnicPictureUuid = null,Object? categoryLicenses = null,Object? skills = null,Object? baseLatitude = freezed,Object? baseLongitude = freezed,Object? maxTravelRadiusKm = freezed,Object? workAddressLabel = freezed,}) {
   return _then(_TechnicianRegistrationModel(
 firstName: null == firstName ? _self.firstName : firstName // ignore: cast_nullable_to_non_nullable
 as String,lastName: null == lastName ? _self.lastName : lastName // ignore: cast_nullable_to_non_nullable
 as String,city: null == city ? _self.city : city // ignore: cast_nullable_to_non_nullable
 as String,cnicNumber: null == cnicNumber ? _self.cnicNumber : cnicNumber // ignore: cast_nullable_to_non_nullable
-as String,experienceYears: null == experienceYears ? _self.experienceYears : experienceYears // ignore: cast_nullable_to_non_nullable
-as int,bio: null == bio ? _self.bio : bio // ignore: cast_nullable_to_non_nullable
 as String,profilePictureUuid: null == profilePictureUuid ? _self.profilePictureUuid : profilePictureUuid // ignore: cast_nullable_to_non_nullable
 as String,cnicPictureUuid: null == cnicPictureUuid ? _self.cnicPictureUuid : cnicPictureUuid // ignore: cast_nullable_to_non_nullable
 as String,categoryLicenses: null == categoryLicenses ? _self._categoryLicenses : categoryLicenses // ignore: cast_nullable_to_non_nullable
 as List<CategoryLicenseInputModel>,skills: null == skills ? _self._skills : skills // ignore: cast_nullable_to_non_nullable
-as List<SkillInputModel>,
+as List<SkillInputModel>,baseLatitude: freezed == baseLatitude ? _self.baseLatitude : baseLatitude // ignore: cast_nullable_to_non_nullable
+as double?,baseLongitude: freezed == baseLongitude ? _self.baseLongitude : baseLongitude // ignore: cast_nullable_to_non_nullable
+as double?,maxTravelRadiusKm: freezed == maxTravelRadiusKm ? _self.maxTravelRadiusKm : maxTravelRadiusKm // ignore: cast_nullable_to_non_nullable
+as int?,workAddressLabel: freezed == workAddressLabel ? _self.workAddressLabel : workAddressLabel // ignore: cast_nullable_to_non_nullable
+as String?,
   ));
 }
 
@@ -583,7 +595,7 @@ as String,
 /// @nodoc
 mixin _$SkillInputModel {
 
-@JsonKey(name: 'sub_service_id') int get subServiceId;@JsonKey(name: 'years_of_experience') int get yearsOfExperience;@JsonKey(name: 'labor_rate') String? get laborRate;
+@JsonKey(name: 'sub_service_id') int get subServiceId;
 /// Create a copy of SkillInputModel
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -596,16 +608,16 @@ $SkillInputModelCopyWith<SkillInputModel> get copyWith => _$SkillInputModelCopyW
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is SkillInputModel&&(identical(other.subServiceId, subServiceId) || other.subServiceId == subServiceId)&&(identical(other.yearsOfExperience, yearsOfExperience) || other.yearsOfExperience == yearsOfExperience)&&(identical(other.laborRate, laborRate) || other.laborRate == laborRate));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is SkillInputModel&&(identical(other.subServiceId, subServiceId) || other.subServiceId == subServiceId));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,subServiceId,yearsOfExperience,laborRate);
+int get hashCode => Object.hash(runtimeType,subServiceId);
 
 @override
 String toString() {
-  return 'SkillInputModel(subServiceId: $subServiceId, yearsOfExperience: $yearsOfExperience, laborRate: $laborRate)';
+  return 'SkillInputModel(subServiceId: $subServiceId)';
 }
 
 
@@ -616,7 +628,7 @@ abstract mixin class $SkillInputModelCopyWith<$Res>  {
   factory $SkillInputModelCopyWith(SkillInputModel value, $Res Function(SkillInputModel) _then) = _$SkillInputModelCopyWithImpl;
 @useResult
 $Res call({
-@JsonKey(name: 'sub_service_id') int subServiceId,@JsonKey(name: 'years_of_experience') int yearsOfExperience,@JsonKey(name: 'labor_rate') String? laborRate
+@JsonKey(name: 'sub_service_id') int subServiceId
 });
 
 
@@ -633,12 +645,10 @@ class _$SkillInputModelCopyWithImpl<$Res>
 
 /// Create a copy of SkillInputModel
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? subServiceId = null,Object? yearsOfExperience = null,Object? laborRate = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? subServiceId = null,}) {
   return _then(_self.copyWith(
 subServiceId: null == subServiceId ? _self.subServiceId : subServiceId // ignore: cast_nullable_to_non_nullable
-as int,yearsOfExperience: null == yearsOfExperience ? _self.yearsOfExperience : yearsOfExperience // ignore: cast_nullable_to_non_nullable
-as int,laborRate: freezed == laborRate ? _self.laborRate : laborRate // ignore: cast_nullable_to_non_nullable
-as String?,
+as int,
   ));
 }
 
@@ -723,10 +733,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(name: 'sub_service_id')  int subServiceId, @JsonKey(name: 'years_of_experience')  int yearsOfExperience, @JsonKey(name: 'labor_rate')  String? laborRate)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(name: 'sub_service_id')  int subServiceId)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _SkillInputModel() when $default != null:
-return $default(_that.subServiceId,_that.yearsOfExperience,_that.laborRate);case _:
+return $default(_that.subServiceId);case _:
   return orElse();
 
 }
@@ -744,10 +754,10 @@ return $default(_that.subServiceId,_that.yearsOfExperience,_that.laborRate);case
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(name: 'sub_service_id')  int subServiceId, @JsonKey(name: 'years_of_experience')  int yearsOfExperience, @JsonKey(name: 'labor_rate')  String? laborRate)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(name: 'sub_service_id')  int subServiceId)  $default,) {final _that = this;
 switch (_that) {
 case _SkillInputModel():
-return $default(_that.subServiceId,_that.yearsOfExperience,_that.laborRate);case _:
+return $default(_that.subServiceId);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -764,10 +774,10 @@ return $default(_that.subServiceId,_that.yearsOfExperience,_that.laborRate);case
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(name: 'sub_service_id')  int subServiceId, @JsonKey(name: 'years_of_experience')  int yearsOfExperience, @JsonKey(name: 'labor_rate')  String? laborRate)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(name: 'sub_service_id')  int subServiceId)?  $default,) {final _that = this;
 switch (_that) {
 case _SkillInputModel() when $default != null:
-return $default(_that.subServiceId,_that.yearsOfExperience,_that.laborRate);case _:
+return $default(_that.subServiceId);case _:
   return null;
 
 }
@@ -779,12 +789,10 @@ return $default(_that.subServiceId,_that.yearsOfExperience,_that.laborRate);case
 @JsonSerializable()
 
 class _SkillInputModel implements SkillInputModel {
-  const _SkillInputModel({@JsonKey(name: 'sub_service_id') required this.subServiceId, @JsonKey(name: 'years_of_experience') required this.yearsOfExperience, @JsonKey(name: 'labor_rate') this.laborRate});
+  const _SkillInputModel({@JsonKey(name: 'sub_service_id') required this.subServiceId});
   factory _SkillInputModel.fromJson(Map<String, dynamic> json) => _$SkillInputModelFromJson(json);
 
 @override@JsonKey(name: 'sub_service_id') final  int subServiceId;
-@override@JsonKey(name: 'years_of_experience') final  int yearsOfExperience;
-@override@JsonKey(name: 'labor_rate') final  String? laborRate;
 
 /// Create a copy of SkillInputModel
 /// with the given fields replaced by the non-null parameter values.
@@ -799,16 +807,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _SkillInputModel&&(identical(other.subServiceId, subServiceId) || other.subServiceId == subServiceId)&&(identical(other.yearsOfExperience, yearsOfExperience) || other.yearsOfExperience == yearsOfExperience)&&(identical(other.laborRate, laborRate) || other.laborRate == laborRate));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _SkillInputModel&&(identical(other.subServiceId, subServiceId) || other.subServiceId == subServiceId));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,subServiceId,yearsOfExperience,laborRate);
+int get hashCode => Object.hash(runtimeType,subServiceId);
 
 @override
 String toString() {
-  return 'SkillInputModel(subServiceId: $subServiceId, yearsOfExperience: $yearsOfExperience, laborRate: $laborRate)';
+  return 'SkillInputModel(subServiceId: $subServiceId)';
 }
 
 
@@ -819,7 +827,7 @@ abstract mixin class _$SkillInputModelCopyWith<$Res> implements $SkillInputModel
   factory _$SkillInputModelCopyWith(_SkillInputModel value, $Res Function(_SkillInputModel) _then) = __$SkillInputModelCopyWithImpl;
 @override @useResult
 $Res call({
-@JsonKey(name: 'sub_service_id') int subServiceId,@JsonKey(name: 'years_of_experience') int yearsOfExperience,@JsonKey(name: 'labor_rate') String? laborRate
+@JsonKey(name: 'sub_service_id') int subServiceId
 });
 
 
@@ -836,12 +844,10 @@ class __$SkillInputModelCopyWithImpl<$Res>
 
 /// Create a copy of SkillInputModel
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? subServiceId = null,Object? yearsOfExperience = null,Object? laborRate = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? subServiceId = null,}) {
   return _then(_SkillInputModel(
 subServiceId: null == subServiceId ? _self.subServiceId : subServiceId // ignore: cast_nullable_to_non_nullable
-as int,yearsOfExperience: null == yearsOfExperience ? _self.yearsOfExperience : yearsOfExperience // ignore: cast_nullable_to_non_nullable
-as int,laborRate: freezed == laborRate ? _self.laborRate : laborRate // ignore: cast_nullable_to_non_nullable
-as String?,
+as int,
   ));
 }
 

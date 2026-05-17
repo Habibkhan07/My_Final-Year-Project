@@ -124,13 +124,11 @@ void main() {
           .updatePersonalInfo(
             firstName: 'NewFirst',
             city: 'LHR',
-            experienceYears: 10,
           );
 
       final finalState = container.read(onboardingProvider).requireValue;
       expect(finalState.firstName, 'NewFirst');
       expect(finalState.city, 'LHR');
-      expect(finalState.experienceYears, 10);
       verifyNever(
         () => listener.call(
           any(),
@@ -202,7 +200,6 @@ void main() {
               firstName: 'FinalFirst',
               lastName: 'FinalLast',
               cnic: '12345',
-              bio: 'Bio',
             );
 
         customContainer.read(onboardingProvider.notifier).state = AsyncData(
@@ -217,7 +214,6 @@ void main() {
           status: 'PENDING',
           fullName: 'FinalFirst FinalLast',
           joinedDate: '2023-01-01',
-          experienceYears: 0,
         );
 
         when(
@@ -229,10 +225,12 @@ void main() {
             city: any(named: 'city'),
             cnicNumber: any(named: 'cnicNumber'),
             cnicPictureUuid: any(named: 'cnicPictureUuid'),
-            bio: any(named: 'bio'),
-            experienceYears: any(named: 'experienceYears'),
             categoryLicenses: any(named: 'categoryLicenses'),
             skills: any(named: 'skills'),
+            baseLatitude: any(named: 'baseLatitude'),
+            baseLongitude: any(named: 'baseLongitude'),
+            maxTravelRadiusKm: any(named: 'maxTravelRadiusKm'),
+            workAddressLabel: any(named: 'workAddressLabel'),
           ),
         ).thenAnswer((_) async => tTechEntity);
 

@@ -17,6 +17,20 @@ class OtpScreen extends ConsumerStatefulWidget {
 class _OtpScreenState extends ConsumerState<OtpScreen> {
   final TextEditingController _otpController = TextEditingController();
 
+  // Belt + suspenders for the AuthNotifier's "user-not-null = no
+  // re-verify" invariant. Tracking this locally lets us skip the
+  // wasted network round-trip and avoids a tiny visible spinner
+  // flicker between the first verify completing and the redirect away
+  // from this screen. Reset on auth error so a re-entered OTP can fire.
+  bool _verifyFired = false;
+
+  void _submitOtp(String otp) {
+    if (_verifyFired) return;
+    if (otp.length != 6) return;
+    _verifyFired = true;
+    ref.read(authProvider.notifier).verifyOtp(widget.phoneNumber, otp);
+  }
+
   @override
   void dispose() {
     _otpController.dispose();
@@ -31,6 +45,9 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
     ref.listen<AsyncValue<AuthState>>(authProvider, (previous, next) {
       next.whenOrNull(
         error: (error, _) {
+          // Re-arm so the user can submit again after correcting the OTP.
+          _verifyFired = false;
+
           String msg = error.toString();
 
           if (error is AuthFailure) {
@@ -143,6 +160,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                 keyboardType: TextInputType.number,
                 textAlign: TextAlign.center,
                 maxLength: 6,
+                enabled: !authAsync.isLoading && !_verifyFired,
                 style: const TextStyle(
                   fontSize: 28,
                   letterSpacing: 16,
@@ -171,12 +189,14 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                   ),
                 ),
                 onChanged: (val) {
-                  // Auto-submit when all 6 digits are entered
-                  if (val.length == 6) {
-                    ref
-                        .read(authProvider.notifier)
-                        .verifyOtp(widget.phoneNumber, val);
+                  if (val.length < 6) {
+                    // User edited back below 6 digits — re-arm so the
+                    // next completion can submit again.
+                    _verifyFired = false;
+                    return;
                   }
+                  // Auto-submit when all 6 digits are entered.
+                  _submitOtp(val);
                 },
               ),
               const SizedBox(height: 40),
@@ -185,7 +205,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
               SizedBox(
                 width: double.infinity,
                 height: 60,
-                child: authAsync.isLoading
+                child: (authAsync.isLoading || _verifyFired)
                     ? const Center(
                         child: CircularProgressIndicator(strokeWidth: 3),
                       )
@@ -198,14 +218,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                             borderRadius: BorderRadius.circular(16),
                           ),
                         ),
-                        onPressed: () {
-                          ref
-                              .read(authProvider.notifier)
-                              .verifyOtp(
-                                widget.phoneNumber,
-                                _otpController.text,
-                              );
-                        },
+                        onPressed: () => _submitOtp(_otpController.text),
                         child: const Text(
                           "Verify & Continue",
                           style: TextStyle(

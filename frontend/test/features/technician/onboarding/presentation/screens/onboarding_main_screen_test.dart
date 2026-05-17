@@ -13,7 +13,7 @@ class MockGetOnboardingMetadataUseCase extends Mock
     implements GetOnboardingMetadataUseCase {}
 
 void main() {
-  group('OnboardingMainScreen (Orchestrator) Tests', () {
+  group('OnboardingMainScreen', () {
     late MockGetOnboardingMetadataUseCase mockMetadataUseCase;
 
     setUp(() {
@@ -21,11 +21,10 @@ void main() {
       when(() => mockMetadataUseCase.execute()).thenAnswer((_) async => []);
     });
 
-    testWidgets('should render Next button on Step 0', (
+    Future<ProviderContainer> seed(
       WidgetTester tester,
+      OnboardingState state,
     ) async {
-      final state = OnboardingState(currentStep: 0);
-
       final container = ProviderContainer(
         overrides: [
           getOnboardingMetadataUseCaseProvider.overrideWithValue(
@@ -33,10 +32,8 @@ void main() {
           ),
         ],
       );
-
       await container.read(onboardingProvider.future);
       container.read(onboardingProvider.notifier).state = AsyncData(state);
-
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
@@ -45,49 +42,45 @@ void main() {
           ),
         ),
       );
-
       await tester.pumpAndSettle();
+      return container;
+    }
 
-      // Visual Contract: Navigation bounds
-      expect(find.text('Next'), findsOneWidget);
-      expect(find.text('Submit Application'), findsNothing);
+    testWidgets('renders Continue button on Step 0', (tester) async {
+      final container = await seed(
+        tester,
+        const OnboardingState(currentStep: 0),
+      );
+
+      expect(find.text('Continue'), findsOneWidget);
+      expect(find.text('Submit application'), findsNothing);
 
       container.dispose();
     });
 
-    testWidgets(
-      'should render Submit Application button on final step (Step 5)',
-      (WidgetTester tester) async {
-        final state = OnboardingState(currentStep: 5);
+    testWidgets('renders Submit Application button on final step (Step 4)', (
+      tester,
+    ) async {
+      final container = await seed(
+        tester,
+        const OnboardingState(currentStep: 4),
+      );
 
-        final container = ProviderContainer(
-          overrides: [
-            getOnboardingMetadataUseCaseProvider.overrideWithValue(
-              mockMetadataUseCase,
-            ),
-          ],
-        );
+      expect(find.text('Submit application'), findsOneWidget);
+      expect(find.text('Continue'), findsNothing);
 
-        await container.read(onboardingProvider.future);
-        container.read(onboardingProvider.notifier).state = AsyncData(state);
+      container.dispose();
+    });
 
-        await tester.pumpWidget(
-          UncontrolledProviderScope(
-            container: container,
-            child: const MaterialApp(
-              home: Scaffold(body: OnboardingMainScreen()),
-            ),
-          ),
-        );
+    testWidgets('progress chip reflects 5-step total', (tester) async {
+      final container = await seed(
+        tester,
+        const OnboardingState(currentStep: 0),
+      );
 
-        await tester.pumpAndSettle();
+      expect(find.text('Step 1 of 5'), findsOneWidget);
 
-        // Visual Contract: Navigation bounds
-        expect(find.text('Submit Application'), findsOneWidget);
-        expect(find.text('Next'), findsNothing);
-
-        container.dispose();
-      },
-    );
+      container.dispose();
+    });
   });
 }

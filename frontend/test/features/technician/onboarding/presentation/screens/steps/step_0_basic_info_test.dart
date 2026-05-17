@@ -13,7 +13,7 @@ class MockGetOnboardingMetadataUseCase extends Mock
     implements GetOnboardingMetadataUseCase {}
 
 void main() {
-  group('Step0BasicInfo Widget Tests (Dumb UI)', () {
+  group('Step0BasicInfo', () {
     late MockGetOnboardingMetadataUseCase mockMetadataUseCase;
 
     setUp(() {
@@ -21,8 +21,9 @@ void main() {
       when(() => mockMetadataUseCase.execute()).thenAnswer((_) async => []);
     });
 
-    testWidgets('should render empty form fields when state is empty', (
+    Future<ProviderContainer> seed(
       WidgetTester tester,
+      OnboardingState state,
     ) async {
       final container = ProviderContainer(
         overrides: [
@@ -31,64 +32,48 @@ void main() {
           ),
         ],
       );
-
       await container.read(onboardingProvider.future);
-
+      container.read(onboardingProvider.notifier).state = AsyncData(state);
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
           child: const MaterialApp(home: Scaffold(body: Step0BasicInfo())),
         ),
       );
-
       await tester.pumpAndSettle();
+      return container;
+    }
 
-      // Check if fields are present (First Name, Last Name)
+    testWidgets('renders empty fields and city chips when state is empty', (
+      tester,
+    ) async {
+      final container = await seed(tester, const OnboardingState());
+
+      // First name + Last name are the only text inputs on the screen now;
+      // city is rendered as ChoiceChips, profile picture as an upload card.
       expect(find.byType(TextFormField), findsNWidgets(2));
-      // City Dropdown
-      expect(find.byType(DropdownButtonFormField<String>), findsOneWidget);
+      expect(find.byType(ChoiceChip), findsNWidgets(3));
+      // Profile picture upload card subtitle (empty state).
+      expect(find.textContaining('selfie'), findsOneWidget);
 
       container.dispose();
     });
 
-    testWidgets('should populate form fields when state has data', (
-      WidgetTester tester,
-    ) async {
-      final populatedState = OnboardingState(
-        firstName: 'Ali',
-        lastName: 'Raza',
-        city: 'LHR',
-      );
-
-      final container = ProviderContainer(
-        overrides: [
-          getOnboardingMetadataUseCaseProvider.overrideWithValue(
-            mockMetadataUseCase,
-          ),
-        ],
-      );
-
-      await container.read(onboardingProvider.future);
-      container.read(onboardingProvider.notifier).state = AsyncData(
-        populatedState,
-      );
-
-      await tester.pumpWidget(
-        UncontrolledProviderScope(
-          container: container,
-          child: const MaterialApp(home: Scaffold(body: Step0BasicInfo())),
+    testWidgets('populates fields when state has data', (tester) async {
+      final container = await seed(
+        tester,
+        const OnboardingState(
+          firstName: 'Ali',
+          lastName: 'Raza',
+          city: 'LHR',
         ),
       );
 
-      await tester.pumpAndSettle();
-
-      // The dumb UI should render the text exactly as provided by the state
       expect(find.text('Ali'), findsOneWidget);
       expect(find.text('Raza'), findsOneWidget);
-      expect(
-        find.text('Lahore'),
-        findsOneWidget,
-      ); // Dropdown displays the text 'Lahore' for 'LHR'
+      // The selected city chip retains its label; selection is rendered as a
+      // brand-blue chip — but the label "Lahore" is present either way.
+      expect(find.text('Lahore'), findsOneWidget);
 
       container.dispose();
     });

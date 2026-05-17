@@ -10,10 +10,9 @@ part 'technician_skill_entity.g.dart';
 /// the create response directly into the cached list without a second
 /// round-trip.
 ///
-/// `labor_rate` and `years_of_experience` from the bridge table are
-/// deliberately not in this entity — neither is surfaced read-side in
-/// the current UI. If a future "set rate" affordance lands, add the
-/// fields then; until then they're contract bloat.
+/// Bridge row is pure membership after migrations 0013/0014 (2026-05-17
+/// onboarding refactor) — no per-skill pricing or experience to surface.
+/// Labor figures come from `catalog.SubService.base_price`.
 @freezed
 abstract class TechnicianSkillEntity with _$TechnicianSkillEntity {
   const factory TechnicianSkillEntity({

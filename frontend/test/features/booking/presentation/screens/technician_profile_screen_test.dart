@@ -41,8 +41,6 @@ void main() {
     profilePicture: 'https://example.com/pic.jpg',
     ratingAverage: 4.9,
     reviewCount: 120,
-    experienceYears: 5,
-    bio: 'Test Bio',
     distanceKm: 2.5,
     bayesianScore: 4.8,
     isActive: true,
@@ -109,9 +107,6 @@ void main() {
 
       // Assert promo
       expect(find.text('20% OFF'), findsOneWidget);
-
-      // Assert bio
-      expect(find.text('Test Bio'), findsOneWidget);
     });
   });
 }

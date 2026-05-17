@@ -14,7 +14,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$SkillSelectionEntity {
 
- int get subServiceId; int get yearsOfExperience; String? get laborRate;
+ int get subServiceId;
 /// Create a copy of SkillSelectionEntity
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -25,16 +25,16 @@ $SkillSelectionEntityCopyWith<SkillSelectionEntity> get copyWith => _$SkillSelec
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is SkillSelectionEntity&&(identical(other.subServiceId, subServiceId) || other.subServiceId == subServiceId)&&(identical(other.yearsOfExperience, yearsOfExperience) || other.yearsOfExperience == yearsOfExperience)&&(identical(other.laborRate, laborRate) || other.laborRate == laborRate));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is SkillSelectionEntity&&(identical(other.subServiceId, subServiceId) || other.subServiceId == subServiceId));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,subServiceId,yearsOfExperience,laborRate);
+int get hashCode => Object.hash(runtimeType,subServiceId);
 
 @override
 String toString() {
-  return 'SkillSelectionEntity(subServiceId: $subServiceId, yearsOfExperience: $yearsOfExperience, laborRate: $laborRate)';
+  return 'SkillSelectionEntity(subServiceId: $subServiceId)';
 }
 
 
@@ -45,7 +45,7 @@ abstract mixin class $SkillSelectionEntityCopyWith<$Res>  {
   factory $SkillSelectionEntityCopyWith(SkillSelectionEntity value, $Res Function(SkillSelectionEntity) _then) = _$SkillSelectionEntityCopyWithImpl;
 @useResult
 $Res call({
- int subServiceId, int yearsOfExperience, String? laborRate
+ int subServiceId
 });
 
 
@@ -62,12 +62,10 @@ class _$SkillSelectionEntityCopyWithImpl<$Res>
 
 /// Create a copy of SkillSelectionEntity
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? subServiceId = null,Object? yearsOfExperience = null,Object? laborRate = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? subServiceId = null,}) {
   return _then(_self.copyWith(
 subServiceId: null == subServiceId ? _self.subServiceId : subServiceId // ignore: cast_nullable_to_non_nullable
-as int,yearsOfExperience: null == yearsOfExperience ? _self.yearsOfExperience : yearsOfExperience // ignore: cast_nullable_to_non_nullable
-as int,laborRate: freezed == laborRate ? _self.laborRate : laborRate // ignore: cast_nullable_to_non_nullable
-as String?,
+as int,
   ));
 }
 
@@ -152,10 +150,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int subServiceId,  int yearsOfExperience,  String? laborRate)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int subServiceId)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _SkillSelectionEntity() when $default != null:
-return $default(_that.subServiceId,_that.yearsOfExperience,_that.laborRate);case _:
+return $default(_that.subServiceId);case _:
   return orElse();
 
 }
@@ -173,10 +171,10 @@ return $default(_that.subServiceId,_that.yearsOfExperience,_that.laborRate);case
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int subServiceId,  int yearsOfExperience,  String? laborRate)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int subServiceId)  $default,) {final _that = this;
 switch (_that) {
 case _SkillSelectionEntity():
-return $default(_that.subServiceId,_that.yearsOfExperience,_that.laborRate);case _:
+return $default(_that.subServiceId);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -193,10 +191,10 @@ return $default(_that.subServiceId,_that.yearsOfExperience,_that.laborRate);case
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int subServiceId,  int yearsOfExperience,  String? laborRate)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int subServiceId)?  $default,) {final _that = this;
 switch (_that) {
 case _SkillSelectionEntity() when $default != null:
-return $default(_that.subServiceId,_that.yearsOfExperience,_that.laborRate);case _:
+return $default(_that.subServiceId);case _:
   return null;
 
 }
@@ -208,12 +206,10 @@ return $default(_that.subServiceId,_that.yearsOfExperience,_that.laborRate);case
 
 
 class _SkillSelectionEntity implements SkillSelectionEntity {
-  const _SkillSelectionEntity({required this.subServiceId, required this.yearsOfExperience, this.laborRate});
+  const _SkillSelectionEntity({required this.subServiceId});
   
 
 @override final  int subServiceId;
-@override final  int yearsOfExperience;
-@override final  String? laborRate;
 
 /// Create a copy of SkillSelectionEntity
 /// with the given fields replaced by the non-null parameter values.
@@ -225,16 +221,16 @@ _$SkillSelectionEntityCopyWith<_SkillSelectionEntity> get copyWith => __$SkillSe
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _SkillSelectionEntity&&(identical(other.subServiceId, subServiceId) || other.subServiceId == subServiceId)&&(identical(other.yearsOfExperience, yearsOfExperience) || other.yearsOfExperience == yearsOfExperience)&&(identical(other.laborRate, laborRate) || other.laborRate == laborRate));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _SkillSelectionEntity&&(identical(other.subServiceId, subServiceId) || other.subServiceId == subServiceId));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,subServiceId,yearsOfExperience,laborRate);
+int get hashCode => Object.hash(runtimeType,subServiceId);
 
 @override
 String toString() {
-  return 'SkillSelectionEntity(subServiceId: $subServiceId, yearsOfExperience: $yearsOfExperience, laborRate: $laborRate)';
+  return 'SkillSelectionEntity(subServiceId: $subServiceId)';
 }
 
 
@@ -245,7 +241,7 @@ abstract mixin class _$SkillSelectionEntityCopyWith<$Res> implements $SkillSelec
   factory _$SkillSelectionEntityCopyWith(_SkillSelectionEntity value, $Res Function(_SkillSelectionEntity) _then) = __$SkillSelectionEntityCopyWithImpl;
 @override @useResult
 $Res call({
- int subServiceId, int yearsOfExperience, String? laborRate
+ int subServiceId
 });
 
 
@@ -262,12 +258,10 @@ class __$SkillSelectionEntityCopyWithImpl<$Res>
 
 /// Create a copy of SkillSelectionEntity
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? subServiceId = null,Object? yearsOfExperience = null,Object? laborRate = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? subServiceId = null,}) {
   return _then(_SkillSelectionEntity(
 subServiceId: null == subServiceId ? _self.subServiceId : subServiceId // ignore: cast_nullable_to_non_nullable
-as int,yearsOfExperience: null == yearsOfExperience ? _self.yearsOfExperience : yearsOfExperience // ignore: cast_nullable_to_non_nullable
-as int,laborRate: freezed == laborRate ? _self.laborRate : laborRate // ignore: cast_nullable_to_non_nullable
-as String?,
+as int,
   ));
 }
 

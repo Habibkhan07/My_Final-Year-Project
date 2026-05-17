@@ -2013,3 +2013,36 @@ This entry exists to document **decisions** that future sprints must respect, no
 **Future obligation** — when admin tooling adds a "approve new category for existing tech" affordance, it should insert a `TechnicianServiceLicense` row (with or without picture) for that (tech, service) pair. No other changes needed — the gate reads the table directly.
 
 Search hints: `ServiceCategoryNotAllowedError`, `list_my_service_categories`, `category_not_allowed`, `TechnicianServiceLicense`.
+
+---
+
+## 60. Tech onboarding refactor — dropped fields, single platform price, latent is_onboarding_complete gate (2026-05-17)
+
+The onboarding wizard was rebuilt end-to-end. 6 steps → 5 steps, four fields dropped from the schema, the per-tech labor_rate replaced with the platform's catalog price. This entry documents three things that constrain future sprints.
+
+**Dropped fields (migrations 0013/0014)**
+- `TechnicianProfile.experience_years` — display-only, never gated anything.
+- `TechnicianProfile.bio` — free-text, rarely populated meaningfully.
+- `TechnicianSkill.years_of_experience` — write-only, never read by a production path.
+- `TechnicianSkill.labor_rate` — the only field with a live runtime read. Replaced by `catalog.SubService.base_price` in `bookings.selectors.pricing_selector.resolve_booking_intent`.
+
+**Data loss on roll-forward** — existing techs lose their per-skill `labor_rate` values. Bookings in flight keep their snapshotted `JobBooking.price_amount`. New labor-gig bookings to those techs stamp `sub_service.base_price`. Acceptable because the new product rule is "platform sets the price; tech renegotiates at quote-build time." Not reversible — no rescue migration.
+
+**Customer-facing price display** — labor-gig bookings now show a range when the catalog has `max_price` set: "Rs. base – max". When `max_price` is NULL, single figure "Rs. base". Fixed-price gigs and inspection-fee unchanged. The booking write-path always stamps `base_price` as the persisted `price_amount`; the band is honest discovery copy, not a hard cap.
+
+**Onboarding shape** — 5 steps:
+  0. Basic info (name, city, profile picture — front camera in release)
+  1. Identity (CNIC# auto-dashed, CNIC photo — back camera in release)
+  2. Trade selection (skill picker — bridge row is pure membership now)
+  3. Certifications (license per category — back camera, OPTIONAL)
+  4. Work location (search + map + reverse-geocode; pushed as fullscreen picker, returns to wizard with lat/lng/label/radius)
+
+**Camera policy** — `pickerSource(ImageSource.camera)` returns `camera` in `kReleaseMode` and `gallery` otherwise. Profile pic uses `CameraDevice.front`; CNIC + license use `CameraDevice.rear`. Debug builds keep the gallery so Android emulators (no camera) stay usable for development. Defined in `lib/features/technician/onboarding/presentation/utils/picker_source.dart`.
+
+**CNIC auto-dash** — frontend `_CnicFormatter` in `step_1_verification.dart` inserts the two hyphens of `00000-0000000-0` as the user types. Accepts a pasted already-dashed string by stripping non-digits first. The "manual dash" error class is gone.
+
+**Latent bug noticed during research, NOT addressed** — `TechnicianProfile.is_onboarding_complete` is never set to `True` by production code. It only flips when an admin manually ticks the checkbox in `/admin/technicians/technicianprofile/<id>/change/`. The matchmaker filters on it (`is_onboarding_complete=True`), so an APPROVED tech with that box unticked is invisible to discovery. Pre-existing; not a regression from this work. Proper fix: `admin.approve_selected` should flip `is_onboarding_complete=True` alongside `status='APPROVED'`. Search hints: `is_onboarding_complete`, `approve_selected`, `matchmaking_selectors`.
+
+**Future obligation** — when the admin tooling gets a "approve a new category for existing tech" affordance (per flag #59), that flow should NOT re-introduce per-tech labor_rate. Stay with the catalog-set price; if categories ever need their own rate band, model it on `SubService` (not on `TechnicianSkill`).
+
+Search hints: `migration 0013`, `migration 0014`, `_CnicFormatter`, `OnboardingWorkLocationPickerScreen`, `pickerSource`, `resolve_booking_intent`, `Rs. base – max`.

@@ -11,10 +11,13 @@ class MediaUploadSerializer(serializers.ModelSerializer):
 
 # 2. NESTED SKILL SERIALIZER
 class SkillInputSerializer(serializers.Serializer):
-    """Deserializes skill data from JSON"""
+    """Deserializes a single skill pick from the onboarding wizard.
+
+    Sub-service id only. The 2026-05-17 refactor dropped
+    ``years_of_experience`` (write-only legacy) and ``labor_rate`` (the
+    platform sets the labor figure now via ``catalog.SubService.base_price``).
+    """
     sub_service_id = serializers.IntegerField()
-    years_of_experience = serializers.IntegerField(min_value=0)
-    labor_rate = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
 
 # 2. NEW: Handles the new Category-level uploads
 class CategoryLicenseInputSerializer(serializers.Serializer):
@@ -29,15 +32,31 @@ class TechnicianFinalizeSerializer(serializers.Serializer):
    
     """
     # --- REQUEST DATA (Incoming JSON) ---
+    # ``experience_years`` and ``bio`` were dropped in the 2026-05-17
+    # onboarding refactor — see migration 0013_drop_profile_metadata
+    # and ``[[project_tech_onboarding_refactor]]``. The wizard step that
+    # collected them was deleted (former step 2).
     first_name = serializers.CharField(max_length=100)
     last_name = serializers.CharField(max_length=100)
     city = serializers.ChoiceField(choices=TechnicianProfile.CITY_CHOICES)
     cnic_number = serializers.CharField(max_length=15)
-    experience_years = serializers.IntegerField(min_value=0)
-    bio = serializers.CharField()
     category_licenses = CategoryLicenseInputSerializer(many=True, required=False)
     profile_picture_uuid = serializers.UUIDField()
     cnic_picture_uuid = serializers.UUIDField()
+    # Optional work-location coordinates. The refactor merged the
+    # previously-standalone work-location capture into the onboarding
+    # wizard's final step. Older clients that don't yet send these can
+    # still finalize — the tech will hit the dashboard work-location
+    # banner instead. ``base_latitude``/``base_longitude``/``max_travel_radius_km``
+    # mirror the column names on ``TechnicianProfile`` for a clean assign.
+    base_latitude = serializers.FloatField(required=False, allow_null=True)
+    base_longitude = serializers.FloatField(required=False, allow_null=True)
+    max_travel_radius_km = serializers.IntegerField(
+        required=False, min_value=1, max_value=50,
+    )
+    work_address_label = serializers.CharField(
+        required=False, allow_blank=True, max_length=200,
+    )
     skills = SkillInputSerializer(many=True)
 
     

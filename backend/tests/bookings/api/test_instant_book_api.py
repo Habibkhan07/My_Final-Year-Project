@@ -404,18 +404,19 @@ class TestInstantBookView:
         assert data['code'] == 'validation_error'
         assert 'promotion_id' in data['errors']
 
-    def test_201_labor_gig_persists_skill_rate(self):
-        """
-        The persisted ``price_amount`` is the technician's labor_rate, not
-        anything the client sent. No price field is on the wire.
+    def test_201_labor_gig_persists_subservice_base_price(self):
+        """The persisted ``price_amount`` is the catalog's
+        ``SubService.base_price`` — the platform-set figure that
+        replaced per-tech ``labor_rate`` in the 2026-05-17 refactor.
+        No price field is on the wire.
         """
         tech, _, address = self._approved_tech_and_owned_address()
         service = ServiceFactory()
-        sub = SubServiceFactory(service=service, is_fixed_price=False)
-        TechnicianSkillFactory(
-            technician=tech, sub_service=sub,
-            labor_rate=decimal.Decimal('1200.00'),
+        sub = SubServiceFactory(
+            service=service, is_fixed_price=False,
+            base_price=decimal.Decimal('1200.00'),
         )
+        TechnicianSkillFactory(technician=tech, sub_service=sub)
 
         payload = _make_payload(tech, address, service=service)
         payload['sub_service_id'] = sub.id

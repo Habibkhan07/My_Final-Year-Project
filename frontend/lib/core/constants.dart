@@ -10,18 +10,24 @@ import 'package:flutter/foundation.dart';
 enum MapProviderType { osm, google }
 
 class AppConstants {
-  // We added the /api prefix here so the Remote Data Sources don't have to!
-  static const String baseUrl = kIsWeb
-      ? 'http://127.0.0.1:8000/api'
-      : 'http://127.0.0.1:8000/api';
+  // Build-time injection via ``--dart-define=BASE_URL=...``. The default is
+  // the Django dev server on the laptop loopback — fine for ``flutter run``
+  // on the local web shell or an emulator that's mapped the laptop's port.
+  // On-device builds MUST override (LAN IP for dev, https tunnel / staging
+  // endpoint for viva + release). The release-mode guard
+  // ``assertReleaseSafeNetworking`` below refuses to start with cleartext.
+  static const String baseUrl = String.fromEnvironment(
+    'BASE_URL',
+    defaultValue: 'http://127.0.0.1:8000/api',
+  );
 
   // WebSocket origin — mirrors [baseUrl]'s host. Has no `/api` prefix because
   // Django Channels mounts its routes at the project root (e.g. `/ws/events/`).
-  // Tech-debt: migrate baseUrl + baseWsUrl to --dart-define once an
-  // env-loading story is agreed. For now they are hardcoded for dev.
-  static const String baseWsUrl = kIsWeb
-      ? 'ws://127.0.0.1:8000'
-      : 'ws://127.0.0.1:8000';
+  // Override at build time with ``--dart-define=BASE_WS_URL=wss://...``.
+  static const String baseWsUrl = String.fromEnvironment(
+    'BASE_WS_URL',
+    defaultValue: 'ws://127.0.0.1:8000',
+  );
 
   // ─── Map provider (session 4) ──────────────────────────────────────────
   //

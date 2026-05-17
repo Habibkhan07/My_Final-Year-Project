@@ -15,6 +15,17 @@ part of 'skills_notifier.dart';
 /// the cached state warm. Logout invalidation flows through the auth
 /// repository's local-clear → next read raises Unauthorized → presentation
 /// triggers `authProvider.notifier.logout()` (idempotent).
+///
+/// Mutation methods (`addSkill` / `removeSkill`) follow the project's
+/// `AsyncValue.guard` convention (CLAUDE.md): the call is wrapped in
+/// guard, state is mutated **only on success** so a failed mutation
+/// preserves the previous list, and the AsyncValue is returned so the
+/// screen can branch on `hasError` without racing a `ref.listen`
+/// against the next state mutation. Unlike a single-entity surface
+/// (the customer profile's `updateName` just does `state = result`),
+/// our state is a list — we manually merge on success rather than
+/// replacing, which is why guard is the wrapper but the state write
+/// is bespoke.
 
 @ProviderFor(Skills)
 final skillsProvider = SkillsProvider._();
@@ -26,6 +37,17 @@ final skillsProvider = SkillsProvider._();
 /// the cached state warm. Logout invalidation flows through the auth
 /// repository's local-clear → next read raises Unauthorized → presentation
 /// triggers `authProvider.notifier.logout()` (idempotent).
+///
+/// Mutation methods (`addSkill` / `removeSkill`) follow the project's
+/// `AsyncValue.guard` convention (CLAUDE.md): the call is wrapped in
+/// guard, state is mutated **only on success** so a failed mutation
+/// preserves the previous list, and the AsyncValue is returned so the
+/// screen can branch on `hasError` without racing a `ref.listen`
+/// against the next state mutation. Unlike a single-entity surface
+/// (the customer profile's `updateName` just does `state = result`),
+/// our state is a list — we manually merge on success rather than
+/// replacing, which is why guard is the wrapper but the state write
+/// is bespoke.
 final class SkillsProvider
     extends $AsyncNotifierProvider<Skills, List<TechnicianSkillEntity>> {
   /// Owns the technician's skill list state.
@@ -35,6 +57,17 @@ final class SkillsProvider
   /// the cached state warm. Logout invalidation flows through the auth
   /// repository's local-clear → next read raises Unauthorized → presentation
   /// triggers `authProvider.notifier.logout()` (idempotent).
+  ///
+  /// Mutation methods (`addSkill` / `removeSkill`) follow the project's
+  /// `AsyncValue.guard` convention (CLAUDE.md): the call is wrapped in
+  /// guard, state is mutated **only on success** so a failed mutation
+  /// preserves the previous list, and the AsyncValue is returned so the
+  /// screen can branch on `hasError` without racing a `ref.listen`
+  /// against the next state mutation. Unlike a single-entity surface
+  /// (the customer profile's `updateName` just does `state = result`),
+  /// our state is a list — we manually merge on success rather than
+  /// replacing, which is why guard is the wrapper but the state write
+  /// is bespoke.
   SkillsProvider._()
     : super(
         from: null,
@@ -54,7 +87,7 @@ final class SkillsProvider
   Skills create() => Skills();
 }
 
-String _$skillsHash() => r'0997e4b196d7e756dd7e99eeb9a7e34a34533f62';
+String _$skillsHash() => r'520c1d0287aa6f01f373e601c4431ef154716dc1';
 
 /// Owns the technician's skill list state.
 ///
@@ -63,6 +96,17 @@ String _$skillsHash() => r'0997e4b196d7e756dd7e99eeb9a7e34a34533f62';
 /// the cached state warm. Logout invalidation flows through the auth
 /// repository's local-clear → next read raises Unauthorized → presentation
 /// triggers `authProvider.notifier.logout()` (idempotent).
+///
+/// Mutation methods (`addSkill` / `removeSkill`) follow the project's
+/// `AsyncValue.guard` convention (CLAUDE.md): the call is wrapped in
+/// guard, state is mutated **only on success** so a failed mutation
+/// preserves the previous list, and the AsyncValue is returned so the
+/// screen can branch on `hasError` without racing a `ref.listen`
+/// against the next state mutation. Unlike a single-entity surface
+/// (the customer profile's `updateName` just does `state = result`),
+/// our state is a list — we manually merge on success rather than
+/// replacing, which is why guard is the wrapper but the state write
+/// is bespoke.
 
 abstract class _$Skills extends $AsyncNotifier<List<TechnicianSkillEntity>> {
   FutureOr<List<TechnicianSkillEntity>> build();

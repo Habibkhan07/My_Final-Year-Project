@@ -543,7 +543,7 @@ as String,
 /// @nodoc
 mixin _$TechnicianProfileEntity {
 
- int get id; String get fullName; String get city; String? get profilePicture; double get ratingAverage; int get reviewCount; int get experienceYears; String get bio; double? get distanceKm; double? get bayesianScore; bool get isActive;// Dumb UI Pricing and Texts
+ int get id; String get fullName; String get city; String? get profilePicture; double get ratingAverage; int get reviewCount; double? get distanceKm; double? get bayesianScore; bool get isActive;// Dumb UI Pricing and Texts
  String get uiRatingText; String get primaryPrice; String get primaryPriceRaw; String get priceContext; String? get promoTag; List<TechnicianSkillEntity> get skills; List<TechnicianReviewEntity> get recentReviews;
 /// Create a copy of TechnicianProfileEntity
 /// with the given fields replaced by the non-null parameter values.
@@ -555,16 +555,16 @@ $TechnicianProfileEntityCopyWith<TechnicianProfileEntity> get copyWith => _$Tech
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is TechnicianProfileEntity&&(identical(other.id, id) || other.id == id)&&(identical(other.fullName, fullName) || other.fullName == fullName)&&(identical(other.city, city) || other.city == city)&&(identical(other.profilePicture, profilePicture) || other.profilePicture == profilePicture)&&(identical(other.ratingAverage, ratingAverage) || other.ratingAverage == ratingAverage)&&(identical(other.reviewCount, reviewCount) || other.reviewCount == reviewCount)&&(identical(other.experienceYears, experienceYears) || other.experienceYears == experienceYears)&&(identical(other.bio, bio) || other.bio == bio)&&(identical(other.distanceKm, distanceKm) || other.distanceKm == distanceKm)&&(identical(other.bayesianScore, bayesianScore) || other.bayesianScore == bayesianScore)&&(identical(other.isActive, isActive) || other.isActive == isActive)&&(identical(other.uiRatingText, uiRatingText) || other.uiRatingText == uiRatingText)&&(identical(other.primaryPrice, primaryPrice) || other.primaryPrice == primaryPrice)&&(identical(other.primaryPriceRaw, primaryPriceRaw) || other.primaryPriceRaw == primaryPriceRaw)&&(identical(other.priceContext, priceContext) || other.priceContext == priceContext)&&(identical(other.promoTag, promoTag) || other.promoTag == promoTag)&&const DeepCollectionEquality().equals(other.skills, skills)&&const DeepCollectionEquality().equals(other.recentReviews, recentReviews));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is TechnicianProfileEntity&&(identical(other.id, id) || other.id == id)&&(identical(other.fullName, fullName) || other.fullName == fullName)&&(identical(other.city, city) || other.city == city)&&(identical(other.profilePicture, profilePicture) || other.profilePicture == profilePicture)&&(identical(other.ratingAverage, ratingAverage) || other.ratingAverage == ratingAverage)&&(identical(other.reviewCount, reviewCount) || other.reviewCount == reviewCount)&&(identical(other.distanceKm, distanceKm) || other.distanceKm == distanceKm)&&(identical(other.bayesianScore, bayesianScore) || other.bayesianScore == bayesianScore)&&(identical(other.isActive, isActive) || other.isActive == isActive)&&(identical(other.uiRatingText, uiRatingText) || other.uiRatingText == uiRatingText)&&(identical(other.primaryPrice, primaryPrice) || other.primaryPrice == primaryPrice)&&(identical(other.primaryPriceRaw, primaryPriceRaw) || other.primaryPriceRaw == primaryPriceRaw)&&(identical(other.priceContext, priceContext) || other.priceContext == priceContext)&&(identical(other.promoTag, promoTag) || other.promoTag == promoTag)&&const DeepCollectionEquality().equals(other.skills, skills)&&const DeepCollectionEquality().equals(other.recentReviews, recentReviews));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,id,fullName,city,profilePicture,ratingAverage,reviewCount,experienceYears,bio,distanceKm,bayesianScore,isActive,uiRatingText,primaryPrice,primaryPriceRaw,priceContext,promoTag,const DeepCollectionEquality().hash(skills),const DeepCollectionEquality().hash(recentReviews));
+int get hashCode => Object.hash(runtimeType,id,fullName,city,profilePicture,ratingAverage,reviewCount,distanceKm,bayesianScore,isActive,uiRatingText,primaryPrice,primaryPriceRaw,priceContext,promoTag,const DeepCollectionEquality().hash(skills),const DeepCollectionEquality().hash(recentReviews));
 
 @override
 String toString() {
-  return 'TechnicianProfileEntity(id: $id, fullName: $fullName, city: $city, profilePicture: $profilePicture, ratingAverage: $ratingAverage, reviewCount: $reviewCount, experienceYears: $experienceYears, bio: $bio, distanceKm: $distanceKm, bayesianScore: $bayesianScore, isActive: $isActive, uiRatingText: $uiRatingText, primaryPrice: $primaryPrice, primaryPriceRaw: $primaryPriceRaw, priceContext: $priceContext, promoTag: $promoTag, skills: $skills, recentReviews: $recentReviews)';
+  return 'TechnicianProfileEntity(id: $id, fullName: $fullName, city: $city, profilePicture: $profilePicture, ratingAverage: $ratingAverage, reviewCount: $reviewCount, distanceKm: $distanceKm, bayesianScore: $bayesianScore, isActive: $isActive, uiRatingText: $uiRatingText, primaryPrice: $primaryPrice, primaryPriceRaw: $primaryPriceRaw, priceContext: $priceContext, promoTag: $promoTag, skills: $skills, recentReviews: $recentReviews)';
 }
 
 
@@ -575,7 +575,7 @@ abstract mixin class $TechnicianProfileEntityCopyWith<$Res>  {
   factory $TechnicianProfileEntityCopyWith(TechnicianProfileEntity value, $Res Function(TechnicianProfileEntity) _then) = _$TechnicianProfileEntityCopyWithImpl;
 @useResult
 $Res call({
- int id, String fullName, String city, String? profilePicture, double ratingAverage, int reviewCount, int experienceYears, String bio, double? distanceKm, double? bayesianScore, bool isActive, String uiRatingText, String primaryPrice, String primaryPriceRaw, String priceContext, String? promoTag, List<TechnicianSkillEntity> skills, List<TechnicianReviewEntity> recentReviews
+ int id, String fullName, String city, String? profilePicture, double ratingAverage, int reviewCount, double? distanceKm, double? bayesianScore, bool isActive, String uiRatingText, String primaryPrice, String primaryPriceRaw, String priceContext, String? promoTag, List<TechnicianSkillEntity> skills, List<TechnicianReviewEntity> recentReviews
 });
 
 
@@ -592,7 +592,7 @@ class _$TechnicianProfileEntityCopyWithImpl<$Res>
 
 /// Create a copy of TechnicianProfileEntity
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? fullName = null,Object? city = null,Object? profilePicture = freezed,Object? ratingAverage = null,Object? reviewCount = null,Object? experienceYears = null,Object? bio = null,Object? distanceKm = freezed,Object? bayesianScore = freezed,Object? isActive = null,Object? uiRatingText = null,Object? primaryPrice = null,Object? primaryPriceRaw = null,Object? priceContext = null,Object? promoTag = freezed,Object? skills = null,Object? recentReviews = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? fullName = null,Object? city = null,Object? profilePicture = freezed,Object? ratingAverage = null,Object? reviewCount = null,Object? distanceKm = freezed,Object? bayesianScore = freezed,Object? isActive = null,Object? uiRatingText = null,Object? primaryPrice = null,Object? primaryPriceRaw = null,Object? priceContext = null,Object? promoTag = freezed,Object? skills = null,Object? recentReviews = null,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as int,fullName: null == fullName ? _self.fullName : fullName // ignore: cast_nullable_to_non_nullable
@@ -600,9 +600,7 @@ as String,city: null == city ? _self.city : city // ignore: cast_nullable_to_non
 as String,profilePicture: freezed == profilePicture ? _self.profilePicture : profilePicture // ignore: cast_nullable_to_non_nullable
 as String?,ratingAverage: null == ratingAverage ? _self.ratingAverage : ratingAverage // ignore: cast_nullable_to_non_nullable
 as double,reviewCount: null == reviewCount ? _self.reviewCount : reviewCount // ignore: cast_nullable_to_non_nullable
-as int,experienceYears: null == experienceYears ? _self.experienceYears : experienceYears // ignore: cast_nullable_to_non_nullable
-as int,bio: null == bio ? _self.bio : bio // ignore: cast_nullable_to_non_nullable
-as String,distanceKm: freezed == distanceKm ? _self.distanceKm : distanceKm // ignore: cast_nullable_to_non_nullable
+as int,distanceKm: freezed == distanceKm ? _self.distanceKm : distanceKm // ignore: cast_nullable_to_non_nullable
 as double?,bayesianScore: freezed == bayesianScore ? _self.bayesianScore : bayesianScore // ignore: cast_nullable_to_non_nullable
 as double?,isActive: null == isActive ? _self.isActive : isActive // ignore: cast_nullable_to_non_nullable
 as bool,uiRatingText: null == uiRatingText ? _self.uiRatingText : uiRatingText // ignore: cast_nullable_to_non_nullable
@@ -697,10 +695,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int id,  String fullName,  String city,  String? profilePicture,  double ratingAverage,  int reviewCount,  int experienceYears,  String bio,  double? distanceKm,  double? bayesianScore,  bool isActive,  String uiRatingText,  String primaryPrice,  String primaryPriceRaw,  String priceContext,  String? promoTag,  List<TechnicianSkillEntity> skills,  List<TechnicianReviewEntity> recentReviews)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int id,  String fullName,  String city,  String? profilePicture,  double ratingAverage,  int reviewCount,  double? distanceKm,  double? bayesianScore,  bool isActive,  String uiRatingText,  String primaryPrice,  String primaryPriceRaw,  String priceContext,  String? promoTag,  List<TechnicianSkillEntity> skills,  List<TechnicianReviewEntity> recentReviews)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _TechnicianProfileEntity() when $default != null:
-return $default(_that.id,_that.fullName,_that.city,_that.profilePicture,_that.ratingAverage,_that.reviewCount,_that.experienceYears,_that.bio,_that.distanceKm,_that.bayesianScore,_that.isActive,_that.uiRatingText,_that.primaryPrice,_that.primaryPriceRaw,_that.priceContext,_that.promoTag,_that.skills,_that.recentReviews);case _:
+return $default(_that.id,_that.fullName,_that.city,_that.profilePicture,_that.ratingAverage,_that.reviewCount,_that.distanceKm,_that.bayesianScore,_that.isActive,_that.uiRatingText,_that.primaryPrice,_that.primaryPriceRaw,_that.priceContext,_that.promoTag,_that.skills,_that.recentReviews);case _:
   return orElse();
 
 }
@@ -718,10 +716,10 @@ return $default(_that.id,_that.fullName,_that.city,_that.profilePicture,_that.ra
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int id,  String fullName,  String city,  String? profilePicture,  double ratingAverage,  int reviewCount,  int experienceYears,  String bio,  double? distanceKm,  double? bayesianScore,  bool isActive,  String uiRatingText,  String primaryPrice,  String primaryPriceRaw,  String priceContext,  String? promoTag,  List<TechnicianSkillEntity> skills,  List<TechnicianReviewEntity> recentReviews)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int id,  String fullName,  String city,  String? profilePicture,  double ratingAverage,  int reviewCount,  double? distanceKm,  double? bayesianScore,  bool isActive,  String uiRatingText,  String primaryPrice,  String primaryPriceRaw,  String priceContext,  String? promoTag,  List<TechnicianSkillEntity> skills,  List<TechnicianReviewEntity> recentReviews)  $default,) {final _that = this;
 switch (_that) {
 case _TechnicianProfileEntity():
-return $default(_that.id,_that.fullName,_that.city,_that.profilePicture,_that.ratingAverage,_that.reviewCount,_that.experienceYears,_that.bio,_that.distanceKm,_that.bayesianScore,_that.isActive,_that.uiRatingText,_that.primaryPrice,_that.primaryPriceRaw,_that.priceContext,_that.promoTag,_that.skills,_that.recentReviews);case _:
+return $default(_that.id,_that.fullName,_that.city,_that.profilePicture,_that.ratingAverage,_that.reviewCount,_that.distanceKm,_that.bayesianScore,_that.isActive,_that.uiRatingText,_that.primaryPrice,_that.primaryPriceRaw,_that.priceContext,_that.promoTag,_that.skills,_that.recentReviews);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -738,10 +736,10 @@ return $default(_that.id,_that.fullName,_that.city,_that.profilePicture,_that.ra
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int id,  String fullName,  String city,  String? profilePicture,  double ratingAverage,  int reviewCount,  int experienceYears,  String bio,  double? distanceKm,  double? bayesianScore,  bool isActive,  String uiRatingText,  String primaryPrice,  String primaryPriceRaw,  String priceContext,  String? promoTag,  List<TechnicianSkillEntity> skills,  List<TechnicianReviewEntity> recentReviews)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int id,  String fullName,  String city,  String? profilePicture,  double ratingAverage,  int reviewCount,  double? distanceKm,  double? bayesianScore,  bool isActive,  String uiRatingText,  String primaryPrice,  String primaryPriceRaw,  String priceContext,  String? promoTag,  List<TechnicianSkillEntity> skills,  List<TechnicianReviewEntity> recentReviews)?  $default,) {final _that = this;
 switch (_that) {
 case _TechnicianProfileEntity() when $default != null:
-return $default(_that.id,_that.fullName,_that.city,_that.profilePicture,_that.ratingAverage,_that.reviewCount,_that.experienceYears,_that.bio,_that.distanceKm,_that.bayesianScore,_that.isActive,_that.uiRatingText,_that.primaryPrice,_that.primaryPriceRaw,_that.priceContext,_that.promoTag,_that.skills,_that.recentReviews);case _:
+return $default(_that.id,_that.fullName,_that.city,_that.profilePicture,_that.ratingAverage,_that.reviewCount,_that.distanceKm,_that.bayesianScore,_that.isActive,_that.uiRatingText,_that.primaryPrice,_that.primaryPriceRaw,_that.priceContext,_that.promoTag,_that.skills,_that.recentReviews);case _:
   return null;
 
 }
@@ -753,7 +751,7 @@ return $default(_that.id,_that.fullName,_that.city,_that.profilePicture,_that.ra
 
 
 class _TechnicianProfileEntity implements TechnicianProfileEntity {
-  const _TechnicianProfileEntity({required this.id, required this.fullName, required this.city, required this.profilePicture, required this.ratingAverage, required this.reviewCount, required this.experienceYears, required this.bio, required this.distanceKm, required this.bayesianScore, required this.isActive, required this.uiRatingText, required this.primaryPrice, required this.primaryPriceRaw, required this.priceContext, required this.promoTag, required final  List<TechnicianSkillEntity> skills, required final  List<TechnicianReviewEntity> recentReviews}): _skills = skills,_recentReviews = recentReviews;
+  const _TechnicianProfileEntity({required this.id, required this.fullName, required this.city, required this.profilePicture, required this.ratingAverage, required this.reviewCount, required this.distanceKm, required this.bayesianScore, required this.isActive, required this.uiRatingText, required this.primaryPrice, required this.primaryPriceRaw, required this.priceContext, required this.promoTag, required final  List<TechnicianSkillEntity> skills, required final  List<TechnicianReviewEntity> recentReviews}): _skills = skills,_recentReviews = recentReviews;
   
 
 @override final  int id;
@@ -762,8 +760,6 @@ class _TechnicianProfileEntity implements TechnicianProfileEntity {
 @override final  String? profilePicture;
 @override final  double ratingAverage;
 @override final  int reviewCount;
-@override final  int experienceYears;
-@override final  String bio;
 @override final  double? distanceKm;
 @override final  double? bayesianScore;
 @override final  bool isActive;
@@ -798,16 +794,16 @@ _$TechnicianProfileEntityCopyWith<_TechnicianProfileEntity> get copyWith => __$T
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TechnicianProfileEntity&&(identical(other.id, id) || other.id == id)&&(identical(other.fullName, fullName) || other.fullName == fullName)&&(identical(other.city, city) || other.city == city)&&(identical(other.profilePicture, profilePicture) || other.profilePicture == profilePicture)&&(identical(other.ratingAverage, ratingAverage) || other.ratingAverage == ratingAverage)&&(identical(other.reviewCount, reviewCount) || other.reviewCount == reviewCount)&&(identical(other.experienceYears, experienceYears) || other.experienceYears == experienceYears)&&(identical(other.bio, bio) || other.bio == bio)&&(identical(other.distanceKm, distanceKm) || other.distanceKm == distanceKm)&&(identical(other.bayesianScore, bayesianScore) || other.bayesianScore == bayesianScore)&&(identical(other.isActive, isActive) || other.isActive == isActive)&&(identical(other.uiRatingText, uiRatingText) || other.uiRatingText == uiRatingText)&&(identical(other.primaryPrice, primaryPrice) || other.primaryPrice == primaryPrice)&&(identical(other.primaryPriceRaw, primaryPriceRaw) || other.primaryPriceRaw == primaryPriceRaw)&&(identical(other.priceContext, priceContext) || other.priceContext == priceContext)&&(identical(other.promoTag, promoTag) || other.promoTag == promoTag)&&const DeepCollectionEquality().equals(other._skills, _skills)&&const DeepCollectionEquality().equals(other._recentReviews, _recentReviews));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TechnicianProfileEntity&&(identical(other.id, id) || other.id == id)&&(identical(other.fullName, fullName) || other.fullName == fullName)&&(identical(other.city, city) || other.city == city)&&(identical(other.profilePicture, profilePicture) || other.profilePicture == profilePicture)&&(identical(other.ratingAverage, ratingAverage) || other.ratingAverage == ratingAverage)&&(identical(other.reviewCount, reviewCount) || other.reviewCount == reviewCount)&&(identical(other.distanceKm, distanceKm) || other.distanceKm == distanceKm)&&(identical(other.bayesianScore, bayesianScore) || other.bayesianScore == bayesianScore)&&(identical(other.isActive, isActive) || other.isActive == isActive)&&(identical(other.uiRatingText, uiRatingText) || other.uiRatingText == uiRatingText)&&(identical(other.primaryPrice, primaryPrice) || other.primaryPrice == primaryPrice)&&(identical(other.primaryPriceRaw, primaryPriceRaw) || other.primaryPriceRaw == primaryPriceRaw)&&(identical(other.priceContext, priceContext) || other.priceContext == priceContext)&&(identical(other.promoTag, promoTag) || other.promoTag == promoTag)&&const DeepCollectionEquality().equals(other._skills, _skills)&&const DeepCollectionEquality().equals(other._recentReviews, _recentReviews));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,id,fullName,city,profilePicture,ratingAverage,reviewCount,experienceYears,bio,distanceKm,bayesianScore,isActive,uiRatingText,primaryPrice,primaryPriceRaw,priceContext,promoTag,const DeepCollectionEquality().hash(_skills),const DeepCollectionEquality().hash(_recentReviews));
+int get hashCode => Object.hash(runtimeType,id,fullName,city,profilePicture,ratingAverage,reviewCount,distanceKm,bayesianScore,isActive,uiRatingText,primaryPrice,primaryPriceRaw,priceContext,promoTag,const DeepCollectionEquality().hash(_skills),const DeepCollectionEquality().hash(_recentReviews));
 
 @override
 String toString() {
-  return 'TechnicianProfileEntity(id: $id, fullName: $fullName, city: $city, profilePicture: $profilePicture, ratingAverage: $ratingAverage, reviewCount: $reviewCount, experienceYears: $experienceYears, bio: $bio, distanceKm: $distanceKm, bayesianScore: $bayesianScore, isActive: $isActive, uiRatingText: $uiRatingText, primaryPrice: $primaryPrice, primaryPriceRaw: $primaryPriceRaw, priceContext: $priceContext, promoTag: $promoTag, skills: $skills, recentReviews: $recentReviews)';
+  return 'TechnicianProfileEntity(id: $id, fullName: $fullName, city: $city, profilePicture: $profilePicture, ratingAverage: $ratingAverage, reviewCount: $reviewCount, distanceKm: $distanceKm, bayesianScore: $bayesianScore, isActive: $isActive, uiRatingText: $uiRatingText, primaryPrice: $primaryPrice, primaryPriceRaw: $primaryPriceRaw, priceContext: $priceContext, promoTag: $promoTag, skills: $skills, recentReviews: $recentReviews)';
 }
 
 
@@ -818,7 +814,7 @@ abstract mixin class _$TechnicianProfileEntityCopyWith<$Res> implements $Technic
   factory _$TechnicianProfileEntityCopyWith(_TechnicianProfileEntity value, $Res Function(_TechnicianProfileEntity) _then) = __$TechnicianProfileEntityCopyWithImpl;
 @override @useResult
 $Res call({
- int id, String fullName, String city, String? profilePicture, double ratingAverage, int reviewCount, int experienceYears, String bio, double? distanceKm, double? bayesianScore, bool isActive, String uiRatingText, String primaryPrice, String primaryPriceRaw, String priceContext, String? promoTag, List<TechnicianSkillEntity> skills, List<TechnicianReviewEntity> recentReviews
+ int id, String fullName, String city, String? profilePicture, double ratingAverage, int reviewCount, double? distanceKm, double? bayesianScore, bool isActive, String uiRatingText, String primaryPrice, String primaryPriceRaw, String priceContext, String? promoTag, List<TechnicianSkillEntity> skills, List<TechnicianReviewEntity> recentReviews
 });
 
 
@@ -835,7 +831,7 @@ class __$TechnicianProfileEntityCopyWithImpl<$Res>
 
 /// Create a copy of TechnicianProfileEntity
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? fullName = null,Object? city = null,Object? profilePicture = freezed,Object? ratingAverage = null,Object? reviewCount = null,Object? experienceYears = null,Object? bio = null,Object? distanceKm = freezed,Object? bayesianScore = freezed,Object? isActive = null,Object? uiRatingText = null,Object? primaryPrice = null,Object? primaryPriceRaw = null,Object? priceContext = null,Object? promoTag = freezed,Object? skills = null,Object? recentReviews = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? fullName = null,Object? city = null,Object? profilePicture = freezed,Object? ratingAverage = null,Object? reviewCount = null,Object? distanceKm = freezed,Object? bayesianScore = freezed,Object? isActive = null,Object? uiRatingText = null,Object? primaryPrice = null,Object? primaryPriceRaw = null,Object? priceContext = null,Object? promoTag = freezed,Object? skills = null,Object? recentReviews = null,}) {
   return _then(_TechnicianProfileEntity(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as int,fullName: null == fullName ? _self.fullName : fullName // ignore: cast_nullable_to_non_nullable
@@ -843,9 +839,7 @@ as String,city: null == city ? _self.city : city // ignore: cast_nullable_to_non
 as String,profilePicture: freezed == profilePicture ? _self.profilePicture : profilePicture // ignore: cast_nullable_to_non_nullable
 as String?,ratingAverage: null == ratingAverage ? _self.ratingAverage : ratingAverage // ignore: cast_nullable_to_non_nullable
 as double,reviewCount: null == reviewCount ? _self.reviewCount : reviewCount // ignore: cast_nullable_to_non_nullable
-as int,experienceYears: null == experienceYears ? _self.experienceYears : experienceYears // ignore: cast_nullable_to_non_nullable
-as int,bio: null == bio ? _self.bio : bio // ignore: cast_nullable_to_non_nullable
-as String,distanceKm: freezed == distanceKm ? _self.distanceKm : distanceKm // ignore: cast_nullable_to_non_nullable
+as int,distanceKm: freezed == distanceKm ? _self.distanceKm : distanceKm // ignore: cast_nullable_to_non_nullable
 as double?,bayesianScore: freezed == bayesianScore ? _self.bayesianScore : bayesianScore // ignore: cast_nullable_to_non_nullable
 as double?,isActive: null == isActive ? _self.isActive : isActive // ignore: cast_nullable_to_non_nullable
 as bool,uiRatingText: null == uiRatingText ? _self.uiRatingText : uiRatingText // ignore: cast_nullable_to_non_nullable

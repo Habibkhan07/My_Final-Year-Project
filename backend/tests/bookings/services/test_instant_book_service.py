@@ -433,14 +433,17 @@ class TestCatalogScenarioCoverage:
         assert booking.price_amount == decimal.Decimal('1500.00')
         assert booking.price_context == 'Fixed Price'
 
-    def test_scenario_b_labor_gig_persists_skill_rate(self, lahore_tech_and_address):
+    def test_scenario_b_labor_gig_persists_subservice_base_price(self, lahore_tech_and_address):
+        """Replaces the legacy "persist skill rate" test — labor_rate
+        was dropped in migration 0014. ``price_amount`` now lands on
+        ``sub_service.base_price``."""
         tech, profile, address = lahore_tech_and_address
         service = ServiceFactory()
-        sub = SubServiceFactory(service=service, is_fixed_price=False)
-        TechnicianSkillFactory(
-            technician=tech, sub_service=sub,
-            labor_rate=decimal.Decimal('1200.00'),
+        sub = SubServiceFactory(
+            service=service, is_fixed_price=False,
+            base_price=decimal.Decimal('1200.00'),
         )
+        TechnicianSkillFactory(technician=tech, sub_service=sub)
 
         booking = create_instant_booking(
             customer_user=profile.user,
@@ -777,11 +780,11 @@ class TestInspectionFeeColumn:
     def test_labor_gig_leaves_inspection_fee_null(self, lahore_tech_and_address):
         tech, profile, address = lahore_tech_and_address
         service = ServiceFactory()
-        sub = SubServiceFactory(service=service, is_fixed_price=False)
-        TechnicianSkillFactory(
-            technician=tech, sub_service=sub,
-            labor_rate=decimal.Decimal('1200.00'),
+        sub = SubServiceFactory(
+            service=service, is_fixed_price=False,
+            base_price=decimal.Decimal('1200.00'),
         )
+        TechnicianSkillFactory(technician=tech, sub_service=sub)
         booking = create_instant_booking(
             customer_user=profile.user,
             technician_id=tech.id, address_id=address.id,
@@ -833,11 +836,11 @@ class TestFinalCashToCollectColumn:
     def test_labor_gig_persists_resolved_labor_rate(self, lahore_tech_and_address):
         tech, profile, address = lahore_tech_and_address
         service = ServiceFactory()
-        sub = SubServiceFactory(service=service, is_fixed_price=False)
-        TechnicianSkillFactory(
-            technician=tech, sub_service=sub,
-            labor_rate=decimal.Decimal('1200.00'),
+        sub = SubServiceFactory(
+            service=service, is_fixed_price=False,
+            base_price=decimal.Decimal('1200.00'),
         )
+        TechnicianSkillFactory(technician=tech, sub_service=sub)
         booking = create_instant_booking(
             customer_user=profile.user,
             technician_id=tech.id, address_id=address.id,

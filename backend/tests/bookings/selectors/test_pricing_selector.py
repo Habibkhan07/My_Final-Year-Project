@@ -107,15 +107,23 @@ class TestFixedGigScenario:
 # ---------------------------------------------------------------------------
 
 class TestLaborGigScenario:
+    """Scenario B after the 2026-05-17 onboarding refactor.
 
-    def test_skill_rate_yields_single_value(self):
+    ``TechnicianSkill.labor_rate`` was dropped in migration 0014. The
+    primary amount stamped onto ``JobBooking.price_amount`` is now
+    ``sub_service.base_price`` unconditionally; the display string
+    becomes a ``Rs. base – max`` band when the catalog declares a
+    max_price.
+    """
+
+    def test_base_price_only_when_max_not_set(self):
         service = ServiceFactory()
-        sub = SubServiceFactory(service=service, is_fixed_price=False)
-        tech = TechnicianProfileFactory(status='APPROVED')
-        TechnicianSkillFactory(
-            technician=tech, sub_service=sub,
-            labor_rate=decimal.Decimal('1200.00'),
+        sub = SubServiceFactory(
+            service=service, is_fixed_price=False,
+            base_price=decimal.Decimal('1200.00'), max_price=None,
         )
+        tech = TechnicianProfileFactory(status='APPROVED')
+        TechnicianSkillFactory(technician=tech, sub_service=sub)
 
         intent = resolve_booking_intent(
             technician=tech, service=service, sub_service=sub, promotion=None,
@@ -126,29 +134,31 @@ class TestLaborGigScenario:
         assert intent.primary_price == 'Rs. 1,200'
         assert intent.price_context_label == 'Labor Fee'
 
-    def test_no_skill_rate_falls_back_to_subservice_base_price(self):
+    def test_range_display_when_max_set(self):
         service = ServiceFactory()
         sub = SubServiceFactory(
-            service=service, is_fixed_price=False, base_price=decimal.Decimal('800.00'),
+            service=service, is_fixed_price=False,
+            base_price=decimal.Decimal('800.00'),
+            max_price=decimal.Decimal('2000.00'),
         )
         tech = TechnicianProfileFactory(status='APPROVED')
-        TechnicianSkillFactory(technician=tech, sub_service=sub, labor_rate=None)
+        TechnicianSkillFactory(technician=tech, sub_service=sub)
 
         intent = resolve_booking_intent(
             technician=tech, service=service, sub_service=sub, promotion=None,
         )
 
+        # primary_amount stays at base_price (the figure the booking
+        # write path stamps); display string is the honest band.
         assert intent.primary_amount == decimal.Decimal('800.00')
+        assert intent.primary_price == 'Rs. 800 – 2,000'
 
     def test_promo_on_labor_gig_surfaces_tag(self):
         service = ServiceFactory()
         sub = SubServiceFactory(service=service, is_fixed_price=False)
         promo = PromotionFactory(target_service=service, description='Promo on labor')
         tech = TechnicianProfileFactory(status='APPROVED')
-        TechnicianSkillFactory(
-            technician=tech, sub_service=sub,
-            labor_rate=decimal.Decimal('1000.00'),
-        )
+        TechnicianSkillFactory(technician=tech, sub_service=sub)
 
         intent = resolve_booking_intent(
             technician=tech, service=service, sub_service=sub, promotion=promo,

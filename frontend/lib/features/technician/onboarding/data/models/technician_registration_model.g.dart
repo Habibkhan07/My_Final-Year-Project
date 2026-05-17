@@ -13,8 +13,6 @@ _TechnicianRegistrationModel _$TechnicianRegistrationModelFromJson(
   lastName: json['last_name'] as String,
   city: json['city'] as String,
   cnicNumber: json['cnic_number'] as String,
-  experienceYears: (json['experience_years'] as num).toInt(),
-  bio: json['bio'] as String,
   profilePictureUuid: json['profile_picture_uuid'] as String,
   cnicPictureUuid: json['cnic_picture_uuid'] as String,
   categoryLicenses: (json['category_licenses'] as List<dynamic>)
@@ -23,6 +21,10 @@ _TechnicianRegistrationModel _$TechnicianRegistrationModelFromJson(
   skills: (json['skills'] as List<dynamic>)
       .map((e) => SkillInputModel.fromJson(e as Map<String, dynamic>))
       .toList(),
+  baseLatitude: (json['base_latitude'] as num?)?.toDouble(),
+  baseLongitude: (json['base_longitude'] as num?)?.toDouble(),
+  maxTravelRadiusKm: (json['max_travel_radius_km'] as num?)?.toInt(),
+  workAddressLabel: json['work_address_label'] as String?,
 );
 
 Map<String, dynamic> _$TechnicianRegistrationModelToJson(
@@ -32,12 +34,14 @@ Map<String, dynamic> _$TechnicianRegistrationModelToJson(
   'last_name': instance.lastName,
   'city': instance.city,
   'cnic_number': instance.cnicNumber,
-  'experience_years': instance.experienceYears,
-  'bio': instance.bio,
   'profile_picture_uuid': instance.profilePictureUuid,
   'cnic_picture_uuid': instance.cnicPictureUuid,
   'category_licenses': instance.categoryLicenses,
   'skills': instance.skills,
+  'base_latitude': instance.baseLatitude,
+  'base_longitude': instance.baseLongitude,
+  'max_travel_radius_km': instance.maxTravelRadiusKm,
+  'work_address_label': instance.workAddressLabel,
 };
 
 _CategoryLicenseInputModel _$CategoryLicenseInputModelFromJson(
@@ -55,15 +59,7 @@ Map<String, dynamic> _$CategoryLicenseInputModelToJson(
 };
 
 _SkillInputModel _$SkillInputModelFromJson(Map<String, dynamic> json) =>
-    _SkillInputModel(
-      subServiceId: (json['sub_service_id'] as num).toInt(),
-      yearsOfExperience: (json['years_of_experience'] as num).toInt(),
-      laborRate: json['labor_rate'] as String?,
-    );
+    _SkillInputModel(subServiceId: (json['sub_service_id'] as num).toInt());
 
 Map<String, dynamic> _$SkillInputModelToJson(_SkillInputModel instance) =>
-    <String, dynamic>{
-      'sub_service_id': instance.subServiceId,
-      'years_of_experience': instance.yearsOfExperience,
-      'labor_rate': instance.laborRate,
-    };
+    <String, dynamic>{'sub_service_id': instance.subServiceId};

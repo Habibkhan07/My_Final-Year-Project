@@ -298,9 +298,6 @@ class Command(BaseCommand):
                 defaults={
                     'city': 'LHR',
                     'cnic_number': f'35202-{user.pk:07d}-1',
-                    'experience_years': 5,
-                    'bio': f'{full.split()[0]} is a certified technician with '
-                           '5 years of field experience.',
                     'status': status,
                     'rejection_reason': rejection,
                     'is_onboarding_complete': True,
@@ -330,7 +327,6 @@ class Command(BaseCommand):
                 TechnicianSkill.objects.get_or_create(
                     technician=tech,
                     sub_service=catalog['sub_ac_wash'],
-                    defaults={'years_of_experience': 4, 'labor_rate': Decimal('1500.00')},
                 )
                 TechnicianServiceLicense.objects.get_or_create(
                     technician=tech,

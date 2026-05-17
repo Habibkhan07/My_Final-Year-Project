@@ -71,13 +71,13 @@ class TechnicianSkillInline(admin.TabularInline):
     """Tech-owned data — admin views, never edits.
 
     Skills are captured during the technician onboarding flow (Flutter
-    app). Admin-side mutation would corrupt the matchmaking pipeline
-    (sub_service FK + labor_rate feed the discovery selector). Locked
-    fully readonly.
+    app) plus the in-app Skills CRUD endpoint. Admin-side mutation
+    would corrupt the matchmaking pipeline (sub_service FK feeds the
+    discovery selector). Locked fully readonly.
     """
     model = TechnicianSkill
     extra = 0
-    fields = ('sub_service', 'years_of_experience', 'labor_rate')
+    fields = ('sub_service',)
     readonly_fields = fields
     can_delete = False
 
@@ -250,7 +250,7 @@ class TechnicianProfileAdmin(admin.ModelAdmin):
                            'the field is read-only here so admins don\'t bypass the audit trail.',
         }),
         ('Identity (editable)', {
-            'fields': ('city', 'experience_years', 'bio'),
+            'fields': ('city',),
         }),
         ('Identity (locked — set at onboarding)', {
             'classes': ('collapse',),
@@ -520,7 +520,6 @@ class TechnicianProfileAdmin(admin.ModelAdmin):
                     ('Phone', getattr(getattr(profile.user, 'userprofile', None), 'phone', None) or '—'),
                     ('CNIC', profile.cnic_number or '—'),
                     ('City', profile.city or '—'),
-                    ('Experience', f'{profile.experience_years} years' if profile.experience_years else '—'),
                     ('Applied at', profile.user.date_joined),
                 ],
             },

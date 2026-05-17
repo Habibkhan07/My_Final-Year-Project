@@ -2,14 +2,12 @@
 
 Read shape mirrors what the FE 'My Skills' tile renders — sub-service
 name + icon + parent service so the list can be grouped by service
-without a second round-trip. Labor rate / years are deliberately
-omitted: years isn't surfaced anywhere read-side yet, and labor_rate
-is a quote-time concept (see the onboarding-refactor plan).
+without a second round-trip.
 
 Write shape is intentionally tiny — a single ``sub_service_id``. The
-service writes ``years_of_experience=0`` and ``labor_rate=NULL`` for
-the row. Anything richer would expose contract surface that the
-profile-menu sprint isn't designed to defend.
+bridge row is pure membership after migrations 0013/0014 (2026-05-17
+onboarding refactor); pricing comes from ``catalog.SubService.base_price``
+now, not from any per-tech column.
 """
 from __future__ import annotations
 
@@ -57,10 +55,8 @@ class MySkillReadSerializer(serializers.ModelSerializer):
 class AddSkillWriteSerializer(serializers.Serializer):
     """Ingress shape for ``POST /api/technicians/me/skills/``.
 
-    Single field — picking a sub-service IS the operation. The service
-    layer writes ``years_of_experience=0`` and ``labor_rate=NULL``;
-    those columns are kept on the model for back-compat with the
-    onboarding write path, but they're not part of the CRUD contract.
+    Single field — picking a sub-service IS the operation. The bridge
+    row is pure membership; no pricing or experience columns.
     """
 
     sub_service_id = serializers.IntegerField(min_value=1)

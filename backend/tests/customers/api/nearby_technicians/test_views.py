@@ -51,7 +51,7 @@ class TestTechnicianDiscoveryListView:
         """
         sub_service = SubServiceFactory(base_price=1500.00, max_price=1500.00, is_fixed_price=False, name="AC Check")
         tech = TechnicianProfileFactory(is_active=True, is_onboarding_complete=True)
-        TechnicianSkillFactory(technician=tech, sub_service=sub_service, labor_rate=1500.00)
+        TechnicianSkillFactory(technician=tech, sub_service=sub_service)
 
         response = self.client.get(f"{self.url}?sub_service_id={sub_service.id}")
 
@@ -62,20 +62,21 @@ class TestTechnicianDiscoveryListView:
         # Must NOT be Fixed Price just because prices happen to match
         assert tech_data['price_context'] == "Labor Fee"
 
-    def test_scenario_3_variable_labor_rate_single(self):
-        """Scenario 3: Variable Job (Technician sets a single labor rate)"""
+    def test_scenario_3_labor_gig_shows_platform_band(self):
+        """Scenario 3 after the 2026-05-17 refactor: tech no longer sets
+        a personal labor_rate; customer sees the catalog's
+        ``Rs. base – max`` band."""
         sub_service = SubServiceFactory(base_price=800.00, max_price=2000.00, name="Pipe Leak")
         tech = TechnicianProfileFactory(is_active=True, is_onboarding_complete=True)
-        # Technician picks a specific rate
-        TechnicianSkillFactory(technician=tech, sub_service=sub_service, labor_rate=1200.00)
-        
+        TechnicianSkillFactory(technician=tech, sub_service=sub_service)
+
         response = self.client.get(f"{self.url}?sub_service_id={sub_service.id}")
-        
+
         assert response.status_code == 200
         data = response.json()
         tech_data = data['results'][0]
-        
-        assert tech_data['primary_price'] == "Rs. 1,200"
+
+        assert tech_data['primary_price'] == "Rs. 800 – 2,000"
         assert tech_data['price_context'] == "Labor Fee"
 
     def test_scenario_4_promo_click(self):
@@ -106,7 +107,7 @@ class TestTechnicianDiscoveryListView:
         """Search query matching a sub-service should trigger Scenario 3 logic"""
         sub_service = SubServiceFactory(name="Plumbing Leak", base_price=800.00, max_price=2000.00)
         tech = TechnicianProfileFactory(is_active=True, is_onboarding_complete=True)
-        TechnicianSkillFactory(technician=tech, sub_service=sub_service, labor_rate=1100.00)
+        TechnicianSkillFactory(technician=tech, sub_service=sub_service)
 
         response = self.client.get(f"{self.url}?q=Plumb")
 
@@ -114,7 +115,7 @@ class TestTechnicianDiscoveryListView:
         data = response.json()
         tech_data = data['results'][0]
 
-        assert tech_data['primary_price'] == "Rs. 1,100"
+        assert tech_data['primary_price'] == "Rs. 800 – 2,000"
         assert tech_data['price_context'] == "Labor Fee"
 
     # --- REGRESSION TESTS: GPS-less filter correctness (Bug Fix) ---

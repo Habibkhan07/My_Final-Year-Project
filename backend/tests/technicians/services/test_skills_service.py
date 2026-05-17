@@ -35,10 +35,10 @@ pytestmark = pytest.mark.django_db
 
 
 class TestAddSkill:
-    def test_creates_row_with_safe_defaults(self):
-        """The CRUD endpoint never collects labor_rate or years — the
-        service must write NULL / 0 so the column contract stays
-        unambiguous for the onboarding-refactor migration."""
+    def test_creates_row_for_licensed_category(self):
+        """Bridge row is pure membership after the 2026-05-17 refactor —
+        the service writes (technician, sub_service) and nothing else.
+        """
         tech = TechnicianProfileFactory()
         sub = SubServiceFactory()
         # Seed a license row under the same parent so the category
@@ -49,9 +49,8 @@ class TestAddSkill:
 
         skill = add_skill(technician=tech, sub_service_id=sub.id)
 
-        assert skill.labor_rate is None
-        assert skill.years_of_experience == 0
         assert skill.sub_service_id == sub.id
+        assert skill.technician_id == tech.id
 
     def test_unknown_sub_service_raises_not_found(self):
         tech = TechnicianProfileFactory()

@@ -12,13 +12,18 @@ abstract class TechnicianRegistrationModel with _$TechnicianRegistrationModel {
     @JsonKey(name: 'last_name') required String lastName,
     required String city,
     @JsonKey(name: 'cnic_number') required String cnicNumber,
-    @JsonKey(name: 'experience_years') required int experienceYears,
-    required String bio,
     @JsonKey(name: 'profile_picture_uuid') required String profilePictureUuid,
     @JsonKey(name: 'cnic_picture_uuid') required String cnicPictureUuid,
     @JsonKey(name: 'category_licenses')
     required List<CategoryLicenseInputModel> categoryLicenses,
     required List<SkillInputModel> skills,
+    // Work-location captured in the final wizard step. Optional on the
+    // wire — older clients that don't yet send these fall back to the
+    // dashboard banner for capture.
+    @JsonKey(name: 'base_latitude') double? baseLatitude,
+    @JsonKey(name: 'base_longitude') double? baseLongitude,
+    @JsonKey(name: 'max_travel_radius_km') int? maxTravelRadiusKm,
+    @JsonKey(name: 'work_address_label') String? workAddressLabel,
   }) = _TechnicianRegistrationModel;
 
   factory TechnicianRegistrationModel.fromJson(Map<String, dynamic> json) =>
@@ -37,13 +42,13 @@ abstract class CategoryLicenseInputModel with _$CategoryLicenseInputModel {
       _$CategoryLicenseInputModelFromJson(json);
 }
 
-/// [SkillInputModel] represents the technician's selected skills and labor rate.
+/// [SkillInputModel] represents a single sub-service pick. Bridge row
+/// is pure membership after the 2026-05-17 refactor — no per-skill
+/// years / labor rate on the wire.
 @freezed
 abstract class SkillInputModel with _$SkillInputModel {
   const factory SkillInputModel({
     @JsonKey(name: 'sub_service_id') required int subServiceId,
-    @JsonKey(name: 'years_of_experience') required int yearsOfExperience,
-    @JsonKey(name: 'labor_rate') String? laborRate,
   }) = _SkillInputModel;
 
   factory SkillInputModel.fromJson(Map<String, dynamic> json) =>

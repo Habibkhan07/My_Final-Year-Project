@@ -50,10 +50,6 @@
           <span class="fx-meta-chip-value">{{ profile.get_city_display }}</span>
         </span>
         <span class="fx-meta-chip">
-          <span class="fx-meta-chip-label">Experience</span>
-          <span class="fx-meta-chip-value">{{ profile.experience_years }} yr</span>
-        </span>
-        <span class="fx-meta-chip">
           <span class="fx-meta-chip-label">Phone</span>
           <span class="fx-meta-chip-value">{{ profile.user.username }}</span>
         </span>
@@ -76,8 +72,6 @@
           <tr>
             <th>Service</th>
             <th>Skill (sub-service)</th>
-            <th class="fx-num">Years</th>
-            <th class="fx-num">Labor rate</th>
           </tr>
         </thead>
         <tbody>
@@ -85,10 +79,6 @@
             <tr>
               <td style="font-weight:600">{{ s.sub_service.service.name }}</td>
               <td>{{ s.sub_service.name }}</td>
-              <td class="fx-num">{{ s.years_of_experience }}</td>
-              <td class="fx-num">
-                {% if s.labor_rate %}Rs.&nbsp;{{ s.labor_rate }}{% else %}&mdash;{% endif %}
-              </td>
             </tr>
           {% endfor %}
         </tbody>

@@ -80,7 +80,7 @@ class TestTechnicianProfileDetailView:
 
         required_fields = [
             'id', 'full_name', 'city', 'profile_picture',
-            'rating_average', 'review_count', 'experience_years', 'bio',
+            'rating_average', 'review_count',
             'distance_km', 'bayesian_score', 'is_active',
             'ui_rating_text', 'primary_price', 'price_context', 'promo_tag',
             'skills', 'recent_reviews',
@@ -172,17 +172,39 @@ class TestTechnicianProfileDetailView:
     # SCENARIO B — LABOR GIG
     # ------------------------------------------------------------------
 
-    def test_scenario_b_single_labor_rate(self):
+    def test_scenario_b_labor_gig_shows_single_base_price_when_no_max(self):
+        """After migration 0014 the tech no longer sets a labor rate; the
+        platform's ``SubService.base_price`` is the single labor figure
+        when ``max_price`` is null."""
         service = ServiceFactory()
-        sub = SubServiceFactory(service=service, is_fixed_price=False)
+        sub = SubServiceFactory(
+            service=service, is_fixed_price=False,
+            base_price=1200.00, max_price=None,
+        )
         tech = TechnicianProfileFactory(status='APPROVED')
-        TechnicianSkillFactory(technician=tech, sub_service=sub, labor_rate=1200.00)
+        TechnicianSkillFactory(technician=tech, sub_service=sub)
 
         data = self.client.get(self._url(tech.id), {'sub_service_id': sub.id}).json()
 
         assert data['primary_price'] == 'Rs. 1,200'
         assert data['price_context'] == 'Labor Fee'
         assert data['promo_tag'] is None
+
+    def test_scenario_b_labor_gig_shows_range_when_max_set(self):
+        """When the catalog declares an upper bound the customer sees a
+        Rs. base – max band — honest about the platform-set spread."""
+        service = ServiceFactory()
+        sub = SubServiceFactory(
+            service=service, is_fixed_price=False,
+            base_price=800.00, max_price=2000.00,
+        )
+        tech = TechnicianProfileFactory(status='APPROVED')
+        TechnicianSkillFactory(technician=tech, sub_service=sub)
+
+        data = self.client.get(self._url(tech.id), {'sub_service_id': sub.id}).json()
+
+        assert data['primary_price'] == 'Rs. 800 – 2,000'
+        assert data['price_context'] == 'Labor Fee'
 
     def test_scenario_b_labor_gig_with_active_promo(self):
         service = ServiceFactory()
@@ -194,7 +216,7 @@ class TestTechnicianProfileDetailView:
             description="20% Off Final Bill",
         )
         tech = TechnicianProfileFactory(status='APPROVED')
-        TechnicianSkillFactory(technician=tech, sub_service=sub, labor_rate=1000)
+        TechnicianSkillFactory(technician=tech, sub_service=sub)
 
         data = self.client.get(
             self._url(tech.id),
@@ -203,18 +225,6 @@ class TestTechnicianProfileDetailView:
 
         assert data['price_context'] == 'Labor Fee'
         assert data['promo_tag'] == '20% Off Final Bill'
-
-    def test_scenario_b_falls_back_to_platform_price_when_no_skill_rate(self):
-        """Technician hasn't set a custom rate → show SubService platform base_price."""
-        service = ServiceFactory()
-        sub = SubServiceFactory(service=service, is_fixed_price=False, base_price=800.00)
-        tech = TechnicianProfileFactory(status='APPROVED')
-        TechnicianSkillFactory(technician=tech, sub_service=sub, labor_rate=None)
-
-        data = self.client.get(self._url(tech.id), {'sub_service_id': sub.id}).json()
-
-        assert data['primary_price'] == 'Rs. 800'
-        assert data['price_context'] == 'Labor Fee'
 
     # ------------------------------------------------------------------
     # SCENARIO C — CATEGORY DISCOVERY

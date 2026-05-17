@@ -14,7 +14,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$TechnicianEntity {
 
- int get profileId; String get status; String get fullName; String get joinedDate; int get experienceYears;
+ int get profileId; String get status; String get fullName; String get joinedDate;
 /// Create a copy of TechnicianEntity
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -25,16 +25,16 @@ $TechnicianEntityCopyWith<TechnicianEntity> get copyWith => _$TechnicianEntityCo
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is TechnicianEntity&&(identical(other.profileId, profileId) || other.profileId == profileId)&&(identical(other.status, status) || other.status == status)&&(identical(other.fullName, fullName) || other.fullName == fullName)&&(identical(other.joinedDate, joinedDate) || other.joinedDate == joinedDate)&&(identical(other.experienceYears, experienceYears) || other.experienceYears == experienceYears));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is TechnicianEntity&&(identical(other.profileId, profileId) || other.profileId == profileId)&&(identical(other.status, status) || other.status == status)&&(identical(other.fullName, fullName) || other.fullName == fullName)&&(identical(other.joinedDate, joinedDate) || other.joinedDate == joinedDate));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,profileId,status,fullName,joinedDate,experienceYears);
+int get hashCode => Object.hash(runtimeType,profileId,status,fullName,joinedDate);
 
 @override
 String toString() {
-  return 'TechnicianEntity(profileId: $profileId, status: $status, fullName: $fullName, joinedDate: $joinedDate, experienceYears: $experienceYears)';
+  return 'TechnicianEntity(profileId: $profileId, status: $status, fullName: $fullName, joinedDate: $joinedDate)';
 }
 
 
@@ -45,7 +45,7 @@ abstract mixin class $TechnicianEntityCopyWith<$Res>  {
   factory $TechnicianEntityCopyWith(TechnicianEntity value, $Res Function(TechnicianEntity) _then) = _$TechnicianEntityCopyWithImpl;
 @useResult
 $Res call({
- int profileId, String status, String fullName, String joinedDate, int experienceYears
+ int profileId, String status, String fullName, String joinedDate
 });
 
 
@@ -62,14 +62,13 @@ class _$TechnicianEntityCopyWithImpl<$Res>
 
 /// Create a copy of TechnicianEntity
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? profileId = null,Object? status = null,Object? fullName = null,Object? joinedDate = null,Object? experienceYears = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? profileId = null,Object? status = null,Object? fullName = null,Object? joinedDate = null,}) {
   return _then(_self.copyWith(
 profileId: null == profileId ? _self.profileId : profileId // ignore: cast_nullable_to_non_nullable
 as int,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
 as String,fullName: null == fullName ? _self.fullName : fullName // ignore: cast_nullable_to_non_nullable
 as String,joinedDate: null == joinedDate ? _self.joinedDate : joinedDate // ignore: cast_nullable_to_non_nullable
-as String,experienceYears: null == experienceYears ? _self.experienceYears : experienceYears // ignore: cast_nullable_to_non_nullable
-as int,
+as String,
   ));
 }
 
@@ -154,10 +153,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int profileId,  String status,  String fullName,  String joinedDate,  int experienceYears)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int profileId,  String status,  String fullName,  String joinedDate)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _TechnicianEntity() when $default != null:
-return $default(_that.profileId,_that.status,_that.fullName,_that.joinedDate,_that.experienceYears);case _:
+return $default(_that.profileId,_that.status,_that.fullName,_that.joinedDate);case _:
   return orElse();
 
 }
@@ -175,10 +174,10 @@ return $default(_that.profileId,_that.status,_that.fullName,_that.joinedDate,_th
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int profileId,  String status,  String fullName,  String joinedDate,  int experienceYears)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int profileId,  String status,  String fullName,  String joinedDate)  $default,) {final _that = this;
 switch (_that) {
 case _TechnicianEntity():
-return $default(_that.profileId,_that.status,_that.fullName,_that.joinedDate,_that.experienceYears);case _:
+return $default(_that.profileId,_that.status,_that.fullName,_that.joinedDate);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -195,10 +194,10 @@ return $default(_that.profileId,_that.status,_that.fullName,_that.joinedDate,_th
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int profileId,  String status,  String fullName,  String joinedDate,  int experienceYears)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int profileId,  String status,  String fullName,  String joinedDate)?  $default,) {final _that = this;
 switch (_that) {
 case _TechnicianEntity() when $default != null:
-return $default(_that.profileId,_that.status,_that.fullName,_that.joinedDate,_that.experienceYears);case _:
+return $default(_that.profileId,_that.status,_that.fullName,_that.joinedDate);case _:
   return null;
 
 }
@@ -210,14 +209,13 @@ return $default(_that.profileId,_that.status,_that.fullName,_that.joinedDate,_th
 
 
 class _TechnicianEntity implements TechnicianEntity {
-  const _TechnicianEntity({required this.profileId, required this.status, required this.fullName, required this.joinedDate, required this.experienceYears});
+  const _TechnicianEntity({required this.profileId, required this.status, required this.fullName, required this.joinedDate});
   
 
 @override final  int profileId;
 @override final  String status;
 @override final  String fullName;
 @override final  String joinedDate;
-@override final  int experienceYears;
 
 /// Create a copy of TechnicianEntity
 /// with the given fields replaced by the non-null parameter values.
@@ -229,16 +227,16 @@ _$TechnicianEntityCopyWith<_TechnicianEntity> get copyWith => __$TechnicianEntit
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TechnicianEntity&&(identical(other.profileId, profileId) || other.profileId == profileId)&&(identical(other.status, status) || other.status == status)&&(identical(other.fullName, fullName) || other.fullName == fullName)&&(identical(other.joinedDate, joinedDate) || other.joinedDate == joinedDate)&&(identical(other.experienceYears, experienceYears) || other.experienceYears == experienceYears));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TechnicianEntity&&(identical(other.profileId, profileId) || other.profileId == profileId)&&(identical(other.status, status) || other.status == status)&&(identical(other.fullName, fullName) || other.fullName == fullName)&&(identical(other.joinedDate, joinedDate) || other.joinedDate == joinedDate));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,profileId,status,fullName,joinedDate,experienceYears);
+int get hashCode => Object.hash(runtimeType,profileId,status,fullName,joinedDate);
 
 @override
 String toString() {
-  return 'TechnicianEntity(profileId: $profileId, status: $status, fullName: $fullName, joinedDate: $joinedDate, experienceYears: $experienceYears)';
+  return 'TechnicianEntity(profileId: $profileId, status: $status, fullName: $fullName, joinedDate: $joinedDate)';
 }
 
 
@@ -249,7 +247,7 @@ abstract mixin class _$TechnicianEntityCopyWith<$Res> implements $TechnicianEnti
   factory _$TechnicianEntityCopyWith(_TechnicianEntity value, $Res Function(_TechnicianEntity) _then) = __$TechnicianEntityCopyWithImpl;
 @override @useResult
 $Res call({
- int profileId, String status, String fullName, String joinedDate, int experienceYears
+ int profileId, String status, String fullName, String joinedDate
 });
 
 
@@ -266,14 +264,13 @@ class __$TechnicianEntityCopyWithImpl<$Res>
 
 /// Create a copy of TechnicianEntity
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? profileId = null,Object? status = null,Object? fullName = null,Object? joinedDate = null,Object? experienceYears = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? profileId = null,Object? status = null,Object? fullName = null,Object? joinedDate = null,}) {
   return _then(_TechnicianEntity(
 profileId: null == profileId ? _self.profileId : profileId // ignore: cast_nullable_to_non_nullable
 as int,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
 as String,fullName: null == fullName ? _self.fullName : fullName // ignore: cast_nullable_to_non_nullable
 as String,joinedDate: null == joinedDate ? _self.joinedDate : joinedDate // ignore: cast_nullable_to_non_nullable
-as String,experienceYears: null == experienceYears ? _self.experienceYears : experienceYears // ignore: cast_nullable_to_non_nullable
-as int,
+as String,
   ));
 }
 

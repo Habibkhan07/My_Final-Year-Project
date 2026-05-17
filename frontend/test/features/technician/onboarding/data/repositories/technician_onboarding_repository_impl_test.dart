@@ -48,8 +48,6 @@ void main() {
       lastName: tLastName,
       city: 'LHR',
       cnicNumber: '12345',
-      experienceYears: 5,
-      bio: 'bio',
       profilePictureUuid: 'uuid1',
       cnicPictureUuid: 'uuid2',
       skills: [],

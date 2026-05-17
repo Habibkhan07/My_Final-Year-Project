@@ -16,7 +16,7 @@ class MockGetOnboardingMetadataUseCase extends Mock
     implements GetOnboardingMetadataUseCase {}
 
 void main() {
-  group('Step4Certifications Widget Tests (Dumb UI)', () {
+  group('Step4Certifications', () {
     late MockGetOnboardingMetadataUseCase mockMetadataUseCase;
 
     const tServices = [
@@ -47,14 +47,10 @@ void main() {
       ).thenAnswer((_) async => tServices);
     });
 
-    testWidgets('should render warning message when no skills are selected', (
+    Future<ProviderContainer> seedScreen(
       WidgetTester tester,
+      OnboardingState state,
     ) async {
-      final state = OnboardingState(
-        services: tServices,
-        selectedSkills: const [], // No skills selected
-      );
-
       final container = ProviderContainer(
         overrides: [
           getOnboardingMetadataUseCaseProvider.overrideWithValue(
@@ -62,113 +58,68 @@ void main() {
           ),
         ],
       );
-
       await container.read(onboardingProvider.future);
       container.read(onboardingProvider.notifier).state = AsyncData(state);
-
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
-          child: const MaterialApp(home: Scaffold(body: Step4Certifications())),
+          child: const MaterialApp(
+            home: Scaffold(body: Step4Certifications()),
+          ),
         ),
       );
-
       await tester.pumpAndSettle();
+      return container;
+    }
+
+    testWidgets('renders empty-state prompt when no skills are selected', (
+      tester,
+    ) async {
+      final container = await seedScreen(
+        tester,
+        const OnboardingState(services: tServices, selectedSkills: []),
+      );
 
       expect(
-        find.text('Please go back and select at least one service.'),
+        find.textContaining('Pick at least one service'),
         findsOneWidget,
       );
-      expect(find.text('AC Repair License'), findsNothing);
+      expect(find.text('AC Repair license'), findsNothing);
 
       container.dispose();
     });
 
-    testWidgets('should render upload card when a sub-service is selected', (
-      WidgetTester tester,
-    ) async {
-      final state = OnboardingState(
-        services: tServices,
-        selectedSkills: const [
-          SkillSelectionEntity(
-            subServiceId: 10,
-            yearsOfExperience: 0,
-          ), // AC Wash Selected
-        ],
-      );
-
-      final container = ProviderContainer(
-        overrides: [
-          getOnboardingMetadataUseCaseProvider.overrideWithValue(
-            mockMetadataUseCase,
-          ),
-        ],
-      );
-
-      await container.read(onboardingProvider.future);
-      container.read(onboardingProvider.notifier).state = AsyncData(state);
-
-      await tester.pumpWidget(
-        UncontrolledProviderScope(
-          container: container,
-          child: const MaterialApp(home: Scaffold(body: Step4Certifications())),
+    testWidgets('renders one license slot per parent service of selected skills',
+        (tester) async {
+      final container = await seedScreen(
+        tester,
+        const OnboardingState(
+          services: tServices,
+          selectedSkills: [SkillSelectionEntity(subServiceId: 10)],
         ),
       );
 
-      await tester.pumpAndSettle();
-
-      // Visual Contract: Should display the parent service name based on the selected skill
-      expect(find.text('AC Repair License'), findsOneWidget);
-      expect(
-        find.byIcon(Icons.cloud_upload),
-        findsOneWidget,
-      ); // Empty state icon
+      expect(find.text('AC Repair license'), findsOneWidget);
 
       container.dispose();
     });
 
-    testWidgets('should render checkmark when category license is uploaded', (
-      WidgetTester tester,
-    ) async {
-      final state = OnboardingState(
-        services: tServices,
-        categoryLicenses: const [
-          CategoryLicenseEntity(serviceId: 1, mediaUuid: 'mock-uuid'),
-        ],
-        selectedSkills: const [
-          SkillSelectionEntity(
-            subServiceId: 10,
-            yearsOfExperience: 0,
-          ), // AC Wash Selected
-        ],
-      );
-
-      final container = ProviderContainer(
-        overrides: [
-          getOnboardingMetadataUseCaseProvider.overrideWithValue(
-            mockMetadataUseCase,
-          ),
-        ],
-      );
-
-      await container.read(onboardingProvider.future);
-      container.read(onboardingProvider.notifier).state = AsyncData(state);
-
-      await tester.pumpWidget(
-        UncontrolledProviderScope(
-          container: container,
-          child: const MaterialApp(home: Scaffold(body: Step4Certifications())),
+    testWidgets('shows uploaded affordance when a category license is staged',
+        (tester) async {
+      final container = await seedScreen(
+        tester,
+        const OnboardingState(
+          services: tServices,
+          selectedSkills: [SkillSelectionEntity(subServiceId: 10)],
+          categoryLicenses: [
+            CategoryLicenseEntity(serviceId: 1, mediaUuid: 'mock-uuid'),
+          ],
         ),
       );
 
-      await tester.pumpAndSettle();
-
-      expect(find.text('AC Repair License'), findsOneWidget);
-      expect(
-        find.byIcon(Icons.check_circle),
-        findsOneWidget,
-      ); // Uploaded state icon
-      expect(find.textContaining('Upload Complete'), findsOneWidget);
+      expect(find.text('AC Repair license'), findsOneWidget);
+      expect(find.byIcon(Icons.check_circle), findsOneWidget);
+      expect(find.text('Tap to retake'), findsOneWidget);
 
       container.dispose();
     });

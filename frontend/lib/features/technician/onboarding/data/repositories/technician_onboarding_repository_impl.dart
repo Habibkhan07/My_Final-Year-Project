@@ -81,13 +81,14 @@ class TechnicianRepositoryImpl implements TechnicianRepository {
     required String lastName,
     required String city,
     required String cnicNumber,
-    required int experienceYears,
-    required String bio,
     required String profilePictureUuid,
     required String cnicPictureUuid,
     required List<SkillSelectionEntity> skills,
-    required List<CategoryLicenseEntity>
-    categoryLicenses, // REPLACED MAP WITH ENTITY
+    required List<CategoryLicenseEntity> categoryLicenses,
+    double? baseLatitude,
+    double? baseLongitude,
+    int? maxTravelRadiusKm,
+    String? workAddressLabel,
   }) async {
     return _mapFailures(() async {
       final registrationModel = TechnicianRegistrationModel(
@@ -95,8 +96,6 @@ class TechnicianRepositoryImpl implements TechnicianRepository {
         lastName: lastName,
         city: city,
         cnicNumber: cnicNumber,
-        experienceYears: experienceYears,
-        bio: bio,
         profilePictureUuid: profilePictureUuid,
         cnicPictureUuid: cnicPictureUuid,
         categoryLicenses: categoryLicenses
@@ -108,14 +107,12 @@ class TechnicianRepositoryImpl implements TechnicianRepository {
             )
             .toList(),
         skills: skills
-            .map(
-              (s) => SkillInputModel(
-                subServiceId: s.subServiceId,
-                yearsOfExperience: s.yearsOfExperience,
-                laborRate: s.laborRate,
-              ),
-            )
+            .map((s) => SkillInputModel(subServiceId: s.subServiceId))
             .toList(),
+        baseLatitude: baseLatitude,
+        baseLongitude: baseLongitude,
+        maxTravelRadiusKm: maxTravelRadiusKm,
+        workAddressLabel: workAddressLabel,
       );
 
       final response = await remoteDataSource.finalizeRegistration(
@@ -131,7 +128,6 @@ class TechnicianRepositoryImpl implements TechnicianRepository {
         status: response['status'],
         fullName: "$firstName $lastName",
         joinedDate: response['joined_date'] ?? DateTime.now().toString(),
-        experienceYears: experienceYears,
       );
     });
   }

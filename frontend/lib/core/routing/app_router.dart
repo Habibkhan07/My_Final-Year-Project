@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../common/domain/entities/user_entity.dart';
 import '../../features/auth/presentation/providers/auth_notifier.dart';
 import '../../features/auth/presentation/screens/login_screen.dart';
 import '../../features/auth/presentation/screens/otp_screen.dart';
@@ -14,9 +15,7 @@ import '../../features/customer/search/presentation/pages/search_page.dart';
 import '../../features/customer/discovery/presentation/screens/discovery_results_screen.dart';
 import '../../features/technician/onboarding/presentation/screens/onboarding_main_screen.dart';
 import '../../features/technician/onboarding/presentation/screens/pending_approval_screen.dart';
-import '../../features/technician/onboarding/presentation/screens/registration_success_screen.dart';
 import '../../features/technician/onboarding/presentation/providers/technician_status_provider.dart';
-import '../../features/technician/onboarding/domain/entities/technician_entity.dart';
 import '../../features/technician/onboarding/domain/entities/technician_status.dart';
 import '../../features/booking/presentation/screens/technician_profile_screen.dart';
 import '../../features/customer/addresses/presentation/screens/map_picker_screen.dart';
@@ -35,19 +34,74 @@ import '../../features/technician/wallet/presentation/screens/wallet_screen.dart
 import '../../features/technician/wallet/presentation/screens/withdrawal_history_screen.dart';
 import '../realtime/presentation/providers/dependency_injection.dart';
 
+/// Bridges Riverpod state changes (auth, tech status) to go_router's
+/// `refreshListenable` so the redirect re-evaluates on every change
+/// WITHOUT rebuilding [routerProvider] itself. Rebuilding the provider
+/// would recreate the [GoRouter] instance, which forces a navigation
+/// to `initialLocation: '/login'` and resets the route stack — that
+/// caused the post-finalize "user stranded on /login" bug AND the
+/// "Refresh on PendingApprovalScreen kicks the user back to /home" bug
+/// (2026-05-17). With this notifier the same GoRouter persists across
+/// the entire session; only the redirect closure re-runs.
+class _RouterRefreshNotifier extends ChangeNotifier {
+  void refresh() => notifyListeners();
+}
+
 final routerProvider = Provider<GoRouter>((ref) {
-  // Accessing the user through the AsyncValue wrapper
-  final user = ref.watch(authProvider.select((async) => async.value?.user));
-  // Status is `AsyncValue<TechnicianStatus>`. We read .value here so the
-  // redirect closure has the resolved status (or `null` while in flight).
-  // The provider itself is `keepAlive: true`, so the fetch happens once
-  // per login and re-runs only on explicit invalidate or auth change.
-  final statusAsync = ref.watch(technicianStatusProvider);
-  final navigatorKey = ref.watch(navigatorKeyProvider);
+  // ref.read (not watch): navigatorKeyProvider returns a stable
+  // GlobalKey for the session — watching would needlessly rebuild this
+  // provider if the key were ever recreated.
+  final navigatorKey = ref.read(navigatorKeyProvider);
+
+  // Wake the refresh notifier whenever auth or tech-status changes.
+  // ref.listen does NOT cause this provider to rebuild — it only
+  // triggers the side effect, which calls `notifyListeners` on the
+  // notifier passed to GoRouter.refreshListenable. The GoRouter
+  // instance therefore stays stable; only the redirect re-evaluates.
+  final refresh = _RouterRefreshNotifier();
+  ref.listen<UserEntity?>(
+    authProvider.select((async) => async.value?.user),
+    (prev, next) => refresh.refresh(),
+  );
+  ref.listen<AsyncValue<TechnicianStatus>>(
+    technicianStatusProvider,
+    (prev, next) {
+      refresh.refresh();
+      // Explicit navigation on status transitions. go_router's
+      // refreshListenable re-evaluates the redirect but does not
+      // reliably navigate to its return value (observed on go_router
+      // 17.1.0). For state-driven transitions where the user MUST be
+      // moved off their current screen (e.g. tech just got approved
+      // and is sitting on the holding screen), drive the navigation
+      // explicitly via the global navigator key.
+      final prevStatus = prev?.value;
+      final newStatus = next.value;
+      final ctx = navigatorKey.currentContext;
+      if (ctx == null) return;
+
+      // PENDING → APPROVED: jump straight to the tech dashboard.
+      // Suppress when already approved on the prev side so subsequent
+      // refresh-of-Approved doesn't yank the user out of wherever they
+      // navigated to.
+      if (newStatus is TechnicianStatusApproved &&
+          prevStatus is! TechnicianStatusApproved) {
+        ctx.go('/technician/dashboard');
+        return;
+      }
+      // APPROVED → REJECTED (admin revoked): bounce to holding screen.
+      if (newStatus is TechnicianStatusRejected &&
+          prevStatus is! TechnicianStatusRejected) {
+        ctx.go('/technician/pending');
+        return;
+      }
+    },
+  );
+  ref.onDispose(refresh.dispose);
 
   return GoRouter(
     navigatorKey: navigatorKey,
     initialLocation: '/login',
+    refreshListenable: refresh,
     routes: [
       GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
       GoRoute(
@@ -66,15 +120,20 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const OnboardingMainScreen(),
       ),
 
+      // /technician/success used to land on a separate RegistrationSuccessScreen
+      // and then bounce the user to /technician/pending. The two screens
+      // were collapsed in 2026-05-17 — both routes now render the unified
+      // PendingApprovalScreen with brand-consistent UI. The success route
+      // is preserved so onboarding_main_screen's existing
+      // ``context.go('/technician/success', ...)`` keeps working without
+      // a wizard edit; onboarding's submit handler invalidates
+      // ``technicianStatusProvider`` before navigating so the screen
+      // reads the freshly-PENDING status on first frame instead of the
+      // stale ``NoProfile`` cached before finalize.
       GoRoute(
         path: '/technician/success',
-        builder: (context, state) {
-          final technician = state.extra as TechnicianEntity?;
-          if (technician == null) {
-            return const HomeScreen();
-          }
-          return RegistrationSuccessScreen(technician: technician);
-        },
+        builder: (context, state) =>
+            const PendingApprovalScreen(justSubmitted: true),
       ),
 
       // Holding screen for PENDING / REJECTED technicians. The screen
@@ -292,6 +351,11 @@ final routerProvider = Provider<GoRouter>((ref) {
     ],
 
     redirect: (context, state) {
+      // Read CURRENT auth + status values inside the redirect closure.
+      // Closure-captured values would go stale because this GoRouter is
+      // long-lived (built once, refreshed via _RouterRefreshNotifier).
+      final user = ref.read(authProvider).value?.user;
+      final statusAsync = ref.read(technicianStatusProvider);
       final path = state.matchedLocation;
       final isLoggingIn = path == '/login';
       final isVerifyingOtp = path.startsWith('/otp');
@@ -330,34 +394,60 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       final statusValue = statusAsync.value!;
 
-      // PENDING → holding screen, no reapply allowed. The backend
-      // service raises 409 `duplicate_application` if a PENDING user
-      // re-submits, so letting them re-enter the onboarding wizard
-      // just leads to a wasted form fill.
+      // PENDING → holding screen by default, but the user may freely
+      // browse the customer surface while waiting (they're still a
+      // customer too — unified User model). Only ``/technician/...``
+      // routes get bounced back to the holding screen.
+      //
+      // The backend service raises 409 ``duplicate_application`` if a
+      // PENDING user re-submits, so letting them re-enter the
+      // onboarding wizard would just lead to a wasted form fill;
+      // that path still redirects.
       if (statusValue is TechnicianStatusPending) {
         if (isOnHoldingScreen) return null;
         // /technician/success is the post-finalize landing page —
-        // also let it through so the success screen can render once
-        // before redirecting away on the next nav.
+        // also let it through so the holding screen can render
+        // once with the freshly-PENDING status before any further nav.
         if (path == '/technician/success') return null;
+        // A logged-in user must never land on the auth surface. The
+        // routerProvider rebuilds whenever authProvider/statusAsync
+        // change, and the new `GoRouter` starts at `initialLocation:
+        // '/login'`; without this guard the relaxation below would
+        // allow /login through and strand the user on the auth screen
+        // even though their session is alive.
+        if (isLoggingIn || isVerifyingOtp || isSettingUpProfile) return '/home';
+        // Customer-side routes are fine. Only tech routes redirect.
+        if (!path.startsWith('/technician/')) return null;
         return '/technician/pending';
       }
 
-      // REJECTED → holding screen, with reapply allowed. The backend
-      // resets the existing row in place on finalize, so the wizard
-      // is a legitimate exit. /technician/success is allowed for the
-      // same reason as above.
+      // REJECTED → same shape as PENDING but with re-apply allowed.
+      // The backend resets the existing row in place on finalize, so
+      // the wizard is a legitimate exit.
       if (statusValue is TechnicianStatusRejected) {
         if (isOnHoldingScreen || isApplyingAsTech) return null;
+        // Same auth-surface guard as the PENDING branch above.
+        if (isLoggingIn || isVerifyingOtp || isSettingUpProfile) return '/home';
+        if (!path.startsWith('/technician/')) return null;
         return '/technician/pending';
       }
 
-      // Approved technicians: bounce auth/setup paths to the tech surface.
+      // Approved technicians: bounce auth/setup paths AND the
+      // onboarding wizard / post-submit success route to the tech
+      // surface. ``isApplyingAsTech`` covers both ``/technician/onboarding``
+      // and ``/technician/success`` — without it, a freshly-approved
+      // tech who taps Refresh on the PendingApprovalScreen (rendered
+      // at /technician/success) would stay put rendering a loading shim
+      // (the screen treats Approved as transient), AND tapping
+      // "Technician Mode" from the customer profile while the cached
+      // ``user.isTechnician`` is still ``false`` would land them back
+      // in the wizard.
       if (statusValue is TechnicianStatusApproved) {
         if (isLoggingIn ||
             isVerifyingOtp ||
             isSettingUpProfile ||
-            isOnHoldingScreen) {
+            isOnHoldingScreen ||
+            isApplyingAsTech) {
           return '/technician/dashboard';
         }
         return null;

@@ -71,40 +71,35 @@ class TechnicianOnboardingTests(APITestCase):
 
     # --- 3. PHASE 2: ATOMIC REGISTRATION (Service Layer) ---
 
-    def test_full_registration_contract_with_pricing(self):
-        """Verifies that technician-specific labor rates are saved correctly."""
-        # Step 1: Stage media to get UUIDs
+    def test_full_registration_contract(self):
+        """Happy-path finalize after the 2026-05-17 onboarding refactor.
+
+        Payload no longer carries ``experience_years``, ``bio``,
+        ``years_of_experience``, or ``labor_rate`` — the wizard's
+        Professional ID and Skill Pricing steps were dropped.
+        """
         profile_media = TemporaryMedia.objects.create(file=self.dummy_image)
         cnic_media = TemporaryMedia.objects.create(file=self.dummy_image)
-        
+
         url = reverse('tech-register')
         payload = {
             "first_name": "Hamayon",
             "last_name": "Khan",
             "city": "LHR",
             "cnic_number": "12345-1234567-1",
-            "experience_years": 5,
-            "bio": "Expert Technician",
             "profile_picture_uuid": str(profile_media.id),
             "cnic_picture_uuid": str(cnic_media.id),
             "skills": [
-                {
-                    "sub_service_id": self.sub_service.id,
-                    "years_of_experience": 3,
-                    "labor_rate": 2700.00
-                }
-            ]
+                {"sub_service_id": self.sub_service.id},
+            ],
         }
 
         response = self.client.post(url, payload, format='json')
-        
-        # Verify status
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        
-        # Verify Database Persistence of Pricing
+
         profile = TechnicianProfile.objects.get(user=self.user)
         skill = profile.technicianskill_set.first()
-        self.assertEqual(float(skill.labor_rate), 2700.00)
+        self.assertEqual(skill.sub_service_id, self.sub_service.id)
 
         # Regression: finalize_registration must flip the UserProfile
         # `is_technician` flag. Without this, verify-otp keeps returning
@@ -121,15 +116,11 @@ class TechnicianOnboardingTests(APITestCase):
         fake_uuid = str(uuid.uuid4())
         payload = {
             "first_name": "Invalid", "last_name": "UUID", "city": "KHI",
-            "cnic_number": "12345-1234567-1", "experience_years": 1, "bio": "...",
+            "cnic_number": "12345-1234567-1",
             "profile_picture_uuid": fake_uuid, "cnic_picture_uuid": fake_uuid,
             "skills": [
-                {
-                    "sub_service_id": self.sub_service.id,
-                    "years_of_experience": 1,
-                    "labor_rate": 2500.00
-                }
-            ]
+                {"sub_service_id": self.sub_service.id},
+            ],
         }
         response = self.client.post(url, payload, format='json')
         

@@ -81,13 +81,42 @@ class AuthNotifier extends _$AuthNotifier {
   Future<void> verifyOtp(String phone, String otp) async {
     if (state.isLoading) return;
 
-    state = const AsyncLoading();
-    state = await AsyncValue.guard(() async {
+    // INVARIANT: a verify-otp call cannot dislodge a previously-resolved
+    // user from state, even during the AsyncLoading window or on
+    // failure. This closes the "logged-in then immediately logged out"
+    // race documented in audit S-12: the OTP screen has both an
+    // auto-submit (on the 6th-digit keystroke) and a manual button.
+    // After the first verify lands a token, the user can still trigger
+    // a second call. The backend's OTP is single-use, so a duplicate
+    // verify USED to return 400 — and the previous flow's bare
+    // ``state = const AsyncLoading()`` would have dropped the
+    // just-acquired user mid-transition, routing them straight back to
+    // /login.
+    //
+    // Two pieces of belt + suspenders cover this race now:
+    //   1. The backend's verify-otp is idempotent within a 60-second
+    //      grace window (see ``accounts.services.auth_service``).
+    //   2. ``copyWithPrevious`` preserves the prior user value through
+    //      the AsyncLoading transition so the router's
+    //      ``user == null`` redirect never fires even if a duplicate
+    //      verify is in flight and the backend's grace check happens
+    //      to reject it.
+    //
+    // Legitimate re-verify (cached user + fresh OTP from a different
+    // session, covered by bridge test A5) still works because we
+    // never block the call — we only preserve the prior value.
+    state = AsyncLoading<AuthState>().copyWithPrevious(state);
+    final result = await AsyncValue.guard(() async {
       final useCase = ref.read(verifyOtpUseCaseProvider);
       final user = await useCase.execute(phone, otp);
       _scheduleBoot(user);
       return AuthState(user: user);
     });
+    // On error, keep the prior user reachable via ``state.value`` so
+    // the router stays on the OTP screen / continues to see the
+    // session — the screen layer surfaces the error via its own
+    // ref.listen.
+    state = result.copyWithPrevious(state);
   }
 
   Future<void> completeSignup(String firstName, String lastName) async {

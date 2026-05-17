@@ -10,21 +10,22 @@ abstract class TechnicianRepository {
   // Uploads a file and returns a unique UUID from the server
   Future<String> uploadMedia(XFile file, String token);
 
-  // Sends the final registration data and returns the updated profile
-  // Phase 2: Submit the full registration form
+  // Phase 2: submit the full registration form. Wizard fields after
+  // the 2026-05-17 refactor — ``bio`` / ``experience_years`` are
+  // gone; work-location is captured in-wizard now.
   Future<TechnicianEntity> finalizeRegistration({
     required String token,
     required String firstName,
     required String lastName,
     required String city,
     required String cnicNumber,
-    required int experienceYears,
-    required String bio,
     required String profilePictureUuid,
     required String cnicPictureUuid,
-    required List<SkillSelectionEntity>
-    skills, // Change from List<Map>    skills, // Changed from List<int> // Simplified for the Use Case
-    required List<CategoryLicenseEntity>
-    categoryLicenses, // REPLACED MAP WITH ENTITY
+    required List<SkillSelectionEntity> skills,
+    required List<CategoryLicenseEntity> categoryLicenses,
+    double? baseLatitude,
+    double? baseLongitude,
+    int? maxTravelRadiusKm,
+    String? workAddressLabel,
   });
 }

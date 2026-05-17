@@ -34,24 +34,23 @@ def _image_file(name='img.jpg'):
 
 
 def _valid_payload(*, sub_service, first='Re', last='Applied', city='LHR',
-                   cnic='12345-1234567-1', labor_rate=3000.00):
-    """Validated-data dict matching what the serializer hands to the service."""
+                   cnic='12345-1234567-1'):
+    """Validated-data dict matching what the serializer hands to the service.
+
+    After the 2026-05-17 onboarding refactor the bridge row is pure
+    membership — ``years_of_experience``/``labor_rate`` are gone, and
+    the profile columns ``experience_years``/``bio`` are dropped too.
+    """
     return {
         'first_name': first,
         'last_name': last,
         'city': city,
         'cnic_number': cnic,
-        'experience_years': 4,
-        'bio': 'Updated bio after rejection.',
         'profile_picture_file': _image_file('profile.jpg'),
         'cnic_picture_file': _image_file('cnic.jpg'),
         'category_licenses': [],
         'skills': [
-            {
-                'sub_service_id': sub_service.id,
-                'years_of_experience': 2,
-                'labor_rate': labor_rate,
-            }
+            {'sub_service_id': sub_service.id},
         ],
     }
 
@@ -71,12 +70,10 @@ class TestReapplicationFlow:
             status='REJECTED',
             rejection_reason='CNIC illegible',
             cnic_number='99999-9999999-9',
-            bio='Old bio',
         )
         TechnicianSkillFactory(
             technician=rejected_profile,
             sub_service=self.other_sub_service,
-            labor_rate=1000.00,
         )
         original_id = rejected_profile.id
 
@@ -94,7 +91,6 @@ class TestReapplicationFlow:
         assert result.rejection_reason == ''
 
         # New submission's fields replaced the old ones.
-        assert result.bio == 'Updated bio after rejection.'
         assert result.cnic_number == '12345-1234567-1'
 
         # Old skills wiped; new skill in place.
@@ -121,16 +117,8 @@ class TestReapplicationFlow:
         validated_data = _valid_payload(sub_service=plumbing_sub)
         # Two skills across two parent services; zero license uploads.
         validated_data['skills'] = [
-            {
-                'sub_service_id': plumbing_sub.id,
-                'years_of_experience': 2,
-                'labor_rate': 1500.00,
-            },
-            {
-                'sub_service_id': hvac_sub.id,
-                'years_of_experience': 1,
-                'labor_rate': 2000.00,
-            },
+            {'sub_service_id': plumbing_sub.id},
+            {'sub_service_id': hvac_sub.id},
         ]
         validated_data['category_licenses'] = []
 
@@ -162,16 +150,8 @@ class TestReapplicationFlow:
 
         validated_data = _valid_payload(sub_service=plumbing_sub)
         validated_data['skills'] = [
-            {
-                'sub_service_id': plumbing_sub.id,
-                'years_of_experience': 2,
-                'labor_rate': 1500.00,
-            },
-            {
-                'sub_service_id': hvac_sub.id,
-                'years_of_experience': 1,
-                'labor_rate': 2000.00,
-            },
+            {'sub_service_id': plumbing_sub.id},
+            {'sub_service_id': hvac_sub.id},
         ]
         # License file uploaded only for Plumbing — HVAC row should
         # exist but with license_picture=None.
@@ -207,11 +187,7 @@ class TestReapplicationFlow:
 
         validated_data = _valid_payload(sub_service=plumbing_sub)
         validated_data['skills'] = [
-            {
-                'sub_service_id': plumbing_sub.id,
-                'years_of_experience': 2,
-                'labor_rate': 1500.00,
-            },
+            {'sub_service_id': plumbing_sub.id},
         ]
         # Stray HVAC license upload — no HVAC skill selected, so it
         # must NOT result in an HVAC license row.
@@ -308,16 +284,10 @@ class TestReapplicationFlow:
                 'last_name': 'B',
                 'city': 'LHR',
                 'cnic_number': '12345-1234567-1',
-                'experience_years': 1,
-                'bio': '...',
                 'profile_picture_uuid': str(profile_media.id),
                 'cnic_picture_uuid': str(cnic_media.id),
                 'skills': [
-                    {
-                        'sub_service_id': self.sub_service.id,
-                        'years_of_experience': 1,
-                        'labor_rate': 1500.00,
-                    }
+                    {'sub_service_id': self.sub_service.id},
                 ],
             },
             format='json',
