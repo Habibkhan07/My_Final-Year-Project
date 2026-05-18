@@ -23,10 +23,14 @@ import '../../../location_broadcaster/presentation/providers/dependency_injectio
 ///      on the way").
 ///   2. Hand off to external Google Maps for turn-by-turn.
 ///
-/// Rendered on two surfaces (with identical behaviour):
-///   * the dashboard's up-next card
-///   * the orchestrator's CONFIRMED body, when this booking IS the
-///     dashboard's up-next
+/// **Rendered only on the orchestrator's CONFIRMED body** for the
+/// tech viewer when this booking is the dashboard's up-next. The
+/// dashboard up-next card used to mount this panel too, but that
+/// surface bypassed the orchestrator-mounted foreground location
+/// controller and so never actually broadcast GPS during the drive.
+/// The dashboard now renders a static `JobLocationMap` + tap hint;
+/// tapping the card opens the orchestrator where Start Navigation
+/// lives.
 ///
 /// The orchestrator's `PrimaryActionSlot` suppresses its own
 /// "I'm on my way" button on tech+CONFIRMED+up-next so the verb isn't

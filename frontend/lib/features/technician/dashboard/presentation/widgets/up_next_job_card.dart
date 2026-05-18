@@ -8,9 +8,9 @@ import 'package:intl/intl.dart';
 
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/theme/app_shapes.dart';
+import '../../../../../core/widgets/map/job_location_map.dart';
 import '../../domain/entities/technician_dashboard_entity.dart';
 import '../providers/current_position_provider.dart';
-import 'tech_navigation_panel.dart';
 
 /// Purely presentational. Shows the next scheduled job or an all-clear
 /// empty state when [job] is null.
@@ -83,8 +83,16 @@ class _JobCardState extends State<_JobCard> {
   Widget build(BuildContext context) {
     return GestureDetector(
       // Opaque hit-test means a tap anywhere on the card opens the
-      // booking detail, except where an inner widget (Navigate / Call
-      // buttons inside `_ActionStack`) wins the gesture arena first.
+      // booking detail. Previously a `TechNavigationPanel` lived at the
+      // bottom of the card with its own Start Navigation + Call buttons;
+      // that path bypassed the orchestrator-mounted foreground location
+      // controller and so never actually broadcast GPS during the drive
+      // (see commit history). It also doubled the action surface — same
+      // verb on two surfaces with subtly different behaviour. The
+      // dashboard's role is now strictly preview-and-tap-through: the
+      // map + meta give the tech enough context to recognise the job,
+      // the footer hint signals where to act, and tapping anywhere
+      // opens the orchestrator where Start Navigation lives.
       behavior: HitTestBehavior.opaque,
       onTap: _openBooking,
       child: Container(
@@ -111,17 +119,61 @@ class _JobCardState extends State<_JobCard> {
               destLng: widget.job.lng,
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              child: TechNavigationPanel(
-                destLat: widget.job.lat,
-                destLng: widget.job.lng,
-                customerPhone: widget.job.customerPhone,
-                bookingId: widget.job.jobId,
-                mapHeight: 140,
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+              child: JobLocationMap(
+                lat: widget.job.lat,
+                lng: widget.job.lng,
+                height: 140,
+                borderRadius: BorderRadius.circular(AppShapes.radiusSM),
               ),
             ),
+            const _TapToOpenHint(),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Visual closure for the card body and a soft affordance reminder
+/// that the whole card is tappable. Not a button — `GestureDetector`
+/// on the parent already owns the tap; this row would otherwise
+/// steal the gesture and split the action surface again.
+///
+/// Tone borrows the `primaryContainer` accent the card header uses
+/// for its timer icon, so the footer reads as part of the same
+/// accent family rather than a new colour introduced in isolation.
+class _TapToOpenHint extends StatelessWidget {
+  const _TapToOpenHint();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.navigation_outlined,
+            size: 14,
+            color: AppColors.primaryContainer,
+          ),
+          const SizedBox(width: 6),
+          const Text(
+            'Tap to start navigation',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.2,
+              color: AppColors.primaryContainer,
+            ),
+          ),
+          const Spacer(),
+          Icon(
+            Icons.arrow_forward_ios_rounded,
+            size: 11,
+            color: AppColors.primaryContainer.withValues(alpha: 0.65),
+          ),
+        ],
       ),
     );
   }
@@ -147,8 +199,11 @@ class _CardHeader extends StatelessWidget {
         children: [
           const Icon(Icons.timer, size: 14, color: AppColors.primaryContainer),
           const SizedBox(width: 6),
+          // "Starts" disambiguates from current-time at a glance. Bare
+          // "UP NEXT • 5:57 AM" read like "it is 5:57 AM now" on the
+          // tech's first scan.
           Text(
-            'UP NEXT • $formattedTime',
+            'UP NEXT • Starts $formattedTime',
             style: const TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w700,
@@ -182,18 +237,56 @@ class _ServiceTitle extends StatelessWidget {
   const _ServiceTitle({required this.title});
   final String title;
 
+  // Backend builds `service_title` as "{parent service} — {gig name}"
+  // when a gig is in play (e.g. "AC Repair & Service — Freon Gas
+  // Top-up"). The em-dash form crammed both into a single bolded
+  // string that wrapped to two lines and made the gig — the
+  // identifier the tech actually scans for — fight the parent
+  // category for visual weight. Splitting on the separator promotes
+  // the gig to the headline and demotes the parent to a small
+  // category-style eyebrow above it.
+  //
+  // Fragility note: this is wire-format coupling. If the backend
+  // changes the separator (or stops including the parent), the
+  // fall-through renders the unsplit string as-is — no breakage,
+  // just no eyebrow.
+  static const _kSep = ' — ';
+
   @override
   Widget build(BuildContext context) {
+    final idx = title.indexOf(_kSep);
+    final hasParent = idx > 0;
+    final parent = hasParent ? title.substring(0, idx) : null;
+    final gig = hasParent ? title.substring(idx + _kSep.length) : title;
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
-      child: Text(
-        title,
-        style: const TextStyle(
-          fontSize: 22,
-          fontWeight: FontWeight.w700,
-          letterSpacing: -0.44,
-          color: AppColors.onSurface,
-        ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (parent != null) ...[
+            Text(
+              parent.toUpperCase(),
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.6,
+                color: AppColors.primaryContainer,
+              ),
+            ),
+            const SizedBox(height: 4),
+          ],
+          Text(
+            gig,
+            style: const TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -0.44,
+              height: 1.15,
+              color: AppColors.onSurface,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -214,8 +307,11 @@ class _JobMeta extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Bottom padding bumped from 12 → 16 so the address row doesn't
+    // crowd the map's top edge — minor but the previous spacing
+    // read as tight in the v1 audit screenshot.
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -259,14 +355,21 @@ class _InfoRow extends StatelessWidget {
   }
 }
 
-/// Address row with an optional "X.Y km away" subtext.
+/// Address row with an optional distance chip on the right.
 ///
-/// The subtext silently hides when:
+/// The chip silently hides when:
 ///   - location service is disabled
 ///   - permission was denied (one-shot ask happens on first read)
 ///   - the geolocator timed out
 /// All three cases are handled inside `currentPositionProvider` which simply
 /// resolves to `null`. We never block the address on a missing position.
+///
+/// Distance was promoted from sub-text to a right-aligned chip after
+/// audit feedback that "X.Y km away" was the smallest, lightest piece
+/// of text on the card despite being one of the most decision-relevant
+/// numbers for a tech about to drive. The chip uses the same
+/// `primaryContainer` tint family the card header and footer hint use,
+/// so the card reads as one accent system.
 class _AddressRow extends ConsumerWidget {
   const _AddressRow({
     required this.addressText,
@@ -291,50 +394,59 @@ class _AddressRow extends ConsumerWidget {
         destLat,
         destLng,
       );
-      distanceText = '${km.toStringAsFixed(1)} km away';
+      distanceText = '${km.toStringAsFixed(1)} km';
     }
 
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        const Padding(
-          padding: EdgeInsets.only(top: 2),
-          child: Icon(
-            Icons.location_on_outlined,
-            size: 16,
-            color: AppColors.onSurfaceVariant,
-          ),
+        const Icon(
+          Icons.location_on_outlined,
+          size: 16,
+          color: AppColors.onSurfaceVariant,
         ),
         const SizedBox(width: 6),
         Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                addressText,
-                style: const TextStyle(
-                  fontSize: 14,
-                  color: AppColors.onSurfaceVariant,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-              if (distanceText != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 2),
-                  child: Text(
-                    distanceText,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.outline,
-                    ),
-                  ),
-                ),
-            ],
+          child: Text(
+            addressText,
+            style: const TextStyle(
+              fontSize: 14,
+              color: AppColors.onSurfaceVariant,
+            ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
           ),
         ),
+        if (distanceText != null) ...[
+          const SizedBox(width: 8),
+          _DistanceChip(text: distanceText),
+        ],
       ],
+    );
+  }
+}
+
+class _DistanceChip extends StatelessWidget {
+  const _DistanceChip({required this.text});
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: AppColors.primaryContainer.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(AppShapes.radiusSM),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          color: AppColors.primaryContainer,
+          letterSpacing: 0.2,
+        ),
+      ),
     );
   }
 }

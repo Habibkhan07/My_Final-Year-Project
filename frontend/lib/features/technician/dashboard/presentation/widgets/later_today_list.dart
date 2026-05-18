@@ -22,7 +22,7 @@ class LaterTodayList extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const _SectionHeading(text: 'Later Today'),
+        const _SectionHeading(),
         const SizedBox(height: 8),
         if (jobs.isEmpty)
           const _EmptyState()
@@ -44,19 +44,33 @@ class LaterTodayList extends StatelessWidget {
   }
 }
 
+/// Section header. Mirrors the icon + uppercase-label treatment of the
+/// UP NEXT card's internal header so the two sections feel of-a-piece:
+/// both are labelled "this is what's queued for you", just at
+/// different priority levels.
 class _SectionHeading extends StatelessWidget {
-  const _SectionHeading({required this.text});
-  final String text;
+  const _SectionHeading();
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      text,
-      style: const TextStyle(
-        fontSize: 18,
-        fontWeight: FontWeight.w600,
-        color: AppColors.onSurface,
-      ),
+    return Row(
+      children: const [
+        Icon(
+          Icons.event_note_outlined,
+          size: 14,
+          color: AppColors.primaryContainer,
+        ),
+        SizedBox(width: 6),
+        Text(
+          'LATER TODAY',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.6,
+            color: AppColors.onSurface,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -128,22 +142,24 @@ class _JobRow extends StatelessWidget {
   }
 }
 
+/// Empty state for the Later Today list. Chrome (surface + shadow)
+/// was dropped because matching the "real content" card weight made
+/// an empty section read as if it had content. A plain centred line
+/// on the page background communicates "nothing here" more honestly.
 class _EmptyState extends StatelessWidget {
   const _EmptyState();
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 20),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(AppShapes.radiusMD),
-      ),
-      child: const Text(
-        'No more jobs scheduled for today',
-        textAlign: TextAlign.center,
-        style: TextStyle(fontSize: 14, color: AppColors.onSurfaceVariant),
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 6),
+      child: Text(
+        'Nothing else scheduled for today.',
+        style: TextStyle(
+          fontSize: 13,
+          color: AppColors.onSurfaceVariant,
+          fontStyle: FontStyle.italic,
+        ),
       ),
     );
   }
