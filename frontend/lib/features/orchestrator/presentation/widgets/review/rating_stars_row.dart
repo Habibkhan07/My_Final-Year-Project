@@ -7,10 +7,13 @@ import '../_palette/orchestrator_palette.dart';
 /// Stateless — visual state is owned by the parent's [ReviewFormState].
 /// Tapping a star calls [onChanged] with the 1-based rating (1..5).
 ///
-/// Visual: empty stars are outlined in brand-primary; filled stars use
-/// the same brand-primary as solid fill. Sized for thumb-friendly taps
-/// (44dp minimum hit target per Material guidelines), generous spacing
-/// so the customer doesn't mis-tap between adjacent stars.
+/// Visual: filled stars are amber-gold (`ratingGold`) — the universal
+/// review-star convention. Empty stars use a faded brand-blue so the
+/// row reads as part of the brand surface family while the gold fill
+/// pops as a clear "I tapped this one" signal (the prior all-blue
+/// recipe made selection invisible — empty and filled rendered the
+/// same color). Sized for thumb-friendly taps (44dp min hit target),
+/// generous spacing so the customer doesn't mis-tap between stars.
 class RatingStarsRow extends StatelessWidget {
   const RatingStarsRow({
     super.key,
@@ -74,7 +77,9 @@ class _StarButton extends StatelessWidget {
               filled ? Icons.star_rounded : Icons.star_border_rounded,
               key: ValueKey<bool>(filled),
               size: 44,
-              color: OrchestratorPalette.brandPrimary,
+              color: filled
+                  ? OrchestratorPalette.ratingGold
+                  : OrchestratorPalette.brandPrimary.withValues(alpha: 0.32),
             ),
           ),
         ),

@@ -1,13 +1,18 @@
-// Tests for `TimelineSlot` — the 5-dot phase progression.
+// Tests for `TimelineSlot` — the 6-dot phase progression.
 //
-// Regression vectors (#B-53):
+// Regression vectors (#B-53 + chunk 3):
 //   * INSPECTING + QUOTED both render the "Quote" dot as current —
 //     they're the same phase from the user's POV.
-//   * IN_PROGRESS / COMPLETED / COMPLETED_INSPECTION_ONLY all render
-//     "Done" as current (collapse to done is via timestamp).
-//   * Terminal states (cancelled / rejected / no-show / disputed /
-//     pending / unknown) have NO current marker — no FontWeight.w600
-//     phase label in the row.
+//   * IN_PROGRESS renders "Done" as current (tech is in the Done phase
+//     but hasn't fired `completedAt` yet).
+//   * COMPLETED / COMPLETED_INSPECTION_ONLY render NO current dot —
+//     they map to the terminal-positive sentinel index 6, so the Done
+//     phase flips to `done` (checkmark + timestamp). Pre-chunk-3 they
+//     rendered Done as `current` (pulsing dot, no timestamp), which
+//     made finished bookings look unfinished.
+//   * Terminal-negative states (cancelled / rejected / no-show /
+//     disputed / pending / unknown) have NO dot row at all — they
+//     render a "Booking ended" pill instead.
 //
 // We assert via the bolded-label heuristic — `_PhaseState.current`
 // is the only state that produces `FontWeight.w700` on its label.
@@ -81,14 +86,13 @@ void main() {
       (BookingStatus.confirmed, 'Confirmed'),
       (BookingStatus.enRoute, 'On the way'),
       (BookingStatus.arrived, 'Arrived'),
-      // Inspecting + Quoted both map to phase index 3 = "Quote".
+      // Inspecting + Quoted both map to phase index 4 = "Quote".
       (BookingStatus.inspecting, 'Quote'),
       (BookingStatus.quoted, 'Quote'),
-      // In-progress / completed / completed-inspection-only all map to
-      // phase index 4 = "Done".
+      // IN_PROGRESS maps to phase index 5 = "Done" (tech is actively
+      // working). COMPLETED + COMPLETED_INSPECTION_ONLY use sentinel 6
+      // and are covered by the "terminal-positive" group below.
       (BookingStatus.inProgress, 'Done'),
-      (BookingStatus.completed, 'Done'),
-      (BookingStatus.completedInspectionOnly, 'Done'),
     ];
 
     for (final (status, expectedLabel) in cases) {
@@ -101,7 +105,34 @@ void main() {
     }
   });
 
-  group('terminal / unknown statuses have no current marker', () {
+  group('terminal-positive: all 6 dots done, no current marker', () {
+    // Chunk 3 fix: COMPLETED + COMPLETED_INSPECTION_ONLY use sentinel 6
+    // so the Done phase renders as `done` (checkmark + timestamp), not
+    // `current` (pulsing dot). Before this, a finished booking visually
+    // looked like the tech was still working on it.
+    for (final s in [
+      BookingStatus.completed,
+      BookingStatus.completedInspectionOnly,
+    ]) {
+      testWidgets('${s.name} → no phase is current (all done)', (tester) async {
+        await _pump(tester, _booking(s));
+        expect(
+          _currentPhaseLabel(tester),
+          isNull,
+          reason: 'Terminal-positive should have no pulsing current dot',
+        );
+        // All six labels still render — they're just all in done state.
+        expect(find.text('Booked'), findsOneWidget);
+        expect(find.text('Confirmed'), findsOneWidget);
+        expect(find.text('On the way'), findsOneWidget);
+        expect(find.text('Arrived'), findsOneWidget);
+        expect(find.text('Quote'), findsOneWidget);
+        expect(find.text('Done'), findsOneWidget);
+      });
+    }
+  });
+
+  group('terminal-negative / unknown statuses have no current marker', () {
     for (final s in [
       BookingStatus.cancelled,
       BookingStatus.techDeclined,

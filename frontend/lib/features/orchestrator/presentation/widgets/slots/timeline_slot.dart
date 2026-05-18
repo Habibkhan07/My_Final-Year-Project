@@ -205,7 +205,14 @@ class TimelineSlot extends StatelessWidget {
   ///
   /// Six-phase model: Booked (0), Confirmed (1), On the way (2),
   /// Arrived (3), Quote (4 — INSPECTING + QUOTED), Done (5 —
-  /// IN_PROGRESS + COMPLETED + COMPLETED_INSPECTION_ONLY).
+  /// IN_PROGRESS).
+  ///
+  /// Terminal-positive sentinel (6 — COMPLETED + COMPLETED_INSPECTION_ONLY):
+  /// flips the Done phase from `current` (pulsing dot, no timestamp) to
+  /// `done` (checkmark + completed-at timestamp). Without this sentinel,
+  /// a finished booking renders the Done dot as if work were still
+  /// happening — the most-noticed timeline defect on customer COMPLETED
+  /// screens before the audit pass.
   int _phaseIndexForStatus(BookingStatus status) => switch (status) {
     BookingStatus.awaiting => 0,
     BookingStatus.confirmed => 1,
@@ -214,8 +221,8 @@ class TimelineSlot extends StatelessWidget {
     BookingStatus.inspecting => 4,
     BookingStatus.quoted => 4,
     BookingStatus.inProgress => 5,
-    BookingStatus.completed => 5,
-    BookingStatus.completedInspectionOnly => 5,
+    BookingStatus.completed => 6,
+    BookingStatus.completedInspectionOnly => 6,
     BookingStatus.cancelled ||
     BookingStatus.techDeclined ||
     BookingStatus.techNoResponse ||

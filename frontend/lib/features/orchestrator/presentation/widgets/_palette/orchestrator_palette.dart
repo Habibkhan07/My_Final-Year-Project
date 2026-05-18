@@ -105,6 +105,12 @@ class OrchestratorPalette {
   /// Success surface — light green tint, retuned cool.
   static const Color successSurface = Color(0xFFE6F2EA);
 
+  /// Rating gold — for star icons (review form, summary card rating
+  /// chip). Distinct from `warningAmber`: gold reads as a celebratory
+  /// "this is a star you tapped", amber reads as a warning. Matches the
+  /// existing rating-chip recipe in `booking_summary_card.dart`.
+  static const Color ratingGold = Color(0xFFFFB400);
+
   // ─── Shadow recipes ─────────────────────────────────────────────────
 
   /// Soft brand-blue drop shadow at 6% — used by body shells and the

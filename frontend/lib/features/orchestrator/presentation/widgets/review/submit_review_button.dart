@@ -29,23 +29,32 @@ class SubmitReviewButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final canPress = enabled && !loading;
+    // Aligned with the orchestrator's brand CTA recipe used by
+    // BookingOrchestratorActionButton, QuoteBuilderSheet, and
+    // BookingActionPendingSheet: vertical padding 16 (≈ 56-px tall),
+    // 16-radius rectangle, elevation 8 with brand-blue 40% shadow,
+    // label fontSize 16 w700. Disabled bg lifted from 0.32 → 0.45
+    // alpha + full-opacity white label so the disabled state passes AA
+    // (the prior 0.32 + 0.7-opacity label was barely legible).
     return SizedBox(
       width: double.infinity,
-      height: 50,
       child: ElevatedButton(
         onPressed: canPress ? onPressed : null,
         style: ElevatedButton.styleFrom(
           backgroundColor: OrchestratorPalette.brandPrimary,
           disabledBackgroundColor:
-              OrchestratorPalette.brandPrimary.withValues(alpha: 0.32),
+              OrchestratorPalette.brandPrimary.withValues(alpha: 0.45),
           foregroundColor: Colors.white,
-          disabledForegroundColor: Colors.white.withValues(alpha: 0.7),
-          elevation: 0,
+          disabledForegroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          elevation: 8,
+          shadowColor:
+              OrchestratorPalette.brandPrimary.withValues(alpha: 0.4),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(16),
           ),
           textStyle: const TextStyle(
-            fontSize: 15,
+            fontSize: 16,
             fontWeight: FontWeight.w700,
             letterSpacing: 0.2,
           ),
