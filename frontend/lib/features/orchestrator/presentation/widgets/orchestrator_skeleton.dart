@@ -10,13 +10,17 @@ import '../../../../core/animations/loop_mode.dart';
 /// pre-rendered page and tells them what to expect.
 ///
 /// **Shape rules.** Each rectangle/circle here corresponds 1:1 to a real
-/// element of the loaded screen:
-///   * the curved top band ≈ [OrchestratorHeroHeader]'s tinted hero
-///   * the row of small circles ≈ the [TimelineSlot] dots
+/// element of the loaded screen (dimensions kept in sync with the real
+/// chrome so cold-load → data-arrival does not visually jump):
+///   * the flat 70-px top band ≈ [OrchestratorHeroHeader]'s flat row
+///     (was a 132-px curve before the header was flattened — chunk 5
+///     dropped the curve clipper to match)
+///   * the row of 6 small circles ≈ the [TimelineSlot] dots
 ///   * the big rounded block ≈ the body hero (`AnimatedStatusIcon` +
 ///     copy in `_AnimatedBody`)
-///   * the lower wide block ≈ the [BookingSummaryCard]
-///   * the bottom pill ≈ the primary action button
+///   * the 70-px summary card ≈ the slim [BookingSummaryCard]
+///   * the 56-px primary action pill ≈ the canonical
+///     [OrchestratorPrimaryButton] (radius 16)
 ///
 /// **Shimmer.** A single repeating [AnimationController] drives a
 /// horizontal `LinearGradient` sweep across the screen. The same sweep
@@ -95,17 +99,22 @@ class _SkeletonLayout extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Curved header band.
-          _CurvedBand(color: base, height: 132),
+          // Flat 70-px header band — matches the real
+          // OrchestratorHeroHeader (the previous curved 132-px hero
+          // was flattened to a single-row ~60-80 px band; the skeleton
+          // mirrors that now so cold-load → data-arrival doesn't
+          // visually jump from a curved tinted swoop to a flat strip).
+          Container(height: 70, color: base),
           const SizedBox(height: 18),
-          // Timeline dot row.
+          // Timeline dot row — 6 dots match TimelineSlot's six phases
+          // (was 5 before the Booked/Confirmed split landed).
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24),
             child: Row(
               children: [
-                for (var i = 0; i < 5; i++) ...[
+                for (var i = 0; i < 6; i++) ...[
                   _SkeletonCircle(diameter: 14, color: base),
-                  if (i < 4) _SkeletonLine(color: base, height: 2),
+                  if (i < 5) _SkeletonLine(color: base, height: 2),
                 ],
               ],
             ),
@@ -128,60 +137,24 @@ class _SkeletonLayout extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          // Summary card.
+          // Summary card — height matches the real slim 64-70 px
+          // BookingSummaryCard (was 130 — a relic from the pre-slim
+          // design). Radius 14 matches `booking_summary_card.dart`.
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-            child: _SkeletonBlock(color: base, height: 130, radius: 16),
+            child: _SkeletonBlock(color: base, height: 70, radius: 14),
           ),
-          // Primary action.
+          // Primary action — height 56 + radius 16 matches the
+          // canonical OrchestratorPrimaryButton recipe (vertical
+          // padding 16 ≈ 56 dp).
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
-            child: _SkeletonBlock(color: base, height: 48, radius: 14),
+            child: _SkeletonBlock(color: base, height: 56, radius: 16),
           ),
         ],
       ),
     );
   }
-}
-
-class _CurvedBand extends StatelessWidget {
-  const _CurvedBand({required this.color, required this.height});
-
-  final Color color;
-  final double height;
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipPath(
-      clipper: const _SkeletonHeaderClipper(),
-      child: Container(
-        height: height,
-        color: color,
-      ),
-    );
-  }
-}
-
-class _SkeletonHeaderClipper extends CustomClipper<Path> {
-  const _SkeletonHeaderClipper();
-
-  @override
-  Path getClip(Size size) {
-    const curve = 24.0;
-    return Path()
-      ..lineTo(0, size.height - curve)
-      ..quadraticBezierTo(
-        size.width / 2,
-        size.height + curve,
-        size.width,
-        size.height - curve,
-      )
-      ..lineTo(size.width, 0)
-      ..close();
-  }
-
-  @override
-  bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
 }
 
 class _SkeletonCircle extends StatelessWidget {

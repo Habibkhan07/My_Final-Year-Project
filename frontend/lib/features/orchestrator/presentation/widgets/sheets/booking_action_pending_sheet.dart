@@ -118,7 +118,7 @@ class _BookingActionPendingSheetState extends State<BookingActionPendingSheet> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Icon(
-                        Icons.error_outline,
+                        Icons.error_outline_rounded,
                         size: 18,
                         color: colors.onErrorContainer,
                       ),

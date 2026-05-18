@@ -121,7 +121,7 @@ class HelpSheet extends ConsumerWidget {
             if (cancel != null) ...[
               if (reschedule != null) const Divider(height: 24),
               _HelpRow(
-                icon: Icons.cancel_outlined,
+                icon: Icons.cancel_rounded,
                 iconColor: theme.colorScheme.error,
                 title: cancel.label,
                 subtitle: 'Pick a reason on the next screen',

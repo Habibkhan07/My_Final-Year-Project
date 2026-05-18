@@ -58,8 +58,12 @@ class OrchestratorHeroHeader extends StatelessWidget {
   /// shadow on the flat bottom edge.
   final bool isScrolled;
 
-  /// 4-px tone-colored stripe along the header's bottom edge.
-  static const _toneStripeHeight = 4.0;
+  /// 3-px tone-colored stripe along the header's bottom edge.
+  /// Dropped from 4 to 3 in chunk 5 — at 4 px @ 32% alpha the stripe
+  /// competed with the timeline connectors below it on the `info` tone
+  /// (which is most of the lifecycle). 3 px @ 22% alpha reads as a
+  /// "felt, not seen" divider that still carries the tone signal.
+  static const _toneStripeHeight = 3.0;
 
   @override
   Widget build(BuildContext context) {
@@ -83,7 +87,7 @@ class OrchestratorHeroHeader extends StatelessWidget {
         // shadow color from foreground at 0 → 0.10 when scrolled.
         border: Border(
           bottom: BorderSide(
-            color: palette.foreground.withValues(alpha: 0.32),
+            color: palette.foreground.withValues(alpha: 0.22),
             width: _toneStripeHeight,
           ),
         ),
@@ -101,7 +105,10 @@ class OrchestratorHeroHeader extends StatelessWidget {
         top: true,
         bottom: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(4, 4, 4, 8),
+          // 8-px horizontal lift (was 4) keeps the back / help icons
+          // from kissing the screen edge on small phones. Visible on
+          // every chrome screenshot before the chunk-5 polish.
+          padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -148,7 +155,7 @@ class OrchestratorHeroHeader extends StatelessWidget {
                               .pushReplacement(
                                 '/booking/${booking.childBookingId}',
                               ),
-                          icon: const Icon(Icons.arrow_forward, size: 16),
+                          icon: const Icon(Icons.arrow_forward_rounded, size: 16),
                           label: Text(
                             'Continued on #${booking.childBookingId}',
                           ),
@@ -417,7 +424,12 @@ class _StatusChipState extends State<_StatusChip>
         vertical: hasSubtitle ? 8 : 10,
       ),
       decoration: BoxDecoration(
-        color: widget.foreground.withValues(alpha: 0.08),
+        // Pill background bumped 0.08 → 0.12 (matches summary-card
+        // hairline alpha). At 0.08 the chip read as a transparent
+        // floating area against the off-white scaffold; 0.12 lands as
+        // a felt-but-not-loud surface — and pulls the AA contrast on
+        // the label up to a comfortable margin.
+        color: widget.foreground.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Row(

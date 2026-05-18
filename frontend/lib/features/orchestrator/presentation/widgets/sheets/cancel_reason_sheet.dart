@@ -236,7 +236,7 @@ class _ErrorBanner extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.error_outline, size: 18, color: colors.onErrorContainer),
+          Icon(Icons.error_outline_rounded, size: 18, color: colors.onErrorContainer),
           const SizedBox(width: 8),
           Expanded(
             child: Text(

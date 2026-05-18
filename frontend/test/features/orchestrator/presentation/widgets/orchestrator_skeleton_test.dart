@@ -5,8 +5,10 @@
 //     the looping AnimationController doesn't break `pumpAndSettle`
 //     under the test binding — `shouldLoopAnimations()` returns false
 //     in the test isolate so the controller never repeats).
-//   * Renders a ShaderMask + at least one ClipPath (the curved header
-//     band) — locks the shimmer pipeline.
+//   * Renders a ShaderMask — locks the shimmer pipeline. (The header
+//     band used to be a `ClipPath`-clipped curved swoop; chunk 5
+//     flattened it to a plain `Container` to match the flattened real
+//     header, so the ClipPath assert is gone.)
 //   * Disposes cleanly when removed.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -25,7 +27,7 @@ void _useRealisticPhoneSurface(WidgetTester tester) {
 
 void main() {
   group('OrchestratorSkeleton', () {
-    testWidgets('renders shimmer + curved band without hanging the binding', (
+    testWidgets('renders shimmer without hanging the binding', (
       tester,
     ) async {
       _useRealisticPhoneSurface(tester);
@@ -37,7 +39,6 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(OrchestratorSkeleton), findsOneWidget);
       expect(find.byType(ShaderMask), findsWidgets);
-      expect(find.byType(ClipPath), findsWidgets);
     });
 
     testWidgets('disposes cleanly when removed from the tree', (tester) async {

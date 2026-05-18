@@ -375,7 +375,7 @@ class _PhaseDotState extends State<_PhaseDot>
             ),
           ],
         ),
-        child: Icon(Icons.check, size: 11, color: colors.onPrimary),
+        child: Icon(Icons.check_rounded, size: 11, color: colors.onPrimary),
       ),
       _PhaseState.current => SizedBox(
         width: 28,

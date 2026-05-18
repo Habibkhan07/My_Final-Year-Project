@@ -45,7 +45,7 @@ class AnimatedStatusIcon extends StatelessWidget {
       // for a defensive path.
       BookingStatus.awaiting => _MutedHero(
         size: size,
-        icon: Icons.hourglass_bottom,
+        icon: Icons.hourglass_bottom_rounded,
         tint: const Color(0xFFE89B25),
       ),
       BookingStatus.confirmed => _ConfirmedHero(size: size),
@@ -70,29 +70,29 @@ class AnimatedStatusIcon extends StatelessWidget {
       BookingStatus.completedInspectionOnly => _InspectionOnlyHero(size: size),
       BookingStatus.cancelled => _MutedHero(
         size: size,
-        icon: Icons.event_busy,
+        icon: Icons.event_busy_rounded,
         tint: Colors.grey,
       ),
       BookingStatus.techDeclined => _MutedHero(
         size: size,
-        icon: Icons.do_not_disturb,
+        icon: Icons.do_not_disturb_rounded,
         tint: Colors.grey,
       ),
       BookingStatus.techNoResponse => _MutedHero(
         size: size,
-        icon: Icons.hourglass_disabled,
+        icon: Icons.hourglass_disabled_rounded,
         tint: Colors.grey,
       ),
       BookingStatus.noShow => _MutedHero(
         size: size,
-        icon: Icons.person_off_outlined,
+        icon: Icons.person_off_rounded,
         tint: Colors.grey,
       ),
       BookingStatus.disputed => _DisputedHero(size: size),
       BookingStatus.pending ||
       BookingStatus.unknown => _MutedHero(
         size: size,
-        icon: Icons.help_outline,
+        icon: Icons.help_outline_rounded,
         tint: Colors.grey,
       ),
     };

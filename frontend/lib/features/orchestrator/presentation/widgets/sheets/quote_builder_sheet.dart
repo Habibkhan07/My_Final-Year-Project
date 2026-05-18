@@ -312,7 +312,7 @@ class _QuoteBuilderSheetState extends ConsumerState<QuoteBuilderSheet> {
                         alignment: Alignment.centerLeft,
                         child: TextButton.icon(
                           onPressed: _busy ? null : _addLine,
-                          icon: const Icon(Icons.add, size: 18),
+                          icon: const Icon(Icons.add_rounded, size: 18),
                           label: const Text('Add another item'),
                         ),
                       ),
@@ -660,7 +660,7 @@ class _QtyStepper extends StatelessWidget {
         IconButton(
           visualDensity: VisualDensity.compact,
           onPressed: value > 1 ? () => onChanged(value - 1) : null,
-          icon: const Icon(Icons.remove_circle_outline, size: 22),
+          icon: const Icon(Icons.remove_circle_outline_rounded, size: 22),
         ),
         SizedBox(
           width: 24,
@@ -675,7 +675,7 @@ class _QtyStepper extends StatelessWidget {
         IconButton(
           visualDensity: VisualDensity.compact,
           onPressed: value < 20 ? () => onChanged(value + 1) : null,
-          icon: const Icon(Icons.add_circle_outline, size: 22),
+          icon: const Icon(Icons.add_circle_outline_rounded, size: 22),
         ),
       ],
     );
@@ -714,7 +714,7 @@ class _CatalogError extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.error_outline, color: colors.onErrorContainer),
+              Icon(Icons.error_outline_rounded, color: colors.onErrorContainer),
               const SizedBox(width: 8),
               Expanded(child: Text(message)),
             ],
@@ -741,7 +741,7 @@ class _CatalogEmpty extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(Icons.info_outline, size: 18),
+          const Icon(Icons.info_outline_rounded, size: 18),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
@@ -773,7 +773,7 @@ class _ErrorBanner extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(
-            Icons.error_outline,
+            Icons.error_outline_rounded,
             size: 18,
             color: colors.onErrorContainer,
           ),
