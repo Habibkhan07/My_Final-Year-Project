@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_foreground_task/flutter_foreground_task.dart'
+    show NotificationPermission;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart' show LocationPermission;
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../../core/common/errors/http_failure.dart';
@@ -9,6 +12,7 @@ import '../../../../../core/widgets/map/job_location_map.dart';
 import '../../../../orchestrator/domain/entities/booking_ui_block.dart';
 import '../../../../orchestrator/presentation/providers/booking_action_executor.dart';
 import '../../../../orchestrator/presentation/providers/booking_detail_provider.dart';
+import '../../../location_broadcaster/presentation/providers/dependency_injection.dart';
 
 /// Single source of truth for the technician's "I'm leaving for the
 /// customer now" affordance.
@@ -98,19 +102,42 @@ class _TechNavigationPanelState extends ConsumerState<TechNavigationPanel> {
                 method: 'POST',
               ));
 
-    // Flip first, navigate second. If the status flip fails we still
-    // launch Maps — the tech is en route physically whether or not the
-    // server knows yet, and the backend's en_route is idempotent for a
-    // future retry. We just notify the tech via snack so they know
-    // the customer wasn't pinged.
+    // Order matters here — this method has to thread three things
+    // (status flip, Maps handoff, foreground GPS service) without any
+    // pair racing on Android's foreground/task arbitration. The
+    // sequence that actually works:
+    //
+    //   1. Pre-warm location + notification permissions while the
+    //      activity is visible. Any system dialog fires here, not
+    //      behind Maps. The controller's _ensurePermissions later
+    //      finds everything granted and runs without UI.
+    //
+    //   2. POST /en-route/. The backend flips status and broadcasts
+    //      "tech is on the way" to the customer immediately — so the
+    //      customer ping is dispatched before the tech disappears
+    //      into Maps. Errors snack; we still launch Maps because
+    //      "the tech is en route physically whether the server knows
+    //      or not" and /en-route/ is idempotent for retry.
+    //
+    //   3. launchUrl(Maps). Maps takes the foreground here, while we
+    //      have NOT yet invalidated bookingDetailProvider — the
+    //      orchestrator's foreground location controller is still on
+    //      CONFIRMED, so its _startService hasn't been triggered.
+    //      This avoids the FGS startup (isolate spawn + notification
+    //      post) racing with Maps for foreground, which on this
+    //      Android build prevents Maps from claiming focus.
+    //
+    //   4. ref.invalidate(bookingDetailProvider). Now that our app
+    //      is in the background and Maps owns the foreground, the
+    //      refetch resolves with EN_ROUTE, the controller's listener
+    //      fires, and the platform FGS starts silently in the
+    //      background. Permissions are already granted (step 1), so
+    //      no UI can pull the activity back.
     if (action != null && bookingId != null && !_flipping) {
       setState(() => _flipping = true);
       try {
+        await _prewarmTrackingPermissions();
         await ref.read(bookingActionExecutorProvider).execute(action);
-        // Refresh the orchestrator's detail cache so the local tab
-        // updates immediately. The mirrored broadcast (B1) will also
-        // arrive via WS shortly; this is the local-fast path.
-        ref.invalidate(bookingDetailProvider(bookingId));
       } on HttpFailure catch (e) {
         // 400 ERROR_INVALID_TRANSITION = "already EN_ROUTE or later" —
         // benign, the tech is just opening Maps again on the same job.
@@ -143,19 +170,64 @@ class _TechNavigationPanelState extends ConsumerState<TechNavigationPanel> {
       '&destination=${widget.destLat},${widget.destLng}'
       '&travelmode=driving',
     );
+    var mapsOpened = false;
     try {
       if (await canLaunchUrl(uri)) {
         await launchUrl(uri, mode: LaunchMode.externalApplication);
-        return;
+        mapsOpened = true;
       }
     } catch (_) {
-      // Fall through to the snack.
+      // Fall through to the snack below.
     }
-    messenger
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        const SnackBar(content: Text('Could not open Maps on this device.')),
-      );
+
+    // Trigger the FGS only AFTER Maps owns the foreground. Skipped on
+    // launch failure — there's no reason to start GPS broadcasting if
+    // the tech isn't actually heading out, and the standard WS sync
+    // on the next app resume will catch the screen up to whatever the
+    // server already recorded from step 2.
+    if (mapsOpened && bookingId != null) {
+      ref.invalidate(bookingDetailProvider(bookingId));
+    }
+
+    if (!mapsOpened) {
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(content: Text('Could not open Maps on this device.')),
+        );
+    }
+  }
+
+  /// Mirrors `ForegroundLocationServiceController._ensurePermissions`
+  /// just enough to force any system dialog to appear here (activity in
+  /// foreground) rather than after the Maps handoff. Idempotent when
+  /// permissions are already granted — `requestPermission` /
+  /// `requestNotificationPermission` no-op without showing a dialog.
+  /// All errors are swallowed: this is best-effort UX, the controller's
+  /// own _ensurePermissions remains the authoritative gate.
+  Future<void> _prewarmTrackingPermissions() async {
+    try {
+      final geo = ref.read(geolocatorBackendProvider);
+      var permission = await geo.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await geo.requestPermission();
+      }
+
+      final fg = ref.read(foregroundTaskBackendProvider);
+      final notif = await fg.checkNotificationPermission();
+      if (notif != NotificationPermission.granted) {
+        await fg.requestNotificationPermission();
+      }
+
+      // Best-effort upgrade to background location (matches the
+      // controller). Android 10 prompts; Android 11+ no-ops because
+      // the upgrade can only be granted via Settings.
+      if (permission == LocationPermission.whileInUse) {
+        await geo.requestPermission();
+      }
+    } catch (_) {
+      // Controller's _ensurePermissions handles the final outcome.
+    }
   }
 
   Future<void> _onCall() async {
