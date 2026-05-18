@@ -6,7 +6,11 @@ customer-side Chrome test runbook.
   python manage.py seed_test_fixtures --count 5     # 5 fresh bookings
 
 Persistent (kept across runs so the Chrome session stays logged in):
-  - Catalog: Service "AC Repair" + SubService "Freon Gas Top-up"
+  - Catalog: Service "AC Repair & Service" + SubService "Freon Gas Top-up"
+    (Parent service name matches what `seed_demo` creates so the two
+    seeds share one parent row instead of producing duplicate AC entries.
+    "Freon Gas Top-up" stays as the journey-only sub-service — kept
+    unfeatured so it doesn't bloat the customer home feed.)
   - Customer user (+923002222222) + CustomerProfile + Home address (Islamabad F-7)
   - Technician user (+923001111111) + TechnicianProfile (APPROVED) +
     TechnicianSkill linking to the sub-service so the tech can submit a quote
@@ -93,21 +97,29 @@ class Command(BaseCommand):
     # ---------------- catalog ----------------
 
     def _ensure_catalog(self):
+        # Parent name matches the `seed_demo` "AC Repair & Service" row —
+        # `get_or_create` reuses it instead of duplicating an "AC Repair"
+        # parent that would clutter the home category grid with two AC
+        # categories side-by-side during demos.
         service, _ = Service.objects.get_or_create(
-            name='AC Repair',
+            name='AC Repair & Service',
             defaults={
                 'icon_name': 'ac_repair',
                 'base_inspection_fee': Decimal('500.00'),
                 'default_duration_minutes': 60,
             },
         )
+        # Journey-only sub-service: stable name so drive_booking / runbook
+        # references don't break, but `is_featured=False` so the customer
+        # home feed isn't polluted with a Rs. 2,500 gig that conflicts with
+        # the canonical Rs. 4,000 "AC Gas Refill" from `seed_demo`.
         sub_service, _ = SubService.objects.get_or_create(
             service=service,
             name='Freon Gas Top-up',
             defaults={
                 'base_price': Decimal('2500.00'),
                 'is_fixed_price': True,
-                'is_featured': True,
+                'is_featured': False,
                 'estimated_duration_minutes': 60,
                 'icon_name': 'freon_gas',
             },

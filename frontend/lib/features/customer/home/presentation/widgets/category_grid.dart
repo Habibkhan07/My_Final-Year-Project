@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import '../../domain/entities/home_feed_entity.dart';
+import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/utils/icon_assets.dart';
 import '../../../../customer/addresses/presentation/providers/dependency_injection.dart';
 import '../../../../customer/addresses/presentation/widgets/address_selector_sheet.dart';
@@ -154,6 +155,10 @@ class _CategoryTile extends StatelessWidget {
             child: SvgPicture.asset(
               IconAssets.path(category.iconName),
               fit: BoxFit.contain,
+              colorFilter: const ColorFilter.mode(
+                AppColors.primary,
+                BlendMode.srcIn,
+              ),
             ),
           ),
           const SizedBox(height: 8),
@@ -279,6 +284,10 @@ class _AllCategoriesSheet extends StatelessWidget {
                             child: SvgPicture.asset(
                               IconAssets.path(cat.iconName),
                               fit: BoxFit.contain,
+                              colorFilter: const ColorFilter.mode(
+                                AppColors.primary,
+                                BlendMode.srcIn,
+                              ),
                             ),
                           ),
                           const SizedBox(height: 8),

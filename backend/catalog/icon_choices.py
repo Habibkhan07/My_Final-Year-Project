@@ -24,12 +24,17 @@ ICON_CHOICES: list[tuple[str, str]] = [
     ('cleaning',     'Cleaning'),
     ('default',      'Default (fallback)'),
     ('electrician',  'Electrician'),
+    ('fan',          'Ceiling Fan'),
     ('freon_gas',    'Freon Gas Refill'),
     ('geyser',       'Geyser'),
+    ('kitchen',      'Kitchen / Stove'),
     ('painter',      'Painter'),
     ('pest_control', 'Pest Control'),
     ('pipe_leak',    'Pipe Leak'),
     ('plumbing',     'Plumbing'),
+    ('sofa',         'Sofa / Upholstery'),
+    ('toilet',       'Toilet / Commode'),
+    ('water_pump',   'Water Pump / Motor'),
 ]
 
 ICON_KEYS: frozenset[str] = frozenset(k for k, _ in ICON_CHOICES)
