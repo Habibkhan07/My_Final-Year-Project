@@ -48,7 +48,11 @@ def _build_notification_body(event_type: str, payload: dict[str, Any]) -> str:
     if event_type == "job_new_request":
         return "A new job is available near you"
     if event_type == "job_accepted":
-        tech = inner.get("technician_name") or "A technician"
+        # Payload key is `technician_display_name` — composed server-side by
+        # `_build_job_accepted_payload` via `user.get_full_name()`. The
+        # previous `technician_name` lookup never matched a real payload and
+        # silently fell back to "A technician" on every push.
+        tech = inner.get("technician_display_name") or "A technician"
         return f"{tech} accepted your job"
     if event_type == "quote_generated":
         return "A new quote is ready for your review"

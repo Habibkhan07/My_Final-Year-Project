@@ -689,24 +689,35 @@ class ReviewAdmin(admin.ModelAdmin):
     """Customer reviews post-booking.
 
     Read-only — reviews are user-generated content; admin can audit and
-    delete (moderation) but never edit text on a customer's behalf.
+    delete (moderation) but never edit on a customer's behalf. The
+    ``has_add_permission=False`` gate also blocks admin-created reviews,
+    which would bypass the service-layer aggregate recompute and leave
+    ``TechnicianProfile.rating_average`` out of sync with the row set.
     """
 
     list_display = (
-        'id', 'created_at', 'technician_link',
-        'reviewer_label', 'rating_stars', 'text_short',
+        'id', 'created_at', 'technician_link', 'booking_link',
+        'reviewer_label', 'rating_stars', 'tags_preview', 'text_short',
     )
     list_filter = ('rating',)
     search_fields = (
         'technician__user__username',
         'reviewer__username',
         'text',
+        'booking__id',
     )
     date_hierarchy = 'created_at'
     ordering = ('-created_at',)
     list_per_page = 40
-    list_select_related = ('technician', 'technician__user', 'reviewer')
-    readonly_fields = ('technician', 'reviewer', 'rating', 'text', 'created_at')
+    list_select_related = (
+        'technician', 'technician__user', 'reviewer', 'booking',
+    )
+    # All fields read-only — see class docstring for why admin-driven
+    # mutations are intentionally blocked.
+    readonly_fields = (
+        'technician', 'reviewer', 'booking', 'rating', 'tags', 'text',
+        'created_at',
+    )
 
     def has_add_permission(self, request):
         return False
@@ -721,6 +732,16 @@ class ReviewAdmin(admin.ModelAdmin):
             '<a href="{}">{}</a>',
             url, obj.technician.user.get_full_name() or obj.technician.user.username,
         )
+
+    @admin.display(description='Booking', ordering='booking__id')
+    def booking_link(self, obj):
+        if obj.booking_id is None:
+            # Legacy dev-seeded review rows (per migration 0015) have no
+            # booking link — render a neutral placeholder so the admin
+            # row doesn't show as a broken link.
+            return format_html('<em style="color:#9ca3af">{}</em>', '—')
+        url = reverse('admin:bookings_jobbooking_change', args=[obj.booking_id])
+        return format_html('<a href="{}">#{}</a>', url, obj.booking_id)
 
     @admin.display(description='Reviewer', ordering='reviewer__username')
     def reviewer_label(self, obj):
@@ -738,9 +759,29 @@ class ReviewAdmin(admin.ModelAdmin):
             color, filled, empty,
         )
 
+    @admin.display(description='Tags')
+    def tags_preview(self, obj):
+        # Compact chip strip for the list view. The full list is also
+        # readable from the detail page via the readonly ``tags`` field
+        # (Django renders JSON columns as a raw value, which is fine
+        # for audit purposes).
+        tags = obj.tags or []
+        if not tags:
+            return format_html('<em style="color:#9ca3af">{}</em>', '—')
+        chips = ''.join(
+            f'<span style="background:#eef2ff;color:#3730a3;'
+            f'padding:1px 6px;border-radius:8px;margin-right:4px;'
+            f'font-size:11px">{tag}</span>'
+            for tag in tags[:4]
+        )
+        suffix = f' +{len(tags) - 4}' if len(tags) > 4 else ''
+        return format_html('{}{}', format_html(chips), suffix)
+
     @admin.display(description='Review')
     def text_short(self, obj):
-        return truncate(obj.text, 100)
+        return truncate(obj.text, 100) if obj.text else format_html(
+            '<em style="color:#9ca3af">{}</em>', '(no text)',
+        )
 
 
 # TemporaryMediaAdmin removed in scope-reduction. The model is an

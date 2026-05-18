@@ -124,4 +124,13 @@ urlpatterns = [
         TechLocationIngressView.as_view(),
         name='tech-location',
     ),
+
+    # 9. Customer review surface (per-booking GET + POST). The view itself
+    #    lives under ``technicians.api.reviews`` (single owner of the
+    #    review domain), exported via a urlpatterns list so this app
+    #    mounts it under the booking-scoped URL prefix without owning
+    #    the implementation.
+    *__import__(
+        'technicians.api.reviews.urls', fromlist=['booking_review_urlpatterns']
+    ).booking_review_urlpatterns,
 ]

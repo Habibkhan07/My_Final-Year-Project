@@ -171,7 +171,7 @@ def resolve_booking_intent(
             primary_price=primary_price_display,
             primary_price_raw=primary_price_raw,
             price_context_label="Labor Fee",
-            promo_tag_firewalled=promotion.ui_description if promotion else None,
+            promo_tag_firewalled=promotion.ui_chip_label if promotion else None,
         )
 
     # --- Scenario C: Category Discovery / Promo on parent service ----
@@ -186,7 +186,7 @@ def resolve_booking_intent(
             primary_price=f"Rs. {int(amount):,}",
             primary_price_raw=str(service.base_inspection_fee),
             price_context_label="Inspection Fee",
-            promo_tag_firewalled=promotion.ui_description if promotion else None,
+            promo_tag_firewalled=promotion.ui_chip_label if promotion else None,
         )
 
     # --- Fallback: no discovery context (global browse) --------------

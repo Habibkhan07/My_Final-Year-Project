@@ -7,9 +7,11 @@
             android:name="com.google.firebase.messaging.default_notification_color"
             android:resource="@color/notification_color" />
 
-    Matches Colors.blue's Material seed used by ColorScheme.fromSeed in
-    main.dart. If the brand seed changes there, change here.
+    Matches AppColors.primary (lib/core/theme/app_colors.dart) — the Karigar
+    brand blue used by every primary CTA. Keep this in sync when the brand
+    primary changes; an Android resource value cannot reference the Dart
+    constant directly.
 -->
 <resources>
-    <color name="notification_color">#1976D2</color>
+    <color name="notification_color">#004AC6</color>
 </resources>

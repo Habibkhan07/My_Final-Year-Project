@@ -114,7 +114,7 @@ final class AppMapBuilderProvider
   }
 }
 
-String _$appMapBuilderHash() => r'0c9b75a86fc3a413694a30516e8d16a165c04efe';
+String _$appMapBuilderHash() => r'4dea6084a1245faeeba29c86dc926a22c7238eeb';
 
 /// Active directions service for ETA + polyline calls. Reuses the
 /// existing realtime singleton `http.Client` so we don't bloat the

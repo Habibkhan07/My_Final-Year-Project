@@ -224,7 +224,8 @@ class TestTechnicianProfileDetailView:
         ).json()
 
         assert data['price_context'] == 'Labor Fee'
-        assert data['promo_tag'] == '20% Off Final Bill'
+        # Short chip label; long marketing copy lives on ui_description.
+        assert data['promo_tag'] == '20% OFF'
 
     # ------------------------------------------------------------------
     # SCENARIO C — CATEGORY DISCOVERY
@@ -256,7 +257,8 @@ class TestTechnicianProfileDetailView:
         ).json()
 
         assert data['price_context'] == 'Inspection Fee'
-        assert data['promo_tag'] == '20% OFF AC Service!'
+        # Chip label derived from discount mechanics, not description.
+        assert data['promo_tag'] == '20% OFF'
 
     # ------------------------------------------------------------------
     # EXPANDABLE DATA — SKILLS & REVIEWS

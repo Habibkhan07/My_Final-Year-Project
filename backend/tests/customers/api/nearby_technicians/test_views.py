@@ -101,7 +101,10 @@ class TestTechnicianDiscoveryListView:
         
         assert tech_data['primary_price'] == "Rs. 500"
         assert tech_data['price_context'] == "Inspection Fee"
-        assert tech_data['promo_tag'] == "20% Off Final Bill"
+        # promo_tag is now the short ``ui_chip_label`` so the chip widget
+        # never overflows; the long marketing copy stays available via
+        # ``ui_description`` for the home promo carousel banner.
+        assert tech_data['promo_tag'] == "20% OFF"
 
     def test_search_query_acts_as_variable_intent(self):
         """Search query matching a sub-service should trigger Scenario 3 logic"""

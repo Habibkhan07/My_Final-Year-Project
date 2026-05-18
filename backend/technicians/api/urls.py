@@ -19,8 +19,15 @@ from .skills.views import (
     MySkillsView,
 )
 from .work_location.views import TechnicianWorkLocationView
+from .reviews.urls import technician_review_urlpatterns
 
 urlpatterns = [
+    # Public paginated review list per technician. Mounted at the top
+    # of the file so the URL reads as a first-class resource, not an
+    # afterthought. The per-booking write surface lives in
+    # ``bookings.api.urls`` (same module, different parent resource).
+    *technician_review_urlpatterns,
+
     # Dashboard
     path('dashboard/', TechnicianDashboardView.as_view(), name='tech-dashboard'),
 

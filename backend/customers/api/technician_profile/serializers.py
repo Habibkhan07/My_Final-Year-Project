@@ -59,6 +59,11 @@ class TechnicianProfileDetailSerializer(serializers.ModelSerializer):
       - resolved_promo      : Promotion | None
     """
     full_name = serializers.SerializerMethodField()
+    # ``get_city_display()`` returns the human label from CITY_CHOICES
+    # ('Lahore' / 'Karachi' / 'Islamabad'). Without the override the
+    # ModelSerializer field serialises the raw 3-letter enum code ('LHR'),
+    # which leaked to the profile UI under the technician's name.
+    city = serializers.CharField(source='get_city_display', read_only=True)
     profile_picture = serializers.ImageField(read_only=True)
 
     # Numeric fields (kept raw for any Flutter-side display needs)

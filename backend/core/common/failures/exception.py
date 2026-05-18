@@ -14,9 +14,12 @@ def custom_exception_handler(exc, context):
     from bookings.exceptions import BookingValidationError
     from chatbot.exceptions import ChatbotError
     from technicians.exceptions import (
+        BookingNotEligibleForReviewError,
+        BookingNotFoundForCustomerError,
         DuplicateActiveApplicationError,
         DuplicateSkillError,
         LastSkillRequiredError,
+        ReviewAlreadySubmittedError,
         ServiceCategoryNotAllowedError,
     )
     from wallet.exceptions import (
@@ -29,6 +32,8 @@ def custom_exception_handler(exc, context):
     if isinstance(
         exc,
         (
+            BookingNotEligibleForReviewError,
+            BookingNotFoundForCustomerError,
             BookingValidationError,
             ChatbotError,
             DuplicateActiveApplicationError,
@@ -37,6 +42,7 @@ def custom_exception_handler(exc, context):
             InactiveTechnicianError,
             InsufficientFundsError,
             LastSkillRequiredError,
+            ReviewAlreadySubmittedError,
             ServiceCategoryNotAllowedError,
             WalletLockoutError,
         ),

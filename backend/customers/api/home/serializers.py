@@ -120,9 +120,12 @@ class TopTechnicianSerializer(serializers.ModelSerializer):
         return context
 
     def get_promo_tag(self, obj):
+        # Short chip label — the card chip is a tight pill; the full
+        # ``ui_description`` sentence overflows. See Promotion.ui_chip_label
+        # docstring for the rationale.
         resolved_promo = self.context.get('resolved_promo')
         if resolved_promo:
-            return resolved_promo.ui_description
+            return resolved_promo.ui_chip_label
         return None
 
     def get_ui_subtitle_text(self, obj):

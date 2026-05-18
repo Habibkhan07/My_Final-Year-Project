@@ -160,6 +160,15 @@ class _ProfileContentState extends State<_ProfileContent> {
   Widget build(BuildContext context) {
     final profile = widget.profile;
     final canBook = _selectedServiceId != null;
+    // Only surface the SERVICE chip row when the customer actually has a
+    // choice to make:
+    //   * Service-first entry (route gave us a serviceId) — they already
+    //     picked, the chip would just re-state it. Hide.
+    //   * Single-skill tech — initState auto-picks, no chip needed.
+    //   * Tech-first entry with 2+ skills — picker is the input that
+    //     enables the Select Time CTA. Show.
+    final showServicePicker =
+        widget.serviceId == null && profile.skills.length > 1;
 
     return Stack(
       children: [
@@ -173,18 +182,18 @@ class _ProfileContentState extends State<_ProfileContent> {
                   padding: const EdgeInsets.only(top: 16.0, bottom: 24.0),
                   child: Column(
                     children: [
-                      // Header Row
+                      // Header Row — back only. The previous share button
+                      // had no destination wired; rather than ship a dead
+                      // affordance we drop it. Bring back when the deep-link
+                      // share intent lands.
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            _HeaderButton(
-                              icon: Icons.arrow_back,
-                              onTap: () => Navigator.pop(context),
-                            ),
-                            _HeaderButton(icon: Icons.share, onTap: () {}),
-                          ],
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: _HeaderButton(
+                            icon: Icons.arrow_back,
+                            onTap: () => Navigator.pop(context),
+                          ),
                         ),
                       ),
                       const SizedBox(height: 32),
@@ -402,9 +411,12 @@ class _ProfileContentState extends State<_ProfileContent> {
                       // the 2026-05-17 onboarding refactor. Doubles as the
                       // input that drives the Select Time CTA below: until
                       // a chip is selected, the bottom bar refuses to open
-                      // the time sheet. Auto-selects when the tech has
-                      // exactly one skill (see _ProfileContentState.initState).
-                      if (profile.skills.isNotEmpty) ...[
+                      // the time sheet. Only rendered when the customer
+                      // actually has a choice (see `showServicePicker`
+                      // above) — service-first entry and single-skill techs
+                      // skip this block to avoid restating data the
+                      // customer already chose / sees in the price card.
+                      if (showServicePicker) ...[
                         Padding(
                           padding:
                               const EdgeInsets.symmetric(horizontal: 24.0),
@@ -481,7 +493,7 @@ class _ProfileContentState extends State<_ProfileContent> {
                             const SizedBox(height: 10),
                             _InfoListTile(
                               icon: Icons.verified_outlined,
-                              label: 'Skills & licenses',
+                              label: 'Skills',
                             ),
                           ],
                         ),

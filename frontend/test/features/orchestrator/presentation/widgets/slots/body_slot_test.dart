@@ -15,6 +15,9 @@ import 'package:frontend/features/customer/bookings/domain/entities/booking_stat
 import 'package:frontend/features/orchestrator/data/mappers/booking_detail_mapper.dart';
 import 'package:frontend/features/orchestrator/data/models/booking_detail_model.dart';
 import 'package:frontend/features/orchestrator/domain/entities/booking_detail.dart';
+import 'package:frontend/features/orchestrator/domain/entities/review.dart';
+import 'package:frontend/features/orchestrator/domain/repositories/review_repository.dart';
+import 'package:frontend/features/orchestrator/presentation/providers/review_providers.dart';
 import 'package:frontend/features/orchestrator/presentation/widgets/animated_status_icon.dart';
 import 'package:frontend/features/orchestrator/presentation/widgets/sheets/booking_summary_details_sheet.dart';
 import 'package:frontend/features/orchestrator/presentation/widgets/sheets/receipt_sheet.dart';
@@ -24,6 +27,34 @@ import 'package:frontend/features/orchestrator/presentation/widgets/stub_bodies/
 import 'package:latlong2/latlong.dart';
 
 import '../../../_helpers/booking_detail_fixture.dart';
+
+/// Synchronous in-memory stand-in for the review repository. Returned
+/// snapshot has `review: null` and empty tag buckets — enough to keep
+/// `BookingReviewBody`'s form-or-recap switch happy without firing a
+/// real HTTP call. Submit is a no-op; nothing in this file exercises
+/// the submit path.
+class _StubReviewRepo implements IReviewRepository {
+  @override
+  Future<BookingReviewSnapshot> getSnapshot(int bookingId) async {
+    return const BookingReviewSnapshot(
+      review: null,
+      predefinedTags: PredefinedTagBuckets(
+        positive: [],
+        constructive: [],
+      ),
+    );
+  }
+
+  @override
+  Future<Review> submit({
+    required int bookingId,
+    required int rating,
+    required List<String> tagKeys,
+    required String text,
+  }) {
+    throw UnimplementedError('submit not exercised by body_slot_test');
+  }
+}
 
 class _NoopAppMap extends StatelessWidget implements IAppMap {
   @override
@@ -494,9 +525,25 @@ void main() {
         ProviderScope(
           overrides: [
             appMapBuilderProvider.overrideWith((ref) => _noopMapBuilder()),
+            // The customer-side COMPLETED body now mounts
+            // `BookingReviewBody` (per `REVIEW_FEATURE.md`), which fires
+            // `bookingReviewSnapshotProvider` on first read. Without a
+            // stubbed repository the test hangs on a real HTTP call.
+            // Stub returns a "no review yet" snapshot — the receipt
+            // assertions don't care what the review body renders, just
+            // that the rest of the COMPLETED body (QuoteSummaryCard +
+            // View receipt) is unaffected.
+            reviewRepositoryProvider.overrideWithValue(_StubReviewRepo()),
           ],
+          // Wrapped in a SingleChildScrollView because the COMPLETED
+          // body now contains the receipt + review surface stacked
+          // vertically, which exceeds the default test viewport height.
+          // Production mounts the orchestrator inside its own
+          // scrollable container, so this is the realistic posture.
           child: MaterialApp(
-            home: Scaffold(body: BodySlot(booking: booking)),
+            home: Scaffold(
+              body: SingleChildScrollView(child: BodySlot(booking: booking)),
+            ),
           ),
         ),
       );

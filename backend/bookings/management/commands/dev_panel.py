@@ -72,12 +72,23 @@ _FORWARD_POST_STATE = {
     'complete_cash': JobBooking.STATUS_COMPLETED,
 }
 
-# Production orchestrator emits status events to the *counterparty* only —
-# the actor's UI is expected to refresh optimistically through the action
-# button's local invalidate call. When `dev_panel` plays both roles, the
-# actor's Chrome tab never gets that local invalidate, so we mirror the
-# transition event to BOTH sides here. The customer's duplicate is a
-# harmless idempotent re-invalidate; the tech's is the actual fix.
+# Production-side event-emission map. dev_panel uses this to decide whether
+# (and where) to mirror the transition for the actor's Chrome tab — see
+# `_mirror_event` below.
+#
+# Two production patterns exist today:
+#   * Orchestrator transitions (``orchestrator._broadcast_both``) emit to
+#     BOTH roles in one call — the actor's tab is already covered by the
+#     production event, so dev_panel must NOT mirror (would double-push the
+#     counterparty's FCM tray when their app is backgrounded).
+#   * ``accept_job_booking`` emits ``job_accepted`` to the customer only
+#     — the tech's tab gets no production WS frame, so dev_panel mirrors
+#     to the tech (and only the tech) to refresh that side.
+#
+# When adding a new action, register it in `_ACTION_EVENT_TYPE` AND in
+# `_MIRROR_TARGET_ROLE`. Omitting the second entry means the mirror is
+# skipped (the safe default — matches the orchestrator-broadcasts-both
+# pattern that covers everything except the accept flow today).
 #
 # Values MUST match ``realtime.constants.event_types.EventType.value`` so
 # the frontend's ``bookingOrchestratorEventsNotifier`` recognises and
@@ -90,6 +101,15 @@ _ACTION_EVENT_TYPE = {
     'quote': 'quote_generated',
     'approve_quote': 'quote_approved',
     'complete_cash': 'job_completed',
+}
+
+# Mirror only for events the production service does NOT already fan out
+# to both roles. Currently only `job_accepted` (production: customer only,
+# mirror: tech). Every other entry in `_ACTION_EVENT_TYPE` is omitted
+# because production already broadcasts to both — mirroring would
+# duplicate the push.
+_MIRROR_TARGET_ROLE: dict[str, str] = {
+    'job_accepted': 'technician',
 }
 _FORWARD_ORDER = [
     JobBooking.STATUS_AWAITING_TECH_ACCEPT,
@@ -272,33 +292,47 @@ class Command(BaseCommand):
         self._ok(f'{action_name}: {before} → {b.status}')
 
     def _mirror_event(self, b: JobBooking, event_type_value: Optional[str]) -> None:
-        """Fan out the transition event to BOTH user-roles.
+        """Refresh the actor's Chrome tab for events production doesn't already
+        fan out to both roles.
 
-        Production emits to only the counterparty (the actor refreshes
-        their own UI via the action-button invalidate path). dev_panel
-        is the actor for both sides at once, so neither tab gets that
-        local invalidate; mirroring here means both Chrome tabs see the
-        same realtime path a real device would.
+        Background: production emits orchestrator transitions to BOTH roles via
+        ``orchestrator._broadcast_both``. The single exception is
+        ``accept_job_booking`` which emits ``job_accepted`` to the customer
+        only — the tech's tab gets no production WS frame, so we fire one
+        here.
+
+        Previously this method iterated over both roles unconditionally. The
+        "harmless" duplicate WS frame it produced for the counterparty was
+        actually NOT harmless: it triggered a second FCM tray push when the
+        recipient's app was backgrounded.
+
+        Skip-by-default invariant: an event missing from
+        ``_MIRROR_TARGET_ROLE`` produces NO mirror call. Adding a future
+        single-role production emit means adding an entry to that map.
         """
         if event_type_value is None:
             return
+        target_role = _MIRROR_TARGET_ROLE.get(event_type_value)
+        if target_role is None:
+            # Orchestrator already covers both roles for this event.
+            return
+
+        target_user = (
+            b.technician.user if target_role == 'technician' else b.customer
+        )
+
         # Lazy import — keeps Django bootstrap fast for command discovery.
         from realtime.events.services import EventDispatchService
-        payload = {'job_id': b.id, 'status': b.status}
-        for role, user in (
-            ('customer', b.customer),
-            ('technician', b.technician.user),
-        ):
-            try:
-                EventDispatchService.broadcast_event(
-                    user=user,
-                    target_role=role,
-                    event_type=event_type_value,
-                    payload=payload,
-                    expires_in_seconds=None,
-                )
-            except Exception as exc:  # noqa: BLE001 — dev tool, surface and continue
-                self._warn(f'mirror to {role} failed: {exc}')
+        try:
+            EventDispatchService.broadcast_event(
+                user=target_user,
+                target_role=target_role,
+                event_type=event_type_value,
+                payload={'job_id': b.id, 'status': b.status},
+                expires_in_seconds=None,
+            )
+        except Exception as exc:  # noqa: BLE001 — dev tool, surface and continue
+            self._warn(f'mirror to {target_role} failed: {exc}')
 
     @staticmethod
     def _already_at_or_past(current: str, target: str) -> bool:

@@ -27,12 +27,19 @@ const String jobDispatchChannelId = 'job_dispatch';
 /// Channel name and description are user-visible in OS Settings →
 /// Notifications. English-only for now; Urdu localization is a separate
 /// i18n workstream.
+///
+/// Caveat (display-name caching): Android caches the channel name on
+/// first creation. Devices that already created `job_dispatch` under a
+/// previous name continue to show the previous name in OS Settings until
+/// the channel is deleted and recreated (`deleteNotificationChannel` →
+/// `createNotificationChannel`) or the app is reinstalled. Fresh installs
+/// pick up the current name immediately.
 const AndroidNotificationChannel
 jobDispatchChannel = AndroidNotificationChannel(
   jobDispatchChannelId,
-  'Job Requests',
+  'Karigar Notifications',
   description:
-      'New job requests, dispatch updates, and time-critical events for technicians.',
+      'Booking updates, dispatch alerts, payments, and time-critical messages.',
   importance: Importance.high,
 );
 

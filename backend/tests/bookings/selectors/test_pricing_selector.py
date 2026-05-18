@@ -59,7 +59,12 @@ class TestInspectionScenario:
 
         assert intent.booking_type == BOOKING_TYPE_INSPECTION
         assert intent.promotion == promo
-        assert intent.promo_tag_firewalled == '20% Off Total'
+        # promo_tag_firewalled now surfaces the short chip label (derived
+        # from discount mechanics) instead of the full ui_description
+        # sentence, so a 60-char marketing copy doesn't overflow the
+        # price-card chip on the technician profile screen. The factory
+        # defaults to PERCENTAGE / 20% → "20% OFF".
+        assert intent.promo_tag_firewalled == '20% OFF'
 
 
 # ---------------------------------------------------------------------------
@@ -165,7 +170,8 @@ class TestLaborGigScenario:
         )
 
         assert intent.promotion == promo
-        assert intent.promo_tag_firewalled == 'Promo on labor'
+        # Short chip label; see promo-on-parent-service test above for context.
+        assert intent.promo_tag_firewalled == '20% OFF'
 
 
 # ---------------------------------------------------------------------------

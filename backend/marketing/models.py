@@ -50,13 +50,31 @@ class Promotion(models.Model):
         """
         if self.description:
             return self.description
-            
+
         target_name = self.target_service.name if self.target_service else "the service"
-        
+
         if self.discount_type == self.DiscountType.PERCENTAGE:
             return f"Get {int(self.discount_value)}% OFF the total bill for {target_name}!"
         else:
             return f"Get Rs. {int(self.discount_value)} OFF your final {target_name} bill!"
+
+    @property
+    def ui_chip_label(self):
+        """
+        Short chip label suitable for cramped UI affordances (price-card
+        promo chip, search-card promo tag). ``ui_description`` returns the
+        full sentence which is correct for banners and detail bodies but
+        overflows a 12-char chip — the technician profile chip was rendering
+        "Get Rs. 300 OFF your first AC service bill. Auto-applied at quote
+        acceptance — inspection fee is unaffected." inside a Stack-positioned
+        pill anchored to the right edge, causing left-side clipping.
+
+        Always derived from discount mechanics so the chip stays short
+        regardless of whatever marketing copy lives in ``description``.
+        """
+        if self.discount_type == self.DiscountType.PERCENTAGE:
+            return f"{int(self.discount_value)}% OFF"
+        return f"Rs. {int(self.discount_value)} OFF"
 
     def __str__(self):
         return f"{self.name} - {self.discount_value} ({self.discount_type})"

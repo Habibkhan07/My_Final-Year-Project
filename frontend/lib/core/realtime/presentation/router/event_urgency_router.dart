@@ -10,6 +10,7 @@ import '../../domain/entities/system_event_entity.dart';
 import '../../domain/entities/system_event_type.dart';
 import '../../domain/entities/target_role.dart';
 import '../notifiers/event_sync_notifier.dart';
+import '../widgets/event_banner.dart';
 
 /// Listener-style router that reacts to each event emitted by
 /// `systemEventNotifierProvider`.
@@ -23,11 +24,22 @@ import '../notifiers/event_sync_notifier.dart';
 /// class makes the wiring explicit.
 class EventUrgencyRouter {
   final GlobalKey<NavigatorState> navigatorKey;
+  // Retained for constructor-signature stability with the orchestrator; the
+  // banner path now mounts via an Overlay (see `event_banner.dart`) for the
+  // visual control `MaterialBanner` doesn't expose.
+  // ignore: unused_field
   final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey;
 
   static const _bannerAutoDismiss = Duration(seconds: 5);
 
-  const EventUrgencyRouter({
+  // Single-banner-at-a-time invariant: when a new low-urgency event arrives,
+  // the previous banner's slide-out is triggered before the new one mounts,
+  // and any pending auto-dismiss timer is cancelled so it cannot fire against
+  // an already-replaced banner.
+  VoidCallback? _activeBannerDismiss;
+  Timer? _autoDismissTimer;
+
+  EventUrgencyRouter({
     required this.navigatorKey,
     required this.scaffoldMessengerKey,
   });
@@ -325,8 +337,16 @@ class EventUrgencyRouter {
   // ─── Low-urgency: MaterialBanner ───────────────────────────────────────
 
   void _handleLow(SystemEventEntity event) {
-    final messenger = scaffoldMessengerKey.currentState;
-    if (messenger == null) return;
+    // The Navigator's OverlayState is the canonical mount point for any
+    // app-level overlay. `Overlay.of(navigatorKey.currentContext, ...)`
+    // would throw — the Navigator widget's context sits ABOVE its own
+    // Overlay in the tree — and the exception would be swallowed by the
+    // listener pipeline, producing a silent "banner never fires"
+    // regression. Reach for `currentState?.overlay` instead.
+    final navState = navigatorKey.currentState;
+    final overlay = navState?.overlay;
+    final ctx = navigatorKey.currentContext;
+    if (overlay == null || ctx == null) return;
 
     // Suppress the banner when the user is already viewing the entity
     // the event is about. The booking-detail screen's
@@ -338,10 +358,7 @@ class EventUrgencyRouter {
     // (chatMessage / paymentReceived / walletLowBalance) still fire —
     // those entries are absent from `_navGuardPayloadKeys`.
     final tapRoute = _lowUrgencyTapRoutes[event.eventType];
-    final ctx = navigatorKey.currentContext;
-    if (tapRoute != null &&
-        ctx != null &&
-        _isAlreadyOnEntity(ctx, tapRoute, event)) {
+    if (tapRoute != null && _isAlreadyOnEntity(ctx, tapRoute, event)) {
       return;
     }
 
@@ -349,46 +366,45 @@ class EventUrgencyRouter {
     final title = _bannerTitles[event.eventType] ?? 'Notification';
     final body = _bannerBody(event);
 
-    // Hide the "View" action when the event type has no tap-route — its
+    // Replace any banner currently on screen — single-banner invariant.
+    _autoDismissTimer?.cancel();
+    _activeBannerDismiss?.call();
+
+    // Hide the tap-affordance when the event type has no tap-route — its
     // feature is unshipped (chat / wallet placeholders) or otherwise has
     // nowhere meaningful to land. Without this guard, a tap would push a
     // dead "Coming soon" route the user can't escape via the back button
-    // without losing their place. The Dismiss button is always present so
-    // the banner is never inescapable.
-    final routeToPush = tapRoute; // local non-null capture for closure
+    // without losing their place. The close "✕" is always present so the
+    // banner is never inescapable.
+    final routeToPush = tapRoute;
+    final onView = routeToPush == null
+        ? null
+        : () {
+            final navCtx = navigatorKey.currentContext;
+            if (navCtx == null) return;
+            final resolved = _resolveTemplatedPath(routeToPush, event);
+            if (resolved == null) return; // missing payload key — skip.
+            GoRouter.of(navCtx)
+                .push(resolved, extra: jsonEncode(event.payload));
+          };
 
-    final banner = MaterialBanner(
-      leading: Icon(icon),
-      content: Text(
-        body == null ? title : '$title — $body',
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
-      ),
-      actions: [
-        if (routeToPush != null)
-          TextButton(
-            onPressed: () {
-              messenger.hideCurrentMaterialBanner();
-              final ctx = navigatorKey.currentContext;
-              if (ctx != null) {
-                final resolved = _resolveTemplatedPath(routeToPush, event);
-                if (resolved == null) return; // missing payload key — skip.
-                GoRouter.of(ctx).push(resolved, extra: jsonEncode(event.payload));
-              }
-            },
-            child: const Text('View'),
-          ),
-        TextButton(
-          onPressed: messenger.hideCurrentMaterialBanner,
-          child: const Text('Dismiss'),
-        ),
-      ],
+    final dismiss = showEventBanner(
+      overlay: overlay,
+      eventType: event.eventType,
+      icon: icon,
+      title: title,
+      body: body,
+      onView: onView,
     );
+    _activeBannerDismiss = dismiss;
 
-    messenger.showMaterialBanner(banner);
-    Timer(_bannerAutoDismiss, () {
-      // guard against late dismiss after a newer banner replaced this one
-      scaffoldMessengerKey.currentState?.hideCurrentMaterialBanner();
+    _autoDismissTimer = Timer(_bannerAutoDismiss, () {
+      // The controller's internal `_dismissed` flag makes this a no-op if a
+      // newer banner has already replaced and dismissed this one.
+      dismiss();
+      if (identical(_activeBannerDismiss, dismiss)) {
+        _activeBannerDismiss = null;
+      }
     });
   }
 

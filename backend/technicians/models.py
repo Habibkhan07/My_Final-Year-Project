@@ -188,11 +188,38 @@ class TechnicianSchedule(models.Model):
 
 
 class Review(models.Model):
-    """Customer review left after a completed job."""
+    """Customer review left after a completed job.
+
+    One review per booking is the wire invariant — enforced by the
+    ``OneToOneField`` on ``booking``. The OneToOne also gives the
+    customer's UI a cheap "did I already review?" check via
+    ``booking.review`` without an extra round-trip.
+
+    ``booking`` is nullable to keep the migration backwards-compatible
+    with legacy dev-seeded rows that pre-date the link; every NEW
+    write enforces non-null at the API/service layer
+    (``technicians.services.review_service.submit_review``).
+
+    ``tags`` is a JSON array of stable string keys from
+    ``technicians.constants.review_tags``. Keys (not labels) are
+    persisted so display copy can change without a data migration.
+    """
     technician = models.ForeignKey(TechnicianProfile, on_delete=models.CASCADE, related_name='reviews')
     reviewer = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='given_reviews')
+    # CASCADE so wipe-all dev flows (and any future hard delete of a
+    # booking) clean up the review with the booking. A review without
+    # its booking is orphan data — the booking is the only thing that
+    # ties a review to a specific tech-customer interaction.
+    booking = models.OneToOneField(
+        'bookings.JobBooking',
+        on_delete=models.CASCADE,
+        related_name='review',
+        null=True,
+        blank=True,
+    )
     rating = models.PositiveSmallIntegerField()   # 1–5
-    text = models.TextField()
+    tags = models.JSONField(default=list, blank=True)
+    text = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

@@ -31,6 +31,7 @@ import '../../providers/technician_location_stream_notifier.dart';
 import '../_palette/orchestrator_palette.dart';
 import '../animated_status_icon.dart';
 import '../meeting_countdown_button.dart';
+import '../review/booking_review_body.dart';
 import '../sheets/receipt_sheet.dart';
 import '../slots/booking_summary_card.dart';
 import '_body_shell.dart';
@@ -1180,6 +1181,11 @@ class CompletedBodyStub extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final quote = booking.activeQuote;
+    // Customer-only: the review surface mounts under the receipt. The
+    // tech viewing their own completed job sees only the receipt — they
+    // are the rated party, not the rater.
+    final showReview = booking.viewerRole == BookingOrchestratorRole.customer;
+
     return _AnimatedBody(
       status: BookingStatus.completed,
       message: booking.ui.bodyText,
@@ -1189,17 +1195,21 @@ class CompletedBodyStub extends StatelessWidget {
       // the receipt for WhatsApp / records (see ReceiptSheet docstring).
       // When activeQuote is null (inspection-only completion / edge
       // case) both the card and the button are suppressed.
-      child: quote == null
-          ? null
-          : Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                QuoteSummaryCard(quote: quote),
-                const SizedBox(height: 12),
-                _ViewReceiptButton(quote: quote),
-              ],
-            ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (quote != null) ...[
+            QuoteSummaryCard(quote: quote),
+            const SizedBox(height: 12),
+            _ViewReceiptButton(quote: quote),
+          ],
+          if (showReview) ...[
+            if (quote != null) const SizedBox(height: 16),
+            BookingReviewBody(bookingId: booking.id),
+          ],
+        ],
+      ),
     );
   }
 }
@@ -1248,10 +1258,24 @@ class CompletedInspectionOnlyBodyStub extends StatelessWidget {
   final BookingDetail booking;
 
   @override
-  Widget build(BuildContext context) => _AnimatedBody(
-    status: BookingStatus.completedInspectionOnly,
-    message: booking.ui.bodyText,
-  );
+  Widget build(BuildContext context) {
+    // Same customer-only review surface as `CompletedBodyStub`. An
+    // inspection-only completion (customer declined the quote, paid
+    // the Rs. 500 visit fee) is still a real tech-customer
+    // interaction worth rating — backend lists this status in
+    // `_ELIGIBLE_STATUSES` for the review service for the same
+    // reason.
+    final showReview =
+        booking.viewerRole == BookingOrchestratorRole.customer;
+
+    return _AnimatedBody(
+      status: BookingStatus.completedInspectionOnly,
+      message: booking.ui.bodyText,
+      child: showReview
+          ? BookingReviewBody(bookingId: booking.id)
+          : null,
+    );
+  }
 }
 
 class CancelledBodyStub extends StatelessWidget {
