@@ -148,6 +148,21 @@ class OrchestratorPalette {
   static const Color _negativeBase = Color(0xFFB91C1C);
   static const Color _negativeForeground = Color(0xFF7F1D1D);
 
+  /// Public danger tokens for destructive surfaces (error banners,
+  /// review error shells, cancel-confirm buttons). Bypasses M3's
+  /// `colorScheme.error` which derives a pink-coral red from the
+  /// brand-blue seed — see the docstring above this section.
+  ///
+  /// Usage:
+  ///   * `dangerInk` — text / icon on a light dangerSurface
+  ///   * `dangerBase` — solid bg for destructive primary buttons
+  ///   * `dangerSurface` — light wash bg for inline error banners
+  ///   * `dangerBorder` — hairline for error containers
+  static const Color dangerInk = _negativeForeground;
+  static const Color dangerBase = _negativeBase;
+  static Color get dangerSurface => _negativeBase.withValues(alpha: 0.08);
+  static Color get dangerBorder => _negativeBase.withValues(alpha: 0.24);
+
   /// **Warning** (awaiting tech-accept; arrived without ack).
   /// Amber (already our `warningAmber` token). Deep `#92400E`
   /// foreground for AA contrast on amber wash.

@@ -56,8 +56,8 @@ class _OptionalCommentFieldState extends State<OptionalCommentField> {
       style: const TextStyle(fontSize: 14, height: 1.4),
       decoration: InputDecoration(
         hintText: 'Anything else? (optional)',
-        hintStyle: TextStyle(
-          color: Colors.grey.shade500,
+        hintStyle: const TextStyle(
+          color: OrchestratorPalette.inkTertiary,
           fontSize: 14,
         ),
         filled: true,
@@ -66,7 +66,7 @@ class _OptionalCommentFieldState extends State<OptionalCommentField> {
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(
-            color: Colors.grey.shade300,
+            color: OrchestratorPalette.brandPrimary.withValues(alpha: 0.12),
             width: 1,
           ),
         ),

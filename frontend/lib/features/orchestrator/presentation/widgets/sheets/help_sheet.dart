@@ -6,6 +6,7 @@ import '../../../domain/entities/booking_detail.dart';
 import '../../../domain/entities/booking_ui_block.dart';
 import '../../providers/booking_action_executor.dart';
 import '../../providers/booking_detail_provider.dart';
+import '../_palette/orchestrator_palette.dart';
 import 'booking_action_pending_sheet.dart';
 import 'cancel_reason_sheet.dart';
 
@@ -103,7 +104,7 @@ class HelpSheet extends ConsumerWidget {
             if (reschedule != null)
               _HelpRow(
                 icon: Icons.schedule_rounded,
-                iconColor: const Color(0xFF0051AE),
+                iconColor: OrchestratorPalette.brandPrimary,
                 title: reschedule.label,
                 subtitle: 'Pick a new date and time',
                 onTap: () {
@@ -161,7 +162,7 @@ class HelpSheet extends ConsumerWidget {
                 const Divider(height: 24),
               _HelpRow(
                 icon: Icons.support_agent_rounded,
-                iconColor: const Color(0xFF0051AE),
+                iconColor: OrchestratorPalette.brandPrimary,
                 title: 'Contact support',
                 subtitle: 'Report a problem with this job',
                 onTap: () {

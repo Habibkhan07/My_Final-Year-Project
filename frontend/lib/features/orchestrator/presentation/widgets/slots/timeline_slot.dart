@@ -82,20 +82,33 @@ class TimelineSlot extends StatelessWidget {
                               ? CrossAxisAlignment.end
                               : CrossAxisAlignment.center),
                     children: [
-                      Text(
-                        phases[i].label,
-                        textAlign: i == 0
-                            ? TextAlign.start
+                      // FittedBox + softWrap:false prevents the
+                      // "Confirme / d" mid-word wrap that was visible on
+                      // every orchestrator screenshot. labelSmall +
+                      // letterSpacing makes "Confirmed" / "On the way"
+                      // overflow a 6-column phase row on a 360-dp phone;
+                      // FittedBox scales the text down proportionally so
+                      // the row's visual rhythm stays intact instead of
+                      // breaking the word in two.
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: i == 0
+                            ? Alignment.centerLeft
                             : (i == phases.length - 1
-                                  ? TextAlign.end
-                                  : TextAlign.center),
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: phases[i].state == _PhaseState.idle
-                              ? colors.outline
-                              : colors.onSurfaceVariant,
-                          fontWeight: phases[i].state == _PhaseState.current
-                              ? FontWeight.w700
-                              : FontWeight.w500,
+                                  ? Alignment.centerRight
+                                  : Alignment.center),
+                        child: Text(
+                          phases[i].label,
+                          maxLines: 1,
+                          softWrap: false,
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: phases[i].state == _PhaseState.idle
+                                ? colors.outline
+                                : colors.onSurfaceVariant,
+                            fontWeight: phases[i].state == _PhaseState.current
+                                ? FontWeight.w700
+                                : FontWeight.w500,
+                          ),
                         ),
                       ),
                       // Foodpanda pattern — completed phases show the

@@ -38,10 +38,10 @@ class BookingReviewSubmittedBody extends StatelessWidget {
               const SizedBox(width: 8),
               Text(
                 'Thanks for your review',
-                style: TextStyle(
+                style: const TextStyle(
                   fontWeight: FontWeight.w700,
                   fontSize: 15,
-                  color: Colors.grey.shade800,
+                  color: OrchestratorPalette.inkPrimary,
                 ),
               ),
             ],
@@ -78,8 +78,8 @@ class BookingReviewSubmittedBody extends StatelessWidget {
             const SizedBox(height: 14),
             Text(
               '"${review.text}"',
-              style: TextStyle(
-                color: Colors.grey.shade700,
+              style: const TextStyle(
+                color: OrchestratorPalette.inkSecondary,
                 fontSize: 13.5,
                 fontStyle: FontStyle.italic,
                 height: 1.4,

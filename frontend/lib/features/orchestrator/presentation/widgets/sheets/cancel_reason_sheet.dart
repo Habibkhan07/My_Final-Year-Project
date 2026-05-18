@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../../../core/common/errors/http_failure.dart';
 import '../../../domain/entities/booking_detail.dart';
 import '../../../domain/entities/booking_ui_block.dart';
+import '../_palette/orchestrator_palette.dart';
 
 /// Cancel-reason picker.
 ///
@@ -183,7 +184,7 @@ class _CancelReasonSheetState extends State<CancelReasonSheet> {
                 title: Text(reason.label),
                 contentPadding: EdgeInsets.zero,
                 visualDensity: VisualDensity.compact,
-                activeColor: const Color(0xFF0051AE),
+                activeColor: OrchestratorPalette.brandPrimary,
               ),
             if (_error != null) ...[
               const SizedBox(height: 8),
@@ -223,7 +224,7 @@ class _CancelReasonSheetState extends State<CancelReasonSheet> {
             TextButton(
               onPressed: _busy ? null : () => Navigator.of(context).pop(false),
               style: TextButton.styleFrom(
-                foregroundColor: const Color(0xFF0051AE),
+                foregroundColor: OrchestratorPalette.brandPrimary,
               ),
               child: const Text(
                 'Keep booking',

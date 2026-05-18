@@ -3,6 +3,7 @@ import 'dart:io' show SocketException;
 import 'package:flutter/material.dart';
 
 import '../../../../../core/common/errors/http_failure.dart';
+import '../_palette/orchestrator_palette.dart';
 
 /// Single shared bottom sheet for actions that need a richer flow than
 /// session 3 ships. The action button widget opens this with a label
@@ -139,7 +140,7 @@ class _BookingActionPendingSheetState extends State<BookingActionPendingSheet> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: widget.confirmIsDestructive
                         ? colors.error
-                        : const Color(0xFF0051AE),
+                        : OrchestratorPalette.brandPrimary,
                     foregroundColor: widget.confirmIsDestructive
                         ? colors.onError
                         : Colors.white,
@@ -150,7 +151,7 @@ class _BookingActionPendingSheetState extends State<BookingActionPendingSheet> {
                     elevation: 8,
                     shadowColor: (widget.confirmIsDestructive
                             ? colors.error
-                            : const Color(0xFF0051AE))
+                            : OrchestratorPalette.brandPrimary)
                         .withValues(alpha: 0.4),
                   ),
                   onPressed: _busy ? null : _runConfirm,
@@ -179,7 +180,7 @@ class _BookingActionPendingSheetState extends State<BookingActionPendingSheet> {
                     ? null
                     : () => Navigator.of(context).pop(false),
                 style: TextButton.styleFrom(
-                  foregroundColor: const Color(0xFF0051AE),
+                  foregroundColor: OrchestratorPalette.brandPrimary,
                 ),
                 child: Text(
                   _dismissLabel(),

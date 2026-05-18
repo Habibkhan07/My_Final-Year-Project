@@ -81,7 +81,7 @@ class _ReviewFormShell extends ConsumerWidget {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(msg),
-              backgroundColor: Colors.red.shade700,
+              backgroundColor: OrchestratorPalette.dangerBase,
               behavior: SnackBarBehavior.floating,
             ),
           );
@@ -103,7 +103,10 @@ class _ReviewFormShell extends ConsumerWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200, width: 1),
+        border: Border.all(
+          color: OrchestratorPalette.brandPrimary.withValues(alpha: 0.10),
+          width: 1,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -111,10 +114,10 @@ class _ReviewFormShell extends ConsumerWidget {
         children: [
           Text(
             'How was your experience?',
-            style: TextStyle(
+            style: const TextStyle(
               fontWeight: FontWeight.w700,
               fontSize: 16,
-              color: Colors.grey.shade900,
+              color: OrchestratorPalette.inkPrimary,
             ),
           ),
           const SizedBox(height: 12),
@@ -127,9 +130,9 @@ class _ReviewFormShell extends ConsumerWidget {
             const SizedBox(height: 16),
             Text(
               form.rating! >= 4 ? 'What made it great?' : 'What went wrong?',
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 13.5,
-                color: Colors.grey.shade700,
+                color: OrchestratorPalette.inkSecondary,
               ),
             ),
             const SizedBox(height: 10),
@@ -255,7 +258,10 @@ class _ReviewLoadingShell extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200, width: 1),
+        border: Border.all(
+          color: OrchestratorPalette.brandPrimary.withValues(alpha: 0.10),
+          width: 1,
+        ),
       ),
       alignment: Alignment.center,
       child: const CircularProgressIndicator(
@@ -278,26 +284,32 @@ class _ReviewErrorShell extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.red.shade50,
+        color: OrchestratorPalette.dangerSurface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.red.shade200, width: 1),
+        border: Border.all(color: OrchestratorPalette.dangerBorder, width: 1),
       ),
       child: Row(
         children: [
-          Icon(Icons.error_outline_rounded, color: Colors.red.shade700),
+          const Icon(
+            Icons.error_outline_rounded,
+            color: OrchestratorPalette.dangerInk,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
               message,
-              style: TextStyle(color: Colors.red.shade900, fontSize: 13.5),
+              style: const TextStyle(
+                color: OrchestratorPalette.dangerInk,
+                fontSize: 13.5,
+              ),
             ),
           ),
           TextButton(
             onPressed: onRetry,
-            child: Text(
+            child: const Text(
               'Retry',
               style: TextStyle(
-                color: Colors.red.shade900,
+                color: OrchestratorPalette.dangerInk,
                 fontWeight: FontWeight.w700,
               ),
             ),

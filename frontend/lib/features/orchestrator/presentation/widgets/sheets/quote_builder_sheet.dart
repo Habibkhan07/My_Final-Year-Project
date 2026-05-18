@@ -10,6 +10,7 @@ import '../../../data/models/quotable_sub_service_model.dart';
 import '../../../domain/entities/booking_detail.dart';
 import '../../../domain/entities/booking_ui_block.dart';
 import '../../providers/quotable_sub_services_notifier.dart';
+import '../_palette/orchestrator_palette.dart';
 import '../stub_bodies/all_status_stubs.dart' show formatRupees;
 
 /// Bottom sheet for the tech-side "Submit Quote" action.
@@ -348,14 +349,15 @@ class _QuoteBuilderSheetState extends ConsumerState<QuoteBuilderSheet> {
               ElevatedButton(
                 onPressed: _canSubmit ? _submit : null,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF0051AE),
+                  backgroundColor: OrchestratorPalette.brandPrimary,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
                   ),
                   elevation: 8,
-                  shadowColor: const Color(0xFF0051AE).withValues(alpha: 0.4),
+                  shadowColor:
+                      OrchestratorPalette.brandPrimary.withValues(alpha: 0.4),
                 ),
                 child: _busy
                     ? const SizedBox(
@@ -380,7 +382,7 @@ class _QuoteBuilderSheetState extends ConsumerState<QuoteBuilderSheet> {
               TextButton(
                 onPressed: _busy ? null : () => Navigator.of(context).pop(false),
                 style: TextButton.styleFrom(
-                  foregroundColor: const Color(0xFF0051AE),
+                  foregroundColor: OrchestratorPalette.brandPrimary,
                 ),
                 child: const Text(
                   'Cancel',

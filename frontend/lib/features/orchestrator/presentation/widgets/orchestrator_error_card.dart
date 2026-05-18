@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/constants.dart';
 import '../../../../core/widgets/map/map_provider.dart';
 import '../../domain/failures/booking_detail_failure.dart';
+import '_palette/orchestrator_palette.dart';
 
 /// Per-failure illustrative error card.
 ///
@@ -108,7 +109,7 @@ class OrchestratorErrorCard extends ConsumerWidget {
                     icon: const Icon(Icons.refresh_rounded),
                     label: const Text('Try again'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF0051AE),
+                      backgroundColor: OrchestratorPalette.brandPrimary,
                       foregroundColor: Colors.white,
                       padding:
                           const EdgeInsets.symmetric(vertical: 14),

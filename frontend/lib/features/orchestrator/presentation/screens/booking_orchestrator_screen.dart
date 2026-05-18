@@ -204,7 +204,10 @@ class _LoadedBody extends StatelessWidget {
   final VoidCallback onHelp;
   final Future<void> Function() onPullToRefresh;
 
-  static const _brandBlue = Color(0xFF0051AE);
+  // Local alias for readability at the LinearProgressIndicator + brand
+  // CTA call sites below. Resolves through the orchestrator palette so
+  // the value cannot drift from `OrchestratorPalette.brandPrimary`.
+  static const _brandBlue = OrchestratorPalette.brandPrimary;
 
   @override
   Widget build(BuildContext context) {
