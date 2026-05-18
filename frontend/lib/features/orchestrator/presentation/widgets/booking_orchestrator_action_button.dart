@@ -1,9 +1,7 @@
-import 'dart:async' show unawaited;
 import 'dart:developer' as developer;
 import 'dart:io' show SocketException;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/common/errors/http_failure.dart';
@@ -14,6 +12,7 @@ import '../providers/booking_action_executor.dart';
 import '../providers/booking_detail_provider.dart';
 import '_palette/orchestrator_palette.dart';
 import 'feedback/orchestrator_snack.dart';
+import 'orchestrator_primary_button.dart';
 import 'sheets/booking_action_pending_sheet.dart';
 import 'sheets/quote_builder_sheet.dart';
 
@@ -72,66 +71,16 @@ class _BookingOrchestratorActionButtonState
 
     final isDestructive = action.style == BookingUiActionStyle.destructive;
 
-    // Brand-blue language. Pressed state darkens via a Material state
-    // resolver so users get visual feedback in addition to the ripple.
-    final bgColor = isDestructive
-        ? theme.colorScheme.error
-        : OrchestratorPalette.brandPrimary;
-    final fgColor = isDestructive ? theme.colorScheme.onError : Colors.white;
-
     if (widget.isPrimary) {
-      return SizedBox(
-        width: double.infinity,
-        child: ElevatedButton(
-          style: ButtonStyle(
-            backgroundColor: WidgetStateProperty.resolveWith((states) {
-              if (states.contains(WidgetState.pressed)) {
-                return isDestructive
-                    ? theme.colorScheme.error.withValues(alpha: 0.86)
-                    : OrchestratorPalette.brandPrimaryDeep;
-              }
-              if (states.contains(WidgetState.disabled)) {
-                return bgColor.withValues(alpha: 0.55);
-              }
-              return bgColor;
-            }),
-            foregroundColor: WidgetStateProperty.all(fgColor),
-            padding: WidgetStateProperty.all(
-              const EdgeInsets.symmetric(vertical: 16),
-            ),
-            shape: WidgetStateProperty.all(
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            ),
-            elevation: WidgetStateProperty.resolveWith((states) {
-              if (states.contains(WidgetState.pressed)) return 2;
-              return 8;
-            }),
-            shadowColor: WidgetStateProperty.all(
-              bgColor.withValues(alpha: 0.42),
-            ),
-            overlayColor: WidgetStateProperty.all(
-              Colors.white.withValues(alpha: 0.10),
-            ),
-          ),
-          onPressed: _busy ? null : () => _onTap(classification),
-          child: _busy
-              ? SizedBox(
-                  height: 18,
-                  width: 18,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: fgColor,
-                  ),
-                )
-              : Text(
-                  action.label,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.1,
-                  ),
-                ),
-        ),
+      // Routes through the canonical OrchestratorPrimaryButton recipe.
+      // The button fires its own haptic on tap (hapticOnTap default
+      // true), so the prior explicit `HapticFeedback.lightImpact()` in
+      // `_onTap` is now redundant and has been removed.
+      return OrchestratorPrimaryButton(
+        label: action.label,
+        onPressed: () => _onTap(classification),
+        busy: _busy,
+        isDestructive: isDestructive,
       );
     }
 
@@ -171,13 +120,10 @@ class _BookingOrchestratorActionButtonState
   }
 
   Future<void> _onTap(_ActionClassification classification) async {
-    // Light haptic on every primary/secondary action tap — confirms the
-    // touch hit without the cheap-feel of `mediumImpact`. No-op under
-    // flutter_test and on web platforms where the channel isn't wired,
-    // so safe to call unconditionally.
-    if (widget.isPrimary) {
-      unawaited(HapticFeedback.lightImpact());
-    }
+    // Primary-action haptic is now fired by OrchestratorPrimaryButton's
+    // internal onPressed wrapper (hapticOnTap default true). Secondary
+    // outlined actions don't fire haptic — matches the prior behaviour
+    // where the explicit call here was gated on `widget.isPrimary`.
     switch (classification) {
       case _ActionClassification.directPostNoBody:
         await _runDirect(body: null);

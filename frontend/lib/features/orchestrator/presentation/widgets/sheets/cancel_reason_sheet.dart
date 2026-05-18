@@ -6,6 +6,7 @@ import '../../../../../core/common/errors/http_failure.dart';
 import '../../../domain/entities/booking_detail.dart';
 import '../../../domain/entities/booking_ui_block.dart';
 import '../_palette/orchestrator_palette.dart';
+import '../orchestrator_primary_button.dart';
 
 /// Cancel-reason picker.
 ///
@@ -152,7 +153,6 @@ class _CancelReasonSheetState extends State<CancelReasonSheet> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colors = theme.colorScheme;
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
@@ -191,34 +191,16 @@ class _CancelReasonSheetState extends State<CancelReasonSheet> {
               _ErrorBanner(message: _error!),
             ],
             const SizedBox(height: 12),
-            ElevatedButton(
-              onPressed: (_selected == null || _busy) ? null : _submit,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: colors.error,
-                foregroundColor: colors.onError,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                elevation: 8,
-                shadowColor: colors.error.withValues(alpha: 0.4),
-              ),
-              child: _busy
-                  ? SizedBox(
-                      height: 18,
-                      width: 18,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: colors.onError,
-                      ),
-                    )
-                  : Text(
-                      widget.action.label,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+            // Destructive primary — backed by `OrchestratorPalette.dangerBase`
+            // (cool burgundy) via the shared OrchestratorPrimaryButton recipe.
+            // Was previously `colors.error` which derives a pink-coral red
+            // from the brand-blue M3 seed; the palette docstring warns
+            // against that derivation explicitly.
+            OrchestratorPrimaryButton(
+              label: widget.action.label,
+              onPressed: _selected == null ? null : _submit,
+              busy: _busy,
+              isDestructive: true,
             ),
             const SizedBox(height: 4),
             TextButton(

@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/constants.dart';
 import '../../../../core/widgets/map/map_provider.dart';
 import '../../domain/failures/booking_detail_failure.dart';
-import '_palette/orchestrator_palette.dart';
+import 'orchestrator_primary_button.dart';
 
 /// Per-failure illustrative error card.
 ///
@@ -102,26 +102,14 @@ class OrchestratorErrorCard extends ConsumerWidget {
                   ),
                 ),
                 const SizedBox(height: 22),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: onRetry,
-                    icon: const Icon(Icons.refresh_rounded),
-                    label: const Text('Try again'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: OrchestratorPalette.brandPrimary,
-                      foregroundColor: Colors.white,
-                      padding:
-                          const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      textStyle: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 15,
-                      ),
-                    ),
-                  ),
+                // Adopts the canonical primary recipe (radius 16,
+                // padding 16, elevation 8, fontSize 16). The prior
+                // inline recipe used 14/14/0/15 — drift the consolidated
+                // widget eliminates.
+                OrchestratorPrimaryButton(
+                  label: 'Try again',
+                  onPressed: onRetry,
+                  icon: Icons.refresh_rounded,
                 ),
                 if (canContactSupport) ...[
                   const SizedBox(height: 6),

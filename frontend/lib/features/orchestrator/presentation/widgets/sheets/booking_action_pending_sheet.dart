@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../../core/common/errors/http_failure.dart';
 import '../_palette/orchestrator_palette.dart';
+import '../orchestrator_primary_button.dart';
 
 /// Single shared bottom sheet for actions that need a richer flow than
 /// session 3 ships. The action button widget opens this with a label
@@ -136,43 +137,13 @@ class _BookingActionPendingSheetState extends State<BookingActionPendingSheet> {
               ],
               const SizedBox(height: 20),
               if (widget.confirmLabel != null && widget.onConfirm != null)
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: widget.confirmIsDestructive
-                        ? colors.error
-                        : OrchestratorPalette.brandPrimary,
-                    foregroundColor: widget.confirmIsDestructive
-                        ? colors.onError
-                        : Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    elevation: 8,
-                    shadowColor: (widget.confirmIsDestructive
-                            ? colors.error
-                            : OrchestratorPalette.brandPrimary)
-                        .withValues(alpha: 0.4),
-                  ),
-                  onPressed: _busy ? null : _runConfirm,
-                  child: _busy
-                      ? SizedBox(
-                          height: 18,
-                          width: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: widget.confirmIsDestructive
-                                ? colors.onError
-                                : Colors.white,
-                          ),
-                        )
-                      : Text(
-                          widget.confirmLabel!,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                // Destructive variant routes through dangerBase (cool
+                // burgundy) instead of the M3 pink-coral colorScheme.error.
+                OrchestratorPrimaryButton(
+                  label: widget.confirmLabel!,
+                  onPressed: _runConfirm,
+                  busy: _busy,
+                  isDestructive: widget.confirmIsDestructive,
                 ),
               const SizedBox(height: 8),
               TextButton(

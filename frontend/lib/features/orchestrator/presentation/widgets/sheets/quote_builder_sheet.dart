@@ -11,6 +11,7 @@ import '../../../domain/entities/booking_detail.dart';
 import '../../../domain/entities/booking_ui_block.dart';
 import '../../providers/quotable_sub_services_notifier.dart';
 import '../_palette/orchestrator_palette.dart';
+import '../orchestrator_primary_button.dart';
 import '../stub_bodies/all_status_stubs.dart' show formatRupees;
 
 /// Bottom sheet for the tech-side "Submit Quote" action.
@@ -363,37 +364,12 @@ class _QuoteBuilderSheetState extends ConsumerState<QuoteBuilderSheet> {
                 _ErrorBanner(message: _error!),
               ],
               const SizedBox(height: 16),
-              ElevatedButton(
+              OrchestratorPrimaryButton(
+                label: _isUpsell
+                    ? 'Send upsell · Rs. ${formatRupees(_total)}'
+                    : 'Send quote · Rs. ${formatRupees(_total)}',
                 onPressed: _canSubmit ? _submit : null,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: OrchestratorPalette.brandPrimary,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  elevation: 8,
-                  shadowColor:
-                      OrchestratorPalette.brandPrimary.withValues(alpha: 0.4),
-                ),
-                child: _busy
-                    ? const SizedBox(
-                        height: 18,
-                        width: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : Text(
-                        _isUpsell
-                            ? 'Send upsell · Rs. ${formatRupees(_total)}'
-                            : 'Send quote · Rs. ${formatRupees(_total)}',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                busy: _busy,
               ),
               const SizedBox(height: 4),
               // Cancel is neutralised (inkSecondary) so the sheet's only
