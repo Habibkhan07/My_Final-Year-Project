@@ -122,7 +122,7 @@ final class TechnicianDashboardNotifierProvider
 }
 
 String _$technicianDashboardNotifierHash() =>
-    r'6d0c030f628be80938df1b0c4bc0db0774b2f12b';
+    r'eb1f20fbbc6569aa0afad71cb78cb5efcaca4c11';
 
 /// State holder for the technician dashboard screen.
 ///

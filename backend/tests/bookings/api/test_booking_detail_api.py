@@ -263,7 +263,8 @@ class TestBookingDetailEndpoint:
             (JobBooking.STATUS_COMPLETED, True),
             (JobBooking.STATUS_COMPLETED_INSPECTION_ONLY, True),
             (JobBooking.STATUS_CANCELLED, False),
-            (JobBooking.STATUS_REJECTED, False),
+            (JobBooking.STATUS_TECH_DECLINED, False),
+            (JobBooking.STATUS_TECH_NO_RESPONSE, False),
             (JobBooking.STATUS_NO_SHOW, True),
             # DISPUTED already has an open dispute — the button would be
             # a no-op. Only IN_PROGRESS / COMPLETED /

@@ -94,7 +94,8 @@ BookingDetail _bookingFor(BookingStatus s) {
     BookingStatus.completed => 'COMPLETED',
     BookingStatus.completedInspectionOnly => 'COMPLETED_INSPECTION_ONLY',
     BookingStatus.cancelled => 'CANCELLED',
-    BookingStatus.rejected => 'REJECTED',
+    BookingStatus.techDeclined => 'TECH_DECLINED',
+    BookingStatus.techNoResponse => 'TECH_NO_RESPONSE',
     BookingStatus.noShow => 'NO_SHOW',
     BookingStatus.disputed => 'DISPUTED',
     BookingStatus.pending => 'PENDING',
@@ -210,7 +211,10 @@ void main() {
     (BookingStatus.completed, CompletedBodyStub),
     (BookingStatus.completedInspectionOnly, CompletedInspectionOnlyBodyStub),
     (BookingStatus.cancelled, CancelledBodyStub),
-    (BookingStatus.rejected, RejectedBodyStub),
+    // Both tech-failure terminal statuses share the same RejectedBodyStub
+    // — the BE drives differential copy via the `ui` block.
+    (BookingStatus.techDeclined, RejectedBodyStub),
+    (BookingStatus.techNoResponse, RejectedBodyStub),
     (BookingStatus.noShow, NoShowBodyStub),
     (BookingStatus.disputed, DisputedBodyStub),
     // pending + unknown both fall through to UnknownBodyStub.

@@ -16,7 +16,8 @@ Covers exhaustively:
   * IDOR — user A cannot see user B's bookings.
   * Validation envelopes — invalid_status_filter, invalid_cursor,
     validation_error (page_size out of range, malformed since).
-  * REJECTED reason discrimination via EventLog.
+  * Tech-acceptance failure cause via status (TECH_DECLINED vs
+    TECH_NO_RESPONSE — migration 0013).
   * Counts endpoint matches the same predicates as the list segments.
 """
 from __future__ import annotations
@@ -29,8 +30,6 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from bookings.models import JobBooking
-from realtime.constants.event_types import EventType
-from realtime.models.events import EventLog
 from tests.factories.accounts import UserFactory
 from tests.factories.bookings import JobBookingFactory
 from tests.factories.customers import CustomerAddressFactory, CustomerProfileFactory
@@ -62,16 +61,6 @@ def _booking_in_past(*, customer, **kwargs) -> JobBooking:
         scheduled_start=start,
         scheduled_end=end,
         **kwargs,
-    )
-
-
-def _make_rejection_log(*, user, job_id: int, reason: str) -> EventLog:
-    return EventLog.objects.create(
-        user=user,
-        event_type=EventType.BOOKING_REJECTED.value,
-        target_role=EventLog.TARGET_CUSTOMER,
-        payload={"job_id": job_id, "reason": reason},
-        is_critical=False,
     )
 
 
@@ -403,32 +392,32 @@ class TestStatusFilter:
 
 
 # =====================================================================
-# REJECTED reason resolution via EventLog
+# Tech-acceptance failure cause via status (migration 0013 — see
+# bookings.selectors.customer_bookings_selector module docstring)
 # =====================================================================
 
 
-class TestRejectedReasonOnApi:
+class TestTechAcceptanceFailureOnApi:
 
     def setup_method(self):
         self.client = APIClient()
 
-    def test_technician_declined_surfaces_unavailable_copy(self):
+    def test_tech_declined_surfaces_declined_copy(self):
         user = UserFactory()
-        b = _booking_in_future(customer=user, status=JobBooking.STATUS_REJECTED)
-        _make_rejection_log(
-            user=user, job_id=b.id, reason="technician_declined",
-        )
+        _booking_in_future(customer=user, status=JobBooking.STATUS_TECH_DECLINED)
         self.client.force_authenticate(user=user)
 
         response = self.client.get(LIST_URL, {"segment": "past"})
         item = response.json()["items"][0]
-        assert item["ui"]["badge_text"] == "Unavailable"
+        assert item["ui"]["badge_text"] == "Declined"
         assert item["ui"]["badge_tone"] == "negative"
+        assert "declined this job" in item["ui"]["headline"]
 
-    def test_sla_timeout_surfaces_timed_out_copy(self):
+    def test_tech_no_response_surfaces_timed_out_copy(self):
         user = UserFactory()
-        b = _booking_in_future(customer=user, status=JobBooking.STATUS_REJECTED)
-        _make_rejection_log(user=user, job_id=b.id, reason="sla_timeout")
+        _booking_in_future(
+            customer=user, status=JobBooking.STATUS_TECH_NO_RESPONSE,
+        )
         self.client.force_authenticate(user=user)
 
         response = self.client.get(LIST_URL, {"segment": "past"})
@@ -460,7 +449,7 @@ class TestCountsApi:
         # 2 upcoming, 3 past (terminal + aged-out).
         _booking_in_future(customer=user, status=JobBooking.STATUS_AWAITING_TECH_ACCEPT)
         _booking_in_future(customer=user, status=JobBooking.STATUS_CONFIRMED)
-        _booking_in_future(customer=user, status=JobBooking.STATUS_REJECTED)
+        _booking_in_future(customer=user, status=JobBooking.STATUS_TECH_DECLINED)
         _booking_in_past(customer=user, status=JobBooking.STATUS_COMPLETED)
         _booking_in_past(customer=user, status=JobBooking.STATUS_CONFIRMED)
 

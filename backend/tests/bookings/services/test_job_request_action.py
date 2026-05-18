@@ -2,7 +2,7 @@
 Tests for bookings/services/job_request_action.py.
 
 Covers the technician-side accept / decline service:
-    - State-machine transitions (AWAITING → CONFIRMED / REJECTED).
+    - State-machine transitions (AWAITING → CONFIRMED / TECH_DECLINED).
     - Idempotency: same-tech retry on the terminal status returns the
       row without re-emitting the customer event.
     - IDOR: a wrong-owner request collapses to a single missing-row
@@ -114,8 +114,9 @@ class TestAcceptJobBookingTransitions:
         "blocking_status",
         [
             JobBooking.STATUS_PENDING,
-            JobBooking.STATUS_REJECTED,    # SLA fired first
-            JobBooking.STATUS_CANCELLED,   # Customer cancelled first
+            JobBooking.STATUS_TECH_DECLINED,      # Same tech already declined
+            JobBooking.STATUS_TECH_NO_RESPONSE,   # SLA fired first
+            JobBooking.STATUS_CANCELLED,          # Customer cancelled first
             JobBooking.STATUS_COMPLETED,
         ],
     )
@@ -131,14 +132,14 @@ class TestAcceptJobBookingTransitions:
 
     def test_status_unchanged_when_not_actionable(self, mocker):
         mocker.patch.object(action_module.EventDispatchService, "broadcast_event")
-        booking = self._booking(status=JobBooking.STATUS_REJECTED)
+        booking = self._booking(status=JobBooking.STATUS_TECH_DECLINED)
         with pytest.raises(BookingNotActionableError):
             accept_job_booking(
                 booking_id=booking.id,
                 technician_user=booking.technician.user,
             )
         booking.refresh_from_db()
-        assert booking.status == JobBooking.STATUS_REJECTED
+        assert booking.status == JobBooking.STATUS_TECH_DECLINED
 
 
 # =====================================================================
@@ -222,7 +223,7 @@ class TestDeclineJobBookingTransitions:
         kwargs.update(overrides)
         return JobBookingFactory(**kwargs)
 
-    def test_awaiting_transitions_to_rejected(self, mocker):
+    def test_awaiting_transitions_to_tech_declined(self, mocker):
         mocker.patch.object(action_module.EventDispatchService, "broadcast_event")
         booking = self._booking()
         decline_job_booking(
@@ -230,16 +231,26 @@ class TestDeclineJobBookingTransitions:
             technician_user=booking.technician.user,
         )
         booking.refresh_from_db()
-        assert booking.status == JobBooking.STATUS_REJECTED
+        assert booking.status == JobBooking.STATUS_TECH_DECLINED
 
-    def test_already_rejected_same_tech_is_idempotent_success(self, mocker):
-        # Includes the SLA-won-the-race case (both pathways flip
-        # AWAITING → REJECTED). Tech's intent matches the end-state,
-        # so report success without re-emitting.
+    @pytest.mark.parametrize(
+        "terminal_status",
+        [
+            JobBooking.STATUS_TECH_DECLINED,      # same tech already declined
+            JobBooking.STATUS_TECH_NO_RESPONSE,   # SLA-won-the-race
+        ],
+    )
+    def test_already_tech_terminal_is_idempotent_success(self, mocker, terminal_status):
+        # Both tech-terminal statuses are idempotent for a same-tech retry.
+        # TECH_DECLINED: this tech already declined.
+        # TECH_NO_RESPONSE: the SLA-timeout task won the race between the
+        # tech's intent and the lock. The tech's intent (decline) matches
+        # the end-state (booking is dead), so report success without re-
+        # emitting.
         broadcast = mocker.patch.object(
             action_module.EventDispatchService, "broadcast_event"
         )
-        booking = self._booking(status=JobBooking.STATUS_REJECTED)
+        booking = self._booking(status=terminal_status)
         result = decline_job_booking(
             booking_id=booking.id,
             technician_user=booking.technician.user,
@@ -256,7 +267,7 @@ class TestDeclineJobBookingTransitions:
             JobBooking.STATUS_COMPLETED,
         ],
     )
-    def test_non_awaiting_non_rejected_states_raise_not_actionable(
+    def test_non_awaiting_non_terminal_states_raise_not_actionable(
         self, mocker, blocking_status,
     ):
         mocker.patch.object(action_module.EventDispatchService, "broadcast_event")
@@ -494,9 +505,14 @@ class TestCustomerEventPayloadShape:
         )
         service = ServiceFactory(name="Plumbing")
         sub = SubServiceFactory(service=service, name="Faucet Repair", is_fixed_price=False)
+        tech = TechnicianProfileFactory(status="APPROVED")
+        tech.user.first_name = "Ali"
+        tech.user.last_name = "Khan"
+        tech.user.save(update_fields=["first_name", "last_name"])
         booking = JobBookingFactory(
             service=service,
             sub_service=sub,
+            technician=tech,
             status=JobBooking.STATUS_AWAITING_TECH_ACCEPT,
         )
         decline_job_booking(
@@ -511,6 +527,7 @@ class TestCustomerEventPayloadShape:
         assert set(payload.keys()) == {
             "job_id",
             "technician_id",
+            "technician_display_name",
             "scheduled_start_iso",
             "service_name",
             "reason",
@@ -520,6 +537,9 @@ class TestCustomerEventPayloadShape:
         # tests/bookings/services/test_tasks.py.
         assert payload["reason"] == "technician_declined"
         assert payload["service_name"] == "Faucet Repair"
+        # `technician_display_name` is composed server-side so the FCM
+        # body + customer banner-body don't need an extra fetch.
+        assert payload["technician_display_name"] == "Ali Khan"
 
 
 # =====================================================================

@@ -8,6 +8,7 @@ import '../../data/datasources/event_local_data_source.dart';
 import '../../data/datasources/event_remote_data_source.dart';
 import '../../data/repositories/event_repository.dart';
 import '../notifiers/event_sync_notifier.dart';
+import '../notifiers/fcm_tap_intent_notifier.dart';
 import '../notifiers/system_event_notifier.dart';
 import '../services/fcm_handler.dart';
 import '../services/ws_frame_dispatcher.dart';
@@ -91,6 +92,7 @@ FCMHandler fcmHandler(Ref ref) {
   return FCMHandler(
     eventNotifier: ref.read(systemEventProvider.notifier),
     syncNotifier: ref.read(eventSyncProvider.notifier),
+    tapIntentNotifier: ref.read(fcmTapIntentProvider.notifier),
     repository: ref.watch(eventRepositoryProvider),
     localDataSource: ref.watch(eventLocalDataSourceProvider),
   );

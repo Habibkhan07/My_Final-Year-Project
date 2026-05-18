@@ -565,17 +565,16 @@ void main() {
       () async {
         // Initial state: the booking is AWAITING.
         repo.queuedPages.add(_page(items: [_booking(id: 99482)]));
-        // Post-event state: BE returns the booking as REJECTED with
-        // the "Unavailable" badge (per `_resolve_ui_block` for
-        // technician_declined). The notifier's post-invalidate
-        // re-fetch consumes this.
+        // Post-event state: BE returns the booking as TECH_DECLINED with
+        // the "Declined" badge (per `_resolve_ui_block` for the new
+        // status). The notifier's post-invalidate re-fetch consumes this.
         repo.queuedPages.add(_page(items: [
           _booking(
             id: 99482,
-            status: BookingStatus.rejected,
+            status: BookingStatus.techDeclined,
             tone: BookingUiTone.negative,
-            badgeText: 'Unavailable',
-            headline: 'Ahmed Khan was unavailable',
+            badgeText: 'Declined',
+            headline: 'Ahmed Khan declined this job',
           ),
         ]));
         final container = _build(repo: repo, eventLocal: eventLocal);
@@ -597,8 +596,8 @@ void main() {
         await container.read(customerBookingsListProvider.future);
 
         final data = container.read(customerBookingsListProvider).requireValue;
-        expect(data.items.single.status, BookingStatus.rejected);
-        expect(data.items.single.ui.badgeText, 'Unavailable');
+        expect(data.items.single.status, BookingStatus.techDeclined);
+        expect(data.items.single.ui.badgeText, 'Declined');
         expect(data.items.single.ui.badgeTone, BookingUiTone.negative);
         // Sanity: the repo was called twice — initial + post-invalidate.
         expect(repo.calls.length, 2);
@@ -610,7 +609,7 @@ void main() {
       repo.queuedPages.add(_page(items: [
         _booking(
           id: 99482,
-          status: BookingStatus.rejected,
+          status: BookingStatus.techNoResponse,
           tone: BookingUiTone.negative,
           badgeText: 'Timed out',
           headline: 'Ahmed Khan did not respond in time',
@@ -632,6 +631,7 @@ void main() {
       await container.read(customerBookingsListProvider.future);
 
       final data = container.read(customerBookingsListProvider).requireValue;
+      expect(data.items.single.status, BookingStatus.techNoResponse);
       expect(data.items.single.ui.badgeText, 'Timed out');
       expect(repo.calls.length, 2);
     });
@@ -709,11 +709,11 @@ void main() {
       () async {
         // Initial AWAITING page.
         repo.queuedPages.add(_page(items: [_booking(id: 99482)]));
-        // Post-invalidate page (BE has the booking as REJECTED).
+        // Post-invalidate page (BE has the booking as TECH_NO_RESPONSE).
         repo.queuedPages.add(_page(items: [
           _booking(
             id: 99482,
-            status: BookingStatus.rejected,
+            status: BookingStatus.techNoResponse,
             tone: BookingUiTone.negative,
             badgeText: 'Timed out',
             headline: 'Ali did not respond in time',
@@ -751,7 +751,7 @@ void main() {
         await container.read(customerBookingsListProvider.future);
 
         final data = container.read(customerBookingsListProvider).requireValue;
-        expect(data.items.single.status, BookingStatus.rejected);
+        expect(data.items.single.status, BookingStatus.techNoResponse);
         expect(data.items.single.ui.badgeText, 'Timed out');
         expect(repo.calls.length, 2);
       },

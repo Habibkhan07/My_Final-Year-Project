@@ -34,7 +34,7 @@ final class CustomerBookingsCountsProvider
 }
 
 String _$customerBookingsCountsHash() =>
-    r'19c6c2f87b5c84d2ec39761450c1106e0e7e75c3';
+    r'187f34578f4c5f433acf30bbc7a671fa782c101b';
 
 abstract class _$CustomerBookingsCounts extends $AsyncNotifier<BookingsCounts> {
   FutureOr<BookingsCounts> build();

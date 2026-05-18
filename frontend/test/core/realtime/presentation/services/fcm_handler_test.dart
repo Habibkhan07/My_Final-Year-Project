@@ -4,6 +4,7 @@ import 'package:frontend/core/realtime/data/datasources/event_local_data_source.
 import 'package:frontend/core/realtime/data/repositories/event_repository.dart';
 import 'package:frontend/core/realtime/domain/entities/system_event_entity.dart';
 import 'package:frontend/core/realtime/presentation/notifiers/event_sync_notifier.dart';
+import 'package:frontend/core/realtime/presentation/notifiers/fcm_tap_intent_notifier.dart';
 import 'package:frontend/core/realtime/presentation/notifiers/system_event_notifier.dart';
 import 'package:frontend/core/realtime/presentation/providers/dependency_injection.dart';
 import 'package:frontend/core/realtime/presentation/services/fcm_handler.dart';
@@ -12,6 +13,8 @@ import 'package:mocktail/mocktail.dart';
 class _MockSystemEventNotifier extends Mock implements SystemEventNotifier {}
 
 class _MockEventSyncNotifier extends Mock implements EventSyncNotifier {}
+
+class _MockFcmTapIntentNotifier extends Mock implements FcmTapIntentNotifier {}
 
 class _MockEventRepository extends Mock implements EventRepository {}
 
@@ -49,6 +52,7 @@ Map<String, dynamic> _baseData({
 void main() {
   late _MockSystemEventNotifier eventNotifier;
   late _MockEventSyncNotifier syncNotifier;
+  late _MockFcmTapIntentNotifier tapIntentNotifier;
   late _MockEventRepository repo;
   late _MockEventLocalDataSource local;
 
@@ -60,6 +64,7 @@ void main() {
   setUp(() {
     eventNotifier = _MockSystemEventNotifier();
     syncNotifier = _MockEventSyncNotifier();
+    tapIntentNotifier = _MockFcmTapIntentNotifier();
     repo = _MockEventRepository();
     local = _MockEventLocalDataSource();
 
@@ -67,6 +72,7 @@ void main() {
       () => eventNotifier.processEvent(any(), source: any(named: 'source')),
     ).thenReturn(true);
     when(() => syncNotifier.syncMissedEvents()).thenAnswer((_) async {});
+    when(() => tapIntentNotifier.setTapIntent(any())).thenReturn(null);
     when(
       () => local.consumePendingBackgroundEvents(),
     ).thenAnswer((_) async => <Map<String, dynamic>>[]);
@@ -76,6 +82,7 @@ void main() {
   FCMHandler buildHandler() => FCMHandler(
     eventNotifier: eventNotifier,
     syncNotifier: syncNotifier,
+    tapIntentNotifier: tapIntentNotifier,
     repository: repo,
     localDataSource: local,
   );
@@ -275,6 +282,7 @@ void main() {
       final handler = FCMHandler(
         eventNotifier: realNotifier,
         syncNotifier: syncNotifier,
+        tapIntentNotifier: tapIntentNotifier,
         repository: repo,
         localDataSource: local,
       );
@@ -287,6 +295,70 @@ void main() {
       expect(state.processedEventIds.keys, ['X']);
       expect(state.latestEvent, isNotNull);
       expect(state.latestEvent!.payload.containsKey('duplicate'), isFalse);
+    });
+  });
+
+  // ─── processTapMessage — user tap on tray notification ───────────────
+
+  group('processTapMessage — user-initiated tap path', () {
+    test('FT1 — well-formed tap feeds tapIntentNotifier, NOT systemEvent', () {
+      final handler = buildHandler();
+
+      handler.processTapMessage(
+        _baseData(
+          id: 'tap-evt',
+          rawType: 'BOOKING_REJECTED',
+          payload: <String, dynamic>{'job_id': '42'},
+        ),
+      );
+
+      final captured = verify(
+        () => tapIntentNotifier.setTapIntent(captureAny()),
+      ).captured;
+      expect(captured, hasLength(1));
+      final entity = captured.single as SystemEventEntity;
+      expect(entity.id, 'tap-evt');
+      expect(entity.payload, {'job_id': '42'});
+      // Tap bypasses the funnel — `processEvent` MUST NOT be called.
+      // Routing dedup/expiry/banner rules don't apply to user-initiated taps.
+      verifyNever(
+        () => eventNotifier.processEvent(any(), source: any(named: 'source')),
+      );
+    });
+
+    test('FT2 — string-encoded payload is jsonDecoded before mapping '
+        '(production FCM shape)', () {
+      final handler = buildHandler();
+
+      handler.processTapMessage(
+        _baseData(
+          id: 'tap-evt-2',
+          rawType: 'BOOKING_REJECTED',
+          payload: '{"job_id":"42","reason":"sla_timeout"}',
+        ),
+      );
+
+      final captured = verify(
+        () => tapIntentNotifier.setTapIntent(captureAny()),
+      ).captured;
+      final entity = captured.single as SystemEventEntity;
+      expect(entity.payload, {'job_id': '42', 'reason': 'sla_timeout'});
+    });
+
+    test('FT3 — malformed payload → decode fails, tapIntent NOT set', () {
+      final handler = buildHandler();
+
+      handler.processTapMessage(_baseData(payload: '{not valid json'));
+
+      verifyNever(() => tapIntentNotifier.setTapIntent(any()));
+    });
+
+    test('FT4 — payload missing → fromJson fails, tapIntent NOT set', () {
+      final handler = buildHandler();
+
+      handler.processTapMessage(_baseData());
+
+      verifyNever(() => tapIntentNotifier.setTapIntent(any()));
     });
   });
 

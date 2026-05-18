@@ -13,8 +13,6 @@ import pytest
 from django.utils import timezone
 
 from bookings.models import JobBooking
-from realtime.constants.event_types import EventType
-from realtime.models.events import EventLog
 from technicians.selectors.scheduled_jobs import (
     CursorDecodeError,
     SEGMENT_PAST,
@@ -22,7 +20,6 @@ from technicians.selectors.scheduled_jobs import (
     _customer_display_name,
     _decode_cursor,
     _encode_cursor,
-    _load_rejection_reasons,
     _resolve_payout_block,
     _resolve_ui_block,
     count_scheduled_jobs,
@@ -35,8 +32,6 @@ from tests.factories.bookings import (
     JobBookingFactory,
     JobBookingInProgressFactory,
 )
-from tests.factories.core import EventLogFactory
-from tests.factories.customers import CustomerAddressFactory, CustomerProfileFactory
 from tests.factories.technicians import TechnicianProfileFactory
 from tests.factories.wallet import JobCommissionFactory
 
@@ -113,20 +108,21 @@ class TestSegmentPartition:
         assert len(past.items) == 1
 
     def test_past_contains_terminal_statuses(self):
-        """All six terminal statuses live in Past."""
+        """All seven terminal statuses live in Past."""
         tech = TechnicianProfileFactory()
         for status in (
             JobBooking.STATUS_COMPLETED,
             JobBooking.STATUS_COMPLETED_INSPECTION_ONLY,
             JobBooking.STATUS_CANCELLED,
-            JobBooking.STATUS_REJECTED,
+            JobBooking.STATUS_TECH_DECLINED,
+            JobBooking.STATUS_TECH_NO_RESPONSE,
             JobBooking.STATUS_NO_SHOW,
             JobBooking.STATUS_DISPUTED,
         ):
             JobBookingFactory(technician=tech, status=status)
 
         result = list_scheduled_jobs(tech_profile=tech, segment=SEGMENT_PAST)
-        assert len(result.items) == 6
+        assert len(result.items) == 7
 
     def test_counts_match_list_after_pagination(self):
         """Counts must equal the list's full paginated total — a
@@ -228,7 +224,8 @@ class TestUIBlockResolution:
             (JobBooking.STATUS_COMPLETED, "positive"),
             (JobBooking.STATUS_COMPLETED_INSPECTION_ONLY, "neutral"),
             (JobBooking.STATUS_CANCELLED, "neutral"),
-            (JobBooking.STATUS_REJECTED, "negative"),
+            (JobBooking.STATUS_TECH_DECLINED, "negative"),
+            (JobBooking.STATUS_TECH_NO_RESPONSE, "negative"),
             (JobBooking.STATUS_NO_SHOW, "negative"),
             (JobBooking.STATUS_DISPUTED, "negative"),
             (JobBooking.STATUS_PENDING, "neutral"),
@@ -238,7 +235,6 @@ class TestUIBlockResolution:
         ui = _resolve_ui_block(
             status=status,
             customer_display_name="Sara M.",
-            rejection_reason=None,
             cancel_reason=None,
         )
         assert ui["badge_tone"] == expected_tone
@@ -258,26 +254,33 @@ class TestUIBlockResolution:
         ui = _resolve_ui_block(
             status=JobBooking.STATUS_CANCELLED,
             customer_display_name="Sara M.",
-            rejection_reason=None,
             cancel_reason=cancel_reason,
         )
         assert ui["headline"] == expected_headline
 
     @pytest.mark.parametrize(
-        "rejection_reason,expected_badge,expected_headline",
+        "status,expected_badge,expected_headline",
         [
-            ("sla_timeout", "Timed out", "You missed the response window"),
-            ("technician_declined", "Declined", "You declined this job"),
-            (None, "Declined", "You declined this job"),
+            (
+                JobBooking.STATUS_TECH_DECLINED,
+                "Declined",
+                "You declined this job",
+            ),
+            (
+                JobBooking.STATUS_TECH_NO_RESPONSE,
+                "Timed out",
+                "You missed the response window",
+            ),
         ],
     )
-    def test_rejected_reason_discrimination(
-        self, rejection_reason, expected_badge, expected_headline
+    def test_tech_acceptance_failure_discrimination(
+        self, status, expected_badge, expected_headline
     ):
+        # Pre-migration 0013: one REJECTED status + an EventLog reason
+        # lookup. Post-0013: status discriminates directly.
         ui = _resolve_ui_block(
-            status=JobBooking.STATUS_REJECTED,
+            status=status,
             customer_display_name="Sara M.",
-            rejection_reason=rejection_reason,
             cancel_reason=None,
         )
         assert ui["badge_text"] == expected_badge
@@ -340,7 +343,8 @@ class TestPayoutResolution:
     @pytest.mark.parametrize(
         "status",
         [
-            JobBooking.STATUS_REJECTED,
+            JobBooking.STATUS_TECH_DECLINED,
+            JobBooking.STATUS_TECH_NO_RESPONSE,
             JobBooking.STATUS_CANCELLED,
             JobBooking.STATUS_NO_SHOW,
             JobBooking.STATUS_DISPUTED,
@@ -365,95 +369,16 @@ class TestPayoutResolution:
 
 
 # ─────────────────────────────────────────────────────────────────────────
-# Rejection-reason batched lookup.
-# ─────────────────────────────────────────────────────────────────────────
-
-
-class TestRejectionReasonBatch:
-    def test_batched_single_query(self, django_assert_num_queries):
-        """N REJECTED rows must resolve in a single EventLog query — not
-        N. The performance contract is non-negotiable per CLAUDE.md."""
-        tech = TechnicianProfileFactory()
-        bookings = []
-        for _ in range(3):
-            b = JobBookingFactory(technician=tech, status=JobBooking.STATUS_REJECTED)
-            EventLogFactory(
-                user=tech.user,
-                target_role=EventLog.TARGET_TECHNICIAN,
-                event_type=EventType.BOOKING_REJECTED.value,
-                payload={"job_id": b.id, "reason": "sla_timeout"},
-            )
-            bookings.append(b)
-
-        with django_assert_num_queries(1):
-            reasons = _load_rejection_reasons(
-                tech_user=tech.user,
-                booking_ids=[b.id for b in bookings],
-            )
-
-        assert len(reasons) == 3
-        assert all(r == "sla_timeout" for r in reasons.values())
-
-    def test_picks_most_recent_per_booking(self):
-        """When multiple BOOKING_REJECTED log rows exist for the same
-        booking, the most recent wins — matches what the customer-side
-        selector does."""
-        tech = TechnicianProfileFactory()
-        booking = JobBookingFactory(technician=tech, status=JobBooking.STATUS_REJECTED)
-
-        # Older row (will lose to the newer one).
-        older = EventLogFactory(
-            user=tech.user,
-            target_role=EventLog.TARGET_TECHNICIAN,
-            event_type=EventType.BOOKING_REJECTED.value,
-            payload={"job_id": booking.id, "reason": "technician_declined"},
-        )
-        EventLog.objects.filter(pk=older.pk).update(
-            created_at=timezone.now() - timezone.timedelta(hours=1)
-        )
-        EventLogFactory(
-            user=tech.user,
-            target_role=EventLog.TARGET_TECHNICIAN,
-            event_type=EventType.BOOKING_REJECTED.value,
-            payload={"job_id": booking.id, "reason": "sla_timeout"},
-        )
-
-        reasons = _load_rejection_reasons(
-            tech_user=tech.user, booking_ids=[booking.id]
-        )
-        assert reasons[booking.id] == "sla_timeout"
-
-    def test_cross_tech_rejection_invisible(self):
-        """Tech A's lookup must not see Tech B's BOOKING_REJECTED rows
-        — the EventLog query is user-scoped as a belt-and-braces IDOR
-        guard."""
-        tech_a = TechnicianProfileFactory()
-        tech_b = TechnicianProfileFactory()
-        # Booking technically belongs to tech_a, but the log row was
-        # written under tech_b's user. tech_a's lookup should return {}.
-        booking = JobBookingFactory(technician=tech_a, status=JobBooking.STATUS_REJECTED)
-        EventLogFactory(
-            user=tech_b.user,
-            target_role=EventLog.TARGET_TECHNICIAN,
-            event_type=EventType.BOOKING_REJECTED.value,
-            payload={"job_id": booking.id, "reason": "sla_timeout"},
-        )
-
-        reasons = _load_rejection_reasons(
-            tech_user=tech_a.user, booking_ids=[booking.id]
-        )
-        assert reasons == {}
-
-
-# ─────────────────────────────────────────────────────────────────────────
 # Selector performance — query count is the CLAUDE.md mandate.
 # ─────────────────────────────────────────────────────────────────────────
 
 
 class TestSelectorPerformance:
-    def test_list_no_rejected_single_query(self, django_assert_num_queries):
-        """A page with no REJECTED rows takes exactly one SQL query —
-        select_related fans out the joins."""
+    def test_list_single_query(self, django_assert_num_queries):
+        """A page takes exactly one SQL query — select_related fans out
+        the joins. Pre-migration 0013 tech-failure pages fired a second
+        query for an EventLog rejection-reason batch; that query is gone
+        now (status carries the cause)."""
         tech = TechnicianProfileFactory()
         for _ in range(5):
             JobBookingCompletedFactory(technician=tech)
@@ -463,14 +388,17 @@ class TestSelectorPerformance:
                 tech_profile=tech, segment=SEGMENT_PAST, page_size=5
             )
 
-    def test_list_with_rejected_two_queries(self, django_assert_num_queries):
-        """A page that contains REJECTED rows fires one extra query: the
-        batched EventLog lookup."""
+    def test_list_with_tech_failure_rows_still_single_query(
+        self, django_assert_num_queries,
+    ):
+        # Pre-0013 this fired a second query; post-0013 it doesn't.
         tech = TechnicianProfileFactory()
         for _ in range(5):
-            JobBookingFactory(technician=tech, status=JobBooking.STATUS_REJECTED)
+            JobBookingFactory(
+                technician=tech, status=JobBooking.STATUS_TECH_DECLINED,
+            )
 
-        with django_assert_num_queries(2):
+        with django_assert_num_queries(1):
             list_scheduled_jobs(
                 tech_profile=tech, segment=SEGMENT_PAST, page_size=5
             )

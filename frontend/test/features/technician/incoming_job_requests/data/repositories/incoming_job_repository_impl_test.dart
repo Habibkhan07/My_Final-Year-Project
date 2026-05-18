@@ -48,14 +48,14 @@ void main() {
         code: 'booking_no_longer_available',
         message: 'This job is no longer available.',
         errors: {
-          'current_status': ['REJECTED'],
+          'current_status': ['TECH_NO_RESPONSE'],
         },
       );
       try {
         await repo.acceptJobRequest(42);
         fail('expected OfferNoLongerAvailable');
       } on OfferNoLongerAvailable catch (e) {
-        expect(e.currentStatus, 'REJECTED');
+        expect(e.currentStatus, 'TECH_NO_RESPONSE');
         expect(e.message, 'This job is no longer available.');
       }
     });

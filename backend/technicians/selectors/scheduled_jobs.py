@@ -59,8 +59,6 @@ from django.utils import timezone
 
 from bookings.models import JobBooking
 from bookings.services.job_request_dispatch import TECHNICIAN_NET_RATE
-from realtime.constants.event_types import EventType
-from realtime.models.events import EventLog
 from technicians.models import TechnicianProfile
 
 
@@ -98,7 +96,8 @@ _PAST_STATUSES = (
     JobBooking.STATUS_COMPLETED,
     JobBooking.STATUS_COMPLETED_INSPECTION_ONLY,
     JobBooking.STATUS_CANCELLED,
-    JobBooking.STATUS_REJECTED,
+    JobBooking.STATUS_TECH_DECLINED,
+    JobBooking.STATUS_TECH_NO_RESPONSE,
     JobBooking.STATUS_NO_SHOW,
     JobBooking.STATUS_DISPUTED,
 )
@@ -114,11 +113,6 @@ TONE_WARNING = "warning"
 TONE_NEGATIVE = "negative"
 TONE_NEUTRAL = "neutral"
 TONE_INFO = "info"
-
-# Rejection-reason discriminators on the BOOKING_REJECTED event payload.
-_REASON_TECH_DECLINED = "technician_declined"
-_REASON_SLA_TIMEOUT = "sla_timeout"
-
 
 # ─────────────────────────────────────────────────────────────────────────
 # Cursor encoding — opaque to callers, defined once here.
@@ -161,13 +155,18 @@ def _resolve_ui_block(
     *,
     status: str,
     customer_display_name: str,
-    rejection_reason: Optional[str],
     cancel_reason: Optional[str],
 ) -> dict[str, str]:
     """
     Tech-POV display block. The tech is the actor in this UI, so headlines
     use second person ("You're on the way", "You declined") where the
     customer-side would say third person.
+
+    Tech-acceptance failure cause is encoded in the status enum:
+    ``TECH_DECLINED`` (tech tapped Decline) vs ``TECH_NO_RESPONSE`` (SLA
+    timer fired). Pre-migration 0013 these collapsed to ``REJECTED`` and
+    the cause came from a side-channel EventLog lookup; now the status
+    carries it.
 
     AWAITING is included for completeness even though Schedule is not the
     tech's primary surface for unaccepted requests (that's the
@@ -257,20 +256,21 @@ def _resolve_ui_block(
             "headline": headline,
         }
 
-    if status == JobBooking.STATUS_REJECTED:
-        # Tech is the rejector on this side. SLA-timeout is worth
-        # surfacing separately because it implies a missed notification,
-        # not a deliberate decline — different mental model.
-        if rejection_reason == _REASON_SLA_TIMEOUT:
-            return {
-                "badge_text": "Timed out",
-                "badge_tone": TONE_NEGATIVE,
-                "headline": "You missed the response window",
-            }
+    if status == JobBooking.STATUS_TECH_DECLINED:
         return {
             "badge_text": "Declined",
             "badge_tone": TONE_NEGATIVE,
             "headline": "You declined this job",
+        }
+
+    if status == JobBooking.STATUS_TECH_NO_RESPONSE:
+        # SLA timed out before the tech replied — implies a missed
+        # notification, not a deliberate decline. Different mental model
+        # than active decline; copy reflects that.
+        return {
+            "badge_text": "Timed out",
+            "badge_tone": TONE_NEGATIVE,
+            "headline": "You missed the response window",
         }
 
     if status == JobBooking.STATUS_NO_SHOW:
@@ -422,7 +422,8 @@ def _resolve_payout_block(booking: JobBooking) -> dict[str, Any]:
     # Forgone earnings — surface the projection but label it accordingly
     # so the tech does not mistake it for income.
     if status in (
-        JobBooking.STATUS_REJECTED,
+        JobBooking.STATUS_TECH_DECLINED,
+        JobBooking.STATUS_TECH_NO_RESPONSE,
         JobBooking.STATUS_CANCELLED,
         JobBooking.STATUS_NO_SHOW,
         JobBooking.STATUS_DISPUTED,
@@ -443,60 +444,6 @@ def _resolve_payout_block(booking: JobBooking) -> dict[str, Any]:
         "context": "Est. payout",
         "ui_label": _format_rupee_label(projected),
     }
-
-
-# ─────────────────────────────────────────────────────────────────────────
-# Rejection-reason batched lookup.
-# ─────────────────────────────────────────────────────────────────────────
-
-
-def _load_rejection_reasons(
-    *, tech_user, booking_ids: Iterable[int]
-) -> dict[int, str]:
-    """
-    Most-recent BOOKING_REJECTED event per booking in the page, keyed by
-    ``payload.job_id``. Returns ``{job_id: reason}``; bookings with no
-    log entry are absent from the map (caller falls back to the safe
-    default copy).
-
-    Scoped to ``user=tech_user, target_role=TECHNICIAN`` — the tech-side
-    EventLog rows for rejections the tech themselves performed (or
-    SLA-timed-out on). Mirrors how the customer-side selector reads its
-    own user-scoped event log.
-    """
-    ids = list(booking_ids)
-    if not ids:
-        return {}
-
-    rows = (
-        EventLog.objects
-        .filter(
-            user=tech_user,
-            target_role=EventLog.TARGET_TECHNICIAN,
-            event_type=EventType.BOOKING_REJECTED.value,
-            payload__job_id__in=ids,
-        )
-        .order_by("-created_at")
-        .values_list("payload", flat=True)
-    )
-
-    out: dict[int, str] = {}
-    for payload in rows:
-        if not isinstance(payload, dict):
-            continue
-        job_id = payload.get("job_id")
-        reason = payload.get("reason")
-        if job_id is None or reason is None:
-            continue
-        try:
-            key = int(job_id)
-        except (TypeError, ValueError):
-            continue
-        # First seen wins (queryset is DESC by created_at).
-        if key in out:
-            continue
-        out[key] = str(reason)
-    return out
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -586,17 +533,12 @@ def _apply_cursor(
     )
 
 
-def _serialize_booking(
-    booking: JobBooking,
-    *,
-    rejection_reason: Optional[str],
-) -> dict[str, Any]:
+def _serialize_booking(booking: JobBooking) -> dict[str, Any]:
     """Build the wire-shape dict for a single list item."""
     customer_name = _customer_display_name(booking)
     ui = _resolve_ui_block(
         status=booking.status,
         customer_display_name=customer_name,
-        rejection_reason=rejection_reason,
         cancel_reason=booking.cancel_reason,
     )
     return {
@@ -678,17 +620,7 @@ def list_scheduled_jobs(
     has_more = len(rows) > page_size
     page = rows[:page_size]
 
-    rejection_map = _load_rejection_reasons(
-        tech_user=tech_profile.user,
-        booking_ids=[
-            b.id for b in page if b.status == JobBooking.STATUS_REJECTED
-        ],
-    )
-
-    items = [
-        _serialize_booking(b, rejection_reason=rejection_map.get(b.id))
-        for b in page
-    ]
+    items = [_serialize_booking(b) for b in page]
 
     next_cursor: Optional[str] = None
     if has_more and page:

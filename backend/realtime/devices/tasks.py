@@ -68,6 +68,18 @@ def _build_notification_body(event_type: str, payload: dict[str, Any]) -> str:
         return "A dispute has been resolved"
     if event_type == "wallet_low_balance":
         return "Your wallet balance is low — top up to keep accepting jobs"
+    if event_type == "booking_rejected":
+        # ``reason`` discriminator mirrors the FE banner-body switch in
+        # ``event_urgency_router.dart``. Two real values today; any other
+        # value falls through to a generic line so a future backend reason
+        # doesn't render an empty/broken push.
+        tech = inner.get("technician_display_name") or "Your technician"
+        reason = inner.get("reason")
+        if reason == "sla_timeout":
+            return f"{tech} didn't respond in time"
+        if reason == "technician_declined":
+            return f"{tech} couldn't take your booking"
+        return "Your booking is no longer available"
     return "You have a new notification"
 
 

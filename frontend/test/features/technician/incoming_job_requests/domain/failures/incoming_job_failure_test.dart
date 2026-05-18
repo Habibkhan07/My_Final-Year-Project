@@ -81,8 +81,8 @@ void main() {
       'OfferNoLongerAvailable carries currentStatus when supplied — preserved '
       'from the 409 envelope for client-side debugging',
       () {
-        const failure = OfferNoLongerAvailable(currentStatus: 'REJECTED');
-        expect(failure.currentStatus, 'REJECTED');
+        const failure = OfferNoLongerAvailable(currentStatus: 'TECH_NO_RESPONSE');
+        expect(failure.currentStatus, 'TECH_NO_RESPONSE');
       },
     );
 

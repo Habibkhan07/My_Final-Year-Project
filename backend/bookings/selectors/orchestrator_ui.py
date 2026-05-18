@@ -621,10 +621,10 @@ def _tech_cancelled(booking, viewer):
     }
 
 
-def _customer_rejected(booking, viewer):
+def _customer_tech_declined(booking, viewer):
     return {
-        "status_label": "Unavailable",
-        "body_text": f"{_technician_display_name(booking)} couldn't take this job.",
+        "status_label": "Tech declined",
+        "body_text": f"{_technician_display_name(booking)} declined this job.",
         "primary_action": None,
         "secondary_actions": [],
         "show_tracking": False,
@@ -634,10 +634,39 @@ def _customer_rejected(booking, viewer):
     }
 
 
-def _tech_rejected(booking, viewer):
+def _customer_tech_no_response(booking, viewer):
+    return {
+        "status_label": "Tech didn't respond",
+        "body_text": f"{_technician_display_name(booking)} didn't respond in time.",
+        "primary_action": None,
+        "secondary_actions": [],
+        "show_tracking": False,
+        "show_quote_card": False,
+        "show_dispute_button": False,
+        "tone": "negative",
+    }
+
+
+def _tech_tech_declined(booking, viewer):
     return {
         "status_label": "Declined",
         "body_text": "You declined this job.",
+        "primary_action": None,
+        "secondary_actions": [],
+        "show_tracking": False,
+        "show_quote_card": False,
+        "show_dispute_button": False,
+        "tone": "negative",
+    }
+
+
+# Defensive: the tech almost never lands here because TECH_NO_RESPONSE
+# means the tech never accepted in the first place — the booking is not
+# theirs. Reachable only via stale FCM tap on the expired offer.
+def _tech_tech_no_response(booking, viewer):
+    return {
+        "status_label": "Missed",
+        "body_text": "You missed this offer.",
         "primary_action": None,
         "secondary_actions": [],
         "show_tracking": False,
@@ -731,8 +760,10 @@ _HANDLERS: dict[tuple[str, str], Callable] = {
     (JobBooking.STATUS_COMPLETED_INSPECTION_ONLY, "technician"): _tech_completed_inspection_only,
     (JobBooking.STATUS_CANCELLED, "customer"): _customer_cancelled,
     (JobBooking.STATUS_CANCELLED, "technician"): _tech_cancelled,
-    (JobBooking.STATUS_REJECTED, "customer"): _customer_rejected,
-    (JobBooking.STATUS_REJECTED, "technician"): _tech_rejected,
+    (JobBooking.STATUS_TECH_DECLINED, "customer"): _customer_tech_declined,
+    (JobBooking.STATUS_TECH_DECLINED, "technician"): _tech_tech_declined,
+    (JobBooking.STATUS_TECH_NO_RESPONSE, "customer"): _customer_tech_no_response,
+    (JobBooking.STATUS_TECH_NO_RESPONSE, "technician"): _tech_tech_no_response,
     (JobBooking.STATUS_NO_SHOW, "customer"): _customer_no_show,
     (JobBooking.STATUS_NO_SHOW, "technician"): _tech_no_show,
     (JobBooking.STATUS_DISPUTED, "customer"): _customer_disputed,

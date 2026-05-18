@@ -183,7 +183,7 @@ void main() {
       () async {
         final repo = _FakeRepository()
           ..acceptThrow = const OfferNoLongerAvailable(
-            currentStatus: 'REJECTED',
+            currentStatus: 'TECH_NO_RESPONSE',
           );
         final h = _seed(jobId: 1, repository: repo);
 
@@ -193,7 +193,7 @@ void main() {
 
         expect(result, isA<JobActionConflict>());
         final conflict = result as JobActionConflict;
-        expect(conflict.failure.currentStatus, 'REJECTED');
+        expect(conflict.failure.currentStatus, 'TECH_NO_RESPONSE');
         expect(h.container.read(incomingJobQueueProvider).queue, isEmpty);
         expect(
           h.container.read(incomingJobQueueProvider).inFlightJobIds,

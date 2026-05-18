@@ -73,9 +73,14 @@ class AnimatedStatusIcon extends StatelessWidget {
         icon: Icons.event_busy,
         tint: Colors.grey,
       ),
-      BookingStatus.rejected => _MutedHero(
+      BookingStatus.techDeclined => _MutedHero(
         size: size,
         icon: Icons.do_not_disturb,
+        tint: Colors.grey,
+      ),
+      BookingStatus.techNoResponse => _MutedHero(
+        size: size,
+        icon: Icons.hourglass_disabled,
         tint: Colors.grey,
       ),
       BookingStatus.noShow => _MutedHero(

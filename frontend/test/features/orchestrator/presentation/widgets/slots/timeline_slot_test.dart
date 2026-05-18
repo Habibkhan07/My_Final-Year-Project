@@ -37,7 +37,8 @@ BookingDetail _booking(BookingStatus s) {
     BookingStatus.completed => 'COMPLETED',
     BookingStatus.completedInspectionOnly => 'COMPLETED_INSPECTION_ONLY',
     BookingStatus.cancelled => 'CANCELLED',
-    BookingStatus.rejected => 'REJECTED',
+    BookingStatus.techDeclined => 'TECH_DECLINED',
+    BookingStatus.techNoResponse => 'TECH_NO_RESPONSE',
     BookingStatus.noShow => 'NO_SHOW',
     BookingStatus.disputed => 'DISPUTED',
     BookingStatus.pending => 'PENDING',
@@ -103,7 +104,8 @@ void main() {
   group('terminal / unknown statuses have no current marker', () {
     for (final s in [
       BookingStatus.cancelled,
-      BookingStatus.rejected,
+      BookingStatus.techDeclined,
+      BookingStatus.techNoResponse,
       BookingStatus.noShow,
       BookingStatus.disputed,
       BookingStatus.pending,

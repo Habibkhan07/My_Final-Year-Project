@@ -141,8 +141,9 @@ class TestAcceptErrors:
     @pytest.mark.parametrize(
         "blocking_status",
         [
-            JobBooking.STATUS_REJECTED,    # SLA fired first
-            JobBooking.STATUS_CANCELLED,   # Customer cancelled first
+            JobBooking.STATUS_TECH_DECLINED,      # Same tech already declined
+            JobBooking.STATUS_TECH_NO_RESPONSE,   # SLA fired first
+            JobBooking.STATUS_CANCELLED,          # Customer cancelled first
             JobBooking.STATUS_COMPLETED,
             JobBooking.STATUS_PENDING,
         ],
@@ -166,7 +167,7 @@ class TestAcceptErrors:
         mocker.patch(
             "bookings.services.job_request_action.EventDispatchService.broadcast_event"
         )
-        booking = JobBookingFactory(status=JobBooking.STATUS_REJECTED)
+        booking = JobBookingFactory(status=JobBooking.STATUS_TECH_DECLINED)
         self.client.force_authenticate(user=booking.technician.user)
 
         response = self.client.post(_accept_url(booking.id), {}, format="json")
@@ -184,7 +185,7 @@ class TestDeclineHappyPath:
     def setup_method(self):
         self.client = APIClient()
 
-    def test_200_transitions_to_rejected(self, mocker):
+    def test_200_transitions_to_tech_declined(self, mocker):
         mocker.patch(
             "bookings.services.job_request_action.EventDispatchService.broadcast_event"
         )
@@ -194,7 +195,7 @@ class TestDeclineHappyPath:
         response = self.client.post(_decline_url(booking.id), {}, format="json")
         assert response.status_code == 200
         booking.refresh_from_db()
-        assert booking.status == JobBooking.STATUS_REJECTED
+        assert booking.status == JobBooking.STATUS_TECH_DECLINED
 
     def test_200_response_body_shape(self, mocker):
         mocker.patch(
@@ -206,7 +207,7 @@ class TestDeclineHappyPath:
         response = self.client.post(_decline_url(booking.id), {}, format="json")
         assert response.json() == {
             "booking_id": booking.id,
-            "status": JobBooking.STATUS_REJECTED,
+            "status": JobBooking.STATUS_TECH_DECLINED,
         }
 
     def test_200_idempotent_when_same_tech_retries(self, mocker):
@@ -228,7 +229,7 @@ class TestDeclineHappyPath:
         mocker.patch(
             "bookings.services.job_request_action.EventDispatchService.broadcast_event"
         )
-        booking = JobBookingFactory(status=JobBooking.STATUS_REJECTED)
+        booking = JobBookingFactory(status=JobBooking.STATUS_TECH_NO_RESPONSE)
         self.client.force_authenticate(user=booking.technician.user)
 
         response = self.client.post(_decline_url(booking.id), {}, format="json")
@@ -324,7 +325,7 @@ class TestAcceptApiBroadcastSideEffect:
         broadcast = mocker.patch(
             "bookings.services.job_request_action.EventDispatchService.broadcast_event"
         )
-        booking = JobBookingFactory(status=JobBooking.STATUS_REJECTED)
+        booking = JobBookingFactory(status=JobBooking.STATUS_TECH_DECLINED)
         self.client.force_authenticate(user=booking.technician.user)
 
         response = self.client.post(_accept_url(booking.id), {}, format="json")

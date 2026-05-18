@@ -7,7 +7,7 @@
 ## 1. INSTANT BOOKING
 
 ### 1.1 Create Instant Booking
-**Description**: The checkout endpoint. Creates an `AWAITING` `JobBooking` after passing the defensive check pipeline: address ownership, technician approval status, catalog consistency, promo firewall, geofence, and an atomic race-condition lock on the technician's schedule. The booking transitions to `CONFIRMED` once the dispatched technician accepts within the SLA window (see §1.3); a tap to decline (§1.4) or an SLA-timeout flips it to `REJECTED`. The persisted `price_amount` is server-derived from the resolved catalog references — clients never put a price on the wire. Called immediately after the customer selects a time slot from the Availability endpoint (`/api/customers/technicians/{id}/availability/`).
+**Description**: The checkout endpoint. Creates an `AWAITING` `JobBooking` after passing the defensive check pipeline: address ownership, technician approval status, catalog consistency, promo firewall, geofence, and an atomic race-condition lock on the technician's schedule. The booking transitions to `CONFIRMED` once the dispatched technician accepts within the SLA window (see §1.3); a tap to decline (§1.4) flips it to `TECH_DECLINED`, and an SLA-timeout flips it to `TECH_NO_RESPONSE` (migration 0013 — split from the legacy single `REJECTED` status so the cause is encoded in the type system, not a side-channel event reason). The persisted `price_amount` is server-derived from the resolved catalog references — clients never put a price on the wire. Called immediately after the customer selects a time slot from the Availability endpoint (`/api/customers/technicians/{id}/availability/`).
 
 **URL**: `/api/bookings/instant-book/`
 **Method**: `POST`
@@ -107,7 +107,7 @@ After step 4 the resolver derives the persisted `price_amount` deterministically
 #### Race Condition Detail
 - Uses `transaction.atomic()` + `SELECT FOR UPDATE` on the technician row to serialize concurrent booking attempts.
 - Overlap check uses **half-open interval semantics**: `existing.scheduled_start < new.scheduled_end AND existing.scheduled_end > new.scheduled_start`. A booking starting exactly when another ends is **not** a conflict.
-- Only `PENDING`, `AWAITING`, and `CONFIRMED` bookings block a slot. `CANCELLED`, `REJECTED`, and `COMPLETED` do not. (`AWAITING` is included because a dispatched-but-not-yet-accepted booking still reserves the technician's time window.)
+- Only `PENDING`, `AWAITING`, and `CONFIRMED` bookings block a slot. `CANCELLED`, `TECH_DECLINED`, `TECH_NO_RESPONSE`, and `COMPLETED` do not. (`AWAITING` is included because a dispatched-but-not-yet-accepted booking still reserves the technician's time window.)
 
 ---
 
@@ -288,7 +288,7 @@ Computed at broadcast time from `scheduled_start − timezone.now()`:
 
 **Hard wire floor**: every emitted `expires_in_seconds` is then `max(value, 300)` — a 5-minute minimum required by the technician swipe-to-accept UI (low-literacy user, budget Android, often holding tools or in transit). In practice the ASAP tier's raw `60` is lifted to `300` on the wire; the Scheduled tier's `900` is unchanged. Floor lives at the dispatch site (`bookings/services/job_request_dispatch.py::MIN_DISPATCH_SLA`); any future caller of the dispatch service or per-booking-type policy must respect it.
 
-The same (post-floor) value is sent in the payload (so the technician's UI counts down in sync) **and** passed to `JobDispatchScheduler.schedule_sla_timeout(...)` as the Celery `countdown` — flooring once before both calls keeps the wire and the server-side SLA timer locked together. Drift would let `AWAITING → REJECTED` fire before the frontend's drain visually reaches zero, surfacing accept-just-past-expiry as a silent 409.
+The same (post-floor) value is sent in the payload (so the technician's UI counts down in sync) **and** passed to `JobDispatchScheduler.schedule_sla_timeout(...)` as the Celery `countdown` — flooring once before both calls keeps the wire and the server-side SLA timer locked together. Drift would let `AWAITING → TECH_NO_RESPONSE` fire before the frontend's drain visually reaches zero, surfacing accept-just-past-expiry as a silent 409.
 
 #### SLA timeout — DB state mutation
 
@@ -297,12 +297,12 @@ When the timer fires, `bookings.tasks.expire_pending_job_booking(booking_id)` ru
 | Booking state when task fires | Outcome |
 | :--- | :--- |
 | Booking not found | no-op |
-| `status != AWAITING` | no-op (technician already accepted → CONFIRMED, or another path moved it through cancelled / completed / rejected) |
-| `status == AWAITING` | `status = REJECTED`, persisted via `update_fields=["status"]` + `booking_rejected` event emitted to the customer on commit (see §1.4 below) |
+| `status != AWAITING` | no-op (technician already accepted → CONFIRMED, or another path moved it through cancelled / completed / tech-terminal) |
+| `status == AWAITING` | `status = TECH_NO_RESPONSE`, persisted via `update_fields=["status"]` + `booking_rejected` event emitted to the customer on commit (see §1.4 below) |
 
 The `AWAITING` status itself encodes the "still waiting on tech accept" signal — there is no side-field to read.
 
-On a successful flip the task emits `booking_rejected` to the customer with `reason="sla_timeout"` via `transaction.on_commit`, reusing the same wire envelope the technician-decline arm uses with `reason="technician_declined"` (see §1.4). The task is idempotent — re-runs short-circuit on the non-AWAITING guard before mutating or emitting.
+On a successful flip the task emits `booking_rejected` to the customer with `reason="sla_timeout"` via `transaction.on_commit`, reusing the same wire envelope the technician-decline arm uses with `reason="technician_declined"` (see §1.4). The task is idempotent — re-runs short-circuit on the non-AWAITING guard before mutating or emitting. The **durable** discriminator between the two pathways is the booking status (`TECH_NO_RESPONSE` here, `TECH_DECLINED` for §1.4); `reason` on the event is for the live FCM/banner copy that fires before the orchestrator detail refetch lands.
 
 #### Architecture — Port and Adapter
 
@@ -363,7 +363,7 @@ The `status` string echoes the persisted column verbatim so the Flutter client c
   "status": 409,
   "code": "booking_no_longer_available",
   "message": "This job is no longer available.",
-  "errors": { "current_status": ["REJECTED"] }
+  "errors": { "current_status": ["TECH_NO_RESPONSE"] }
 }
 ```
 
@@ -377,7 +377,7 @@ The service runs inside `transaction.atomic()` + `select_for_update()`, serializ
 
 | Concurrent path | Outcome on accept |
 | :--- | :--- |
-| SLA-timeout Celery task fires first | accept observes `status=REJECTED` → `409 booking_no_longer_available` (`current_status: REJECTED`) |
+| SLA-timeout Celery task fires first | accept observes `status=TECH_NO_RESPONSE` → `409 booking_no_longer_available` (`current_status: TECH_NO_RESPONSE`) |
 | Customer cancels first | `409` (`current_status: CANCELLED`) |
 | Same-tech idempotent retry | `200` (no re-emit) |
 
@@ -429,7 +429,7 @@ The customer-side Flutter surface (flag #25 close) is a `lowUrgency` `MaterialBa
 #### Success — `200 OK`
 
 ```json
-{ "booking_id": 99482, "status": "REJECTED" }
+{ "booking_id": 99482, "status": "TECH_DECLINED" }
 ```
 
 #### Errors
@@ -444,7 +444,7 @@ Identical envelope shape and codes as accept (`401` / `404` / `409`).
 
 #### Idempotency
 
-Re-calling decline on a booking that is **already `REJECTED`** returns `200`. This **also** covers the SLA-fired-first race: the technician's intent (decline) and the system's outcome (rejected) are the same end state, so reporting success is correct. No second event is emitted.
+Re-calling decline on a booking that is **already in a tech-terminal status** (`TECH_DECLINED` for the same-tech retry, or `TECH_NO_RESPONSE` if the SLA-timeout task won the race) returns `200`. Both cases: the technician's intent (decline) matches the system's outcome (booking is dead), so reporting success is correct. No second event is emitted.
 
 #### Customer-facing event — `booking_rejected`
 
@@ -469,9 +469,9 @@ On successful transition, the service emits `booking_rejected` to the customer v
 | `reason` value | Emitter | Meaning |
 | :--- | :--- | :--- |
 | `technician_declined` | `bookings/services/job_request_action.py::decline_job_booking` | Assigned technician explicitly declined the offer. |
-| `sla_timeout` | `bookings/tasks.py::expire_pending_job_booking` | Technician did not respond within the dispatch SLA window; the task flipped the row to `REJECTED`. |
+| `sla_timeout` | `bookings/tasks.py::expire_pending_job_booking` | Technician did not respond within the dispatch SLA window; the task flipped the row to `TECH_NO_RESPONSE`. |
 
-Both arms route through the shared `_emit_booking_rejected(booking, reason=...)` helper so the wire envelope is identical — the customer-side surface is a single subscriber regardless of which pathway flipped the booking to `REJECTED`. Registry display name is `Booking unavailable`; `is_critical=false` (informational — `EventLog` persistence + sync-replay cover offline cases without the per-event ACK contract).
+Both arms route through the shared `_emit_booking_rejected(booking, reason=...)` helper so the wire envelope is identical — the customer-side surface is a single subscriber regardless of which pathway flipped the booking. The status field carries the durable discriminator (`TECH_DECLINED` vs `TECH_NO_RESPONSE`); the event `reason` carries the same info for live FCM/banner copy before the detail refetch lands. Registry display name is `Booking unavailable`; `is_critical=false` (informational — `EventLog` persistence + sync-replay cover offline cases without the per-event ACK contract).
 
 ---
 

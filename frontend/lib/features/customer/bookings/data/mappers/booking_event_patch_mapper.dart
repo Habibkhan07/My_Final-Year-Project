@@ -71,15 +71,24 @@ class BookingEventPatchMapper {
   }
 
   /// Apply the `booking_rejected` transition to an existing card. The
-  /// `reason` payload field discriminates `technician_declined` from
-  /// `sla_timeout` for the headline + badge copy.
+  /// `reason` payload field discriminates the cause and drives both
+  /// the new domain status (`techDeclined` vs `techNoResponse` —
+  /// backend migration 0013) and the headline + badge copy.
   ///
   /// Wire payload fields used:
-  ///   * `reason` — `"technician_declined"` (or unknown) → "Unavailable"
-  ///     copy; `"sla_timeout"` → "Timed out" copy.
+  ///   * `reason` — `"sla_timeout"` → status `techNoResponse` + "Timed
+  ///     out" copy; `"technician_declined"` (or unknown / missing) →
+  ///     status `techDeclined` + "Declined" copy. Mirrors the server's
+  ///     `_resolve_ui_block` table on `customer_bookings_selector.py`.
   ///   * `technician_id` is also on the payload but unused here — the
   ///     existing `technician` block stays put; it's the same tech
   ///     either way.
+  ///
+  /// Note: this mapper is invoked transiently before the list notifier
+  /// invalidates and refetches on terminal-event arrival. The refetch
+  /// returns the authoritative status from the backend (which carries
+  /// the cause directly). Patching here keeps the live banner copy
+  /// honest in the gap before the refetch lands.
   static CustomerBooking applyBookingRejected(
     CustomerBooking current,
     SystemEventEntity event,
@@ -88,24 +97,28 @@ class BookingEventPatchMapper {
     final reason = payload['reason'] as String?;
     final techName = current.technician.displayName;
 
-    BookingUi nextUi;
+    final BookingStatus nextStatus;
+    final BookingUi nextUi;
     if (reason == 'sla_timeout') {
+      nextStatus = BookingStatus.techNoResponse;
       nextUi = BookingUi(
         badgeText: 'Timed out',
         badgeTone: BookingUiTone.negative,
         headline: "$techName didn't respond in time",
       );
     } else {
-      // technician_declined OR unknown / missing → same copy. Mirrors
-      // the server's _resolve_ui_block fallback policy.
+      // technician_declined OR unknown / missing → declined copy.
+      // Defaulting unknown to techDeclined matches the safer-default
+      // policy on the backend migration 0013 data conversion.
+      nextStatus = BookingStatus.techDeclined;
       nextUi = BookingUi(
-        badgeText: 'Unavailable',
+        badgeText: 'Declined',
         badgeTone: BookingUiTone.negative,
-        headline: "$techName couldn't take this",
+        headline: '$techName declined this job',
       );
     }
 
-    return current.copyWith(status: BookingStatus.rejected, ui: nextUi);
+    return current.copyWith(status: nextStatus, ui: nextUi);
   }
 
   // ─── Booking-orchestrator v1 transitions (sprint session 3) ─────────────

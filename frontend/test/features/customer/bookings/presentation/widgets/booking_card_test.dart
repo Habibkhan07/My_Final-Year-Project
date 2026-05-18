@@ -145,27 +145,27 @@ void main() {
       expect(find.text('You cancelled this booking'), findsOneWidget);
     });
 
-    testWidgets('REJECTED — technician_declined', (tester) async {
+    testWidgets('TECH_DECLINED — tech actively declined', (tester) async {
       await tester.pumpWidget(
         _wrap(
           _booking(
-            status: BookingStatus.rejected,
+            status: BookingStatus.techDeclined,
             tone: BookingUiTone.negative,
-            badgeText: 'Unavailable',
-            headline: "Ahmed Khan couldn't take this",
+            badgeText: 'Declined',
+            headline: 'Ahmed Khan declined this job',
           ),
           segment: BookingSegment.past,
         ),
       );
-      expect(find.text('UNAVAILABLE'), findsOneWidget);
-      expect(find.text("Ahmed Khan couldn't take this"), findsOneWidget);
+      expect(find.text('DECLINED'), findsOneWidget);
+      expect(find.text('Ahmed Khan declined this job'), findsOneWidget);
     });
 
-    testWidgets('REJECTED — sla_timeout', (tester) async {
+    testWidgets('TECH_NO_RESPONSE — SLA timed out', (tester) async {
       await tester.pumpWidget(
         _wrap(
           _booking(
-            status: BookingStatus.rejected,
+            status: BookingStatus.techNoResponse,
             tone: BookingUiTone.negative,
             badgeText: 'Timed out',
             headline: "Ahmed Khan didn't respond in time",

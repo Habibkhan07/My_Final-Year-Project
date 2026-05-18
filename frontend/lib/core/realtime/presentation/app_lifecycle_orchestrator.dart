@@ -38,6 +38,7 @@ import '../data/datasources/event_local_data_source.dart';
 import '../domain/entities/system_event_entity.dart';
 import '../domain/entities/target_role.dart';
 import 'notifiers/event_sync_notifier.dart';
+import 'notifiers/fcm_tap_intent_notifier.dart';
 import 'notifiers/system_event_notifier.dart';
 import 'notifiers/ws_connection_notifier.dart';
 import 'providers/dependency_injection.dart';
@@ -377,6 +378,7 @@ class _AppLifecycleOrchestratorState
 
   late final EventUrgencyRouter _router;
   ProviderSubscription<SystemEventState>? _eventSubscription;
+  ProviderSubscription<SystemEventEntity?>? _tapIntentSubscription;
 
   @override
   void initState() {
@@ -402,12 +404,33 @@ class _AppLifecycleOrchestratorState
         _routeEvent(event);
       },
     );
+
+    // Tap-intent channel: user tapped a tray FCM notification. The
+    // dedicated `fcmTapIntentProvider` is used (not `systemEventProvider`)
+    // because a tap is user-initiated and must bypass the dedup/expiry/
+    // banner path that the funnel applies to automatic delivery.
+    //
+    // `fireImmediately: true` so a cold-start tap (`getInitialMessage`
+    // populated the slot before this widget mounted) is still routed.
+    // The notifier is `keepAlive: true` and its `clear()` runs after we
+    // route, so a subsequent state rebuild won't re-fire on a stale value.
+    _tapIntentSubscription = ref.listenManual<SystemEventEntity?>(
+      fcmTapIntentProvider,
+      (previous, next) {
+        if (next == null) return;
+        if (previous?.id == next.id) return;
+        _routeTapIntent(next);
+      },
+      fireImmediately: true,
+    );
   }
 
   @override
   void dispose() {
     _eventSubscription?.close();
     _eventSubscription = null;
+    _tapIntentSubscription?.close();
+    _tapIntentSubscription = null;
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -430,6 +453,29 @@ class _AppLifecycleOrchestratorState
         ? TargetRole.technician
         : TargetRole.customer;
     _router.handleEvent(event, role, ref);
+  }
+
+  /// User tapped a tray FCM notification — route directly to the event's
+  /// target screen, then clear the intent slot so the same value doesn't
+  /// trigger a duplicate push on a later rebuild.
+  ///
+  /// We don't gate on a signed-in user here: if a tap arrives while
+  /// signed-out (rare — token was revoked mid-flight), `routeTapIntent`
+  /// returns false and `clear()` still runs so the slot doesn't stay
+  /// stuck. The router's role gate handles the multi-account case where
+  /// a tap meant for the other role lands.
+  void _routeTapIntent(SystemEventEntity event) {
+    final auth = ref.read(authProvider).value;
+    final user = auth?.user;
+    final role = user == null
+        ? null
+        : (user.isTechnician ? TargetRole.technician : TargetRole.customer);
+    if (role != null) {
+      _router.routeTapIntent(event, role);
+    }
+    // Always clear, even if we didn't route — a wedged slot would re-fire
+    // a stale tap-intent the next time the listener is re-attached.
+    ref.read(fcmTapIntentProvider.notifier).clear();
   }
 
   /// Runs on every foreground transition. Three jobs:

@@ -85,11 +85,20 @@ def _build_booking_rejected_payload(
     Customer-facing ``booking_rejected`` payload.
 
     ``reason`` discriminates the pathway: ``"technician_declined"`` for the
-    technician-decline arm (``decline_job_booking``) and ``"sla_timeout"``
-    for the SLA-expiry arm (``bookings.tasks.expire_pending_job_booking``).
-    A single event type with a payload discriminator means the customer
-    surface is one subscriber regardless of which pathway flipped the
-    booking to REJECTED.
+    technician-decline arm (``decline_job_booking``, writes status
+    TECH_DECLINED) and ``"sla_timeout"`` for the SLA-expiry arm
+    (``bookings.tasks.expire_pending_job_booking``, writes TECH_NO_RESPONSE).
+    A single event type with a payload discriminator means the customer's
+    live banner / FCM body can switch on ``reason`` without forking the
+    subscriber. The status flip is the DURABLE truth — the orchestrator
+    detail refetch reads it directly on cold reload, no payload needed.
+
+    ``technician_display_name`` is composed server-side via
+    ``get_full_name()`` (mirrors ``_build_job_accepted_payload``). The FCM
+    body builder + customer banner-body both interpolate it; without it
+    they fall back to "Your technician" which reads as boilerplate. The
+    booking row is locked with ``select_related("technician__user")`` so
+    this is a zero-extra-query field.
     """
     service_name = (
         booking.sub_service.name if booking.sub_service_id else booking.service.name
@@ -97,6 +106,7 @@ def _build_booking_rejected_payload(
     return {
         "job_id": booking.id,
         "technician_id": booking.technician_id,
+        "technician_display_name": booking.technician.user.get_full_name() or booking.technician.user.username,
         "scheduled_start_iso": _to_iso_utc(booking.scheduled_start),
         "service_name": service_name,
         "reason": reason,
@@ -252,21 +262,22 @@ def accept_job_booking(*, booking_id: int, technician_user) -> JobBooking:
 
 def decline_job_booking(*, booking_id: int, technician_user) -> JobBooking:
     """
-    Transition a dispatched booking from AWAITING → REJECTED on behalf of
-    the assigned technician and emit ``booking_rejected`` to the customer
+    Transition a dispatched booking from AWAITING → TECH_DECLINED on behalf
+    of the assigned technician and emit ``booking_rejected`` to the customer
     (with ``reason: "technician_declined"``). Shares the wire envelope with
     the SLA-expiry path (``bookings.tasks.expire_pending_job_booking``,
-    which emits with ``reason: "sla_timeout"``) — single customer-side
-    subscriber regardless of which pathway flipped the booking to REJECTED.
+    which emits with ``reason: "sla_timeout"`` and writes TECH_NO_RESPONSE).
+    The customer's frontend has a single subscriber for both pathways; the
+    durable status discriminates the two on detail refetch.
 
     Idempotency
     -----------
-    Calling this with a booking that is already REJECTED **for the same
-    technician** returns the row unchanged and does NOT re-emit. Note
-    REJECTED is also the terminal state used by the SLA-timeout task —
-    if the timeout won the race we still report idempotent success here,
-    because the technician's intent (decline) and the system's outcome
-    (rejected) are the same end-state.
+    Calling this with a booking that is already in a tech-terminal status
+    (TECH_DECLINED — same tech already declined; TECH_NO_RESPONSE — the
+    SLA-timeout task won the race) returns the row unchanged and does NOT
+    re-emit. Both are correct: the tech's intent (decline) and the system's
+    outcome (booking is dead) align, regardless of which path got there
+    first.
 
     Errors
     ------
@@ -284,17 +295,19 @@ def decline_job_booking(*, booking_id: int, technician_user) -> JobBooking:
             technician_user=technician_user,
         )
 
-        # Idempotent same-tech retry: REJECTED already, treat as success.
-        # Includes the SLA-won-the-race case (both pathways flip AWAITING
-        # → REJECTED), which is correct: the tech wanted to decline, the
-        # system also rejected — end state matches the user's intent.
-        if booking.status == JobBooking.STATUS_REJECTED:
+        # Idempotent same-tech retry. Either tech-terminal status counts:
+        # TECH_DECLINED (this tech already declined) and TECH_NO_RESPONSE
+        # (SLA fired between the tech's intent and our lock).
+        if booking.status in (
+            JobBooking.STATUS_TECH_DECLINED,
+            JobBooking.STATUS_TECH_NO_RESPONSE,
+        ):
             return booking
 
         if booking.status != JobBooking.STATUS_AWAITING_TECH_ACCEPT:
             raise BookingNotActionableError(current_status=booking.status)
 
-        booking.status = JobBooking.STATUS_REJECTED
+        booking.status = JobBooking.STATUS_TECH_DECLINED
         booking.save(update_fields=["status"])
 
         transaction.on_commit(

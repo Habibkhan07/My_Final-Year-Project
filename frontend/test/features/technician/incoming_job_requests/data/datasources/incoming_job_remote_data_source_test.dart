@@ -78,7 +78,7 @@ void main() {
             'code': 'booking_no_longer_available',
             'message': 'This job is no longer available.',
             'errors': {
-              'current_status': ['REJECTED'],
+              'current_status': ['TECH_NO_RESPONSE'],
             },
           }),
           409,
@@ -92,7 +92,7 @@ void main() {
         expect(e.statusCode, 409);
         expect(e.code, 'booking_no_longer_available');
         expect(e.message, 'This job is no longer available.');
-        expect(e.errors['current_status'], ['REJECTED']);
+        expect(e.errors['current_status'], ['TECH_NO_RESPONSE']);
       }
     });
 

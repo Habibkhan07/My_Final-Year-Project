@@ -204,7 +204,8 @@ class TimelineSlot extends StatelessWidget {
     BookingStatus.completed => 5,
     BookingStatus.completedInspectionOnly => 5,
     BookingStatus.cancelled ||
-    BookingStatus.rejected ||
+    BookingStatus.techDeclined ||
+    BookingStatus.techNoResponse ||
     BookingStatus.noShow ||
     BookingStatus.disputed ||
     BookingStatus.pending ||
@@ -215,7 +216,8 @@ class TimelineSlot extends StatelessWidget {
   /// (the dot row is rendered instead).
   String? _terminalLabel(BookingStatus status) => switch (status) {
     BookingStatus.cancelled => 'Booking cancelled',
-    BookingStatus.rejected => 'Booking rejected',
+    BookingStatus.techDeclined => 'Tech declined',
+    BookingStatus.techNoResponse => "Tech didn't respond",
     BookingStatus.noShow => 'Marked as no-show',
     BookingStatus.disputed => 'Under dispute review',
     BookingStatus.pending || BookingStatus.unknown => null,

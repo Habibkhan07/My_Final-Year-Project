@@ -96,7 +96,8 @@ void main() {
         ('CONFIRMED', BookingStatus.confirmed),
         ('COMPLETED', BookingStatus.completed),
         ('CANCELLED', BookingStatus.cancelled),
-        ('REJECTED', BookingStatus.rejected),
+        ('TECH_DECLINED', BookingStatus.techDeclined),
+        ('TECH_NO_RESPONSE', BookingStatus.techNoResponse),
         ('PENDING', BookingStatus.pending),
       ]) {
         final entity = CustomerBookingMapper.fromModel(

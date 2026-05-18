@@ -458,4 +458,108 @@ void main() {
       },
     );
   });
+
+  // ─── routeTapIntent — user-initiated tray-tap path ────────────────────
+  //
+  // The tap-intent path bypasses banner + dedup + `_isAlreadyOnEntity`
+  // guard because the user has explicitly opted in by tapping the tray
+  // notification. Tests verify:
+  //   * a routed event pushes the templated path directly,
+  //   * an event for the wrong role is dropped (multi-account safety),
+  //   * an event whose type has no registered route returns false (no-op),
+  //   * an event with a missing path token returns false.
+
+  group('routeTapIntent — direct navigation, no banner', () {
+    testWidgets(
+      'TAP1 — booking_rejected with job_id pushes /booking/:job_id',
+      (tester) async {
+        final harness = _RouterTestHarness();
+        await tester.pumpWidget(harness.build());
+        await tester.pumpAndSettle();
+
+        final event = _bookingRejectedEvent(
+          payload: {'reason': 'sla_timeout', 'job_id': 99},
+        );
+        final pushed = harness.router.routeTapIntent(
+          event,
+          TargetRole.customer,
+        );
+        await tester.pumpAndSettle();
+
+        expect(pushed, isTrue);
+        expect(harness.capturedBookingId, '99');
+        expect(find.text('booking-99'), findsOneWidget);
+        // Tap bypasses the banner entirely.
+        expect(find.text('View'), findsNothing);
+        expect(find.text('Dismiss'), findsNothing);
+      },
+    );
+
+    testWidgets('TAP2 — wrong-role tap drops without pushing', (tester) async {
+      final harness = _RouterTestHarness();
+      await tester.pumpWidget(harness.build());
+      await tester.pumpAndSettle();
+
+      final event = _bookingRejectedEvent(
+        payload: {'reason': 'sla_timeout', 'job_id': 99},
+      );
+      // Event targets customer; signed-in user is technician.
+      final pushed = harness.router.routeTapIntent(
+        event,
+        TargetRole.technician,
+      );
+      await tester.pumpAndSettle();
+
+      expect(pushed, isFalse);
+      expect(harness.capturedBookingId, isNull);
+      expect(find.text('start'), findsOneWidget);
+    });
+
+    testWidgets('TAP3 — event with no registered route is a no-op', (
+      tester,
+    ) async {
+      final harness = _RouterTestHarness();
+      await tester.pumpWidget(harness.build());
+      await tester.pumpAndSettle();
+
+      // `payment_received` is intentionally absent from the tap-routes
+      // map (wallet is unshipped).
+      final event = SystemEventEntity.fromComponents(
+        id: 'evt-payment',
+        rawType: 'payment_received',
+        targetRoleStr: 'technician',
+        timestamp: DateTime.now().toUtc(),
+        payload: const {'amount': '500'},
+      );
+      final pushed = harness.router.routeTapIntent(
+        event,
+        TargetRole.technician,
+      );
+      await tester.pumpAndSettle();
+
+      expect(pushed, isFalse);
+      expect(harness.capturedBookingId, isNull);
+      expect(find.text('start'), findsOneWidget);
+    });
+
+    testWidgets('TAP4 — missing path token (no job_id) returns false', (
+      tester,
+    ) async {
+      final harness = _RouterTestHarness();
+      await tester.pumpWidget(harness.build());
+      await tester.pumpAndSettle();
+
+      final event = _bookingRejectedEvent(
+        payload: const {'reason': 'sla_timeout'},
+      );
+      final pushed = harness.router.routeTapIntent(
+        event,
+        TargetRole.customer,
+      );
+      await tester.pumpAndSettle();
+
+      expect(pushed, isFalse);
+      expect(harness.capturedBookingId, isNull);
+    });
+  });
 }

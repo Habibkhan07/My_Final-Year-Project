@@ -188,7 +188,7 @@ void main() {
       (tester) async {
         final repo = _FakeRepository()
           ..acceptThrow = const OfferNoLongerAvailable(
-            currentStatus: 'REJECTED',
+            currentStatus: 'TECH_NO_RESPONSE',
           );
         final h = await _pumpHost(tester, repository: repo);
         h.container

@@ -19,7 +19,14 @@ class JobBooking(models.Model):
     STATUS_CONFIRMED = 'CONFIRMED'
     STATUS_COMPLETED = 'COMPLETED'
     STATUS_CANCELLED = 'CANCELLED'
-    STATUS_REJECTED = 'REJECTED'
+
+    # The pre-CONFIRMED tech-acceptance window can end two ways. Both are
+    # terminal for the customer, but the CAUSE differs and the UI shows
+    # different copy. Splitting at the status enum makes this a type-system
+    # fact, not a side-channel ``reason`` field invisible to orchestrator
+    # detail refetches.
+    STATUS_TECH_DECLINED = 'TECH_DECLINED'        # tech actively tapped Decline
+    STATUS_TECH_NO_RESPONSE = 'TECH_NO_RESPONSE'  # SLA timer fired before reply
 
     # Booking orchestrator v1 (sprint 0008). Each value is a distinct phase
     # in the post-CONFIRMED lifecycle. Transitions live in
@@ -44,7 +51,8 @@ class JobBooking(models.Model):
         (STATUS_COMPLETED, 'Completed'),
         (STATUS_COMPLETED_INSPECTION_ONLY, 'Completed (inspection only)'),
         (STATUS_CANCELLED, 'Cancelled'),
-        (STATUS_REJECTED, 'Rejected'),
+        (STATUS_TECH_DECLINED, 'Tech declined'),
+        (STATUS_TECH_NO_RESPONSE, "Tech didn't respond"),
         (STATUS_NO_SHOW, 'No show'),
         (STATUS_DISPUTED, 'Disputed'),
         (STATUS_PENDING, 'Pending (legacy, do not use for new bookings)'),
@@ -56,7 +64,8 @@ class JobBooking(models.Model):
         STATUS_COMPLETED,
         STATUS_COMPLETED_INSPECTION_ONLY,
         STATUS_CANCELLED,
-        STATUS_REJECTED,
+        STATUS_TECH_DECLINED,
+        STATUS_TECH_NO_RESPONSE,
         STATUS_NO_SHOW,
         STATUS_DISPUTED,
     })

@@ -25,13 +25,12 @@ Design contract
   this table and the Flutter mirror is the only known cost; the table
   is small enough that bounded duplication is the cheaper trade.
 
-* For ``REJECTED`` rows the selector reads the **latest matching
-  ``EventLog`` row** to discriminate ``technician_declined`` from
-  ``sla_timeout`` for headline + badge copy. We do this in a single
-  batched query keyed on ``payload__job_id__in=[...]`` rather than per
-  row — the cost is one extra round-trip per page, not N. When no log
-  row is found (e.g. legacy bookings predating ``EventLog``) we fall
-  back to a generic "Unavailable" copy.
+* The cause of a failed tech-acceptance is encoded in the status enum
+  itself: ``TECH_DECLINED`` (tech tapped Decline) vs ``TECH_NO_RESPONSE``
+  (SLA timer fired before reply). Migration 0013 split the old single
+  ``REJECTED`` status so this discrimination lives in the type system
+  instead of a side-channel ``EventLog`` lookup. Badge + headline copy
+  switch on the status directly — no extra query.
 
 Performance contract
 --------------------
@@ -60,8 +59,6 @@ from django.db.models import Q, QuerySet
 from django.utils import timezone
 
 from bookings.models import JobBooking
-from realtime.constants.event_types import EventType
-from realtime.models.events import EventLog
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -113,7 +110,8 @@ _PAST_STATUSES = (
     JobBooking.STATUS_COMPLETED,
     JobBooking.STATUS_COMPLETED_INSPECTION_ONLY,
     JobBooking.STATUS_CANCELLED,
-    JobBooking.STATUS_REJECTED,
+    JobBooking.STATUS_TECH_DECLINED,
+    JobBooking.STATUS_TECH_NO_RESPONSE,
     JobBooking.STATUS_NO_SHOW,
     JobBooking.STATUS_DISPUTED,
 )
@@ -128,11 +126,6 @@ TONE_WARNING = "warning"
 TONE_NEGATIVE = "negative"
 TONE_NEUTRAL = "neutral"
 TONE_INFO = "info"
-
-# Rejection-reason discriminators on the BOOKING_REJECTED event payload.
-_REASON_TECH_DECLINED = "technician_declined"
-_REASON_SLA_TIMEOUT = "sla_timeout"
-
 
 # ─────────────────────────────────────────────────────────────────────────
 # Cursor encoding — opaque to callers, defined once here.
@@ -176,7 +169,6 @@ def _resolve_ui_block(
     *,
     status: str,
     technician_display_name: str,
-    rejection_reason: Optional[str],
     cancel_reason: Optional[str] = None,
 ) -> dict[str, str]:
     """
@@ -186,10 +178,11 @@ def _resolve_ui_block(
     (``user.get_full_name()`` then ``user.username``); the caller has
     already ensured a non-empty value.
 
-    ``rejection_reason`` is consulted only when ``status == REJECTED``.
-    Unknown / missing reason falls back to the technician-declined copy
-    (the more common path) — this is also the safest default for legacy
-    rows whose ``EventLog`` entry pre-dates the reason discriminator.
+    The tech-acceptance failure cause is encoded in ``status``:
+    ``TECH_DECLINED`` (active refusal) vs ``TECH_NO_RESPONSE`` (SLA
+    timer fired). Pre-migration 0013 these collapsed to a single
+    ``REJECTED`` status and the cause lived on the BOOKING_REJECTED
+    event payload — see the module docstring.
 
     ``cancel_reason`` is consulted only when ``status == CANCELLED`` and
     drives the headline attribution. The wire enum is documented on
@@ -286,18 +279,18 @@ def _resolve_ui_block(
             "headline": headline,
         }
 
-    if status == JobBooking.STATUS_REJECTED:
-        if rejection_reason == _REASON_SLA_TIMEOUT:
-            return {
-                "badge_text": "Timed out",
-                "badge_tone": TONE_NEGATIVE,
-                "headline": f"{technician_display_name} didn't respond in time",
-            }
-        # technician_declined (explicit) OR unknown / missing → same copy.
+    if status == JobBooking.STATUS_TECH_DECLINED:
         return {
-            "badge_text": "Unavailable",
+            "badge_text": "Declined",
             "badge_tone": TONE_NEGATIVE,
-            "headline": f"{technician_display_name} couldn't take this",
+            "headline": f"{technician_display_name} declined this job",
+        }
+
+    if status == JobBooking.STATUS_TECH_NO_RESPONSE:
+        return {
+            "badge_text": "Timed out",
+            "badge_tone": TONE_NEGATIVE,
+            "headline": f"{technician_display_name} didn't respond in time",
         }
 
     if status == JobBooking.STATUS_NO_SHOW:
@@ -375,59 +368,6 @@ def _format_price_label(amount: Any) -> str:
     except (TypeError, ValueError):
         return f"Rs. {amount}"
     return f"Rs. {as_int:,}"
-
-
-# ─────────────────────────────────────────────────────────────────────────
-# Rejection-reason batched lookup.
-# ─────────────────────────────────────────────────────────────────────────
-
-
-def _load_rejection_reasons(
-    *, user, booking_ids: Iterable[int]
-) -> dict[int, str]:
-    """
-    Single batched query: most-recent BOOKING_REJECTED event per booking
-    in the page, keyed by ``payload.job_id``. Returns a ``{job_id: reason}``
-    map. Bookings with no log row are simply absent from the dict.
-
-    The query is scoped to ``user`` for two reasons: it's an additional
-    IDOR belt-and-braces (the booking queryset is already user-scoped,
-    but cross-user EventLog reads have no business here either), and it
-    keeps the index path on ``evlog_user_created_idx`` sharp.
-    """
-    ids = list(booking_ids)
-    if not ids:
-        return {}
-
-    rows = (
-        EventLog.objects
-        .filter(
-            user=user,
-            event_type=EventType.BOOKING_REJECTED.value,
-            payload__job_id__in=ids,
-        )
-        .order_by("-created_at")
-        .values_list("payload", flat=True)
-    )
-
-    out: dict[int, str] = {}
-    for payload in rows:
-        if not isinstance(payload, dict):
-            continue
-        job_id = payload.get("job_id")
-        reason = payload.get("reason")
-        if job_id is None or reason is None:
-            continue
-        # Earlier insertions win because we ordered DESC and only fill
-        # the first-seen reason per job_id.
-        try:
-            key = int(job_id)
-        except (TypeError, ValueError):
-            continue
-        if key in out:
-            continue
-        out[key] = str(reason)
-    return out
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -521,17 +461,12 @@ def _apply_cursor(
     )
 
 
-def _serialize_booking(
-    booking: JobBooking,
-    *,
-    rejection_reason: Optional[str],
-) -> dict[str, Any]:
+def _serialize_booking(booking: JobBooking) -> dict[str, Any]:
     """Build the wire-shape dict for a single list item."""
     tech_name = _technician_display_name(booking)
     ui = _resolve_ui_block(
         status=booking.status,
         technician_display_name=tech_name,
-        rejection_reason=rejection_reason,
         cancel_reason=booking.cancel_reason,
     )
     return {
@@ -633,15 +568,7 @@ def list_customer_bookings(
     has_more = len(rows) > page_size
     page = rows[:page_size]
 
-    rejection_map = _load_rejection_reasons(
-        user=user,
-        booking_ids=[b.id for b in page if b.status == JobBooking.STATUS_REJECTED],
-    )
-
-    items = [
-        _serialize_booking(b, rejection_reason=rejection_map.get(b.id))
-        for b in page
-    ]
+    items = [_serialize_booking(b) for b in page]
 
     next_cursor: Optional[str] = None
     if has_more and page:

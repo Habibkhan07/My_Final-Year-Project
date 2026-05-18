@@ -4,8 +4,8 @@ Tests for ``bookings.selectors.customer_bookings_selector``.
 Covers exhaustively:
 
   * Cursor encode/decode (round-trip + malformed token paths).
-  * ``_resolve_ui_block`` — every status row, REJECTED variants by
-    EventLog reason, fallback when no EventLog row.
+  * ``_resolve_ui_block`` — every status row, TECH_DECLINED vs
+    TECH_NO_RESPONSE copy discrimination.
   * ``list_customer_bookings`` —
     - segments (upcoming + past)
     - explicit status_filter override
@@ -14,7 +14,8 @@ Covers exhaustively:
     - since filter
     - IDOR scope (user A's queryset never returns user B's rows)
     - select_related performance contract via ``django_assert_num_queries``
-    - REJECTED reason dispatch (technician_declined / sla_timeout / missing)
+    - tech-acceptance failure cause via status (TECH_DECLINED vs
+      TECH_NO_RESPONSE — migration 0013)
     - aged-out CONFIRMED rows surface in past, not upcoming
     - server_time present and tz-aware
     - empty result
@@ -44,8 +45,6 @@ from bookings.selectors.customer_bookings_selector import (
     count_customer_bookings,
     list_customer_bookings,
 )
-from realtime.constants.event_types import EventType
-from realtime.models.events import EventLog
 from tests.factories.accounts import UserFactory
 from tests.factories.bookings import JobBookingFactory
 from tests.factories.customers import CustomerAddressFactory, CustomerProfileFactory
@@ -80,16 +79,6 @@ def _booking_in_past(*, customer, **kwargs) -> JobBooking:
         scheduled_start=start,
         scheduled_end=end,
         **kwargs,
-    )
-
-
-def _make_rejection_log(*, user, job_id: int, reason: str) -> EventLog:
-    return EventLog.objects.create(
-        user=user,
-        event_type=EventType.BOOKING_REJECTED.value,
-        target_role=EventLog.TARGET_CUSTOMER,
-        payload={"job_id": job_id, "reason": reason},
-        is_critical=False,
     )
 
 
@@ -164,7 +153,6 @@ class TestResolveUiBlock:
         ui = _resolve_ui_block(
             status=JobBooking.STATUS_AWAITING_TECH_ACCEPT,
             technician_display_name="Ali Khan",
-            rejection_reason=None,
         )
         assert ui == {
             "badge_text": "Awaiting tech",
@@ -176,7 +164,6 @@ class TestResolveUiBlock:
         ui = _resolve_ui_block(
             status=JobBooking.STATUS_CONFIRMED,
             technician_display_name="Ali Khan",
-            rejection_reason=None,
         )
         assert ui == {
             "badge_text": "Confirmed",
@@ -188,7 +175,6 @@ class TestResolveUiBlock:
         ui = _resolve_ui_block(
             status=JobBooking.STATUS_COMPLETED,
             technician_display_name="Ali Khan",
-            rejection_reason=None,
         )
         assert ui == {
             "badge_text": "Completed",
@@ -200,7 +186,6 @@ class TestResolveUiBlock:
         ui = _resolve_ui_block(
             status=JobBooking.STATUS_CANCELLED,
             technician_display_name="Ali Khan",
-            rejection_reason=None,
             cancel_reason='customer_cancelled_pre_accept',
         )
         assert ui == {
@@ -213,7 +198,6 @@ class TestResolveUiBlock:
         ui = _resolve_ui_block(
             status=JobBooking.STATUS_CANCELLED,
             technician_display_name="Ali Khan",
-            rejection_reason=None,
             cancel_reason='technician_cancelled',
         )
         assert ui == {
@@ -226,7 +210,6 @@ class TestResolveUiBlock:
         ui = _resolve_ui_block(
             status=JobBooking.STATUS_CANCELLED,
             technician_display_name="Ali Khan",
-            rejection_reason=None,
             cancel_reason='customer_rescheduled',
         )
         assert ui == {
@@ -241,7 +224,6 @@ class TestResolveUiBlock:
         ui = _resolve_ui_block(
             status=JobBooking.STATUS_CANCELLED,
             technician_display_name="Ali Khan",
-            rejection_reason=None,
             cancel_reason=None,
         )
         assert ui == {
@@ -250,23 +232,21 @@ class TestResolveUiBlock:
             "headline": "Booking was cancelled",
         }
 
-    def test_rejected_technician_declined(self):
+    def test_tech_declined(self):
         ui = _resolve_ui_block(
-            status=JobBooking.STATUS_REJECTED,
+            status=JobBooking.STATUS_TECH_DECLINED,
             technician_display_name="Ali Khan",
-            rejection_reason="technician_declined",
         )
         assert ui == {
-            "badge_text": "Unavailable",
+            "badge_text": "Declined",
             "badge_tone": TONE_NEGATIVE,
-            "headline": "Ali Khan couldn't take this",
+            "headline": "Ali Khan declined this job",
         }
 
-    def test_rejected_sla_timeout(self):
+    def test_tech_no_response(self):
         ui = _resolve_ui_block(
-            status=JobBooking.STATUS_REJECTED,
+            status=JobBooking.STATUS_TECH_NO_RESPONSE,
             technician_display_name="Ali Khan",
-            rejection_reason="sla_timeout",
         )
         assert ui == {
             "badge_text": "Timed out",
@@ -274,32 +254,10 @@ class TestResolveUiBlock:
             "headline": "Ali Khan didn't respond in time",
         }
 
-    def test_rejected_unknown_reason_falls_back_to_declined_copy(self):
-        # Forward-compat: unrecognized reason should not crash; the
-        # safer-default copy ("couldn't take") wins.
-        ui = _resolve_ui_block(
-            status=JobBooking.STATUS_REJECTED,
-            technician_display_name="Ali Khan",
-            rejection_reason="some_future_reason",
-        )
-        assert ui["badge_text"] == "Unavailable"
-        assert ui["badge_tone"] == TONE_NEGATIVE
-
-    def test_rejected_with_no_reason_falls_back(self):
-        # Legacy bookings predating EventLog get None — must not crash.
-        ui = _resolve_ui_block(
-            status=JobBooking.STATUS_REJECTED,
-            technician_display_name="Ali Khan",
-            rejection_reason=None,
-        )
-        assert ui["badge_text"] == "Unavailable"
-        assert ui["badge_tone"] == TONE_NEGATIVE
-
     def test_pending_legacy(self):
         ui = _resolve_ui_block(
             status=JobBooking.STATUS_PENDING,
             technician_display_name="Ali Khan",
-            rejection_reason=None,
         )
         assert ui["badge_tone"] == TONE_NEUTRAL
         assert ui["badge_text"] == "Pending"
@@ -308,7 +266,6 @@ class TestResolveUiBlock:
         ui = _resolve_ui_block(
             status="SOMETHING_NEW_FROM_FUTURE_BACKEND",
             technician_display_name="Ali Khan",
-            rejection_reason=None,
         )
         assert ui["badge_tone"] == TONE_NEUTRAL
         assert ui["headline"] == "Booking is being prepared"
@@ -340,7 +297,8 @@ class TestListSegmentUpcoming:
     def test_excludes_terminal_statuses(self):
         user = UserFactory()
         for status in (
-            JobBooking.STATUS_REJECTED,
+            JobBooking.STATUS_TECH_DECLINED,
+            JobBooking.STATUS_TECH_NO_RESPONSE,
             JobBooking.STATUS_CANCELLED,
             JobBooking.STATUS_COMPLETED,
         ):
@@ -378,8 +336,11 @@ class TestListSegmentPast:
 
     def test_includes_terminal_statuses(self):
         user = UserFactory()
-        rejected = _booking_in_future(
-            customer=user, status=JobBooking.STATUS_REJECTED,
+        tech_declined = _booking_in_future(
+            customer=user, status=JobBooking.STATUS_TECH_DECLINED,
+        )
+        tech_no_response = _booking_in_future(
+            customer=user, status=JobBooking.STATUS_TECH_NO_RESPONSE,
         )
         cancelled = _booking_in_past(
             customer=user, status=JobBooking.STATUS_CANCELLED,
@@ -390,7 +351,9 @@ class TestListSegmentPast:
 
         result = list_customer_bookings(user=user, segment=SEGMENT_PAST)
         ids = {item["id"] for item in result.items}
-        assert ids == {rejected.id, cancelled.id, completed.id}
+        assert ids == {
+            tech_declined.id, tech_no_response.id, cancelled.id, completed.id,
+        }
 
     def test_includes_aged_out_confirmed(self):
         user = UserFactory()
@@ -454,7 +417,8 @@ class TestEverySegmentCoverageMatrix:
         JobBooking.STATUS_COMPLETED,
         JobBooking.STATUS_COMPLETED_INSPECTION_ONLY,
         JobBooking.STATUS_CANCELLED,
-        JobBooking.STATUS_REJECTED,
+        JobBooking.STATUS_TECH_DECLINED,
+        JobBooking.STATUS_TECH_NO_RESPONSE,
         JobBooking.STATUS_NO_SHOW,
         JobBooking.STATUS_DISPUTED,
     }
@@ -693,79 +657,38 @@ class TestListSinceFilter:
 
 
 # =====================================================================
-# REJECTED reason resolution from EventLog
+# Tech-acceptance failure cause discrimination via status
+#
+# Pre-migration 0013 the customer's bookings list ran a second EventLog
+# query per page to look up the BOOKING_REJECTED ``reason`` and pick
+# between "Unavailable" and "Timed out" copy. Migration 0013 split the
+# status enum into TECH_DECLINED + TECH_NO_RESPONSE, so the cause is
+# carried by status itself — the EventLog lookup was deleted along
+# with its tests. These two cases verify status → copy directly.
 # =====================================================================
 
 
-class TestRejectedReasonResolution:
+class TestTechAcceptanceFailureCopy:
 
-    def test_resolves_technician_declined_from_event_log(self):
+    def test_tech_declined_renders_declined_badge(self):
         user = UserFactory()
-        b = _booking_in_future(customer=user, status=JobBooking.STATUS_REJECTED)
-        _make_rejection_log(
-            user=user, job_id=b.id, reason="technician_declined",
-        )
+        _booking_in_future(customer=user, status=JobBooking.STATUS_TECH_DECLINED)
 
         result = list_customer_bookings(user=user, segment=SEGMENT_PAST)
-        assert len(result.items) == 1
         item = result.items[0]
-        assert item["ui"]["badge_text"] == "Unavailable"
+        assert item["ui"]["badge_text"] == "Declined"
+        assert "declined this job" in item["ui"]["headline"]
 
-    def test_resolves_sla_timeout_from_event_log(self):
+    def test_tech_no_response_renders_timed_out_badge(self):
         user = UserFactory()
-        b = _booking_in_future(customer=user, status=JobBooking.STATUS_REJECTED)
-        _make_rejection_log(user=user, job_id=b.id, reason="sla_timeout")
+        _booking_in_future(
+            customer=user, status=JobBooking.STATUS_TECH_NO_RESPONSE,
+        )
 
         result = list_customer_bookings(user=user, segment=SEGMENT_PAST)
         item = result.items[0]
         assert item["ui"]["badge_text"] == "Timed out"
         assert "didn't respond in time" in item["ui"]["headline"]
-
-    def test_no_event_log_falls_back_to_declined(self):
-        # Legacy booking predating EventLog rollout — must not crash.
-        user = UserFactory()
-        _booking_in_future(customer=user, status=JobBooking.STATUS_REJECTED)
-
-        result = list_customer_bookings(user=user, segment=SEGMENT_PAST)
-        item = result.items[0]
-        assert item["ui"]["badge_text"] == "Unavailable"
-
-    def test_multiple_log_rows_uses_most_recent(self):
-        # Defensive: if a buggy retry minted two rows for the same
-        # booking, the most recent (DESC by created_at) wins.
-        user = UserFactory()
-        b = _booking_in_future(customer=user, status=JobBooking.STATUS_REJECTED)
-        # Older row says technician_declined.
-        old = _make_rejection_log(
-            user=user, job_id=b.id, reason="technician_declined",
-        )
-        EventLog.objects.filter(pk=old.pk).update(
-            created_at=timezone.now() - datetime.timedelta(hours=1),
-        )
-        # Newer row corrects to sla_timeout.
-        _make_rejection_log(user=user, job_id=b.id, reason="sla_timeout")
-
-        result = list_customer_bookings(user=user, segment=SEGMENT_PAST)
-        item = result.items[0]
-        assert item["ui"]["badge_text"] == "Timed out"
-
-    def test_event_log_for_other_user_ignored(self):
-        # A's rejection log must NOT leak into B's serialized booking.
-        # B's REJECTED booking with no log row should fall back to the
-        # generic "Unavailable" copy, not pick up A's "Timed out".
-        user_a = UserFactory()
-        user_b = UserFactory()
-        b_b = _booking_in_future(
-            customer=user_b, status=JobBooking.STATUS_REJECTED,
-        )
-        # User A logs an sla_timeout for *some* booking — irrelevant.
-        _make_rejection_log(
-            user=user_a, job_id=b_b.id, reason="sla_timeout",
-        )
-
-        result = list_customer_bookings(user=user_b, segment=SEGMENT_PAST)
-        item = result.items[0]
-        assert item["ui"]["badge_text"] == "Unavailable"
 
 
 # =====================================================================
@@ -807,8 +730,10 @@ class TestQueryCount:
     """
     Contract: rendering N bookings on one page must NOT issue N FK
     follow-up queries. ``select_related`` on technician__user / service
-    / sub_service / address keeps everything in one round-trip; the
-    EventLog batch lookup adds at most one more.
+    / sub_service / address keeps everything in one round-trip. Pre-
+    migration 0013 a second EventLog query ran when the page contained
+    REJECTED rows; that lookup is gone now (status carries the cause),
+    so even a page full of tech-failure rows is one query.
     """
 
     def test_constant_query_count_for_page(self, django_assert_num_queries):
@@ -829,12 +754,9 @@ class TestQueryCount:
                 scheduled_end=timezone.now() + datetime.timedelta(days=1, hours=1),
             )
 
-        # 1 select for the booking page + select_related joins
+        # 1 select for the booking page + select_related joins.
         # 0 follow-up queries for technicians / services / sub_services
-        #   (everything joined in)
-        # 1 conditional select for EventLog rejection-reason batch (only
-        #   issued when the page contains at least one REJECTED row —
-        #   here it's not, so we expect exactly 1 query).
+        #   (everything joined in).
         with django_assert_num_queries(1):
             result = list_customer_bookings(
                 user=user, segment=SEGMENT_UPCOMING, page_size=10,
@@ -842,21 +764,19 @@ class TestQueryCount:
             # Force item materialization (model __iter__ / dict build).
             _ = [item["technician"]["display_name"] for item in result.items]
 
-    def test_scales_to_two_queries_when_rejected_present(
+    def test_query_count_unchanged_when_tech_failure_rows_present(
         self, django_assert_num_queries,
     ):
-        # When the page contains REJECTED rows, the EventLog batch
-        # lookup runs — exactly ONE extra query, NOT one-per-row.
+        # Pre-0013: tech-failure rows added a second query (EventLog
+        # rejection-reason batch). Post-0013: status carries the cause,
+        # no extra query. One query for any page composition.
         user = UserFactory()
         for _ in range(5):
-            b = _booking_in_future(
-                customer=user, status=JobBooking.STATUS_REJECTED,
-            )
-            _make_rejection_log(
-                user=user, job_id=b.id, reason="technician_declined",
+            _booking_in_future(
+                customer=user, status=JobBooking.STATUS_TECH_DECLINED,
             )
 
-        with django_assert_num_queries(2):
+        with django_assert_num_queries(1):
             result = list_customer_bookings(
                 user=user, segment=SEGMENT_PAST, page_size=10,
             )
@@ -1027,7 +947,7 @@ class TestCounts:
         _booking_in_future(customer=user, status=JobBooking.STATUS_AWAITING_TECH_ACCEPT)
         _booking_in_future(customer=user, status=JobBooking.STATUS_CONFIRMED)
         # Three past — terminal + aged-out.
-        _booking_in_future(customer=user, status=JobBooking.STATUS_REJECTED)
+        _booking_in_future(customer=user, status=JobBooking.STATUS_TECH_DECLINED)
         _booking_in_past(customer=user, status=JobBooking.STATUS_COMPLETED)
         _booking_in_past(customer=user, status=JobBooking.STATUS_CONFIRMED)
 

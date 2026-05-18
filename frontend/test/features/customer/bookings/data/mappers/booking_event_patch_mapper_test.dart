@@ -184,23 +184,26 @@ void main() {
   // ─── applyBookingRejected ────────────────────────────────────────────
 
   group('applyBookingRejected', () {
-    test('reason=technician_declined → "Unavailable" + negative tone', () {
-      final patched = BookingEventPatchMapper.applyBookingRejected(
-        _existingAwaiting(techName: 'Ahmed Khan'),
-        _event(
-          type: SystemEventType.bookingRejected,
-          payload: const {'job_id': 99482, 'reason': 'technician_declined'},
-        ),
-      );
+    test(
+      'reason=technician_declined → status=techDeclined + "Declined" copy',
+      () {
+        final patched = BookingEventPatchMapper.applyBookingRejected(
+          _existingAwaiting(techName: 'Ahmed Khan'),
+          _event(
+            type: SystemEventType.bookingRejected,
+            payload: const {'job_id': 99482, 'reason': 'technician_declined'},
+          ),
+        );
 
-      expect(patched.status, BookingStatus.rejected);
-      expect(patched.ui.badgeText, 'Unavailable');
-      expect(patched.ui.badgeTone, BookingUiTone.negative);
-      expect(patched.ui.headline, "Ahmed Khan couldn't take this");
-    });
+        expect(patched.status, BookingStatus.techDeclined);
+        expect(patched.ui.badgeText, 'Declined');
+        expect(patched.ui.badgeTone, BookingUiTone.negative);
+        expect(patched.ui.headline, 'Ahmed Khan declined this job');
+      },
+    );
 
     test(
-      'reason=sla_timeout → "Timed out" + negative tone + tailored copy',
+      'reason=sla_timeout → status=techNoResponse + "Timed out" copy',
       () {
         final patched = BookingEventPatchMapper.applyBookingRejected(
           _existingAwaiting(techName: 'Ahmed Khan'),
@@ -210,16 +213,17 @@ void main() {
           ),
         );
 
-        expect(patched.status, BookingStatus.rejected);
+        expect(patched.status, BookingStatus.techNoResponse);
         expect(patched.ui.badgeText, 'Timed out');
         expect(patched.ui.badgeTone, BookingUiTone.negative);
         expect(patched.ui.headline, "Ahmed Khan didn't respond in time");
       },
     );
 
-    test('unknown reason → defaults to technician_declined copy', () {
+    test('unknown reason → defaults to techDeclined copy', () {
       // Forward-compat: a future backend reason string must not crash
-      // the mapper. The "Unavailable" copy is the safer default.
+      // the mapper. techDeclined is the safer default (mirrors the
+      // backend migration 0013 data-conversion policy).
       final patched = BookingEventPatchMapper.applyBookingRejected(
         _existingAwaiting(techName: 'Ahmed Khan'),
         _event(
@@ -227,13 +231,14 @@ void main() {
           payload: const {'job_id': 99482, 'reason': 'some_future_reason'},
         ),
       );
-      expect(patched.ui.badgeText, 'Unavailable');
+      expect(patched.status, BookingStatus.techDeclined);
+      expect(patched.ui.badgeText, 'Declined');
       expect(patched.ui.badgeTone, BookingUiTone.negative);
     });
 
-    test('missing reason → defaults to technician_declined copy', () {
+    test('missing reason → defaults to techDeclined copy', () {
       // Legacy event with no reason field — must not crash; falls back
-      // to the safer "Unavailable" copy.
+      // to the safer "Declined" copy + techDeclined status.
       final patched = BookingEventPatchMapper.applyBookingRejected(
         _existingAwaiting(techName: 'Ahmed Khan'),
         _event(
@@ -241,7 +246,8 @@ void main() {
           payload: const {'job_id': 99482},
         ),
       );
-      expect(patched.ui.badgeText, 'Unavailable');
+      expect(patched.status, BookingStatus.techDeclined);
+      expect(patched.ui.badgeText, 'Declined');
       expect(patched.ui.badgeTone, BookingUiTone.negative);
     });
 

@@ -10,7 +10,9 @@ import '../../data/datasources/event_local_data_source.dart';
 import '../../data/mappers/system_event_mapper.dart';
 import '../../data/models/system_event_model.dart';
 import '../../data/repositories/event_repository.dart';
+import '../../domain/entities/system_event_entity.dart';
 import '../notifiers/event_sync_notifier.dart';
+import '../notifiers/fcm_tap_intent_notifier.dart';
 import '../notifiers/system_event_notifier.dart';
 import 'notification_channels.dart';
 
@@ -32,6 +34,7 @@ import 'notification_channels.dart';
 class FCMHandler {
   final SystemEventNotifier _eventNotifier;
   final EventSyncNotifier _syncNotifier;
+  final FcmTapIntentNotifier _tapIntentNotifier;
   final EventRepository _repository;
   final EventLocalDataSource _localDataSource;
 
@@ -51,10 +54,12 @@ class FCMHandler {
   FCMHandler({
     required SystemEventNotifier eventNotifier,
     required EventSyncNotifier syncNotifier,
+    required FcmTapIntentNotifier tapIntentNotifier,
     required EventRepository repository,
     required EventLocalDataSource localDataSource,
   }) : _eventNotifier = eventNotifier,
        _syncNotifier = syncNotifier,
+       _tapIntentNotifier = tapIntentNotifier,
        _repository = repository,
        _localDataSource = localDataSource;
 
@@ -140,13 +145,22 @@ class FCMHandler {
 
   Future<void> _setupBackgroundTapHandlers() async {
     _openedAppSub?.cancel();
+    // Two FCM entry paths feed the tap-intent channel:
+    //   * `onMessageOpenedApp` — user tapped a tray notification with the
+    //     app backgrounded.
+    //   * `getInitialMessage` — same scenario, but the app was terminated
+    //     (Firebase queues the tap data until the app cold-starts).
+    // Both are *user-initiated* and should route the user directly to the
+    // event's target screen, bypassing the banner/dedup/expiry filters
+    // that `SystemEventNotifier` applies to automatic delivery paths
+    // (foreground arrival, BG-isolate queue drain, REST sync replay).
     _openedAppSub = FirebaseMessaging.onMessageOpenedApp.listen((message) {
-      processRemoteMessage(message.data);
+      processTapMessage(message.data);
     });
 
     final initial = await FirebaseMessaging.instance.getInitialMessage();
     if (initial != null) {
-      processRemoteMessage(initial.data);
+      processTapMessage(initial.data);
     }
   }
 
@@ -157,10 +171,48 @@ class FCMHandler {
   /// field arrives as a JSON string, not a Map. We detect that and decode
   /// before handing off to the model.
   ///
+  /// Used by the foreground listener and by the BG-isolate queue drain on
+  /// resume. Tap-from-tray takes [processTapMessage] instead — see that
+  /// method's docstring for why those paths are separated.
+  ///
   /// Visible for testing so unit tests can drive the normalization path
   /// without standing up `FirebaseMessaging.onMessage` streams.
   @visibleForTesting
   void processRemoteMessage(Map<String, dynamic> rawData) {
+    final entity = _decodeMessage(rawData);
+    if (entity == null) return;
+    // FCM payloads can be hours stale (tray notification tapped after
+    // the SLA window). Tag as `fcm` so the notifier's expiry filter
+    // uses the WS-anchored server-time estimate instead of this
+    // (potentially stale) timestamp.
+    _eventNotifier.processEvent(entity, source: SystemEventSource.fcm);
+  }
+
+  /// Tap-from-tray entry point. Feeds the dedicated [FcmTapIntentNotifier]
+  /// instead of the general [SystemEventNotifier] funnel.
+  ///
+  /// **Why separated.** The funnel applies protective filters (dedup, expiry,
+  /// recipient gate, out-of-order rejection) that are correct for *automatic*
+  /// event delivery, but wrong for a *user-initiated* tap. If a tray-tap
+  /// were funneled, it would:
+  ///   * be dropped if the same event already arrived via WS (dedup hit),
+  ///   * be dropped if the tray sat past the event's `expiresAt`,
+  ///   * route via the low-urgency banner — handing the user a "View"
+  ///     button when they already tapped the tray notification (one tap
+  ///     too many).
+  ///
+  /// Tap-intent skips all of that and routes directly via the orchestrator's
+  /// listener on `fcmTapIntentProvider`.
+  @visibleForTesting
+  void processTapMessage(Map<String, dynamic> rawData) {
+    final entity = _decodeMessage(rawData);
+    if (entity == null) return;
+    _tapIntentNotifier.setTapIntent(entity);
+  }
+
+  /// Shared decode path for both [processRemoteMessage] and
+  /// [processTapMessage]. Returns null on any failure (logs + swallows).
+  SystemEventEntity? _decodeMessage(Map<String, dynamic> rawData) {
     try {
       final normalized = Map<String, dynamic>.from(rawData);
       final payloadField = normalized['payload'];
@@ -169,19 +221,14 @@ class FCMHandler {
       }
 
       final model = SystemEventModel.fromJson(normalized);
-      final entity = model.toDomain();
-      if (entity == null) return;
-      // FCM payloads can be hours stale (tray notification tapped after
-      // the SLA window). Tag as `fcm` so the notifier's expiry filter
-      // uses the WS-anchored server-time estimate instead of this
-      // (potentially stale) timestamp.
-      _eventNotifier.processEvent(entity, source: SystemEventSource.fcm);
+      return model.toDomain();
     } catch (e, stack) {
       log(
-        'Failed to process FCM message: $e',
+        'Failed to decode FCM message: $e',
         name: _logName,
         stackTrace: stack,
       );
+      return null;
     }
   }
 

@@ -1425,12 +1425,13 @@ def mark_no_show(
 
 # Disputes can be opened from any post-CONFIRMED state, including terminal
 # completion / cancellation states (post-job dispute window). Pre-CONFIRMED
-# (AWAITING / PENDING / REJECTED) are not disputable — the booking never
-# became real work.
+# (AWAITING / PENDING / TECH_DECLINED / TECH_NO_RESPONSE) are not disputable
+# — the booking never became real work.
 _DISPUTE_DISALLOWED = frozenset({
     JobBooking.STATUS_PENDING,
     JobBooking.STATUS_AWAITING_TECH_ACCEPT,
-    JobBooking.STATUS_REJECTED,
+    JobBooking.STATUS_TECH_DECLINED,
+    JobBooking.STATUS_TECH_NO_RESPONSE,
 })
 
 

@@ -32,7 +32,10 @@ class BodySlot extends StatelessWidget {
         booking: booking,
       ),
       BookingStatus.cancelled => CancelledBodyStub(booking: booking),
-      BookingStatus.rejected => RejectedBodyStub(booking: booking),
+      // Both tech-failure terminal statuses share the same body stub —
+      // the BE drives all differential copy via the `ui` block.
+      BookingStatus.techDeclined ||
+      BookingStatus.techNoResponse => RejectedBodyStub(booking: booking),
       BookingStatus.noShow => NoShowBodyStub(booking: booking),
       BookingStatus.disputed => DisputedBodyStub(booking: booking),
       BookingStatus.pending ||

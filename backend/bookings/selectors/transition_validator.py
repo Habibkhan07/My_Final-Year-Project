@@ -66,7 +66,8 @@ _RESCHEDULE_FROM = frozenset({
 _DISPUTE_DISALLOWED = frozenset({
     JobBooking.STATUS_PENDING,
     JobBooking.STATUS_AWAITING_TECH_ACCEPT,
-    JobBooking.STATUS_REJECTED,
+    JobBooking.STATUS_TECH_DECLINED,
+    JobBooking.STATUS_TECH_NO_RESPONSE,
 })
 
 

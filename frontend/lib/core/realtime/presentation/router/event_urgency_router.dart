@@ -179,6 +179,45 @@ class EventUrgencyRouter {
   /// that targets a list-style screen (batched chat history, e.g.).
   static const _listRouteEvents = <SystemEventType>{};
 
+  // ─── Tap-intent entry point ───────────────────────────────────────────
+  //
+  // Driven by `FcmTapIntentNotifier` — the user has explicitly tapped a
+  // tray notification, so we route directly to the event's target screen.
+  // No banner, no `_isAlreadyOnEntity` guard, no urgency dispatch. The
+  // user's tap IS the intent.
+  //
+  // Route resolution order:
+  //   1. `_highUrgencyRoutes` (quote_generated, quote_approved,
+  //      job_completed, dispute_opened, dispute_resolved)
+  //   2. `_lowUrgencyTapRoutes` (everything else with a route)
+  // Falls back to a no-op if neither map has a route for the event type
+  // (chat / wallet placeholders, future events without registered routes).
+
+  /// Push the route this event targets, bypassing the banner path. Called
+  /// by `AppLifecycleOrchestrator` on `fcmTapIntentProvider` transitions.
+  /// Returns `true` when a route was pushed; `false` when the event type
+  /// has no registered route (no-op).
+  bool routeTapIntent(SystemEventEntity event, TargetRole currentUserRole) {
+    // Same role gate as `handleEvent` — a tap-intent for the wrong role
+    // (multi-account device race) shouldn't navigate the current user.
+    if (event.targetRole != currentUserRole) return false;
+    if (event.eventType == SystemEventType.unknown) return false;
+
+    final template =
+        _highUrgencyRoutes[event.eventType] ??
+        _lowUrgencyTapRoutes[event.eventType];
+    if (template == null) return false;
+
+    final ctx = navigatorKey.currentContext;
+    if (ctx == null) return false;
+
+    final resolved = _resolveTemplatedPath(template, event);
+    if (resolved == null) return false;
+
+    GoRouter.of(ctx).push(resolved, extra: jsonEncode(event.payload));
+    return true;
+  }
+
   // ─── Entry point ───────────────────────────────────────────────────────
 
   void handleEvent(

@@ -32,7 +32,13 @@ enum BookingStatus {
   completed,
   completedInspectionOnly,
   cancelled,
-  rejected,
+  // Tech-acceptance failure split (backend migration 0013). Pre-0013
+  // both pathways collapsed to a single `rejected`; the cause was
+  // carried only on the BOOKING_REJECTED event's `reason` field and
+  // was invisible to detail refetches. Now the status itself encodes
+  // the cause.
+  techDeclined,    // Tech actively tapped Decline.
+  techNoResponse,  // SLA timer fired before tech replied.
   noShow,
   disputed,
   pending,
@@ -49,7 +55,8 @@ enum BookingStatus {
     'COMPLETED': BookingStatus.completed,
     'COMPLETED_INSPECTION_ONLY': BookingStatus.completedInspectionOnly,
     'CANCELLED': BookingStatus.cancelled,
-    'REJECTED': BookingStatus.rejected,
+    'TECH_DECLINED': BookingStatus.techDeclined,
+    'TECH_NO_RESPONSE': BookingStatus.techNoResponse,
     'NO_SHOW': BookingStatus.noShow,
     'DISPUTED': BookingStatus.disputed,
     'PENDING': BookingStatus.pending,
@@ -65,7 +72,7 @@ enum BookingStatus {
   ///
   /// Used to gate live-relationship affordances like the counterparty
   /// call button: there's no reason to surface a "Call your technician"
-  /// link on a cancelled / rejected / no-show / disputed / completed
+  /// link on a cancelled / tech-failed / no-show / disputed / completed
   /// booking, and leaving the phone number permanently dial-able from
   /// a stale snapshot is a low-grade privacy regression. If the
   /// customer wants to reach the tech for a follow-up, that flows
@@ -75,7 +82,8 @@ enum BookingStatus {
       case BookingStatus.completed:
       case BookingStatus.completedInspectionOnly:
       case BookingStatus.cancelled:
-      case BookingStatus.rejected:
+      case BookingStatus.techDeclined:
+      case BookingStatus.techNoResponse:
       case BookingStatus.noShow:
       case BookingStatus.disputed:
         return true;
@@ -115,8 +123,10 @@ enum BookingStatus {
         return 'COMPLETED_INSPECTION_ONLY';
       case BookingStatus.cancelled:
         return 'CANCELLED';
-      case BookingStatus.rejected:
-        return 'REJECTED';
+      case BookingStatus.techDeclined:
+        return 'TECH_DECLINED';
+      case BookingStatus.techNoResponse:
+        return 'TECH_NO_RESPONSE';
       case BookingStatus.noShow:
         return 'NO_SHOW';
       case BookingStatus.disputed:

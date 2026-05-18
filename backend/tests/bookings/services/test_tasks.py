@@ -35,7 +35,8 @@ class TestExpirePendingJobBooking:
             JobBooking.STATUS_CONFIRMED,
             JobBooking.STATUS_COMPLETED,
             JobBooking.STATUS_CANCELLED,
-            JobBooking.STATUS_REJECTED,
+            JobBooking.STATUS_TECH_DECLINED,
+            JobBooking.STATUS_TECH_NO_RESPONSE,
         ],
     )
     def test_non_awaiting_status_is_noop(self, non_awaiting_status):
@@ -47,11 +48,11 @@ class TestExpirePendingJobBooking:
         booking.refresh_from_db()
         assert booking.status == non_awaiting_status
 
-    def test_awaiting_booking_is_flipped_to_rejected(self):
+    def test_awaiting_booking_is_flipped_to_tech_no_response(self):
         booking = JobBookingFactory(status=JobBooking.STATUS_AWAITING_TECH_ACCEPT)
         expire_pending_job_booking.run(booking.id)
         booking.refresh_from_db()
-        assert booking.status == JobBooking.STATUS_REJECTED
+        assert booking.status == JobBooking.STATUS_TECH_NO_RESPONSE
 
     def test_only_status_field_is_written(self):
         # We use update_fields=["status"] so unrelated columns are untouched.
@@ -67,13 +68,14 @@ class TestExpirePendingJobBooking:
         assert str(booking.price_amount) == original_price
 
     def test_idempotent_when_run_twice(self):
-        # Second run sees status=REJECTED and short-circuits — no double mutation
-        # and no exception. Critical for Celery retry semantics.
+        # Second run sees status=TECH_NO_RESPONSE and short-circuits — no
+        # double mutation and no exception. Critical for Celery retry
+        # semantics.
         booking = JobBookingFactory(status=JobBooking.STATUS_AWAITING_TECH_ACCEPT)
         expire_pending_job_booking.run(booking.id)
         expire_pending_job_booking.run(booking.id)  # second run is the test
         booking.refresh_from_db()
-        assert booking.status == JobBooking.STATUS_REJECTED
+        assert booking.status == JobBooking.STATUS_TECH_NO_RESPONSE
 
 
 # =====================================================================
@@ -122,6 +124,7 @@ class TestExpireEmitOnCommitSemantics:
         assert set(payload.keys()) == {
             "job_id",
             "technician_id",
+            "technician_display_name",
             "scheduled_start_iso",
             "service_name",
             "reason",
@@ -136,6 +139,14 @@ class TestExpireEmitOnCommitSemantics:
         assert payload["service_name"] == "AC Deep Wash"
         assert payload["job_id"] == booking.id
         assert payload["technician_id"] == booking.technician_id
+        # `technician_display_name` is server-composed so the FCM body
+        # builder can interpolate it without a follow-up profile fetch.
+        # The SLA-expiry task's select_related must cover technician__user
+        # for this access to avoid an extra query on the on_commit emit.
+        assert payload["technician_display_name"] == (
+            booking.technician.user.get_full_name()
+            or booking.technician.user.username
+        )
 
     def test_non_awaiting_booking_does_not_emit(self, mocker):
         broadcast = mocker.patch.object(
@@ -153,8 +164,8 @@ class TestExpireEmitOnCommitSemantics:
         assert broadcast.call_count == 0
 
     def test_idempotent_repeat_does_not_emit_a_second_event(self, mocker):
-        # First run: AWAITING → REJECTED, emits. Second run: status is
-        # REJECTED, the awaiting-guard short-circuits, no emit. Mirrors
+        # First run: AWAITING → TECH_NO_RESPONSE, emits. Second run: status is
+        # TECH_NO_RESPONSE, the awaiting-guard short-circuits, no emit. Mirrors
         # the technician-decline arm's idempotency contract.
         broadcast = mocker.patch.object(
             action_module.EventDispatchService, "broadcast_event"

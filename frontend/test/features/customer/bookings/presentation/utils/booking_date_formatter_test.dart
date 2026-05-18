@@ -115,7 +115,8 @@ void main() {
         BookingStatus.confirmed,
         BookingStatus.completed,
         BookingStatus.cancelled,
-        BookingStatus.rejected,
+        BookingStatus.techDeclined,
+        BookingStatus.techNoResponse,
         BookingStatus.pending,
         BookingStatus.unknown,
       ]) {

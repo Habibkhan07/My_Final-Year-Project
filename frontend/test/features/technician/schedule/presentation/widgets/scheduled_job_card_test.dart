@@ -297,10 +297,10 @@ void main() {
       expect(pushedId, isNull);
     });
 
-    testWidgets('terminal status (REJECTED) tap is no-op', (tester) async {
+    testWidgets('terminal status (TECH_DECLINED) tap is no-op', (tester) async {
       int? pushedId;
       final card = ScheduledJobCard(
-        job: _job(id: 9, status: BookingStatus.rejected),
+        job: _job(id: 9, status: BookingStatus.techDeclined),
         serverTime: DateTime(2026, 5, 5, 12, 0),
       );
       await tester.pumpWidget(

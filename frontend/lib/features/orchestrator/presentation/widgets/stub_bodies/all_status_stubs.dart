@@ -1137,13 +1137,17 @@ class CancelledBodyStub extends StatelessWidget {
   );
 }
 
+/// Shared body stub for both tech-acceptance failure terminal statuses
+/// (`techDeclined` + `techNoResponse`). The differential copy lives in
+/// the BE-driven `booking.ui.bodyText`; the status itself only picks
+/// the muted hero icon variant via [AnimatedStatusIcon].
 class RejectedBodyStub extends StatelessWidget {
   const RejectedBodyStub({super.key, required this.booking});
   final BookingDetail booking;
 
   @override
   Widget build(BuildContext context) => _AnimatedBody(
-    status: BookingStatus.rejected,
+    status: booking.status,
     message: booking.ui.bodyText,
   );
 }

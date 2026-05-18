@@ -54,12 +54,13 @@ class TestJobBookingStatusField:
                     assert value in choice_keys, f'{attr} missing from STATUS_CHOICES'
 
     def test_terminal_statuses_set(self):
-        # The orchestrator depends on this set being exactly these six.
+        # The orchestrator depends on this set being exactly these seven.
         assert JobBooking.TERMINAL_STATUSES == frozenset({
             JobBooking.STATUS_COMPLETED,
             JobBooking.STATUS_COMPLETED_INSPECTION_ONLY,
             JobBooking.STATUS_CANCELLED,
-            JobBooking.STATUS_REJECTED,
+            JobBooking.STATUS_TECH_DECLINED,
+            JobBooking.STATUS_TECH_NO_RESPONSE,
             JobBooking.STATUS_NO_SHOW,
             JobBooking.STATUS_DISPUTED,
         })
