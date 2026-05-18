@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../customer/bookings/domain/entities/booking_status.dart';
 import '../../../domain/entities/booking_detail.dart';
 import '../../../domain/entities/booking_ui_block.dart';
 import '../booking_orchestrator_action_button.dart';
@@ -45,8 +46,16 @@ class SecondaryActionsSlot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isInProgress = booking.status == BookingStatus.inProgress;
+
     final forwardActions = <BookingUiAction>[];
     for (final action in booking.ui.secondaryActions) {
+      if (isInProgress &&
+          (action.endpoint.endsWith('/quotes/') ||
+              action.endpoint.endsWith('/decline/') ||
+              action.endpoint.endsWith('/request-revision/'))) {
+        continue;
+      }
       // Destructive-style actions are normally filtered out of the
       // happy-path row (cancels live behind Help). The exception is
       // /decline/: the backend tags `decline_quote` and `decline upsell`

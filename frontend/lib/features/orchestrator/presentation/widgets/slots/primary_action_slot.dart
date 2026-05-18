@@ -42,6 +42,11 @@ class PrimaryActionSlot extends ConsumerWidget {
     final action = booking.ui.primaryAction;
     if (action == null) return const SizedBox.shrink();
 
+    if (booking.status == BookingStatus.inProgress &&
+        action.endpoint.endsWith('/approve/')) {
+      return const SizedBox.shrink();
+    }
+
     if (action.endpoint.endsWith('/customer-arriving/') &&
         booking.viewerRole == BookingOrchestratorRole.customer) {
       return Padding(
