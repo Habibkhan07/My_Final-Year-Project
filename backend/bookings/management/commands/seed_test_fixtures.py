@@ -192,7 +192,13 @@ class Command(BaseCommand):
         profile, profile_created = TechnicianProfile.objects.get_or_create(
             user=user,
             defaults={
-                'city': 'ISL',
+                # Demo tech is physically in Lahore Gulberg per
+                # TECH_BASE_LAT/LNG below; keep `city` aligned so the
+                # technician's city enum matches their actual coords.
+                # Mirror the same flip in
+                # technicians/.../seed_online_toggle.py (which also
+                # creates this row depending on demo_journey.sh order).
+                'city': 'LHR',
                 'cnic_number': '35202-1111111-1',
                 'status': 'APPROVED',
                 'base_latitude': TECH_BASE_LAT,

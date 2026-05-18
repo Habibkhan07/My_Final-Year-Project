@@ -236,11 +236,19 @@ class Command(BaseCommand):
         tech, created_tech = TechnicianProfile.objects.get_or_create(
             user=user,
             defaults={
-                'city': 'ISL',
+                # Demo-journey location: Lahore Gulberg II, ~1.5 km north
+                # of the customer's Liberty Market pin seeded by
+                # `seed_test_fixtures`. Both seeders run during
+                # `demo_journey.sh` (this one first via `get_or_create`),
+                # so the coords MUST agree or the tech ends up in the
+                # wrong city for the demo. Keep these two files in lockstep:
+                #   - technicians/.../seed_online_toggle.py  (this file)
+                #   - bookings/.../seed_test_fixtures.py     (TECH_BASE_LAT/LNG)
+                'city': 'LHR',
                 'cnic_number': '35202-1111111-1',
                 'status': 'APPROVED',
-                'base_latitude': 33.6970,
-                'base_longitude': 73.0525,
+                'base_latitude': 31.5230,
+                'base_longitude': 74.3478,
                 'is_onboarding_complete': True,
                 'is_active': True,
                 'rating_average': Decimal('4.80'),
