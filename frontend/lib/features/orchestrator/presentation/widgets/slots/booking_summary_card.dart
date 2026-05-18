@@ -273,7 +273,10 @@ class _CallIconButton extends StatelessWidget {
         customBorder: const CircleBorder(),
         onTap: onTap,
         child: const Padding(
-          padding: EdgeInsets.all(8),
+          // 12-px padding around a 20-px icon → 44-dp circle (Material
+          // AA hit-target floor). The prior `all(8)` produced a 36-dp
+          // circle which failed the touch-size guideline on every shot.
+          padding: EdgeInsets.all(12),
           child: Icon(
             Icons.phone_rounded,
             size: 20,

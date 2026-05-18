@@ -404,7 +404,13 @@ class _StatusChipState extends State<_StatusChip>
 
   @override
   Widget build(BuildContext context) {
-    final hasSubtitle = widget.subtitle.isNotEmpty;
+    // Defensive dedupe: when the server emits the same string for both
+    // statusLabel and subtitle (a known recurring backend copy bug —
+    // see e.g. "Waiting for approval · Waiting for approval"), hide
+    // the subtitle so the pill doesn't visually stutter. The trim()
+    // is paranoia against trailing-whitespace drift between fields.
+    final hasSubtitle = widget.subtitle.isNotEmpty &&
+        widget.subtitle.trim() != widget.statusLabel.trim();
     return Container(
       padding: EdgeInsets.symmetric(
         horizontal: 12,

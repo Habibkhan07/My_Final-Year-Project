@@ -12,6 +12,7 @@ import '../../../../../core/widgets/map/job_location_map.dart';
 import '../../../../orchestrator/domain/entities/booking_ui_block.dart';
 import '../../../../orchestrator/presentation/providers/booking_action_executor.dart';
 import '../../../../orchestrator/presentation/providers/booking_detail_provider.dart';
+import '../../../../orchestrator/presentation/widgets/_palette/orchestrator_palette.dart';
 import '../../../location_broadcaster/presentation/providers/dependency_injection.dart';
 
 /// Single source of truth for the technician's "I'm leaving for the
@@ -44,7 +45,6 @@ class TechNavigationPanel extends ConsumerStatefulWidget {
     super.key,
     required this.destLat,
     required this.destLng,
-    this.customerPhone,
     this.bookingId,
     this.flipAction,
     this.mapHeight = 200,
@@ -52,7 +52,6 @@ class TechNavigationPanel extends ConsumerStatefulWidget {
 
   final double destLat;
   final double destLng;
-  final String? customerPhone;
 
   /// When provided, tapping Start Navigation also POSTs `/en-route/` to
   /// flip the booking status. Null in tests or for surfaces that should
@@ -234,37 +233,14 @@ class _TechNavigationPanelState extends ConsumerState<TechNavigationPanel> {
     }
   }
 
-  Future<void> _onCall() async {
-    final messenger = ScaffoldMessenger.of(context);
-    final phone = widget.customerPhone;
-    if (phone == null || phone.isEmpty) {
-      messenger
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          const SnackBar(content: Text('Customer phone unavailable.')),
-        );
-      return;
-    }
-    final uri = Uri(scheme: 'tel', path: phone);
-    try {
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri);
-        return;
-      }
-    } catch (_) {
-      // Fall through to the snack.
-    }
-    messenger
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        const SnackBar(content: Text('Calls are not supported on this device.')),
-      );
-  }
-
   @override
   Widget build(BuildContext context) {
-    final phoneAvailable =
-        widget.customerPhone != null && widget.customerPhone!.isNotEmpty;
+    // Contact Customer button intentionally dropped (was a grey-fill
+    // outlined affordance below Start Navigation). The orchestrator's
+    // pinned BookingSummaryCard already carries a brand-blue phone-call
+    // icon, so a second contact-customer surface on the same screen
+    // read as a duplicate / disabled-looking competing CTA. Source of
+    // truth for tech-side calls is the summary strip.
     return Column(
       children: [
         JobLocationMap(
@@ -275,8 +251,6 @@ class _TechNavigationPanelState extends ConsumerState<TechNavigationPanel> {
         ),
         const SizedBox(height: 12),
         _StartNavigationButton(onTap: _onStartNavigation, busy: _flipping),
-        const SizedBox(height: 8),
-        _CallCustomerButton(onTap: _onCall, enabled: phoneAvailable),
       ],
     );
   }
@@ -299,16 +273,15 @@ class _StartNavigationButton extends StatelessWidget {
         child: Container(
           height: 56,
           width: double.infinity,
+          // 16-radius rectangle + brand shadow brings the button in
+          // line with the rest of the orchestrator's primary CTA family
+          // (action button, countdown, quote builder Send). The prior
+          // stadium-pill (radiusXL = 28) was the only rounded-pill CTA
+          // in the orchestrator's surface, breaking the visual recipe.
           decoration: BoxDecoration(
             gradient: AppColors.ctaGradient,
-            borderRadius: BorderRadius.circular(AppShapes.radiusXL),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.primaryContainer.withValues(alpha: 0.2),
-                blurRadius: 16,
-                offset: const Offset(0, 4),
-              ),
-            ],
+            borderRadius: BorderRadius.circular(AppShapes.radiusLG),
+            boxShadow: OrchestratorPalette.brandActionShadow,
           ),
           child: busy
               ? const Center(
@@ -342,41 +315,3 @@ class _StartNavigationButton extends StatelessWidget {
   }
 }
 
-class _CallCustomerButton extends StatelessWidget {
-  const _CallCustomerButton({required this.onTap, required this.enabled});
-  final VoidCallback onTap;
-  final bool enabled;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: enabled ? onTap : null,
-      child: Opacity(
-        opacity: enabled ? 1.0 : 0.5,
-        child: Container(
-          height: 48,
-          width: double.infinity,
-          decoration: BoxDecoration(
-            color: AppColors.surfaceContainerLow,
-            borderRadius: BorderRadius.circular(AppShapes.radiusXL),
-          ),
-          child: const Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.phone_outlined, size: 16, color: AppColors.onSurface),
-              SizedBox(width: 6),
-              Text(
-                'Contact Customer',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.onSurface,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}

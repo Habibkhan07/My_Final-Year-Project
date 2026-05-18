@@ -414,7 +414,6 @@ class ConfirmedBodyStub extends ConsumerWidget {
         child: TechNavigationPanel(
           destLat: addr.latitude,
           destLng: addr.longitude,
-          customerPhone: booking.customer.phoneNo,
           bookingId: booking.id,
           // Pass the server-emitted action (PrimaryActionSlot suppresses
           // it for this case, but the server is still the source of
@@ -477,6 +476,7 @@ class EnRouteBodyStub extends StatelessWidget {
       bookingId: booking.id,
       destination: destination,
       callTarget: callTarget,
+      viewerIsTechnician: isTech,
     );
     final bodyText = Text(
       booking.ui.bodyText,
@@ -548,11 +548,18 @@ class _EnRouteMapLeaf extends ConsumerWidget {
     required this.bookingId,
     required this.destination,
     required this.callTarget,
+    required this.viewerIsTechnician,
   });
 
   final int bookingId;
   final LatLng destination;
   final ({String? phone, String tooltip}) callTarget;
+
+  /// Forwarded to `LiveTrackingMap` so the no-frame-yet pill renders
+  /// tech-self copy ("Acquiring GPS fix…") instead of customer copy
+  /// ("Waiting for technician's location…"). Source-of-truth is
+  /// `EnRouteBodyStub.isTech`.
+  final bool viewerIsTechnician;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -572,6 +579,7 @@ class _EnRouteMapLeaf extends ConsumerWidget {
         phase: TrackingPhase.enRoute,
         callPhoneNumber: callTarget.phone,
         callTooltip: callTarget.tooltip,
+        viewerIsTechnician: viewerIsTechnician,
       ),
     );
   }

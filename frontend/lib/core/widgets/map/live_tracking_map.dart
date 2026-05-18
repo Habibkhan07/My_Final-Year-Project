@@ -102,6 +102,14 @@ class LiveTrackingMap extends ConsumerStatefulWidget {
   /// / non-finite values hide the ring entirely.
   final double? accuracyMeters;
 
+  /// When true, the no-frame-yet pill renders tech-side copy
+  /// ("Acquiring GPS fix…") instead of the customer-side copy
+  /// ("Waiting for technician's location…"). On the tech's own device
+  /// the customer copy reads as "the system is broken" — they ARE the
+  /// technician. Default false preserves all existing call sites
+  /// (customer views).
+  final bool viewerIsTechnician;
+
   const LiveTrackingMap({
     super.key,
     required this.technicianPosition,
@@ -112,6 +120,7 @@ class LiveTrackingMap extends ConsumerStatefulWidget {
     this.callPhoneNumber,
     this.callTooltip = 'Call',
     this.accuracyMeters,
+    this.viewerIsTechnician = false,
   });
 
   @override
@@ -827,7 +836,9 @@ class _LiveTrackingMapState extends ConsumerState<LiveTrackingMap>
           child: Column(
             children: [
               if (widget.technicianPosition == null)
-                const _WaitingForFirstFramePill()
+                _WaitingForFirstFramePill(
+                  viewerIsTechnician: widget.viewerIsTechnician,
+                )
               else
                 _ConnectionStrip(quality: quality),
             ],
@@ -1088,17 +1099,30 @@ class _ConnectionStrip extends StatelessWidget {
 }
 
 class _WaitingForFirstFramePill extends StatelessWidget {
-  const _WaitingForFirstFramePill();
+  const _WaitingForFirstFramePill({this.viewerIsTechnician = false});
+
+  /// When true, render the tech-self copy ("Acquiring GPS fix…")
+  /// instead of the customer-watching-tech copy. The customer copy on
+  /// the tech's own device reads as "the system can't find the
+  /// technician" — but the technician IS the technician, so the
+  /// message implies their own GPS is missing.
+  final bool viewerIsTechnician;
 
   @override
   Widget build(BuildContext context) {
     // Audit W-38 (Batch G): liveRegion announces the appearance to
     // TalkBack so a customer on the orchestrator screen knows the
     // app is waiting (vs sitting silently with a blank map).
+    final label = viewerIsTechnician
+        ? 'Acquiring GPS fix'
+        : "Waiting for technician's location";
+    final body = viewerIsTechnician
+        ? 'Acquiring GPS fix…'
+        : "Waiting for technician's location…";
     return Semantics(
       liveRegion: true,
       container: true,
-      label: "Waiting for technician's location",
+      label: label,
       excludeSemantics: true,
       child: Material(
         elevation: 2,
@@ -1107,8 +1131,8 @@ class _WaitingForFirstFramePill extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           child: Row(
-            children: const [
-              SizedBox(
+            children: [
+              const SizedBox(
                 width: 16,
                 height: 16,
                 child: CircularProgressIndicator(
@@ -1116,11 +1140,11 @@ class _WaitingForFirstFramePill extends StatelessWidget {
                   color: Color(0xFF1565C0),
                 ),
               ),
-              SizedBox(width: 12),
+              const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  "Waiting for technician's location…",
-                  style: TextStyle(
+                  body,
+                  style: const TextStyle(
                     fontSize: 14,
                     color: Color(0xFF0D47A1),
                     fontWeight: FontWeight.w500,

@@ -246,7 +246,10 @@ class _QuoteBuilderSheetState extends ConsumerState<QuoteBuilderSheet> {
             children: [
               Row(
                 children: [
-                  Icon(Icons.receipt_long_rounded, color: colors.primary),
+                  const Icon(
+                    Icons.receipt_long_rounded,
+                    color: OrchestratorPalette.brandPrimary,
+                  ),
                   const SizedBox(width: 8),
                   Text(
                     _isUpsell ? 'Add upsell' : 'Build quote',
@@ -257,11 +260,14 @@ class _QuoteBuilderSheetState extends ConsumerState<QuoteBuilderSheet> {
                 ],
               ),
               const SizedBox(height: 6),
+              // Tightened subtitle copy (was 15+ words, was over the
+              // short-copy budget per `feedback_short_ui_copy`). Both
+              // variants now lead with "Customer must approve" so the
+              // tech immediately knows the next handoff.
               Text(
                 _isUpsell
-                    ? 'Add new line items to the in-progress job. The customer '
-                        'will be asked to approve the extras before they are charged.'
-                    : 'Customer reviews and approves before any repair work begins.',
+                    ? 'Customer must approve the extras before charging.'
+                    : 'Customer must approve before work starts.',
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: colors.onSurfaceVariant,
                 ),
@@ -314,14 +320,23 @@ class _QuoteBuilderSheetState extends ConsumerState<QuoteBuilderSheet> {
                 },
               ),
               const SizedBox(height: 12),
+              // Total panel matches the customer-facing QuoteSummaryCard
+              // (brand-blue tinted bg + brand-blue w900 amount) so the
+              // tech sees the same money treatment they're about to send
+              // to the customer. This was the visual that read as a flat
+              // grey footer before the chunk-2 polish.
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 14,
-                  vertical: 12,
+                  vertical: 14,
                 ),
                 decoration: BoxDecoration(
-                  color: colors.surfaceContainer,
+                  color: OrchestratorPalette.brandPrimaryTint06,
                   borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: OrchestratorPalette.brandPrimary
+                        .withValues(alpha: 0.18),
+                  ),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -329,13 +344,15 @@ class _QuoteBuilderSheetState extends ConsumerState<QuoteBuilderSheet> {
                     Text(
                       'Total',
                       style: theme.textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.w700,
+                        color: OrchestratorPalette.inkPrimary,
                       ),
                     ),
                     Text(
                       'Rs. ${formatRupees(_total)}',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w900,
+                        color: OrchestratorPalette.brandPrimary,
                       ),
                     ),
                   ],
@@ -379,10 +396,13 @@ class _QuoteBuilderSheetState extends ConsumerState<QuoteBuilderSheet> {
                       ),
               ),
               const SizedBox(height: 4),
+              // Cancel is neutralised (inkSecondary) so the sheet's only
+              // brand-blue surface is the Send-quote primary above. Two
+              // brand-blue actions on one sheet read as competing CTAs.
               TextButton(
                 onPressed: _busy ? null : () => Navigator.of(context).pop(false),
                 style: TextButton.styleFrom(
-                  foregroundColor: OrchestratorPalette.brandPrimary,
+                  foregroundColor: OrchestratorPalette.inkSecondary,
                 ),
                 child: const Text(
                   'Cancel',
@@ -542,31 +562,99 @@ class _LineEditor extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Expanded(
-                child: TextField(
-                  controller: draft.priceController,
-                  onChanged: (_) => onPriceChanged(),
-                  // Locked on fixed-price: read-only via `enabled: false`.
-                  // Field still shows the value (driven by the controller)
-                  // but tap doesn't surface the keyboard.
-                  enabled: !isFixed,
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  decoration: InputDecoration(
-                    labelText: isFixed ? 'Price (locked)' : 'Price (Rs.)',
-                    isDense: true,
-                    prefixText: 'Rs. ',
-                    suffixIcon: isFixed
-                        ? const Icon(Icons.lock_outline, size: 16)
-                        : null,
-                    errorText: chosen == null
-                        ? null
-                        : _priceError(chosen, draft.priceController.text),
-                  ),
-                ),
+                // Fixed-price items render as a bold static tile + lock
+                // chip instead of a disabled TextField. The disabled
+                // field read as broken on screenshots (a tappable-looking
+                // box that did nothing); the static tile communicates
+                // "this price isn't editable" up front.
+                child: isFixed
+                    ? _LockedPriceTile(price: draft.priceController.text)
+                    : TextField(
+                        controller: draft.priceController,
+                        onChanged: (_) => onPriceChanged(),
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                        ],
+                        decoration: InputDecoration(
+                          labelText: 'Price (Rs.)',
+                          isDense: true,
+                          prefixText: 'Rs. ',
+                          errorText: chosen == null
+                              ? null
+                              : _priceError(
+                                  chosen,
+                                  draft.priceController.text,
+                                ),
+                        ),
+                      ),
               ),
               const SizedBox(width: 16),
               _QtyStepper(value: draft.qty, onChanged: onQtyChanged),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Static replacement for the disabled price TextField when the chosen
+/// sub-service is fixed-price. Renders the rupee figure as bold ink
+/// next to a brand-blue "Fixed" chip + lock icon. The TextField recipe
+/// read as "broken input" on the previous design (a tap target that
+/// did nothing); this tile reads as "this is the price, no input
+/// needed" at a glance.
+class _LockedPriceTile extends StatelessWidget {
+  const _LockedPriceTile({required this.price});
+
+  final String price;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      // Vertical padding matches the dense TextField's baseline so
+      // switching catalog items doesn't visually jump the row height.
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Row(
+        children: [
+          Text(
+            'Rs. $price',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w900,
+              color: OrchestratorPalette.inkPrimary,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: OrchestratorPalette.brandPrimaryTint06,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color:
+                    OrchestratorPalette.brandPrimary.withValues(alpha: 0.24),
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.lock_outline_rounded,
+                  size: 12,
+                  color: OrchestratorPalette.brandPrimary,
+                ),
+                const SizedBox(width: 3),
+                Text(
+                  'Fixed',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: OrchestratorPalette.brandPrimary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
