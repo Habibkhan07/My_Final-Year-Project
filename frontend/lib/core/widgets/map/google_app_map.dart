@@ -1,5 +1,8 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show Factory;
+import 'package:flutter/gestures.dart'
+    show EagerGestureRecognizer, OneSequenceGestureRecognizer;
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart' as gmaps;
 import 'package:latlong2/latlong.dart';
@@ -24,6 +27,8 @@ class GoogleAppMap extends StatefulWidget implements IAppMap {
   @override
   final List<MapPolyline> polylines;
   @override
+  final List<MapCircle> circles;
+  @override
   final LatLng? cameraTarget;
   @override
   final double? cameraZoom;
@@ -38,6 +43,7 @@ class GoogleAppMap extends StatefulWidget implements IAppMap {
     this.initialZoom = 15.0,
     this.markers = const [],
     this.polylines = const [],
+    this.circles = const [],
     this.cameraTarget,
     this.cameraZoom,
     this.cameraBounds,
@@ -52,46 +58,158 @@ class _GoogleAppMapState extends State<GoogleAppMap> {
   final Completer<gmaps.GoogleMapController> _controllerCompleter =
       Completer<gmaps.GoogleMapController>();
 
-  /// gmaps marker set, recomputed when `widget.markers` change. We
-  /// resolve `BitmapDescriptor` futures and only setState once all
-  /// descriptors for the current set are ready — keeps the marker
-  /// list visually stable (no "pop-in").
-  Set<gmaps.Marker> _renderedMarkers = const {};
+  /// GMAP-P1 (audit P1.3): icon descriptors cached per (kind, dpr) so
+  /// `build()` constructs the gmaps.Marker Set synchronously from the
+  /// current widget state. Pre-fix every tween tick (60Hz during the
+  /// marker animation) fired an async `_resolveMarkers` cascade —
+  /// `setState` + GoogleMap diff per frame — that contributed to
+  /// gesture flakiness during the active animation. Now the async
+  /// work runs ONCE per unique (kind, dpr) and tween position updates
+  /// flow straight through `build()` with no extra setState.
+  ///
+  /// Cache shape uses a record key so two distinct device pixel
+  /// ratios on the same kind don't collide (an Android tablet whose
+  /// display config changes mid-session — rare but defended).
+  final Map<({MarkerKind kind, double dpr}), gmaps.BitmapDescriptor>
+      _iconCache = {};
 
   bool _programmaticMoveInFlight = false;
+
+  /// GMAP-P3 (audit "slow to move" bulletproof Tier 1): stable
+  /// reference to the gesture recognizer Factory Set shared across
+  /// every GoogleAppMap instance and every build().
+  ///
+  /// Pre-fix this Set lived inline inside `build()` — a fresh
+  /// `Set<Factory>` containing a fresh `Factory` containing a fresh
+  /// closure was allocated on every rebuild. `Factory` doesn't
+  /// override `==`, so google_maps_flutter's diff compared old vs
+  /// new gestureRecognizers by element identity and saw "different"
+  /// on every rebuild → rebound the platform view's gesture recognizers
+  /// at 60Hz during the marker tween. The pinch/pan state machine
+  /// was constantly being reset mid-touch.
+  ///
+  /// Sharing the factory Set across instances is safe: factories are
+  /// templates and the plugin invokes `factory.constructor()` per
+  /// platform view to obtain a fresh recognizer instance. EagerGesture-
+  /// Recognizer has no per-instance state that would leak.
+  static final Set<Factory<OneSequenceGestureRecognizer>>
+      _gestureRecognizers = <Factory<OneSequenceGestureRecognizer>>{
+    Factory<OneSequenceGestureRecognizer>(
+      () => EagerGestureRecognizer(),
+    ),
+  };
+
+  /// GMAP-P3: cached at first build, reused on every subsequent build.
+  /// `initialCameraPosition` is consumed exactly once by the plugin
+  /// (when the platform view first mounts), so identity stability
+  /// across rebuilds isn't load-bearing — caching it is tidiness, not
+  /// correctness. The reused reference still keeps the build() body
+  /// allocation-free during the tween hot path.
+  late final gmaps.CameraPosition _initialCameraPosition =
+      gmaps.CameraPosition(
+        target: gmaps.LatLng(
+          widget.initialCenter.latitude,
+          widget.initialCenter.longitude,
+        ),
+        zoom: widget.initialZoom,
+      );
+
+  /// GMAP-P3: stable callback identities. Pre-fix `onMapCreated` and
+  /// `onCameraMoveStarted` were inline closures inside build(), so
+  /// google_maps_flutter saw "new callback reference" on every rebuild
+  /// and re-registered the platform-side listeners. Captured as
+  /// `late final` so identity is stable; the closure body resolves
+  /// `widget.onUserGesture` and `_programmaticMoveInFlight` dynamically
+  /// per-call (same behaviour as the original inline closures).
+  late final void Function(gmaps.GoogleMapController) _onMapCreated =
+      (controller) {
+        if (!_controllerCompleter.isCompleted) {
+          _controllerCompleter.complete(controller);
+        }
+      };
+
+  late final VoidCallback _onCameraMoveStarted = () {
+    if (!_programmaticMoveInFlight) {
+      widget.onUserGesture?.call();
+    }
+  };
 
   @override
   void initState() {
     super.initState();
-    unawaited(_resolveMarkers(widget.markers));
+    unawaited(_ensureIconsForCurrentMarkers());
   }
 
   @override
   void didUpdateWidget(covariant GoogleAppMap oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (!GoogleAppMapInternals.markersEqual(
-      oldWidget.markers,
-      widget.markers,
-    )) {
-      unawaited(_resolveMarkers(widget.markers));
+    // GMAP-P1: only fire async icon resolution when a NEW kind appears
+    // (rare — once per kind at mount). Position / rotation updates are
+    // picked up by `build()` reading from `_iconCache` synchronously,
+    // so the tween hot path no longer triggers setState on this widget.
+    final newKinds = widget.markers.map((m) => m.kind).toSet();
+    final oldKinds = oldWidget.markers.map((m) => m.kind).toSet();
+    if (newKinds.difference(oldKinds).isNotEmpty) {
+      unawaited(_ensureIconsForCurrentMarkers());
     }
     _maybeApplyCamera(oldWidget);
   }
 
-  Future<void> _resolveMarkers(List<MapMarker> incoming) async {
-    // Audit M-3 (Batch C): pass the host device's pixel ratio through
-    // to the marker factory so the cache key + bitmap rendering match
-    // the device. `View.of(context)` works from initState (unlike
-    // `MediaQuery.of(context)` which requires the inherited-widget
-    // tree to be ready).
+  /// Resolves icon descriptors for any marker kinds present on the
+  /// current widget but missing from the cache. Idempotent — calling
+  /// twice when nothing's missing is a no-op (no setState, no future).
+  ///
+  /// Audit M-3 (Batch C): pass the host device's pixel ratio through
+  /// to the marker factory so the cache key + bitmap rendering match
+  /// the device. `View.of(context)` works from initState (unlike
+  /// `MediaQuery.of(context)` which requires the inherited-widget
+  /// tree to be ready).
+  Future<void> _ensureIconsForCurrentMarkers() async {
     final dpr = View.of(context).devicePixelRatio;
-    final resolved = await GoogleAppMapInternals.resolveAllMarkers(
-      incoming,
-      resolveIcon: (kind) =>
-          LiveMarkerFactory.buildGoogleMarker(kind, devicePixelRatio: dpr),
+    final neededKinds = widget.markers.map((m) => m.kind).toSet();
+    final missing = neededKinds
+        .where((k) => !_iconCache.containsKey((kind: k, dpr: dpr)))
+        .toList(growable: false);
+    if (missing.isEmpty) return;
+
+    final entries = await Future.wait(
+      missing.map((k) async {
+        final desc = await LiveMarkerFactory.buildGoogleMarker(
+          k,
+          devicePixelRatio: dpr,
+        );
+        return MapEntry((kind: k, dpr: dpr), desc);
+      }),
     );
     if (!mounted) return;
-    setState(() => _renderedMarkers = resolved);
+    setState(() {
+      _iconCache.addEntries(entries);
+    });
+  }
+
+  /// Synchronously constructs the gmaps.Marker Set from the current
+  /// `widget.markers` + the resolved icon cache. Markers whose icon
+  /// hasn't resolved yet are skipped — transient, same UX as the
+  /// pre-fix "wait for resolution" path (which simply rendered an
+  /// empty set during the same window).
+  Set<gmaps.Marker> _buildSyncMarkerSet() {
+    final dpr = View.of(context).devicePixelRatio;
+    final markers = <gmaps.Marker>{};
+    for (final m in widget.markers) {
+      final icon = _iconCache[(kind: m.kind, dpr: dpr)];
+      if (icon == null) continue;
+      markers.add(
+        gmaps.Marker(
+          markerId: gmaps.MarkerId(m.id),
+          position: gmaps.LatLng(m.position.latitude, m.position.longitude),
+          rotation: m.rotationDegrees,
+          anchor: const Offset(0.5, 0.5),
+          icon: icon,
+          flat: true,
+        ),
+      );
+    }
+    return markers;
   }
 
   Future<void> _maybeApplyCamera(GoogleAppMap oldWidget) async {
@@ -159,19 +277,9 @@ class _GoogleAppMapState extends State<GoogleAppMap> {
   @override
   Widget build(BuildContext context) {
     return gmaps.GoogleMap(
-      initialCameraPosition: gmaps.CameraPosition(
-        target: gmaps.LatLng(
-          widget.initialCenter.latitude,
-          widget.initialCenter.longitude,
-        ),
-        zoom: widget.initialZoom,
-      ),
-      onMapCreated: (controller) {
-        if (!_controllerCompleter.isCompleted) {
-          _controllerCompleter.complete(controller);
-        }
-      },
-      markers: _renderedMarkers,
+      initialCameraPosition: _initialCameraPosition,
+      onMapCreated: _onMapCreated,
+      markers: _buildSyncMarkerSet(),
       polylines: widget.polylines
           .map(
             (p) => gmaps.Polyline(
@@ -184,17 +292,36 @@ class _GoogleAppMapState extends State<GoogleAppMap> {
             ),
           )
           .toSet(),
+      // P2: GPS accuracy circles. Google natively interprets `radius`
+      // in metres, so the value passes through unchanged. Circles
+      // render below markers + polylines by default in google_maps_flutter
+      // so the tech bubble + route line stay visually on top.
+      circles: widget.circles
+          .map(
+            (c) => gmaps.Circle(
+              circleId: gmaps.CircleId(c.id),
+              center: gmaps.LatLng(c.center.latitude, c.center.longitude),
+              radius: c.radiusMeters,
+              fillColor: c.fillColor,
+              strokeColor: c.strokeColor,
+              strokeWidth: c.strokeWidth.round(),
+            ),
+          )
+          .toSet(),
       // We own the recentre / follow logic. The native FAB is noise.
       myLocationEnabled: false,
       myLocationButtonEnabled: false,
       compassEnabled: false,
       mapToolbarEnabled: false,
       zoomControlsEnabled: false,
-      onCameraMoveStarted: () {
-        if (!_programmaticMoveInFlight) {
-          widget.onUserGesture?.call();
-        }
-      },
+      // GMAP-P3 (audit bulletproof Tier 1): static-final Set hoisted
+      // out of build(). See `_gestureRecognizers` docstring above.
+      gestureRecognizers: _gestureRecognizers,
+      // GMAP-P3: stable callback identity — see `_onCameraMoveStarted`
+      // docstring. Pre-fix this was a fresh closure on every rebuild,
+      // causing the plugin to re-bind the platform-side listener at
+      // 60Hz during the marker tween.
+      onCameraMoveStarted: _onCameraMoveStarted,
     );
   }
 }

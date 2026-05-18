@@ -51,6 +51,7 @@ import 'package:latlong2/latlong.dart';
 class MapProbe {
   static List<MapMarker> markers = const [];
   static List<MapPolyline> polylines = const [];
+  static List<MapCircle> circles = const [];
   static LatLng? cameraTarget;
   static double? cameraZoom;
   static List<LatLng>? cameraBounds;
@@ -60,6 +61,7 @@ class MapProbe {
   static void reset() {
     markers = const [];
     polylines = const [];
+    circles = const [];
     cameraTarget = null;
     cameraZoom = null;
     cameraBounds = null;
@@ -85,6 +87,8 @@ class _StubAppMap extends StatelessWidget implements IAppMap {
   @override
   final List<MapPolyline> polylines;
   @override
+  final List<MapCircle> circles;
+  @override
   final LatLng? cameraTarget;
   @override
   final double? cameraZoom;
@@ -98,6 +102,7 @@ class _StubAppMap extends StatelessWidget implements IAppMap {
     this.initialZoom = 15.0,
     this.markers = const [],
     this.polylines = const [],
+    this.circles = const [],
     this.cameraTarget,
     this.cameraZoom,
     this.cameraBounds,
@@ -108,6 +113,7 @@ class _StubAppMap extends StatelessWidget implements IAppMap {
   Widget build(BuildContext context) {
     MapProbe.markers = markers;
     MapProbe.polylines = polylines;
+    MapProbe.circles = circles;
     MapProbe.cameraTarget = cameraTarget;
     MapProbe.cameraZoom = cameraZoom;
     MapProbe.cameraBounds = cameraBounds;
@@ -123,6 +129,7 @@ AppMapBuilder _stubBuilder() {
     initialZoom = 15.0,
     markers = const [],
     polylines = const [],
+    circles = const [],
     cameraTarget,
     cameraZoom,
     cameraBounds,
@@ -132,6 +139,7 @@ AppMapBuilder _stubBuilder() {
     initialZoom: initialZoom,
     markers: markers,
     polylines: polylines,
+    circles: circles,
     cameraTarget: cameraTarget,
     cameraZoom: cameraZoom,
     cameraBounds: cameraBounds,
@@ -553,8 +561,14 @@ void main() {
 
   testWidgets(
     'T-2e tapping the recentre FAB re-engages auto-follow and pushes '
-    'cameraTarget=tech position',
+    'cameraBounds=[tech, destination] (P2 dynamic bounds-follow)',
     (tester) async {
+      // P2: recentre on EN_ROUTE triggers a bounds-fit, not a target
+      // + fixed-zoom snap. Pre-P2 this asserted on `cameraTarget`
+      // + `_kFollowZoom=16`; the new declarative bounds-follow keeps
+      // both tech and destination in frame as the tech approaches,
+      // so the camera state we expect is a bounds list with the two
+      // endpoints (target stays null).
       final fake = _FakeDirectionsService()
         ..responses = [_result(etaSeconds: 180)];
       final c = _container(directions: fake);
@@ -580,18 +594,63 @@ void main() {
       await tester.tap(find.byIcon(Icons.my_location));
       await tester.pump();
 
-      // Right after tap, before the post-frame clear, cameraTarget
-      // should hold the tech position.
-      expect(MapProbe.cameraTarget?.latitude, closeTo(techStart.latitude, 1e-9));
+      // P2: recentre triggers a fresh bounds-fit covering both
+      // endpoints.
       expect(
-        MapProbe.cameraTarget?.longitude,
-        closeTo(techStart.longitude, 1e-9),
+        MapProbe.cameraBounds,
+        isNotNull,
+        reason: 'recentre on EN_ROUTE must produce a bounds-fit list',
       );
+      expect(MapProbe.cameraBounds!.length, 2);
+      expect(MapProbe.cameraTarget, isNull);
 
-      // After the post-frame clear runs, FAB hides again (auto-follow
-      // back on).
+      // FAB hides because auto-follow re-engaged (the recentre tap
+      // re-arms it via `_updateCameraForFrame`).
       await tester.pump();
       expect(find.byIcon(Icons.my_location), findsNothing);
+    },
+  );
+
+  // ────────── T-2e2: ARRIVED-phase recentre uses close-approach zoom ───
+
+  testWidgets(
+    'T-2e2 recentre on ARRIVED phase produces cameraTarget=tech + '
+    '_kCloseApproachZoom (single point would otherwise degenerate '
+    'bounds-fit)',
+    (tester) async {
+      final fake = _FakeDirectionsService()
+        ..responses = [_result(etaSeconds: 60)];
+      final c = _container(directions: fake);
+      await tester.pumpWidget(
+        _wrap(
+          c,
+          LiveTrackingMap(
+            technicianPosition: techStart,
+            lastFrameAt: DateTime.now(),
+            destination: destination,
+            phase: TrackingPhase.arrived,
+          ),
+        ),
+      );
+      await tester.pump();
+
+      // First mount on ARRIVED — _updateCameraForFrame should have
+      // set target+zoom to street level.
+      expect(MapProbe.cameraTarget, isNotNull);
+      expect(MapProbe.cameraTarget!.latitude, closeTo(techStart.latitude, 1e-9));
+      expect(MapProbe.cameraZoom, 17.0); // _kCloseApproachZoom
+
+      // Force auto-follow off so the FAB shows.
+      MapProbe.onUserGesture!();
+      await tester.pump();
+      await tester.tap(find.byIcon(Icons.my_location));
+      await tester.pump();
+
+      // Recentre re-engages follow with a fresh zoom (because
+      // _closeApproachZoomApplied is reset by _recentre).
+      expect(MapProbe.cameraTarget, isNotNull);
+      expect(MapProbe.cameraZoom, 17.0);
+      expect(MapProbe.cameraBounds, isNull);
     },
   );
 
@@ -992,9 +1051,17 @@ void main() {
   // ────────── T-2m: First-fit camera-bounds clears ────────────────────
 
   testWidgets(
-    'T-2m initial mount sets cameraBounds; post-frame clears it back '
-    'to null',
+    'T-2m initial mount sets cameraBounds and they PERSIST after '
+    'post-frame (P2: declarative camera state contract)',
     (tester) async {
+      // P2: pre-P2 the controller cleared cameraBounds in a
+      // post-frame callback so the adapter's diff logic would re-fit
+      // on the next legitimate bounds update. The new declarative
+      // contract keeps bounds in State across rebuilds; the adapter
+      // diffs via `listsAreSame` (identical → equal-content) so
+      // passing the same reference is a free no-op, and a different
+      // reference is the natural signal of a fresh fit. No post-frame
+      // clear needed.
       final fake = _FakeDirectionsService()
         ..responses = [_result(etaSeconds: 300)];
       final c = _container(directions: fake);
@@ -1011,17 +1078,160 @@ void main() {
         ),
       );
 
-      // First frame: cameraBounds populated with [tech, destination].
-      // We need to capture the props from the FIRST build, before the
-      // post-frame callback flips them back to null. The widget builds
-      // synchronously during pumpWidget so the probe already has them.
+      // First build: cameraBounds populated with [tech, destination].
       expect(MapProbe.cameraBounds, isNotNull);
       expect(MapProbe.cameraBounds!.length, 2);
 
-      // Pump the post-frame callback — the controller setStates
-      // cameraBounds=null.
+      // Pump again — bounds STILL set (declarative state).
       await tester.pump();
-      expect(MapProbe.cameraBounds, isNull);
+      expect(
+        MapProbe.cameraBounds,
+        isNotNull,
+        reason:
+            'P2 contract: bounds persist across rebuilds; the adapter '
+            'short-circuits on identical reference, no post-frame clear '
+            'required.',
+      );
+      expect(MapProbe.cameraBounds!.length, 2);
+    },
+  );
+
+  // ────────── T-2o: GPS accuracy circle (P2) ───────────────────────────
+
+  testWidgets(
+    'T-2o accuracy circle renders when accuracyMeters is positive + finite',
+    (tester) async {
+      final fake = _FakeDirectionsService()
+        ..responses = [_result(etaSeconds: 180)];
+      final c = _container(directions: fake);
+
+      await tester.pumpWidget(
+        _wrap(
+          c,
+          LiveTrackingMap(
+            technicianPosition: techStart,
+            lastFrameAt: DateTime.now(),
+            destination: destination,
+            phase: TrackingPhase.enRoute,
+            accuracyMeters: 12.5,
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(MapProbe.circles, hasLength(1));
+      final circle = MapProbe.circles.first;
+      expect(circle.id, 'accuracy');
+      expect(circle.radiusMeters, 12.5);
+      expect(circle.center.latitude, closeTo(techStart.latitude, 1e-9));
+      expect(circle.center.longitude, closeTo(techStart.longitude, 1e-9));
+    },
+  );
+
+  testWidgets(
+    'T-2o accuracy circle hidden when accuracyMeters is null',
+    (tester) async {
+      final fake = _FakeDirectionsService()
+        ..responses = [_result(etaSeconds: 180)];
+      final c = _container(directions: fake);
+
+      await tester.pumpWidget(
+        _wrap(
+          c,
+          LiveTrackingMap(
+            technicianPosition: techStart,
+            lastFrameAt: DateTime.now(),
+            destination: destination,
+            phase: TrackingPhase.enRoute,
+            // accuracyMeters intentionally omitted → null
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(MapProbe.circles, isEmpty);
+    },
+  );
+
+  testWidgets(
+    'T-2o accuracy circle hidden when accuracyMeters is non-positive '
+    '(0, negative)',
+    (tester) async {
+      final fake = _FakeDirectionsService()
+        ..responses = [_result(etaSeconds: 180)];
+      final c = _container(directions: fake);
+
+      // Geolocator emits `0.0` for "accuracy unknown"; broadcaster
+      // passes null through, but the widget defends against drift.
+      await tester.pumpWidget(
+        _wrap(
+          c,
+          LiveTrackingMap(
+            technicianPosition: techStart,
+            lastFrameAt: DateTime.now(),
+            destination: destination,
+            phase: TrackingPhase.enRoute,
+            accuracyMeters: 0.0,
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(MapProbe.circles, isEmpty);
+
+      // Negative — should never happen on the wire (backend serializer
+      // gates on min_value: 0.0) but defend the render boundary too.
+      await tester.pumpWidget(
+        _wrap(
+          c,
+          LiveTrackingMap(
+            technicianPosition: techStart,
+            lastFrameAt: DateTime.now(),
+            destination: destination,
+            phase: TrackingPhase.enRoute,
+            accuracyMeters: -5.0,
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(MapProbe.circles, isEmpty);
+    },
+  );
+
+  testWidgets(
+    'T-2o accuracy circle hidden when accuracyMeters is NaN / infinity',
+    (tester) async {
+      final fake = _FakeDirectionsService()
+        ..responses = [_result(etaSeconds: 180)];
+      final c = _container(directions: fake);
+
+      await tester.pumpWidget(
+        _wrap(
+          c,
+          LiveTrackingMap(
+            technicianPosition: techStart,
+            lastFrameAt: DateTime.now(),
+            destination: destination,
+            phase: TrackingPhase.enRoute,
+            accuracyMeters: double.nan,
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(MapProbe.circles, isEmpty);
+
+      await tester.pumpWidget(
+        _wrap(
+          c,
+          LiveTrackingMap(
+            technicianPosition: techStart,
+            lastFrameAt: DateTime.now(),
+            destination: destination,
+            phase: TrackingPhase.enRoute,
+            accuracyMeters: double.infinity,
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(MapProbe.circles, isEmpty);
     },
   );
 

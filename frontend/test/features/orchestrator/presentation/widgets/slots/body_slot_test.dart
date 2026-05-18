@@ -35,6 +35,8 @@ class _NoopAppMap extends StatelessWidget implements IAppMap {
   @override
   final List<MapPolyline> polylines;
   @override
+  final List<MapCircle> circles;
+  @override
   final LatLng? cameraTarget;
   @override
   final double? cameraZoom;
@@ -48,6 +50,7 @@ class _NoopAppMap extends StatelessWidget implements IAppMap {
     this.initialZoom = 15.0,
     this.markers = const [],
     this.polylines = const [],
+    this.circles = const [],
     this.cameraTarget,
     this.cameraZoom,
     this.cameraBounds,
@@ -64,6 +67,7 @@ AppMapBuilder _noopMapBuilder() {
     initialZoom = 15.0,
     markers = const [],
     polylines = const [],
+    circles = const [],
     cameraTarget,
     cameraZoom,
     cameraBounds,
@@ -73,6 +77,7 @@ AppMapBuilder _noopMapBuilder() {
     initialZoom: initialZoom,
     markers: markers,
     polylines: polylines,
+    circles: circles,
     cameraTarget: cameraTarget,
     cameraZoom: cameraZoom,
     cameraBounds: cameraBounds,

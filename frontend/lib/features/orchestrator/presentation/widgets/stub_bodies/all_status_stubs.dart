@@ -438,12 +438,22 @@ class ConfirmedBodyStub extends ConsumerWidget {
 /// Map fills the body — it IS the experience while the tech is on the
 /// move. The booking's UI prose ("Tech will reach you in a few minutes")
 /// sits below as supporting text.
-class EnRouteBodyStub extends ConsumerWidget {
+///
+/// **P-PAN audit (Tier 2):** the stub is a `StatelessWidget` so it does
+/// NOT rebuild on every ~5s GPS frame or on every broadcast-state
+/// transition. The provider watches live inside two `ConsumerWidget`
+/// leaves ([_EnRouteBroadcastBanner], [_EnRouteMapLeaf]) so only those
+/// subtrees rebuild when their respective providers emit. Pre-fix the
+/// stub itself watched both providers, so every frame rebuilt the
+/// Padding / LayoutBuilder / Column / banner / mapWrapper / bodyText
+/// chain — cascading into `LiveTrackingMap.didUpdateWidget` and adding
+/// rebuild pressure on top of the platform-view gesture thread.
+class EnRouteBodyStub extends StatelessWidget {
   const EnRouteBodyStub({super.key, required this.booking});
   final BookingDetail booking;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final addr = booking.address;
     if (addr == null) {
       // Defensive — backend always serializes address for non-terminal
@@ -454,74 +464,150 @@ class EnRouteBodyStub extends ConsumerWidget {
         message: booking.ui.bodyText,
       );
     }
-    final frame = ref.watch(technicianLocationStreamProvider(booking.id));
     final destination = LatLng(addr.latitude, addr.longitude);
     final isTech = booking.viewerRole == BookingOrchestratorRole.technician;
     final callTarget = resolveLiveCallTarget(booking);
-    // Audit C6: surface non-running BroadcastState to the tech so they
-    // know their location is NOT being shared. Customer view never sees
-    // the banner — the controller stays `idle` for non-tech viewers.
-    final broadcastState = isTech
-        ? ref.watch(foregroundLocationServiceControllerProvider(booking.id))
-        : BroadcastState.idle;
+
+    final banner = _EnRouteBroadcastBanner(
+      bookingId: booking.id,
+      isTech: isTech,
+    );
+    final mapWrapper = _EnRouteMapLeaf(
+      bookingId: booking.id,
+      destination: destination,
+      callTarget: callTarget,
+    );
+    final bodyText = Text(
+      booking.ui.bodyText,
+      textAlign: TextAlign.center,
+      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: OrchestratorPalette.inkSecondary,
+            fontWeight: FontWeight.w600,
+            height: 1.35,
+          ),
+    );
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          BroadcastStateBanner(
-            state: broadcastState,
-            onOpenSettings: isTech
-                ? () => ref
-                      .read(
-                        foregroundLocationServiceControllerProvider(
-                          booking.id,
-                        ).notifier,
-                      )
-                      .openSystemSettings()
-                : null,
-          ),
-          // Map dominates the body. Bounded height (~70% of screen,
-          // clamped) is required because BodySlot is hosted inside a
-          // SingleChildScrollView in BookingOrchestratorScreen, which
-          // hands its child unbounded vertical constraints — Expanded
-          // would render at zero height (invisible map) or throw on
-          // some platforms. The 0.70 / [420, 640] envelope matches
-          // Foodpanda's tracking-screen map dominance; on smaller
-          // phones the map can exceed remaining viewport and the
-          // user scrolls to see the supporting body text below.
-          SizedBox(
-            height: (MediaQuery.of(context).size.height * 0.70).clamp(
-              420.0,
-              640.0,
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(14),
-              child: LiveTrackingMap(
-                technicianPosition: frame == null
-                    ? null
-                    : LatLng(frame.latitude, frame.longitude),
-                technicianHeadingDegrees: frame?.heading,
-                lastFrameAt: frame?.frameArrivedAt,
-                destination: destination,
-                phase: TrackingPhase.enRoute,
-                callPhoneNumber: callTarget.phone,
-                callTooltip: callTarget.tooltip,
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            booking.ui.bodyText,
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: OrchestratorPalette.inkSecondary,
-                  fontWeight: FontWeight.w600,
-                  height: 1.35,
+      // P3 audit fix (Tier 2): the screen no longer wraps map-led
+      // statuses in SingleChildScrollView (the parent ScrollView was
+      // stealing single-finger vertical drag from the map, which is
+      // unfixable on flutter_map — no `gestureRecognizers` API).
+      // LayoutBuilder lets the stub adapt:
+      //   - Bounded vertical constraints (customer EN_ROUTE — screen
+      //     wraps in Expanded): use `Expanded(child: map)` so the
+      //     map fills available space. The map widget claims all
+      //     gestures because no ScrollView is competing.
+      //   - Unbounded constraints (tech EN_ROUTE — screen still wraps
+      //     in SingleChildScrollView so the tech can scroll past the
+      //     map to the supporting text): keep the previous SizedBox
+      //     layout (Expanded inside a ScrollView throws). The map
+      //     still uses the EagerGestureRecognizer (Google) / widened
+      //     InteractiveFlag set (OSM) to claim what it can.
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxHeight.isFinite) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                banner,
+                Expanded(child: mapWrapper),
+                const SizedBox(height: 12),
+                bodyText,
+              ],
+            );
+          }
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              banner,
+              SizedBox(
+                height: (MediaQuery.of(context).size.height * 0.70).clamp(
+                  420.0,
+                  640.0,
                 ),
-          ),
-        ],
+                child: mapWrapper,
+              ),
+              const SizedBox(height: 12),
+              bodyText,
+            ],
+          );
+        },
       ),
+    );
+  }
+}
+
+/// Leaf widget that owns the `technicianLocationStreamProvider` watch
+/// for EN_ROUTE. Isolates the ~5s GPS-frame rebuild to the map subtree
+/// only — the surrounding stub (banner, body text, layout chrome) is
+/// pure stateless content and stays put.
+class _EnRouteMapLeaf extends ConsumerWidget {
+  const _EnRouteMapLeaf({
+    required this.bookingId,
+    required this.destination,
+    required this.callTarget,
+  });
+
+  final int bookingId;
+  final LatLng destination;
+  final ({String? phone, String tooltip}) callTarget;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final frame = ref.watch(technicianLocationStreamProvider(bookingId));
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(14),
+      child: LiveTrackingMap(
+        technicianPosition: frame == null
+            ? null
+            : LatLng(frame.latitude, frame.longitude),
+        technicianHeadingDegrees: frame?.heading,
+        lastFrameAt: frame?.frameArrivedAt,
+        // P2: surface GPS accuracy so LiveTrackingMap can render
+        // the Foodpanda-style uncertainty ring.
+        accuracyMeters: frame?.accuracyMeters,
+        destination: destination,
+        phase: TrackingPhase.enRoute,
+        callPhoneNumber: callTarget.phone,
+        callTooltip: callTarget.tooltip,
+      ),
+    );
+  }
+}
+
+/// Leaf widget that owns the `foregroundLocationServiceControllerProvider`
+/// watch for EN_ROUTE. Tech-only — customer view skips the provider read
+/// entirely and renders an idle-state banner. Isolating this watch keeps
+/// permission/lifecycle transitions from rebuilding the stub's map subtree.
+///
+/// Audit C6: surface non-running BroadcastState to the tech so they
+/// know their location is NOT being shared.
+class _EnRouteBroadcastBanner extends ConsumerWidget {
+  const _EnRouteBroadcastBanner({
+    required this.bookingId,
+    required this.isTech,
+  });
+
+  final int bookingId;
+  final bool isTech;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final broadcastState = isTech
+        ? ref.watch(foregroundLocationServiceControllerProvider(bookingId))
+        : BroadcastState.idle;
+    return BroadcastStateBanner(
+      state: broadcastState,
+      onOpenSettings: isTech
+          ? () => ref
+                .read(
+                  foregroundLocationServiceControllerProvider(
+                    bookingId,
+                  ).notifier,
+                )
+                .openSystemSettings()
+          : null,
     );
   }
 }
@@ -601,13 +687,16 @@ class ArrivedBodyStub extends ConsumerWidget {
 /// countdown button live in the pinned [ArrivalActionCard] at the
 /// bottom of the screen (inside the action bar) — see
 /// `arrival_action_card.dart` for the rationale.
-class _CustomerArrivedBody extends ConsumerWidget {
+/// **P-PAN audit (Tier 2):** stateless shell. The 5s GPS-frame watch
+/// lives in [_CustomerArrivedMapLeaf] so the surrounding Padding /
+/// LayoutBuilder doesn't repaint on every frame.
+class _CustomerArrivedBody extends StatelessWidget {
   const _CustomerArrivedBody({required this.booking});
 
   final BookingDetail booking;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final addr = booking.address;
 
     // Defensive — backend always serializes address for non-terminal
@@ -620,16 +709,8 @@ class _CustomerArrivedBody extends ConsumerWidget {
       );
     }
 
-    final frame = ref.watch(technicianLocationStreamProvider(booking.id));
     final destination = LatLng(addr.latitude, addr.longitude);
     final callTarget = resolveLiveCallTarget(booking);
-    // Map dominance on customer ARRIVED — matches EnRouteBodyStub's
-    // envelope (0.70 / [420, 640]). The customer's job in this moment
-    // is "find the tech outside"; the map is the answer.
-    final mapHeight = (MediaQuery.of(context).size.height * 0.70).clamp(
-      420.0,
-      640.0,
-    );
 
     // Body on customer ARRIVED is the map, full stop.
     //
@@ -648,24 +729,71 @@ class _CustomerArrivedBody extends ConsumerWidget {
     // customer-ARRIVED (booking_orchestrator_screen.dart's
     // `hideAlwaysOnSummary`), so dropping it from the body removes
     // the summary card from ARRIVED entirely.
+    final mapWrapper = _CustomerArrivedMapLeaf(
+      bookingId: booking.id,
+      destination: destination,
+      callTarget: callTarget,
+    );
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-      child: SizedBox(
-        height: mapHeight,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(14),
-          child: LiveTrackingMap(
-            technicianPosition: frame == null
-                ? null
-                : LatLng(frame.latitude, frame.longitude),
-            technicianHeadingDegrees: frame?.heading,
-            lastFrameAt: frame?.frameArrivedAt,
-            destination: destination,
-            phase: TrackingPhase.arrived,
-            callPhoneNumber: callTarget.phone,
-            callTooltip: callTarget.tooltip,
-          ),
-        ),
+      // P3 audit fix (Tier 2): adapt to bounded vs unbounded vertical
+      // constraints. See the matching block in EnRouteBodyStub for
+      // rationale. Customer-ARRIVED is always map-led, so in
+      // production this is the Expanded branch — but tests mount the
+      // body in a Scaffold which provides bounded constraints too, so
+      // both paths exercise.
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxHeight.isFinite) {
+            return SizedBox.expand(child: mapWrapper);
+          }
+          return SizedBox(
+            height: (MediaQuery.of(context).size.height * 0.70).clamp(
+              420.0,
+              640.0,
+            ),
+            child: mapWrapper,
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// Leaf widget that owns the `technicianLocationStreamProvider` watch
+/// for customer-ARRIVED. Mirror of [_EnRouteMapLeaf] with the
+/// `TrackingPhase.arrived` switch and no banner. Kept as a separate
+/// class (rather than a parameterised leaf) because the two phases
+/// differ in both the LiveTrackingMap arg AND the parent layout
+/// (EN_ROUTE has banner + bodyText siblings; ARRIVED is map-only).
+class _CustomerArrivedMapLeaf extends ConsumerWidget {
+  const _CustomerArrivedMapLeaf({
+    required this.bookingId,
+    required this.destination,
+    required this.callTarget,
+  });
+
+  final int bookingId;
+  final LatLng destination;
+  final ({String? phone, String tooltip}) callTarget;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final frame = ref.watch(technicianLocationStreamProvider(bookingId));
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(14),
+      child: LiveTrackingMap(
+        technicianPosition: frame == null
+            ? null
+            : LatLng(frame.latitude, frame.longitude),
+        technicianHeadingDegrees: frame?.heading,
+        lastFrameAt: frame?.frameArrivedAt,
+        accuracyMeters: frame?.accuracyMeters,
+        destination: destination,
+        phase: TrackingPhase.arrived,
+        callPhoneNumber: callTarget.phone,
+        callTooltip: callTarget.tooltip,
       ),
     );
   }

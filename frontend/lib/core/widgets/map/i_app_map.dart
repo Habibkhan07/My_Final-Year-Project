@@ -27,6 +27,13 @@ abstract class IAppMap extends Widget {
 
   List<MapPolyline> get polylines;
 
+  /// Translucent circles drawn under the marker layer. Used by
+  /// `LiveTrackingMap` to render the GPS accuracy ring around the
+  /// technician marker. Both providers render the radius in METRES
+  /// (flutter_map via `CircleMarker.useRadiusInMeter: true`, Google
+  /// natively).
+  List<MapCircle> get circles;
+
   /// When non-null, the map animates to this point + [cameraZoom] on
   /// every prop change. Wins over [cameraBounds] when both are set.
   LatLng? get cameraTarget;
@@ -153,5 +160,71 @@ class MapPolyline {
     points.length,
     points.isEmpty ? 0 : points.first.latitude,
     points.isEmpty ? 0 : points.last.latitude,
+  );
+}
+
+/// Circle overlay drawn under the marker layer.
+///
+/// Used by `LiveTrackingMap` for the Foodpanda-style GPS accuracy
+/// ring around the technician marker. Both providers honour
+/// [radiusMeters] as a metric value, not pixel value — at low zoom
+/// the ring shrinks visually, at high zoom it grows, matching the
+/// real-world uncertainty footprint of the GPS fix.
+@immutable
+class MapCircle {
+  /// Stable identifier. Google Maps uses it as `CircleId`;
+  /// flutter_map ignores it. Kept consistent across providers.
+  final String id;
+
+  final LatLng center;
+
+  /// Radius in metres. Coerced to non-negative by the caller —
+  /// negative or NaN values must be filtered upstream before
+  /// constructing the circle.
+  final double radiusMeters;
+
+  /// Fill colour. The default (translucent material blue 800 at 8%)
+  /// matches the route polyline family used by the live tracking
+  /// map; callers can override for non-tracking surfaces.
+  final Color fillColor;
+
+  /// Stroke colour. Default is the same blue as the fill at higher
+  /// alpha (25%).
+  final Color strokeColor;
+
+  /// Stroke width in LOGICAL pixels (not metres). Default 1.0 for a
+  /// soft 1-pixel hairline border.
+  final double strokeWidth;
+
+  const MapCircle({
+    required this.id,
+    required this.center,
+    required this.radiusMeters,
+    this.fillColor = const Color(0x141565C0),
+    this.strokeColor = const Color(0x401565C0),
+    this.strokeWidth = 1.0,
+  });
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is MapCircle &&
+          other.id == id &&
+          other.center.latitude == center.latitude &&
+          other.center.longitude == center.longitude &&
+          other.radiusMeters == radiusMeters &&
+          other.fillColor == fillColor &&
+          other.strokeColor == strokeColor &&
+          other.strokeWidth == strokeWidth;
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    center.latitude,
+    center.longitude,
+    radiusMeters,
+    fillColor,
+    strokeColor,
+    strokeWidth,
   );
 }

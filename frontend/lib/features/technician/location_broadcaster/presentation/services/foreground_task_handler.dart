@@ -255,22 +255,27 @@ class TechLocationTaskHandler extends TaskHandler {
 
     _positionSub = _geolocator
         .getPositionStream(
-          // Audit F-21 (Batch F): use `AndroidSettings` so a stationary
-          // tech still emits a heartbeat fix every 15s. With plain
-          // `LocationSettings(distanceFilter: 10)` a tech stuck at a
-          // traffic light or door produces no fixes for as long as
-          // they don't move 10m — the customer's marker freezes and
-          // the staleness banner trips ("Connection is weak…")
-          // despite GPS being healthy. 15s is well above the backend's
-          // 4s throttle but well below the 60s "offline" threshold,
-          // so the heartbeat keeps the customer's live map green even
-          // when the tech is genuinely stationary. We do NOT set
-          // `foregroundNotificationConfig` here — flutter_foreground_task
-          // owns the notification (session 4 risk #8 caveat).
+          // Audit F-21 (Batch F) + P1.1: heartbeat cadence tightened
+          // from 15s to 5s so a stationary tech's marker updates at a
+          // pace the customer's eye treats as "live", not "stuck".
+          // Constraints satisfied:
+          //   - Backend throttles per (tech, booking) at 4s — 5s leaves
+          //     a 1s safety margin against monotonic-clock drift, so
+          //     every heartbeat passes the throttle.
+          //   - 60s "offline" client threshold still well-buffered
+          //     (12x the cadence).
+          //   - The widget's frame-tween duration (3500ms) settles
+          //     ~1.5s before the next heartbeat lands — no tween-vs-
+          //     frame collisions.
+          // Moving tech behaviour is unaffected: `distanceFilter:10m`
+          // emits sub-5s on a motorbike at urban speeds; those frames
+          // get throttle-paced server-side to ~5s effective cadence.
+          // We do NOT set `foregroundNotificationConfig` here —
+          // flutter_foreground_task owns the notification.
           locationSettings: AndroidSettings(
             accuracy: LocationAccuracy.high,
             distanceFilter: 10,
-            intervalDuration: const Duration(seconds: 15),
+            intervalDuration: const Duration(seconds: 5),
           ),
         )
         .listen(_onFix, onError: _onPositionStreamError);

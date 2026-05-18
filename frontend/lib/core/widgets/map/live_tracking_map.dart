@@ -35,6 +35,35 @@ enum TrackingPhase { enRoute, arrived }
 /// Connection-quality lozenge state.
 enum _ConnectionQuality { good, weak, offline }
 
+/// P-PAN audit (Tier 1): snapshot of the rendered technician marker.
+/// Drives a `ValueNotifier` so the 3.5s × 60Hz tween repaints ONLY
+/// the inner `IAppMap` subtree (wrapped in `ValueListenableBuilder`
+/// inside `build`) — not the surrounding Stack (connection strip,
+/// ETA pill, recentre FAB, call FAB). Pre-fix `_onTweenTick` called
+/// `setState` on the whole `LiveTrackingMap` 60 times per second,
+/// which starved gesture recognition on the platform-view thread
+/// and made the map feel slow to pan during active motion.
+///
+/// Value-equal (latlong2.LatLng compares lat+lng; heading is a
+/// double). `ValueNotifier` short-circuits on `==` so writing the
+/// same content twice does NOT fire listeners.
+@immutable
+class _MarkerFrame {
+  final LatLng position;
+  final double heading;
+  const _MarkerFrame({required this.position, required this.heading});
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is _MarkerFrame &&
+          other.position == position &&
+          other.heading == heading;
+
+  @override
+  int get hashCode => Object.hash(position, heading);
+}
+
 class LiveTrackingMap extends ConsumerStatefulWidget {
   /// Latest known technician position. `null` when no frame has
   /// arrived yet (renders the "waiting…" pill instead of a marker).
@@ -64,6 +93,15 @@ class LiveTrackingMap extends ConsumerStatefulWidget {
   /// the dialler fails. Defaults to "Call".
   final String callTooltip;
 
+  /// P2: GPS accuracy in metres, fed straight from
+  /// `TechGpsFrame.accuracyMeters`. When non-null + positive + finite,
+  /// the widget draws a translucent blue ring around the technician
+  /// marker whose radius IS the accuracy in metres (so it scales with
+  /// zoom — at street level a 15m accuracy reads as a meaningful
+  /// circle; at a wide zoom it shrinks to a dot). Null / non-positive
+  /// / non-finite values hide the ring entirely.
+  final double? accuracyMeters;
+
   const LiveTrackingMap({
     super.key,
     required this.technicianPosition,
@@ -73,6 +111,7 @@ class LiveTrackingMap extends ConsumerStatefulWidget {
     this.lastFrameAt,
     this.callPhoneNumber,
     this.callTooltip = 'Call',
+    this.accuracyMeters,
   });
 
   @override
@@ -90,14 +129,32 @@ class _LiveTrackingMapState extends ConsumerState<LiveTrackingMap>
   static const int _kPolylineMaxStaleSeconds = 300; // 5 minutes
   static const Duration _kStalenessWeakThreshold = Duration(seconds: 15);
   static const Duration _kStalenessOfflineThreshold = Duration(seconds: 60);
-  // Slightly under the 5s GPS cadence so the tween settles before the
-  // next frame lands — overshoot would make the marker look "jittery".
-  static const Duration _kFrameTweenDuration = Duration(milliseconds: 4800);
+  // P1.2: 3500ms (was 4800ms). With the 5s broadcaster cadence (P1.1)
+  // and backend's 4s throttle, frames arrive every ~5s. 3500ms settles
+  // ~1500ms before the next frame so:
+  //   - tween-vs-frame collisions don't happen under normal jitter
+  //   - the marker "lands" before the customer's eye stops tracking
+  //     it, which reads as "the tech is actually moving" rather than
+  //     "the tech is always sliding"
+  // The previous 4800ms was calibrated for the 5s heartbeat we
+  // *thought* we had with the 15s cadence — the audit caught the
+  // mismatch in the same pass that tightened the broadcaster.
+  static const Duration _kFrameTweenDuration = Duration(milliseconds: 3500);
   // Beyond this distance between frames we hard-set instead of
   // tweening — protects against GPS glitches that animate the marker
   // through the wrong streets mid-route.
   static const double _kHardJumpDistanceMeters = 200.0;
-  static const double _kFollowZoom = 16.0;
+  // P2: dynamic bounds-follow tunables.
+  //   - `_kBoundsRefitDistanceMeters`: how far the tech must move
+  //     since the last bounds-fit anchor before we re-fit. Prevents
+  //     per-frame refit jitter (the 5s GPS cadence + 60Hz marker
+  //     tween rebuilds would otherwise produce micro-pan camera
+  //     animations on every tick).
+  //   - `_kCloseApproachZoom`: street-level zoom used in ARRIVED
+  //     phase, where the tech IS the destination and bounds-fit
+  //     would degenerate to a single point.
+  static const double _kBoundsRefitDistanceMeters = 150.0;
+  static const double _kCloseApproachZoom = 17.0;
 
   // ─── Marker tween ──────────────────────────────────────────────────
   late final AnimationController _markerAnim;
@@ -115,13 +172,44 @@ class _LiveTrackingMapState extends ConsumerState<LiveTrackingMap>
   double? _tweenFromHeading;
   double? _tweenToHeading;
 
+  // P-PAN audit (Tier 1): marker render snapshot. See [_MarkerFrame]
+  // docstring for the rationale. Seeded in initState from the first
+  // widget value (when non-null) and updated by:
+  //   - `_onTweenTick` (every tween frame),
+  //   - first-frame branch in `didUpdateWidget`,
+  //   - hard-jump (>200m) branch in `didUpdateWidget`,
+  //   - ARRIVED-phase stop branch in `didUpdateWidget`.
+  // `_renderedPosition` / `_renderedHeading` stay authoritative —
+  // `didUpdateWidget` anchors the next tween off `_renderedPosition`.
+  // The notifier mirrors them; it does NOT replace them.
+  final ValueNotifier<_MarkerFrame?> _markerFrameNotifier =
+      ValueNotifier<_MarkerFrame?>(null);
+
   // ─── Polyline fetch state ──────────────────────────────────────────
   DirectionsResult? _directions;
   LatLng? _polylineAnchor; // tech position when last fetch fired
   bool _fetching = false; // re-entry guard, set BEFORE await
 
+  // P3 audit fix (Tier 3): memoize the polylines list. `_directions`
+  // changes every ≥30s (per the cooldown). Pre-fix every build (60Hz
+  // during the marker tween) constructed a fresh `MapPolyline` list,
+  // which the underlying map adapter then diffed and converted to a
+  // fresh provider-specific polyline Set. Caching keyed on
+  // `identical(_cachedPolylinesSource, _directions)` means the build
+  // hot path returns the same list reference on every tween tick,
+  // and the adapter's `identical(old, new)` short-circuit skips the
+  // diff entirely.
+  List<MapPolyline> _cachedPolylines = const [];
+  DirectionsResult? _cachedPolylinesSource;
+
   // ─── ETA tickdown ──────────────────────────────────────────────────
-  int _etaCountdownSeconds = 0;
+  // P3 audit fix (Tier 3): tickdown via ValueNotifier so the 1Hz tick
+  // only rebuilds the `_EtaPill` (wrapped in ValueListenableBuilder)
+  // — not the entire LiveTrackingMap. Pre-fix, every second's
+  // `setState(() => _etaCountdownSeconds = next)` rebuilt the whole
+  // widget which cascaded into a fresh underlying map widget every
+  // second, redundantly diffing markers/polylines/circles.
+  final ValueNotifier<int> _etaCountdownNotifier = ValueNotifier<int>(0);
   Timer? _etaTicker;
 
   // ─── Staleness detection ──────────────────────────────────────────
@@ -136,21 +224,17 @@ class _LiveTrackingMapState extends ConsumerState<LiveTrackingMap>
 
   // ─── Camera follow ────────────────────────────────────────────────
   bool _autoFollow = true;
-  bool _firstFitDone = false;
-  // LTM-6 (Batch I): hold auto-follow off briefly after the initial
-  // fit so the customer actually sees the wide "tech + destination"
-  // view before follow zooms in. Without this the bounds-fit was
-  // visible for one frame at most before the next-frame follow
-  // collapsed it.
-  DateTime? _initialFollowBlockedUntil;
-  // LTM-1 (Batch I): apply the follow zoom only on the first follow
-  // after a recentre / initial fit. Subsequent follow ticks pass
-  // null zoom so a user's pinch-zoom is preserved while follow keeps
-  // the camera centred on the tech.
-  bool _followZoomApplied = false;
-  // Programmatic camera target — setting this drives the underlying
-  // map widget via `cameraTarget` prop. We `null`-out after fitting
-  // to bounds so the user can pan freely afterward.
+  // P2: tech position at the last bounds-fit. The next frame only
+  // triggers a re-fit when the tech has moved past
+  // `_kBoundsRefitDistanceMeters` from this anchor.
+  LatLng? _lastBoundsAnchor;
+  // P2: applied-once on entry to ARRIVED phase so subsequent rebuilds
+  // pass null zoom and preserve user pinch. Reset whenever we leave
+  // ARRIVED (e.g. via destination change, or back into EN_ROUTE).
+  bool _closeApproachZoomApplied = false;
+  // Declarative camera state. The underlying adapter diffs old vs new
+  // and only animates when these values change — passing the same
+  // reference across rebuilds is a no-op.
   LatLng? _cameraTarget;
   double? _cameraZoom;
   List<LatLng>? _cameraBounds;
@@ -178,7 +262,11 @@ class _LiveTrackingMapState extends ConsumerState<LiveTrackingMap>
     _renderedPosition = widget.technicianPosition;
     _renderedHeading = widget.technicianHeadingDegrees ?? 0.0;
     if (widget.technicianPosition != null) {
-      _scheduleInitialFit();
+      _markerFrameNotifier.value = _MarkerFrame(
+        position: widget.technicianPosition!,
+        heading: _renderedHeading,
+      );
+      _updateCameraForFrame();
       _maybeFetchDirections();
     }
   }
@@ -197,7 +285,18 @@ class _LiveTrackingMapState extends ConsumerState<LiveTrackingMap>
     if (oldWidget.destination != widget.destination) {
       _directions = null;
       _polylineAnchor = null;
+      // P2: destination moved → next bounds-fit must include the new
+      // endpoint. Reset the anchor so `_updateCameraForFrame` refits
+      // unconditionally on the next call.
+      _lastBoundsAnchor = null;
       _maybeFetchDirections();
+      // P2 audit bug 2: fire the refit immediately. Pre-fix the
+      // camera stayed anchored on the OLD destination until the next
+      // GPS frame (~5s) because `_cameraBounds` held the previous
+      // LatLng by value. With `_lastBoundsAnchor = null` above, this
+      // call refits without throttle and pulls `widget.destination`
+      // (the new value) into the bounds list.
+      _updateCameraForFrame();
     }
 
     // Audit H9 (W-3): the ETA tickdown timer was never cancelled when
@@ -207,19 +306,42 @@ class _LiveTrackingMapState extends ConsumerState<LiveTrackingMap>
         widget.phase == TrackingPhase.arrived) {
       _etaTicker?.cancel();
       _etaTicker = null;
-      _etaCountdownSeconds = 0;
+      _etaCountdownNotifier.value = 0;
       // LTM-17 (Batch I): stop the in-flight marker tween — without
       // this the marker keeps sliding for up to ~4.8s while the
       // "arrived" badge already shows.
       if (_markerAnim.isAnimating) {
         _markerAnim.stop();
         final to = _tweenToPosition;
-        if (to != null) _renderedPosition = to;
+        if (to != null) {
+          _renderedPosition = to;
+          // P-PAN audit (Tier 1): push the final tween target so the
+          // marker lands at `to` immediately. With the notifier-driven
+          // marker subtree, an in-flight `_onTweenTick` would otherwise
+          // leave the marker at the last lerped value until the next
+          // outer rebuild.
+          _markerFrameNotifier.value = _MarkerFrame(
+            position: to,
+            heading: _renderedHeading,
+          );
+        }
         _tweenFromPosition = null;
         _tweenToPosition = null;
         _tweenFromHeading = null;
         _tweenToHeading = null;
       }
+      // P2: phase flip to ARRIVED switches the camera from bounds-fit
+      // to close-approach follow. Reset the anchor (no more bounds-fit
+      // needed) and re-arm the one-shot zoom so the next
+      // `_updateCameraForFrame` applies the close-approach zoom once.
+      _lastBoundsAnchor = null;
+      _closeApproachZoomApplied = false;
+      // P2 audit bug 1: fire the camera transition immediately. Pre-fix
+      // the customer's screen stayed on the wide bounds-fit view for
+      // up to 5s after "Technician has arrived" before the next GPS
+      // frame triggered the close-approach zoom. With the flags reset
+      // above, this call lands cleanly on the ARRIVED branch.
+      _updateCameraForFrame();
     }
 
     if (newPos != null && oldPos == null) {
@@ -228,9 +350,18 @@ class _LiveTrackingMapState extends ConsumerState<LiveTrackingMap>
       _renderedHeading = widget.technicianHeadingDegrees ?? 0.0;
       _tweenFromHeading = null; // audit W-12: clear any tween state
       _tweenToHeading = null;
-      _scheduleInitialFit();
+      // P-PAN audit (Tier 1): push through the notifier so the inner
+      // IAppMap subtree rebuilds with the new marker. Pre-fix this
+      // path ended with an empty `setState(() {})` which rebuilt the
+      // whole `LiveTrackingMap` — Flutter already schedules a rebuild
+      // when widget props change, so that setState was redundant; the
+      // notifier write is the real signal for the marker layer.
+      _markerFrameNotifier.value = _MarkerFrame(
+        position: newPos,
+        heading: _renderedHeading,
+      );
+      _updateCameraForFrame();
       _maybeFetchDirections();
-      setState(() {});
       return;
     }
 
@@ -243,8 +374,27 @@ class _LiveTrackingMapState extends ConsumerState<LiveTrackingMap>
         _renderedHeading = widget.technicianHeadingDegrees ?? _renderedHeading;
         _tweenFromHeading = null;
         _tweenToHeading = null;
+        // P-PAN audit (Tier 1): write through the notifier so the
+        // marker subtree rebuilds at the new position. Flutter's
+        // didUpdateWidget-driven outer rebuild also runs (since
+        // widget props changed), but the notifier write is what
+        // moves the actual marker without waiting for outer state
+        // diffs to resolve.
+        _markerFrameNotifier.value = _MarkerFrame(
+          position: newPos,
+          heading: _renderedHeading,
+        );
       } else {
-        _tweenFromPosition = oldPos;
+        // P1.2: when a frame arrives mid-tween, anchor the new tween's
+        // FROM on the marker's currently-rendered position rather than
+        // the widget's prior accepted frame (`oldPos`). Pre-fix the
+        // marker visibly jumped forward from the lerp midpoint to
+        // `oldPos` before tweening to `newPos`; using `_renderedPosition`
+        // keeps the visual continuous from where the customer's eye
+        // sees the marker. Falls back to `oldPos` defensively — in
+        // this branch both fields are non-null (the first-frame path
+        // is handled above).
+        _tweenFromPosition = _renderedPosition ?? oldPos;
         _tweenToPosition = newPos;
         _markerAnim
           ..stop()
@@ -266,7 +416,7 @@ class _LiveTrackingMapState extends ConsumerState<LiveTrackingMap>
         }
       }
       _maybeFetchDirections();
-      _maybeFollowCamera();
+      _updateCameraForFrame();
     }
   }
 
@@ -291,14 +441,30 @@ class _LiveTrackingMapState extends ConsumerState<LiveTrackingMap>
     final nextHeading = (fromHeading != null && toHeading != null)
         ? _shortestArcLerp(fromHeading, toHeading, t)
         : _renderedHeading;
-    setState(() {
-      _renderedPosition = LatLng(lat, lng);
-      _renderedHeading = nextHeading;
-    });
+    // P-PAN audit (Tier 1): write through `_markerFrameNotifier`
+    // instead of `setState`. Only the inner `IAppMap` subtree
+    // (wrapped in `ValueListenableBuilder` inside `build`) rebuilds
+    // per tick — the surrounding Stack (strip / pill / FABs) stays
+    // put, so the platform-view's gesture thread isn't preempted by
+    // a full `LiveTrackingMap` repaint 60 times per second.
+    //
+    // On the final tick we land *exactly* on the tween target rather
+    // than the lerp result — at t=1.0 the arithmetic is mathematically
+    // identical, but using `to` directly avoids any cumulative
+    // floating-point drift on the very last frame.
+    final LatLng nextPos;
     if (_markerAnim.value >= 1.0) {
-      _renderedPosition = to;
-      if (toHeading != null) _renderedHeading = toHeading;
+      nextPos = to;
+      _renderedHeading = toHeading ?? nextHeading;
+    } else {
+      nextPos = LatLng(lat, lng);
+      _renderedHeading = nextHeading;
     }
+    _renderedPosition = nextPos;
+    _markerFrameNotifier.value = _MarkerFrame(
+      position: nextPos,
+      heading: _renderedHeading,
+    );
   }
 
   @override
@@ -306,63 +472,90 @@ class _LiveTrackingMapState extends ConsumerState<LiveTrackingMap>
     _markerAnim.dispose();
     _etaTicker?.cancel();
     _stalenessTicker?.cancel();
+    // P3 audit fix (Tier 3): dispose the ValueNotifier so listeners
+    // are flushed and the GC reclaims the listener list. Critical to
+    // avoid: a pending `_etaCountdownNotifier.value = ...` write
+    // posted in the timer callback after dispose would crash. The
+    // `if (!mounted) return` at the top of the timer body already
+    // guards this, but disposing is good citizenship.
+    _etaCountdownNotifier.dispose();
+    // P-PAN audit (Tier 1): dispose the marker-frame notifier for
+    // the same reason — flushes listeners and prevents post-dispose
+    // writes from `_onTweenTick` (the AnimationController disposes
+    // above, but its listener queue may have a pending tick in
+    // flight).
+    _markerFrameNotifier.dispose();
     super.dispose();
   }
 
-  // ─── Initial camera fit ────────────────────────────────────────────
+  // ─── Camera follow (P2: dynamic bounds-follow) ─────────────────────
+  //
+  // The previous design ran two methods:
+  //   - `_scheduleInitialFit`: one-shot bounds-fit on first frame
+  //     followed by a 3s grace, then
+  //   - `_maybeFollowCamera`: snap to `_kFollowZoom = 16` centred on
+  //     the tech, never looking at the destination again.
+  //
+  // The user-facing effect: the bounds-fit (wide "tech + dest" view)
+  // was visible for ~3s, then the camera abruptly jumped to a fixed
+  // zoom that often hid the destination off-screen for the rest of
+  // the route. Foodpanda keeps both endpoints visible while the
+  // courier is approaching, only tightening to street-level when
+  // they get close.
+  //
+  // `_updateCameraForFrame` replaces both methods with one decision
+  // tree:
+  //   - ARRIVED: bounds would degenerate (tech IS dest), so follow
+  //     the tech at `_kCloseApproachZoom` (one-shot — subsequent
+  //     ticks pass null zoom so user pinch is preserved).
+  //   - EN_ROUTE: fit bounds [tech, destination] so both stay in
+  //     frame as the tech approaches. Refit only when the tech has
+  //     moved > `_kBoundsRefitDistanceMeters` from the last anchor
+  //     so we don't fire camera animations on every 5s GPS frame.
+  //
+  // Declarative state contract: `_cameraTarget` / `_cameraZoom` /
+  // `_cameraBounds` persist on this State until the next legitimate
+  // change. The underlying adapter diffs (identical short-circuit
+  // first, then component-equal) so passing the same reference
+  // across rebuilds is a free no-op.
 
-  void _scheduleInitialFit() {
-    if (_firstFitDone) return;
-    final tech = widget.technicianPosition;
-    if (tech == null) return;
-    _cameraBounds = [tech, widget.destination];
-    _cameraTarget = null;
-    _firstFitDone = true;
-    // LTM-6 (Batch I): grace window so the bounds-fit (wide
-    // tech+destination view) is actually visible to the customer
-    // before the next-frame follow takes over.
-    _initialFollowBlockedUntil = DateTime.now().add(
-      const Duration(seconds: 3),
-    );
-    _followZoomApplied = false;
-    // Schedule a follow-up to clear the bounds prop, otherwise rebuild
-    // would re-fit on every frame.
-    // LTM-10 (Batch I): mutate the field directly without setState —
-    // the next legitimate rebuild (tween tick / didUpdateWidget) will
-    // pick up the cleared bounds. The post-frame setState was firing
-    // a redundant rebuild whose only effect was clearing transient
-    // state already settled by the underlying adapter.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      _cameraBounds = null;
-    });
-  }
-
-  void _maybeFollowCamera() {
+  void _updateCameraForFrame() {
     if (!_autoFollow) return;
-    // LTM-6 (Batch I): respect the post-initial-fit grace so the
-    // customer sees the wide view before follow zooms in.
-    final blocked = _initialFollowBlockedUntil;
-    if (blocked != null && DateTime.now().isBefore(blocked)) return;
     final tech = widget.technicianPosition;
     if (tech == null) return;
-    _cameraTarget = tech;
-    // LTM-1 (Batch I): apply the follow zoom only on the first follow
-    // after a recentre / initial fit. Subsequent ticks pass null so
-    // a user's pinch-zoom-out is preserved by the underlying adapter
-    // (per the M-14 contract).
-    if (!_followZoomApplied) {
-      _cameraZoom = _kFollowZoom;
-      _followZoomApplied = true;
-    } else {
-      _cameraZoom = null;
+
+    if (widget.phase == TrackingPhase.arrived) {
+      // Tech is AT destination — bounds would be a single point.
+      // Centre on tech with close-approach zoom. One-shot zoom so
+      // user pinch is preserved on subsequent ticks.
+      setState(() {
+        _cameraTarget = tech;
+        _cameraBounds = null;
+        if (!_closeApproachZoomApplied) {
+          _cameraZoom = _kCloseApproachZoom;
+          _closeApproachZoomApplied = true;
+        } else {
+          _cameraZoom = null;
+        }
+      });
+      return;
     }
-    // Clear next frame so the user can pan thereafter.
-    // LTM-10 (Batch I): mutate directly, no setState — see
-    // _scheduleInitialFit for rationale.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
+
+    // EN_ROUTE — keep tech + destination in frame. Refit-throttle so
+    // we don't fire a camera animation every 5s GPS frame.
+    final anchor = _lastBoundsAnchor;
+    final shouldRefit = anchor == null ||
+        _haversineMeters(anchor, tech) > _kBoundsRefitDistanceMeters;
+    if (!shouldRefit) return;
+    setState(() {
+      _cameraBounds = [tech, widget.destination];
       _cameraTarget = null;
+      _cameraZoom = null;
+      _lastBoundsAnchor = tech;
+      // Re-arm the one-shot zoom so if we re-enter ARRIVED later it
+      // applies fresh (rare — but a phase flip back to EN_ROUTE then
+      // forward to ARRIVED would otherwise skip the zoom).
+      _closeApproachZoomApplied = false;
     });
   }
 
@@ -375,23 +568,16 @@ class _LiveTrackingMapState extends ConsumerState<LiveTrackingMap>
   void _recentre() {
     final tech = widget.technicianPosition;
     if (tech == null) return;
-    setState(() {
-      _autoFollow = true;
-      // LTM-6 (Batch I): recentre is an explicit user request, so
-      // skip any remaining initial-fit grace.
-      _initialFollowBlockedUntil = null;
-      _cameraTarget = tech;
-      _cameraZoom = _kFollowZoom;
-      // LTM-1 (Batch I): zoom is intentionally applied here; flip
-      // the flag so subsequent follow ticks preserve the user's
-      // pinch-zoom instead of resetting to _kFollowZoom every frame.
-      _followZoomApplied = true;
-    });
-    // LTM-10 (Batch I): mutate the camera target directly post-frame.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      _cameraTarget = null;
-    });
+    // P2: recentre re-engages auto-follow and resets the bounds
+    // anchor + zoom-applied flag so the next `_updateCameraForFrame`
+    // produces a fresh fit (EN_ROUTE) or a fresh close-approach
+    // follow (ARRIVED). Pre-P2 we manually set target+zoom here; the
+    // unified `_updateCameraForFrame` is now the only path that
+    // mutates camera state.
+    _autoFollow = true;
+    _lastBoundsAnchor = null;
+    _closeApproachZoomApplied = false;
+    _updateCameraForFrame();
   }
 
   // ─── Polyline fetch ────────────────────────────────────────────────
@@ -428,11 +614,16 @@ class _LiveTrackingMapState extends ConsumerState<LiveTrackingMap>
         destination: widget.destination,
       );
       if (!mounted) return;
+      // P3 audit fix: only the polyline + distance assignments need
+      // a rebuild (the build() reads `_directions!.distanceMeters`
+      // directly). The countdown is fed to `_etaCountdownNotifier`
+      // which drives a ValueListenableBuilder around the pill —
+      // 1Hz updates no longer reach LiveTrackingMap.setState.
       setState(() {
         _directions = result;
         _polylineAnchor = tech;
-        _etaCountdownSeconds = result.etaSeconds;
       });
+      _etaCountdownNotifier.value = result.etaSeconds;
       _etaTicker?.cancel();
       // Don't start a 1Hz tick at all if we're already arrived — the
       // ETA pill is hidden in that phase.
@@ -447,13 +638,16 @@ class _LiveTrackingMapState extends ConsumerState<LiveTrackingMap>
         // "0 min" for one frame before the next state change clears
         // it. Floor the displayed value at 1 min instead; the next
         // directions refresh resets it cleanly.
-        final next = _etaCountdownSeconds - 1;
+        final next = _etaCountdownNotifier.value - 1;
         if (next <= 0) {
           _etaTicker?.cancel();
           _etaTicker = null;
           return;
         }
-        setState(() => _etaCountdownSeconds = next);
+        // P3 audit fix: write through the notifier — only the
+        // ValueListenableBuilder around `_EtaPill` rebuilds, the
+        // surrounding map tree does not.
+        _etaCountdownNotifier.value = next;
       });
     } on DirectionsFailure {
       // Soft-fail. Keep last polyline / ETA. Don't snackbar — routing
@@ -493,12 +687,43 @@ class _LiveTrackingMapState extends ConsumerState<LiveTrackingMap>
   DateTime _serverNow() =>
       ref.read(systemEventProvider.notifier).serverNow();
 
+  /// P3 audit fix (Tier 3): memoized polylines list. Pre-fix every
+  /// build constructed a fresh `[MapPolyline(...)]`, which the
+  /// underlying adapter then converted to a fresh provider-specific
+  /// polyline Set with new `gmaps.Polyline` / `Polyline` instances.
+  /// The plugin's internal diff handled equal content efficiently,
+  /// but the Dart-side allocation churn was non-zero at 60Hz during
+  /// the marker tween.
+  ///
+  /// Cache invalidates only when `_directions` is REASSIGNED (a new
+  /// DirectionsResult lands every ≥30s per the cooldown). Between
+  /// fetches every call returns the SAME list reference, so the
+  /// adapter's `identical(old, new)` short-circuit returns true and
+  /// the diff is skipped entirely.
+  List<MapPolyline> _polylinesFor() {
+    if (identical(_cachedPolylinesSource, _directions)) {
+      return _cachedPolylines;
+    }
+    _cachedPolylinesSource = _directions;
+    final dirs = _directions;
+    _cachedPolylines = dirs == null
+        ? const <MapPolyline>[]
+        : <MapPolyline>[
+            MapPolyline(
+              id: 'route',
+              points: dirs.polyline,
+              color: const Color(0xFF1565C0), // material blue 800
+              strokeWidth: 6.0,
+            ),
+          ];
+    return _cachedPolylines;
+  }
+
   // ─── Build ─────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
     final builder = ref.watch(appMapBuilderProvider);
-    final renderedPos = _renderedPosition;
     // LTM-2 (Batch I): compute the connection-quality band ONCE per
     // build, not per Stack child. The prior `_quality` getter was
     // called from each Positioned that gated on it, and each call
@@ -506,48 +731,92 @@ class _LiveTrackingMapState extends ConsumerState<LiveTrackingMap>
     // sampled hundreds of times per second.
     final quality = _quality(_serverNow());
 
-    final markers = <MapMarker>[
-      MapMarker(
-        id: 'destination',
-        position: widget.destination,
-        kind: MarkerKind.customer,
-      ),
-      if (renderedPos != null)
-        MapMarker(
-          id: 'technician',
-          position: renderedPos,
-          kind: widget.phase == TrackingPhase.enRoute
-              ? MarkerKind.technicianMoving
-              : MarkerKind.technicianStopped,
-          rotationDegrees: widget.phase == TrackingPhase.enRoute
-              ? _renderedHeading
-              : 0.0,
-        ),
-    ];
+    // P3 audit fix (Tier 3): memoized polylines list. See `_polylinesFor`
+    // docstring for the rebuild-minimization rationale. Polylines do
+    // NOT depend on the tween-lerped marker position, so they live at
+    // the outer build scope; the ValueListenableBuilder below captures
+    // them.
+    final polylines = _polylinesFor();
 
-    final polylines = _directions == null
-        ? const <MapPolyline>[]
-        : [
-            MapPolyline(
-              id: 'route',
-              points: _directions!.polyline,
-              color: const Color(0xFF1565C0), // material blue 800
-              strokeWidth: 6.0,
-            ),
-          ];
-
+    // P-PAN audit (Tier 1, Stage 2): the inner `IAppMap` subtree (and
+    // its tech-marker + accuracy-circle inputs, which both depend on
+    // the tween-lerped position) lives inside a
+    // `ValueListenableBuilder<_MarkerFrame?>` that listens to
+    // `_markerFrameNotifier`. The 3.5s × 60Hz marker tween then only
+    // rebuilds this single subtree — not the surrounding Stack
+    // (connection strip / ETA pill / FABs / recentre FAB). Pre-fix
+    // the whole `LiveTrackingMap` repainted 60Hz during motion, which
+    // starved the platform-view's gesture recognizer and made the
+    // map feel slow to pan and explore.
+    //
+    // The outer Stack rebuilds only on legitimate state changes:
+    //   - auto-follow toggle (`_onUserGesture` / `_recentre`),
+    //   - polyline fetch result (setState in `_maybeFetchDirections`),
+    //   - staleness-band transition (setState in `_stalenessTicker`),
+    //   - camera anchor update (setState in `_updateCameraForFrame`),
+    //   - widget prop changes (parent didUpdateWidget).
     return Stack(
       fit: StackFit.expand,
       children: [
-        builder(
-          initialCenter: widget.technicianPosition ?? widget.destination,
-          initialZoom: 14.0,
-          markers: markers,
-          polylines: polylines,
-          cameraTarget: _cameraTarget,
-          cameraZoom: _cameraZoom,
-          cameraBounds: _cameraBounds,
-          onUserGesture: _onUserGesture,
+        ValueListenableBuilder<_MarkerFrame?>(
+          valueListenable: _markerFrameNotifier,
+          builder: (context, frame, _) {
+            // Destination marker is constant for the booking's
+            // lifetime; the technician marker comes from the
+            // tween-driven frame. `frame == null` pre-first-frame →
+            // only the destination renders.
+            final markers = <MapMarker>[
+              MapMarker(
+                id: 'destination',
+                position: widget.destination,
+                kind: MarkerKind.customer,
+              ),
+              if (frame != null)
+                MapMarker(
+                  id: 'technician',
+                  position: frame.position,
+                  kind: widget.phase == TrackingPhase.enRoute
+                      ? MarkerKind.technicianMoving
+                      : MarkerKind.technicianStopped,
+                  rotationDegrees: widget.phase == TrackingPhase.enRoute
+                      ? frame.heading
+                      : 0.0,
+                ),
+            ];
+
+            // P2: GPS accuracy ring. Anchored on `frame.position`
+            // (the tween-lerped marker location) so the ring tracks
+            // the marker smoothly rather than jumping with each
+            // accepted frame. Filter on positive + finite —
+            // geolocator emits `0.0` for "unknown" and the broadcaster
+            // passes null through, but we defend against wire-shape
+            // drift (negative / NaN / infinity) at the render boundary.
+            final accuracy = widget.accuracyMeters;
+            final circles = (frame != null &&
+                    accuracy != null &&
+                    accuracy > 0 &&
+                    accuracy.isFinite)
+                ? <MapCircle>[
+                    MapCircle(
+                      id: 'accuracy',
+                      center: frame.position,
+                      radiusMeters: accuracy,
+                    ),
+                  ]
+                : const <MapCircle>[];
+
+            return builder(
+              initialCenter: widget.technicianPosition ?? widget.destination,
+              initialZoom: 14.0,
+              markers: markers,
+              polylines: polylines,
+              circles: circles,
+              cameraTarget: _cameraTarget,
+              cameraZoom: _cameraZoom,
+              cameraBounds: _cameraBounds,
+              onUserGesture: _onUserGesture,
+            );
+          },
         ),
         // Connection-quality strip — lives at the top because the
         // bottom is reserved for ETA + FABs.
@@ -566,17 +835,28 @@ class _LiveTrackingMapState extends ConsumerState<LiveTrackingMap>
         ),
         // ETA pill — only when we have a polyline AND haven't gone
         // offline (offline shows "last known" position; ETA would lie).
+        // P3 audit fix (Tier 3): wrap the pill in a
+        // `ValueListenableBuilder<int>` watching the tickdown notifier
+        // so the 1Hz countdown rebuilds ONLY the pill, not the entire
+        // LiveTrackingMap (and through it the underlying map widget).
+        // `distanceMeters` comes from `_directions` and only changes
+        // when a new DirectionsResult lands — captured outside the
+        // builder closure so the pill receives a stable value between
+        // fetches.
         if (_directions != null &&
-            renderedPos != null &&
+            _renderedPosition != null &&
             quality != _ConnectionQuality.offline)
           Positioned(
             bottom: 24,
             left: 0,
             right: 0,
             child: Center(
-              child: _EtaPill(
-                etaSeconds: _etaCountdownSeconds,
-                distanceMeters: _directions!.distanceMeters,
+              child: ValueListenableBuilder<int>(
+                valueListenable: _etaCountdownNotifier,
+                builder: (context, seconds, _) => _EtaPill(
+                  etaSeconds: seconds,
+                  distanceMeters: _directions!.distanceMeters,
+                ),
               ),
             ),
           ),

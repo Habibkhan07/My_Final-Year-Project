@@ -26,6 +26,8 @@ class OsmAppMap extends StatefulWidget implements IAppMap {
   @override
   final List<MapPolyline> polylines;
   @override
+  final List<MapCircle> circles;
+  @override
   final LatLng? cameraTarget;
   @override
   final double? cameraZoom;
@@ -40,6 +42,7 @@ class OsmAppMap extends StatefulWidget implements IAppMap {
     this.initialZoom = 15.0,
     this.markers = const [],
     this.polylines = const [],
+    this.circles = const [],
     this.cameraTarget,
     this.cameraZoom,
     this.cameraBounds,
@@ -57,6 +60,55 @@ class _OsmAppMapState extends State<OsmAppMap> {
   /// `onPositionChanged` callback can distinguish our own moves from
   /// the user's pinch / drag gestures.
   bool _programmaticMoveInFlight = false;
+
+  /// OSM-P3 (audit "slow to move" bulletproof Tier 2): `MapOptions`
+  /// cached at first build so flutter_map sees the SAME options
+  /// reference on every rebuild. Pre-fix `MapOptions(...)` was
+  /// allocated fresh inside `build()` and the inline
+  /// `onPositionChanged` closure created new identity on every
+  /// rebuild — at 60Hz tween rebuilds, flutter_map could observe
+  /// "options changed" and re-bind internal state.
+  ///
+  /// `interactionOptions` is already `const` (stable reference). The
+  /// closure captures the State instance — `widget.onUserGesture` and
+  /// `_programmaticMoveInFlight` resolve dynamically per invocation,
+  /// so behaviour is identical to the original inline closure.
+  ///
+  /// `widget.initialCenter` / `widget.initialZoom` are captured at
+  /// first build only; flutter_map consumes them once at first frame
+  /// per its design, so a parent passing different initial values
+  /// later wouldn't have re-positioned the map anyway.
+  late final MapOptions _mapOptions = MapOptions(
+    initialCenter: widget.initialCenter,
+    initialZoom: widget.initialZoom,
+    // LTM-P0 (zoom UX fix): widen the gesture vocabulary to the
+    // Foodpanda-class set. Rotation / tilt remain off because the
+    // marker bubble already encodes heading via Transform.rotate.
+    //   - pinchZoom         : 2-finger scale to zoom in / out
+    //   - pinchMove         : pan while pinching (natural gesture)
+    //   - drag              : single-finger pan
+    //   - doubleTapZoom     : tap-tap to zoom in
+    //   - doubleTapDragZoom : tap, hold, drag vertically to zoom
+    //   - flingAnimation    : inertial pan after fling
+    //   - scrollWheelZoom   : tablet trackpad / web mouse zoom
+    interactionOptions: const InteractionOptions(
+      flags:
+          InteractiveFlag.pinchZoom |
+          InteractiveFlag.pinchMove |
+          InteractiveFlag.drag |
+          InteractiveFlag.doubleTapZoom |
+          InteractiveFlag.doubleTapDragZoom |
+          InteractiveFlag.flingAnimation |
+          InteractiveFlag.scrollWheelZoom,
+    ),
+    onPositionChanged: _onPositionChanged,
+  );
+
+  void _onPositionChanged(MapCamera camera, bool hasGesture) {
+    if (hasGesture && !_programmaticMoveInFlight) {
+      widget.onUserGesture?.call();
+    }
+  }
 
   @override
   void initState() {
@@ -135,25 +187,7 @@ class _OsmAppMapState extends State<OsmAppMap> {
   Widget build(BuildContext context) {
     return FlutterMap(
       mapController: _controller,
-      options: MapOptions(
-        initialCenter: widget.initialCenter,
-        initialZoom: widget.initialZoom,
-        // Pinch-zoom + drag are enough for v1; rotation/tilt are off
-        // because the marker bubble already encodes heading via its
-        // own Transform.rotate.
-        interactionOptions: const InteractionOptions(
-          flags:
-              InteractiveFlag.pinchZoom |
-              InteractiveFlag.drag |
-              InteractiveFlag.doubleTapZoom |
-              InteractiveFlag.flingAnimation,
-        ),
-        onPositionChanged: (camera, hasGesture) {
-          if (hasGesture && !_programmaticMoveInFlight) {
-            widget.onUserGesture?.call();
-          }
-        },
-      ),
+      options: _mapOptions,
       children: [
         TileLayer(
           urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
@@ -162,6 +196,28 @@ class _OsmAppMapState extends State<OsmAppMap> {
           // the User-Agent requirement; visible attribution will be
           // added during the design-system cleanup pass.
         ),
+        // P2: GPS accuracy circle (and any other caller-supplied
+        // overlays) render BELOW the polyline + marker layers so the
+        // route line and the tech bubble stay visually on top. The
+        // `useRadiusInMeter: true` flag scales the circle with the
+        // map's zoom — at zoom 18 a 10m accuracy reads as a small
+        // visible ring; at zoom 14 it's barely a dot. That matches
+        // the real-world uncertainty footprint of the GPS fix.
+        if (widget.circles.isNotEmpty)
+          CircleLayer(
+            circles: widget.circles
+                .map(
+                  (c) => CircleMarker(
+                    point: c.center,
+                    radius: c.radiusMeters,
+                    useRadiusInMeter: true,
+                    color: c.fillColor,
+                    borderColor: c.strokeColor,
+                    borderStrokeWidth: c.strokeWidth,
+                  ),
+                )
+                .toList(growable: false),
+          ),
         if (widget.polylines.isNotEmpty)
           PolylineLayer(
             polylines: widget.polylines

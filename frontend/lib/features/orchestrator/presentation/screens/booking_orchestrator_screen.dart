@@ -247,62 +247,79 @@ class _LoadedBody extends StatelessWidget {
         (booking.status == BookingStatus.enRoute ||
             booking.status == BookingStatus.arrived);
 
-    final scrollableBody = SingleChildScrollView(
-      controller: scrollController,
-      physics: const AlwaysScrollableScrollPhysics(),
-      // AnimatedSwitcher keyed on status — when the WS event flips
-      // the booking's status, the outgoing body fades+slides up and
-      // the incoming body fades+slides in (320ms). Map bodies have
-      // their own internal frame tween, so the only swap-time
-      // animation comes from this outer switcher.
-      child: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 320),
-        switchInCurve: Curves.easeOutCubic,
-        switchOutCurve: Curves.easeInCubic,
-        transitionBuilder: (child, animation) {
-          final slide = Tween<Offset>(
-            begin: const Offset(0, 0.08),
-            end: Offset.zero,
-          ).animate(animation);
-          return FadeTransition(
-            opacity: animation,
-            child: SlideTransition(
-              position: slide,
-              child: child,
-            ),
-          );
-        },
-        layoutBuilder: (currentChild, previousChildren) => Stack(
-          alignment: Alignment.topCenter,
-          children: <Widget>[
-            ...previousChildren,
-            ?currentChild,
-          ],
-        ),
-        child: KeyedSubtree(
-          key: ValueKey(booking.status),
-          child: BodySlot(booking: booking),
-        ),
+    // AnimatedSwitcher keyed on status — when the WS event flips
+    // the booking's status, the outgoing body fades+slides up and
+    // the incoming body fades+slides in (320ms). Map bodies have
+    // their own internal frame tween, so the only swap-time
+    // animation comes from this outer switcher.
+    final animatedBody = AnimatedSwitcher(
+      duration: const Duration(milliseconds: 320),
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      transitionBuilder: (child, animation) {
+        final slide = Tween<Offset>(
+          begin: const Offset(0, 0.08),
+          end: Offset.zero,
+        ).animate(animation);
+        return FadeTransition(
+          opacity: animation,
+          child: SlideTransition(
+            position: slide,
+            child: child,
+          ),
+        );
+      },
+      layoutBuilder: (currentChild, previousChildren) => Stack(
+        alignment: Alignment.topCenter,
+        children: <Widget>[
+          ...previousChildren,
+          ?currentChild,
+        ],
+      ),
+      child: KeyedSubtree(
+        key: ValueKey(booking.status),
+        child: BodySlot(booking: booking),
       ),
     );
 
-    // Soft top fade so scrolling body content gently dissolves under
-    // the hero header instead of hard-cutting at its edge. `dstIn` +
-    // a 4%-transparent → opaque gradient produces a 24px alpha
-    // falloff at the top of the viewport regardless of scroll
-    // offset (the mask is in viewport-space, not content-space).
-    final Widget bodyChild = isMapLed
-        ? scrollableBody
-        : ShaderMask(
-            blendMode: BlendMode.dstIn,
-            shaderCallback: (rect) => const LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [Colors.transparent, Colors.black, Colors.black],
-              stops: [0.0, 0.04, 1.0],
-            ).createShader(rect),
-            child: scrollableBody,
-          );
+    // P3 audit fix (Tier 2 — "slow to move" bulletproof): map-led
+    // statuses (customer EN_ROUTE / customer ARRIVED) drop the
+    // SingleChildScrollView entirely. The parent ScrollView was
+    // stealing single-finger vertical drag from the map inside it,
+    // which is unfixable on flutter_map (no `gestureRecognizers`
+    // API like google_maps_flutter has). With the ScrollView gone,
+    // the body content fits in the Expanded above directly, the
+    // map widget claims all gestures unimpeded, and EnRouteBodyStub /
+    // _CustomerArrivedBody adapt to the bounded constraints via
+    // their own LayoutBuilder (using Expanded for the map slot).
+    //
+    // Non-map-led statuses keep the SingleChildScrollView + ShaderMask
+    // top-fade — bodies are summary/cards that benefit from scroll
+    // and from the soft-fade under the hero header.
+    final Widget bodyChild;
+    if (isMapLed) {
+      bodyChild = animatedBody;
+    } else {
+      // Soft top fade so scrolling body content gently dissolves under
+      // the hero header instead of hard-cutting at its edge. `dstIn` +
+      // a 4%-transparent → opaque gradient produces a 24px alpha
+      // falloff at the top of the viewport regardless of scroll
+      // offset (the mask is in viewport-space, not content-space).
+      bodyChild = ShaderMask(
+        blendMode: BlendMode.dstIn,
+        shaderCallback: (rect) => const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Colors.transparent, Colors.black, Colors.black],
+          stops: [0.0, 0.04, 1.0],
+        ).createShader(rect),
+        child: SingleChildScrollView(
+          controller: scrollController,
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: animatedBody,
+        ),
+      );
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -333,13 +350,22 @@ class _LoadedBody extends StatelessWidget {
           ),
         ),
         TimelineSlot(booking: booking),
+        // LTM-P0 (zoom UX fix): skip RefreshIndicator on map-led
+        // statuses. Pull-to-refresh on a live map is hostile UX — a
+        // downward pan on the map means "show me south", not
+        // "reload". Customers on EN_ROUTE / ARRIVED still get fresh
+        // data via the WS event stream + the 3px refresh progress
+        // bar above; the manual fallback is preserved on every other
+        // status (where the body is summary/cards, not a map).
         Expanded(
-          child: RefreshIndicator(
-            color: _brandBlue,
-            displacement: 24,
-            onRefresh: onPullToRefresh,
-            child: bodyChild,
-          ),
+          child: isMapLed
+              ? bodyChild
+              : RefreshIndicator(
+                  color: _brandBlue,
+                  displacement: 24,
+                  onRefresh: onPullToRefresh,
+                  child: bodyChild,
+                ),
         ),
         if (!hideAlwaysOnSummary) BookingSummaryCard(booking: booking),
         OrchestratorActionBar(booking: booking),
