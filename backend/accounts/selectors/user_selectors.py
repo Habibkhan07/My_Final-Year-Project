@@ -7,7 +7,8 @@ def get_user_by_phone(*, phone: str):
 def is_profile_incomplete(*, user) -> bool:
     """Read Logic: Checks if first/last names are missing. [cite: 220]"""
     return not (bool(user.first_name) and bool(user.last_name))
-
+ 
+ # Note: The `get_me` selector is used by the `MeView` to fetch the caller's User
 
 def get_me(*, user):
     """
