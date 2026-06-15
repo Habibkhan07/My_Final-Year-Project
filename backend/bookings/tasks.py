@@ -7,7 +7,7 @@ Tasks operate on primitive IDs (never ORM instances) and re-fetch under
 from __future__ import annotations
 
 import logging
-
+# importing the importants libraries
 from celery import shared_task
 from django.db import transaction
 
