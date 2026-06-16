@@ -142,7 +142,7 @@ class BookingNotFoundForTechnicianError(Exception):
     technician (IDOR-safe enumeration defense).
     """
 
-
+# The accept/decline views catch this and translate it to a 404 with
 class BookingNotActionableError(Exception):
     """
     Raised by accept/decline when the booking has already left AWAITING and
