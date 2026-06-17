@@ -1115,6 +1115,9 @@ class SupportTicketAdmin(admin.ModelAdmin):
 # not landed). The model and the orchestrator's write site remain so
 # the audit log keeps accumulating — when reliability scoring resumes,
 # re-register the admin here.
+
+# this is last change i am goona made in the admin section 
+
 class TechReliabilityIncidentAdmin(EngineerOnlyAdminMixin, admin.ModelAdmin):
     """Append-only audit log of tech reliability events.
 
