@@ -1,6 +1,8 @@
 from django.db import models
 from django.conf import settings
 
+#This is models for the customer profile and address. It contains the models for the customer profile and address. The customer profile is linked to the user model and the address is linked to the customer profile. The address model contains fields for the label, street address, latitude, longitude, is_default, created_at, neighborhood, suburb, city, state, country, postal_code, and locality_label. The address model also has a Meta class that orders the addresses by is_default and id. The __str__ method returns a string representation of the customer profile and address.
+
 
 class CustomerProfile(models.Model):
     user = models.OneToOneField(
