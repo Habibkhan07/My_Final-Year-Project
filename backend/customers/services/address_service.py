@@ -3,6 +3,9 @@ from django.db import transaction
 from rest_framework.exceptions import NotFound
 
 from customers.models import CustomerAddress, CustomerProfile
+# This is comment.
+#More there will be added more comments to improve the code readibilty
+
 
 
 def create_customer_address(*, user: User, validated_data: dict) -> CustomerAddress:
