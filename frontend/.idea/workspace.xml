@@ -34,3 +34,5 @@
     <property name="show.migrate.to.gradle.popup" value="false" />
   </component>
 </project>
+
+#this is the workspace.xml file for the frontend project. It contains the configuration for the project, including the run configuration for the main.dart file, the modules for the project, and the properties for the project. The run configuration specifies that the main.dart file should be run using the FlutterRunConfigurationType. The modules specify that there are two modules in the project: frontend and frontend_android. The properties specify that the last opened file path is $PROJECT_DIR$, that the dart analysis tool window should be forced to activate, and that the migrate to gradle popup should not be shown.
