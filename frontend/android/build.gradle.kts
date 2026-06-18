@@ -22,3 +22,8 @@ subprojects {
 tasks.register<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)
 }
+
+/*
+ * This is a multi-line comment
+ * It can span multiple lines
+ */
