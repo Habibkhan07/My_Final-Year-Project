@@ -12,7 +12,7 @@ class ChatbotConfig(AppConfig):
     The LLM is reached via a single adapter (``chatbot.adapters``) chosen by
     the ``LLM_ADAPTER`` setting, decoupling personas from the model vendor.
     """
-
+# this is going to be a long comment
     name = "chatbot"
     default_auto_field = "django.db.models.BigAutoField"
 
