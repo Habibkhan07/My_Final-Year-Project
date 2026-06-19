@@ -1,6 +1,6 @@
 from django.apps import AppConfig
 
-
+#Comment in app.py
 class ChatbotConfig(AppConfig):
     """Pluggable LLM-chat framework.
 
