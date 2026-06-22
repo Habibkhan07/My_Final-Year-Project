@@ -12,6 +12,8 @@ Per CLAUDE.md: views contain no business logic. Service exceptions are
 translated to ``ChatbotError`` (canonical envelope) and re-raised — the
 exception handler renders the envelope.
 """
+
+# THis is a comment
 from __future__ import annotations
 
 from django.conf import settings
