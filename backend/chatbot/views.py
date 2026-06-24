@@ -14,7 +14,7 @@ exception handler renders the envelope.
 """
 
 # THis is a comment
-
+# This is a comment
 from __future__ import annotations
 
 from django.conf import settings
