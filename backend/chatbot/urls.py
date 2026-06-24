@@ -9,7 +9,7 @@ from django.urls import path
 from chatbot import views
 
 #This is a comnent
-
+# This is a comment
 
 urlpatterns = [
     # Open or resume a conversation with the named persona.
