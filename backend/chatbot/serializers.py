@@ -12,7 +12,7 @@ from __future__ import annotations
 from rest_framework import serializers
 
 #This is a comment
-
+# This is a comment
 
 class StartConversationSerializer(serializers.Serializer):
     """Body of POST /api/chat/<persona>/start/.
