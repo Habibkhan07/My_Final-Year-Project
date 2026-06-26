@@ -12,7 +12,13 @@ Three pluggable seams:
 Protocols are structural (not ``runtime_checkable``) — a concrete class
 need not inherit anything, it just needs to match the shape. Test fakes
 inline these inline without ceremony.
+
 """
+
+# This is a comment
+# This is a comment
+# This is a comment
+# This is a comment
 from __future__ import annotations
 
 from dataclasses import dataclass
