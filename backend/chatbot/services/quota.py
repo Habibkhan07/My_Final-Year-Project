@@ -16,6 +16,18 @@ increment, so two parallel requests that both see ``count = 49`` can't
 both increment to 50 (which would leave a 51 row). The atomic F() update
 prevents the read-modify-write race in the single-process case.
 """
+
+# This is a comment
+# This is a comment
+# This is a comment
+# This is a comment
+# This is a comment# This is a comment
+# This is a comment
+# This is a comment
+# This is a comment# This is a comment
+# This is a comment
+# This is a comment
+
 from __future__ import annotations
 
 from django.conf import settings
