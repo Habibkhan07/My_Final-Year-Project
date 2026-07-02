@@ -23,6 +23,12 @@ from __future__ import annotations
 
 import re
 from typing import Callable
+# This is a comment
+# This is a comment
+# This is a comment
+# This is a comment
+# This is a comment
+# This is a comment
 
 
 # -- PII patterns ----------------------------------------------------------
