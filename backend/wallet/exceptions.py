@@ -39,6 +39,16 @@ request. The frontend's ``_mapFailures`` switch uses ``code``, not
 ``status``, to pick the sealed-class — but the HTTP status carries the
 correct semantic for logs, monitoring, and any future generic handler.
 """
+# This is a comment
+# This is a comment
+# This is a comment
+# This is a comment
+# This is a comment
+# This is a comment
+# This is a comment
+# This is a comment
+# This is a comment
+# This is a comment
 from __future__ import annotations
 
 from rest_framework import status as drf_status
