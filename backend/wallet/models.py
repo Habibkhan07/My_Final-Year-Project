@@ -17,6 +17,20 @@ All ledger writes funnel through ``wallet.services.ledger.record_transaction``,
 which enforces ``transaction.atomic() + select_for_update()`` on the technician
 row. Models themselves contain no business logic.
 """
+# This is a comment
+# This is a comment
+# This is a comment
+# This is a comment
+# This is a comment# This is a comment
+# This is a comment
+# This is a comment
+# This is a comment
+# This is a comment
+# This is a comment
+# This is a comment
+# This is a comment
+# This is a comment
+
 from django.conf import settings
 from django.db import models
 from django.db.models import Q
