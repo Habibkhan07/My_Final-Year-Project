@@ -27,7 +27,22 @@ Three public functions:
 All mutating ops run inside ``transaction.atomic`` with
 ``select_for_update`` on the Conversation row — concurrent calls for the
 same conversation serialize cleanly.
+
 """
+# This is a comment
+
+# This is a comment
+# This is a comment
+# This is a comment
+# This is a comment
+# This is a comment
+# This is a comment
+# This is a comment
+# This is a comment
+# This is a comment
+# This is a comment
+# This is a comment
+# This is a comment
 from __future__ import annotations
 
 from typing import Any
