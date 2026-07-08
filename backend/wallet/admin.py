@@ -25,16 +25,11 @@ screenshots shareable.
 # This is a comment
 # This is a comment
 # This is a comment
-# This is a comment# This is a comment
-# This is a comment
-# This is a comment
-# This is a comment
-# This is a comment# This is a comment
 # This is a comment
 # This is a comment
 # This is a comment
 # This is a comment
-# This is a comment# This is a comment
+# This is a comment
 
 from __future__ import annotations
 
