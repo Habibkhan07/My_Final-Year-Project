@@ -21,12 +21,6 @@ row. Models themselves contain no business logic.
 # This is a comment
 # This is a comment
 # This is a comment
-# This is a comment# This is a comment
-# This is a comment
-# This is a comment
-# This is a comment
-# This is a comment
-# This is a comment
 # This is a comment
 # This is a comment
 # This is a comment
