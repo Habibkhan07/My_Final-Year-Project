@@ -2,6 +2,21 @@
 """Django's command-line utility for administrative tasks."""
 import os
 import sys
+# This is a comment
+# This is a comment
+# This is a comment
+# This is a comment
+# This is a comment
+# This is a comment
+# This is a comment
+# This is a comment
+# This is a comment
+# This is a comment
+# This is a comment
+# This is a comment
+
+
+
 
 
 def main():
