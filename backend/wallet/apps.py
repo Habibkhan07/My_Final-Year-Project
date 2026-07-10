@@ -1,5 +1,14 @@
 from django.apps import AppConfig
+# This is a comment
+# This is a comment
+# This is a comment
+# This is a comment
 
+# This is a comment
+# This is a comment
+# This is a comment
+
+# This is a comment
 
 class WalletConfig(AppConfig):
     """Tech-facing virtual wallet (commission ledger + JazzCash top-up rails).
