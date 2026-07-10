@@ -24,6 +24,22 @@ row. Models themselves contain no business logic.
 # This is a comment
 # This is a comment
 # This is a comment
+# This is a comment
+# This is a comment
+# This is a comment
+# This is a comment
+# This is a comment
+# This is a comment
+
+# This is a comment
+# This is a comment
+# This is a comment
+# This is a comment
+# This is a comment
+# This is a comment
+# This is a comment
+# This is a comment
+# This is a comment
 
 from django.conf import settings
 from django.db import models
